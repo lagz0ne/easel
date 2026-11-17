@@ -81,9 +81,13 @@ The exit code reads the call's success kinds: the one list that its contract mar
 | the server cannot be reached (`link`)        | 69   | `{ unreachable: <url> }` |
 | the server threw (`failed`, `encode`)        | 70   | `{ failed: <traceId> }`  |
 | the server lacks the call (`missing`)        | 76   | `{ missing: <call> }`    |
+| the hosts file cannot be read                | 78   | `{ config: <path> }`     |
+| stopped by Ctrl-C (a waiting login is kept)  | 130  | nothing                  |
 
 Exit codes past 2 follow BSD `sysexits.h`: 64 usage, 65 data, 69 unavailable, 70 software, 76
-protocol. Each of Tinker's seven faults has a row: `decode` exits 70, as `encode` does.
+protocol, 78 config; 130 is 128 + SIGINT. Each of Tinker's seven faults has a row: `decode` exits
+70, as `encode` does. A call with no answer after 60 s (the server's 50 s, and a margin) is a
+`link` fault: a socket that is open on one end only cannot hang a command.
 
 A waiting command that prints a pending answer first takes its exit code from its last answer.
 
@@ -103,8 +107,8 @@ A waiting command that prints a pending answer first takes its exit code from it
 ### Judged rules (need reading the code)
 
 1. The exit code follows the table above, for every command.
-2. `hosts.json` is written with mode 0600, and the token is never printed except by
-   `easel login --json`.
+2. `hosts.json` is written with mode 0600, and the token is never printed, also not with
+   `--json`.
 3. A refusal says what to do next in its text: log in again, or ask an owner.
 4. A waiting command never makes one server call that waits more than 50 s.
 
