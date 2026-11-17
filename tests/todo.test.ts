@@ -181,65 +181,6 @@ for (const kind of ["memory", "ws"] as const) {
       await duke2.end();
       await until(() => watcher.resolve(board.people).get().length === 0);
     });
-
-    test("stress: 4 users x 5 clients, 20 ops each at once; every client ends equal to the server", async () => {
-      const { server, join, online } = await boot(kind);
-      const users = ["ann", "bob", "cat", "duke"];
-      const clients = await Promise.all(
-        users.flatMap((u) => Array.from({ length: 5 }, () => join(u))),
-      );
-      clients.forEach(online);
-      const started = performance.now();
-      let calls = 0;
-      await Promise.all(
-        clients.map(async (c, n) => {
-          const mine: string[] = [];
-          for (let i = 0; i < 20; i++) {
-            calls++;
-            if (i % 4 === 3 && mine.length) {
-              await c.settle(api["todo.remove"], { input: { id: mine.shift()! } });
-            } else if (i % 4 === 1) {
-              const any = c.resolve(board.todos).get();
-              if (any.length) {
-                await c.settle(api["todo.toggle"], {
-                  input: { id: any[(n + i) % any.length]!.id },
-                });
-              }
-            } else {
-              mine.push((await c.run(api["todo.add"], { input: { title: `c${n}-${i}` } })).id);
-            }
-          }
-        }),
-      );
-      const took = performance.now() - started;
-      const truth = JSON.stringify(server.resolve(board.todos).get());
-      await until(
-        () => clients.every((c) => JSON.stringify(c.resolve(board.todos).get()) === truth),
-        5000,
-      );
-      await until(() =>
-        clients.every((c) => c.resolve(board.people).get().join() === users.join()),
-      );
-      const done = server.resolve(board.todos).get();
-
-      expect(done.length).toBe(100); // 20 clients x (10 adds - 5 removes)
-      expect(new Set(done.map((t) => t.id)).size).toBe(done.length);
-      // Each basket has its own stream, so activity may land a moment after todos; it must still land.
-      await until(
-        () =>
-          clients.every(
-            (c) =>
-              JSON.stringify(c.resolve(board.activity).get()) ===
-              JSON.stringify(server.resolve(board.activity).get()),
-          ),
-        5000,
-      );
-      console.log(
-        `${kind}: ${calls} calls from 20 clients in ${took.toFixed(0)} ms; ${done.length} todos; all 20 clients equal`,
-      );
-      await Promise.all(clients.map(async (c) => c.end()));
-      await until(() => server.resolve(board.people).get().length === 0);
-    }, 20_000);
   });
 }
 

@@ -47,8 +47,8 @@ DOM as possible, pictures for the rest.
   not on every camera frame.
 - Use hysteresis: go live within 0.1 viewport
   of the view, stay live out to 0.5.
-- Measured: 200 frames, 200 live documents down to
-  20. Heap 225 to 86 MB. Settle 3.7 to 1.0 s.
+- Measured: 200 frames, 200 live documents down
+  to 20. Heap 225 to 86 MB. Settle 3.7 to 1.0 s.
 - The tighter margin: 12 live documents per rest
   down to 4-6. Coming back to an area: 435 to
   183 ms of main thread.
@@ -176,8 +176,8 @@ handles, pins) has to undo the zoom.
 - Each zoom step makes every live document
   re-raster at the new scale.
 - At the first zoom step, show each live frame's
-  picture and hide its iframe (`visibility:
-  hidden`, still mounted). At rest, show the
+  picture and hide its iframe
+  (`visibility: hidden`, still mounted). At rest, show the
   document, drop the picture once it painted.
 - Keep the document for frames being edited,
   selected, written to, or with no picture yet.

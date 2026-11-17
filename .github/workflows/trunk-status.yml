@@ -7,7 +7,7 @@ name: Trunk status
 
 on:
   workflow_run:
-    workflows: ["gates", "template tag"]
+    workflows: ["gates"]
     types: [completed]
     branches: [main]
 

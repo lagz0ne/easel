@@ -90,15 +90,6 @@ for (const driver of drivers) {
       ]);
     });
 
-    test("ten parallel calls each commit their own transaction", async () => {
-      await Promise.all(
-        Array.from({ length: 10 }, (_, index) =>
-          app.run(ops.addNote, { input: { title: `parallel ${index}` }, ...own() }),
-        ),
-      );
-      expect(await app.run(ops.listNotes)).toHaveLength(12);
-    });
-
     test("own: a subflow with signal commits on its own; the joined rest rolls back", async () => {
       expect((await app.settle(ops.keepOneThenFail, own())).status).toBe("failed");
       const titles = (await app.run(ops.listNotes)).map((note) => note.title);

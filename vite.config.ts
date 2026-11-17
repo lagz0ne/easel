@@ -56,7 +56,8 @@ export default defineConfig({
           setupFiles: ["tests/browser/exits.setup.ts"],
           // An IP, not `localhost`: another suite on the machine may hold [::1]:63315 (the
           // default), and Chromium would resolve `localhost` to it and miss this run's session.
-          api: { host: "127.0.0.1" },
+          // Not strict: parallel runs on this machine (agents, ship gates) take the next free port.
+          api: { host: "127.0.0.1", strictPort: false },
           browser: {
             enabled: true,
             headless: true,
