@@ -92,7 +92,7 @@ type Frame = FrameInfo & { html: string }
 "canvas.create":  { kind: "created"; key: string } | { kind: "taken" }
 "canvas.list":    { canvases: CanvasInfo[] }
 "canvas.delete":  { kind: "deleted" } | { kind: "gone" }
-"canvas.share":   { kind: "shared"; url: string } | { kind: "gone" }
+"canvas.share":   { kind: "shared"; path: string } | { kind: "gone" }
 "canvas.unshare": { kind: "unshared" } | { kind: "gone" }
 
 "frame.list":   { kind: "found"; frames: FrameInfo[] } | { kind: "gone" }
@@ -144,13 +144,28 @@ Inputs:
   current version. It draws nothing; the address does.
 - `canvas.share` takes `{ canvas, password? }`. A string of 8 or more characters sets or changes
   the password, `null` removes it, and no field keeps it as it is.
+- `canvas.share` answers the link's page as a path, `/s/<link>`. `easel share` prints it joined
+  to the server URL it called, so the server needs no public origin (decision C4).
+- Until passwords are built, `canvas.share` and `share.open` take no `password` field: a call
+  with one is `invalid`, and `easel share --password` is bad usage (64). The
+  [frames-share-open](docs/statecharts/frames-share-open.md) and
+  [viewer-gate-open](docs/statecharts/viewer-gate-open.md) charts are that slice.
 - `share.open` takes `{ link, password?, name }`. `name` is 1 to 40 characters.
 - A `share.open` with no password, on a link that has one, answers `locked`. It is not a try, and
-  never answers `slow`.
+  is never locked out.
+- The flood limit: every `share.open` counts, any link, password or not, at most 30 a minute per
+  client address (the address and the sliding minute of `login.start`'s limit, keyed as in
+  decisions D7 and A8, an IPv6 address by its /64). Past it, `share.open` answers `slow` with
+  `retryIn`. The page stays on Opening and calls again after `retryIn` plus up to 1 s, so tabs
+  slowed together do not call together. It never shows the wait page.
+- A link keeps at most 1000 passes. An open past that ends the link's oldest pass, which is
+  refused `{ ended: true }` on its next read. A page whose pass is refused that way calls
+  `share.open` once more. It shows the ended page only if the link is gone or the new pass is
+  refused too.
 - A try is a `share.open` with a password. Tries count per client address and link, in the minute
   from the first wrong one. Wrong tries 1 to 5 in that minute answer `wrong`. Any try after 5 wrong
-  ones in that minute answers `slow` with `retryIn`, even with the right password. `slow` answers
-  only a try.
+  ones in that minute answers `slow` with `retryIn`, even with the right password. Apart from the
+  flood limit, `slow` answers only a try.
 
 `pass` is what the tab sends from then on. It is a separate 128-bit random value, not the link.
 The server keeps it only as its SHA-256 digest, with the link it was given on and the viewer's
@@ -234,9 +249,11 @@ number or section.
 9. A picture key is compared in constant time.
 10. A share password is kept only as an argon2id hash (`Bun.password`), and has at least 8
     characters.
-11. A share link names 128 random bits. It is kept readable, so that `easel share` and
-    `easel canvas ls` can print it again. A pass is 128 other random bits, kept only as its
-    SHA-256 digest, and compared in constant time.
+11. A share link names 128 random bits. It is kept readable, so that `easel share` can print it
+    again (`easel canvas ls` says only that a canvas is shared). A pass is 128 other random bits, kept only as its
+    SHA-256 digest. A pass is found by an indexed lookup of its digest, not by a constant-time
+    compare: the digest of a 128-bit random value leaks nothing a timing could use, and it is how
+    services commonly look up tokens they keep only hashed (GitHub's tokens, for one).
 12. `canvas.share` on a shared canvas keeps its link. Setting or changing the password ends every
     pass on the link; removing it, or setting the same password again, ends none and keeps the key
     generation. Only `canvas.unshare` and `canvas.delete` end a link.
@@ -244,13 +261,20 @@ number or section.
 13. Unshare, a canvas delete, or a new password sends the refusal to each live watch of each pass
     it ends, before it answers. An ended pass is also refused on its next call or read.
 14. Wrong passwords count per client address and link. The address is the one Traefik adds to
-    `X-Forwarded-For`, never one the client sent. In the minute from the first wrong try, wrong
-    tries 1 to 5 answer `wrong`, and any try after 5 wrong ones answers `slow` with `retryIn`,
-    even with the right password. An open with no password answers `locked`, is not a try, and is
-    never `slow`. Another address, or another link, is not slowed by them.
+    `X-Forwarded-For`, never one the client sent. The server reads `X-Forwarded-For` only from
+    the proxies in `EASEL_TRUSTED_PROXIES`; without it, every viewer behind Traefik is one
+    address. In the minute from the first wrong try, wrong tries 1 to 5 answer `wrong`, and any
+    try after 5 wrong ones answers `slow` with `retryIn`, even with the right password. Another
+    address, or another link, is not slowed by them.
+    An open with no password answers `locked`, is not a try, and is never locked out. Past the
+    flood limit (30 a minute per address, any link) it answers `slow` with `retryIn`. The page
+    stays on Opening and calls again after `retryIn` plus up to 1 s. It never shows the wait
+    page.
 15. A link, a pass and a share password never reach a span attribute, a log record, or the text of
-    an `invalid` fault. Pages send `Referrer-Policy: no-referrer`, so a link does not leave in a
-    `Referer` header.
+    an `invalid` fault. Pages send `Referrer-Policy: no-referrer`, and the page's own
+    `<meta name="referrer">` says the same, so a link does not leave in a `Referer` header.
+    The proxy's access logs (Traefik's) do hold the path `/s/<link>`: whoever reads them can open
+    the link.
 
 ## Success Criteria
 

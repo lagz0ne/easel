@@ -34,6 +34,7 @@ Each chart's page has the chart, its rules in plain words, and what the model le
 | [frames-writes-two-step](frames-writes-two-step.md) | frames | Why a save is one write: a check then a write saves on an old version                     |
 | [frames-pictures](frames-pictures.md)               | frames | A frame's picture: rendered, current, old, and gone with its frame                        |
 | [frames-share](frames-share.md)                     | frames | A share link: shared, password set or changed, passes, unshared                           |
+| [frames-share-open](frames-share-open.md)           | frames | The first slice: a share link with no password, that nothing ends yet                     |
 | [queue-lease](queue-lease.md)                       | queue  | A comment: open, claimed, extended, released, resolved, stuck                             |
 | [queue-two-step](queue-two-step.md)                 | queue  | Why a claim is one write: a pick then a write gives one comment to two agents             |
 | [ops-issues](ops-issues.md)                         | ops    | An error group: open, resolved, regressed, evicted                                        |
@@ -43,6 +44,7 @@ Each chart's page has the chart, its rules in plain words, and what the model le
 | [fixer-probe](fixer-probe.md)                       | fixer  | The probe: it sees whether the fixer still ticks                                          |
 | [fixer-claim-unsafe](fixer-claim-unsafe.md)         | fixer  | Why the fixer needs a guard: with neither, an orphaned `ship.sh` pushes without the claim |
 | [viewer-gate](viewer-gate.md)                       | viewer | Opening a link: the password, the pass, an ended link                                     |
+| [viewer-gate-open](viewer-gate-open.md)             | viewer | The first slice: the name gate, a link with no password, an unknown link                  |
 | [viewer-canvas](viewer-canvas.md)                   | viewer | The canvas: live frames, pan and zoom, reconnecting                                       |
 | [viewer-pin-post](viewer-pin-post.md)               | viewer | Posting a comment: typed, sent, saved, or a fault                                         |
 | [viewer-pin-link](viewer-pin-link.md)               | viewer | A pin when its link ends: the typed text stays to copy                                    |

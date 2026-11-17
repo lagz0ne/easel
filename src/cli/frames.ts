@@ -20,10 +20,11 @@ import {
 import type { FramesAddress } from "@/frames/contract";
 
 import { callDeadline, exits, faultExit } from "./exit";
+import { server } from "./hosts";
 import { say } from "./output";
 
-// `easel canvas new|ls`, `easel put`, `easel ls`, `easel get` and `easel rm`
-// (SPEC-frames.md § Make a canvas, § Make and change frames). Each prints its answer and exits by
+// `easel canvas new|ls`, `easel put`, `easel ls`, `easel get`, `easel rm` and `easel share`
+// (SPEC-frames.md § Make a canvas, § Make and change frames, § Share a canvas). Each prints its answer and exits by
 // the call's success list in frames' contract (SPEC-cli.md fact rule 3). A frames fault is told
 // as the shell tells any fault (`faultExit`): refused 2, invalid 65, link 69, failed 70.
 
@@ -51,6 +52,8 @@ export const framesCommand = z.discriminatedUnion("kind", [
   z.object({ kind: z.literal("ls"), canvas: canvasKey }),
   z.object({ kind: z.literal("get"), canvas: canvasKey, id: frameId, out: z.string().optional() }),
   z.object({ kind: z.literal("rm"), canvas: canvasKey, id: frameId }),
+  /** `--password` as typed: passwords are not built, so `share` says so (64). */
+  z.object({ kind: z.literal("share"), canvas: canvasKey, password: z.string().optional() }),
 ]);
 
 export type FramesCommand = z.infer<typeof framesCommand>;
@@ -80,6 +83,7 @@ const address = z.enum([
   "frame.list",
   "frame.get",
   "frame.delete",
+  "canvas.share",
 ] satisfies FramesAddress[]);
 
 /**
@@ -531,11 +535,63 @@ export const rm = operation({
   },
 });
 
+/**
+ * `easel share <canvas>` (`canvas.share`): prints the link's page on this server,
+ * `<server>/s/<link>`. Sharing a shared canvas prints the same link (judged rule 11). A password
+ * is not built yet: `--password` is bad usage, 64, before any call.
+ */
+export const share = operation({
+  label: "cli.share",
+  input: framesCommand.options[6],
+  depends: {
+    say,
+    usage,
+    exitOf: framesExitOf,
+    framesFault,
+    deadline: framesDeadline,
+    origin: server.required,
+    shareCall: frames.api["canvas.share"],
+  },
+  run: async ({ say, usage, exitOf, framesFault, deadline, origin, shareCall }, { input }) => {
+    if (input.password !== undefined) {
+      return usage.run({
+        input: "--password is not built yet: a share link opens for anyone who has it",
+      });
+    }
+
+    const stop = deadline.run({ input: "canvas.share" });
+    const reply = await shareCall.settle({ input: { canvas: input.canvas }, signal: stop.signal });
+    stop.abort();
+    if (reply.status === "cancelled") return framesFault.run({ input: reply.reason });
+    if (reply.status === "failed") return framesFault.run({ input: reply.error });
+
+    const answer = reply.value;
+    switch (answer.kind) {
+      case "shared": {
+        const url = new URL(answer.path, origin).href;
+        say.run({ input: { json: { kind: answer.kind, url }, text: url } });
+        break;
+      }
+      case "gone":
+        say.run({
+          input: {
+            json: answer,
+            text: `no canvas ${input.canvas}: make it with \`easel canvas new\``,
+            error: true,
+          },
+        });
+        break;
+    }
+
+    return exitOf.run({ input: { address: "canvas.share", kind: answer.kind } });
+  },
+});
+
 /** Runs one frames command; answers its exit code. The shell's `cli.run` sends each here. */
 export const framesRun = operation({
   label: "cli.frames",
   input: framesCommand,
-  depends: { canvasNew, canvasLs, put, ls, get, rm },
+  depends: { canvasNew, canvasLs, put, ls, get, rm, share },
   run: (ops, { input }) => {
     switch (input.kind) {
       case "canvas new":
@@ -550,6 +606,8 @@ export const framesRun = operation({
         return ops.get.run({ input });
       case "rm":
         return ops.rm.run({ input });
+      case "share":
+        return ops.share.run({ input });
     }
   },
 });

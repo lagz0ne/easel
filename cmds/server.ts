@@ -16,6 +16,7 @@ import { ownerOps, userOps } from "@/access/users.server";
 import { frames } from "@/frames";
 import { socketMaxPayload } from "@/frames/contract";
 import { framesLoads, framesOps, mayRead } from "@/frames/ops.server";
+import { shareOps, shareServer } from "@/frames/share.server";
 import { framesServer } from "@/frames/store.server";
 import { greet } from "@/greet";
 import { greetOps } from "@/greet/greet.server";
@@ -101,6 +102,7 @@ export default defineMain(async ({ env, args, signal, stdout, stderr, exit }) =>
       ops.owner,
       frames.api,
       frames.board,
+      frames.viewer,
     ],
     origin,
     // 2 MiB, above the 1 MiB document: a document a little too big gets `tooBig`, not a closed
@@ -146,6 +148,9 @@ export default defineMain(async ({ env, args, signal, stdout, stderr, exit }) =>
       framesServer({ stdout }),
       frames.api({ implement: framesOps, onStart: [user] }),
       frames.board({ serve: true, load: framesLoads, onStart: [mayRead] }),
+      // Share links and passes, in EASEL_DB; `share.open` needs nothing but the link (fact rule 1).
+      shareServer(),
+      frames.viewer({ implement: shareOps }),
       // The build that runs: the image sets GIT_SHA and BUILD.
       release({ commit: set.GIT_SHA, build: Number(set.BUILD) }),
       // The error groups, readiness and the fixer's stamp, kept in EASEL_DB.

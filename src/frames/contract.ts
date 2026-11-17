@@ -1,6 +1,8 @@
 import { data, remoteData, rpc } from "@tinkered/core";
 import { z } from "zod";
 
+import { sharePath } from "./share";
+
 // frames' contract (SPEC-frames.md § Contract): the CLI, MCP and the page import it. `framesApi`
 // is a user's calls (the `user` guard runs first, fact rule 1). `framesBoard` is the board a live
 // tab watches (`easel.board`): its cells are keyed by canvas, and `mayRead` guards every read
@@ -68,7 +70,7 @@ export const size = z.object({ w: side, h: side });
 /** A frame's version: 1 when it is made, one up on each change of its document. */
 export const version = z.number().int().positive();
 
-/** A canvas as `easel canvas ls` lists it (decision C1). `shared` is false until share lands. */
+/** A canvas as `easel canvas ls` lists it (decision C1). `shared`: it has a live share link. */
 export const canvasInfo = z.object({
   key: z.string(),
   name: z.string(),
@@ -173,6 +175,14 @@ export const framesApi = rpc({
     input: z.null(),
     output: z.object({ canvases: z.array(canvasInfo) }),
   },
+  // Strict: a `password` field is `invalid` until passwords are built (SPEC-frames § Inputs).
+  "canvas.share": {
+    input: z.strictObject({ canvas: canvasKey }),
+    output: z.discriminatedUnion("kind", [
+      z.object({ kind: z.literal("shared"), path: sharePath }),
+      gone,
+    ]),
+  },
   "frame.put": {
     input: putInput,
     output: putOutput,
@@ -210,6 +220,7 @@ type KindOf<A extends FramesAddress> =
 export const framesSuccessKinds = {
   "canvas.create": ["created"],
   "canvas.list": "always",
+  "canvas.share": ["shared"],
   "frame.put": ["created", "updated", "unchanged"],
   "frame.list": ["found"],
   "frame.get": ["found"],

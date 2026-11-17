@@ -4,21 +4,31 @@ import { z } from "zod";
 import { user } from "@/access/guards.server";
 
 import { framesApi, framesBoard, frames, keyOfName, maxDocBytes } from "./contract";
+import { passMeta } from "./share";
+import { passCanvas, shareCanvas } from "./share.server";
 import { canvases, dropFrame, readDoc, saveCanvas, saveFrame } from "./store.server";
 
 // frames' calls (after the `user` guard, fact rule 1) and the board's guard and load. V1: any
 // signed-in user may write any canvas; one team per server (decision C9).
 
 /**
- * Every board read (fact rule 6): a live user. Share adds the other way in, a live pass for the
- * part's canvas, here and nowhere else; until then a read without a user token is refused
- * `{ signIn: true }`, as `user` refuses it.
+ * Every board read (fact rule 6): a live user, or a live pass for the part's canvas. A read whose
+ * meta carries a pass is judged by the pass alone: one that is not live for that canvas is
+ * refused `{ ended: true }`, and the page says the link has ended. Any other read goes to `user`:
+ * no token, or a dead one, is refused `{ signIn: true }`.
  */
 export const mayRead = operation({
   label: "frames.mayRead",
   input: transport.hook.start,
-  depends: { user },
-  run: ({ user }, { input }) => user.run({ input }),
+  depends: { user, passCanvas },
+  run: async ({ user, passCanvas }, { input }) => {
+    const sent = passMeta.safeParse(input.meta);
+    if (!sent.success) return user.run({ input });
+
+    const canvas = await passCanvas.run({ input: sent.data.pass });
+    const part = framesBoard.part(input);
+    return canvas !== null && part?.canvas === canvas ? undefined : input.refuse({ ended: true });
+  },
 });
 
 /** The board's `docs` load: one frame's current document, read from its row (decision C12). */
@@ -138,6 +148,7 @@ export const deleteFrame = operation({
 export const framesOps = {
   "canvas.create": createCanvas,
   "canvas.list": listCanvases,
+  "canvas.share": shareCanvas,
   "frame.put": putFrame,
   "frame.list": listFrames,
   "frame.get": getFrame,

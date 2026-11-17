@@ -7,6 +7,8 @@ import { greet } from "@/greet";
 import { Greeting } from "@/greet/greeting";
 import { Board, IssuesHome, Thread } from "@/issues/board";
 import { TodoList } from "@/todo/todo-list";
+import { openPage } from "@/viewer/gate";
+import { Opening, Viewer } from "@/viewer/viewer";
 
 const root = createRootRouteWithContext<{ scope: Scope.Handle }>()({ component: Outlet });
 
@@ -48,6 +50,22 @@ const thread = createRoute({
   component: () => <Thread teamId={team.useParams().team} issueId={thread.useParams().id} />,
 });
 
+// A share link (SPEC-viewer.md): the loader opens it (the name gate, the canvas or ended), and
+// the page draws what the gate cell says.
+const share = createRoute({
+  getParentRoute: () => root,
+  path: "/s/$link",
+  // Leaving the page aborts the loader: a `slow` retry for this link stops there. The signal
+  // goes in the input, not as the run's own `signal`: that would run it in a child session,
+  // whose writes the page's cells never see.
+  loader: ({ context, params, abortController }) =>
+    context.scope.run(openPage, { input: { link: params.link, stop: abortController.signal } }),
+  // While the loader waits, a flood `slow` included, the page says Opening at once.
+  pendingComponent: Opening,
+  pendingMs: 0,
+  component: () => <Viewer link={share.useParams().link} />,
+});
+
 const tinker = createRoute({
   getParentRoute: () => root,
   path: "/tinker",
@@ -64,5 +82,6 @@ export const routeTree = root.addChildren([
   todo,
   issues,
   team.addChildren([thread]),
+  share,
   tinker,
 ]);

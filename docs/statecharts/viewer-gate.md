@@ -1,6 +1,6 @@
 # viewer: open a share link, and the link ends
 
-The chart shows a tab from the moment it opens a share link until it shows the canvas or the ended page. `share.open` takes the viewer's name, so the page asks for it first, once per browser. A password link always asks for the password first: opening it never answers `slow`. Within a minute, password tries 1 to 5 that are wrong answer `wrong`, and any try after 5 wrong ones answers `slow`, even the right password. When a user unshares the canvas, the server pushes the refusal `{ ended: true }` to each tab on the link with a live socket. When a user sets or changes the password, every pass ends, and the server pushes `{ locked: true }`: the tab goes back to the password page. A tab whose socket was down learns either from its read when the socket is back. The model is [models/viewer/ViewerGate.tla](models/viewer/ViewerGate.tla) with [ViewerGate.cfg](models/viewer/ViewerGate.cfg). TLC checks every rule below on all 53 of its states, and each one holds.
+The chart shows a tab from the moment it opens a share link until it shows the canvas or the ended page. `share.open` takes the viewer's name, so the page asks for it first, once per browser. A password link always asks for the password first: opening it never answers `slow`. Within a minute, password tries 1 to 5 that are wrong answer `wrong`, and any try after 5 wrong ones answers `slow`, even the right password. When a user unshares the canvas, the server pushes the refusal `{ ended: true }` to each tab on the link with a live socket. When a user sets or changes the password, every pass ends, and the server pushes `{ locked: true }`: the tab goes back to the password page. A tab whose socket was down learns either from its read when the socket is back. A link keeps at most 1000 passes, and an open past that ends the link's oldest pass with no push: that tab learns it from its read when the socket is back, and opens the link again. The model is [models/viewer/ViewerGate.tla](models/viewer/ViewerGate.tla) with [ViewerGate.cfg](models/viewer/ViewerGate.cfg). TLC checks every rule below on all 94 of its states, and each one holds.
 
 ```mermaid
 ---
@@ -44,6 +44,7 @@ stateDiagram-v2
       s5 --> s4: the socket is back, its read is refused: ended [when Link is Link ended]
       s5 --> s3: the socket is back, its read is refused: locked [when Link is Link with a password]
       s3 --> s6: you press Open [after 5 wrong tries in a minute: slow]
+      s5 --> s0: the socket is back, its read is refused: ended (your pass was the link's oldest past 1000), so the page opens the link again [when Link is not Link ended]
       s6 --> s3: a minute passes
       s6 --> s4: you press Open [when Link is Link ended]
     }
@@ -79,19 +80,20 @@ stateDiagram-v2
   class s11 yellow
 ```
 
-| Rule                             | In plain words                                                                                              | Spec line                                                                             |
-| -------------------------------- | ----------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------- |
-| `TypeOK`                         | Each value is one the tab or the server can hold.                                                           | (model)                                                                               |
-| `NoFrameControl`                 | No page of the gate or the canvas shows a control that changes a frame. By construction (judged in code).   | SPEC-viewer.md § Objective                                                            |
-| `EndedPageOnly`                  | An ended or unknown link shows a page that says so, and no control. By construction (judged in code).       | SPEC-viewer.md § When the link ends; § Contract                                       |
-| `WaitMeansWait`                  | While the page says to wait, even the right password does not open the canvas.                              | SPEC-viewer.md § Open the link, step 2 (the gate: SPEC-frames.md § Open a share link) |
-| `NameOnce`                       | The page asks for the name only in a browser that has not given it.                                         | SPEC-viewer.md § Open the link, step 1                                                |
-| `NameBeforeOpen`                 | No tab gets past the gate without a name: `share.open` takes it.                                            | SPEC-viewer.md § Open the link, step 1; § Contract                                    |
-| `EndPushedAtOnce`                | A tab with a live socket shows the ended page as soon as the link ends.                                     | SPEC-viewer.md § When the link ends, step 1; § Contract                               |
-| `EndedStaysEnded`                | Once a tab is told its link ended, it never shows the canvas or a gate again.                               | SPEC-viewer.md § When the link ends, step 2                                           |
-| `LockPushedAtOnce`               | A tab with a live socket goes back to the password page as soon as a password set or changed ends its pass. | SPEC-viewer.md "When a password is set", contract                                     |
-| `OpenWithoutPasswordIsNeverSlow` | Opening a password link with no password shows the password page, never the alert to wait.                  | SPEC-viewer.md § Open the link, step 2 (the gate: SPEC-frames.md § Open a share link) |
-| `NoDeadlock`                     | There is always a next step.                                                                                | (model)                                                                               |
+| Rule                             | In plain words                                                                                                       | Spec line                                                                             |
+| -------------------------------- | -------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------- |
+| `TypeOK`                         | Each value is one the tab or the server can hold.                                                                    | (model)                                                                               |
+| `NoFrameControl`                 | No page of the gate or the canvas shows a control that changes a frame. By construction (judged in code).            | SPEC-viewer.md § Objective                                                            |
+| `EndedPageOnly`                  | An ended or unknown link shows a page that says so, and no control. By construction (judged in code).                | SPEC-viewer.md § When the link ends; § Contract                                       |
+| `WaitMeansWait`                  | While the page says to wait, even the right password does not open the canvas.                                       | SPEC-viewer.md § Open the link, step 2 (the gate: SPEC-frames.md § Open a share link) |
+| `NameOnce`                       | The page asks for the name only in a browser that has not given it.                                                  | SPEC-viewer.md § Open the link, step 1                                                |
+| `NameBeforeOpen`                 | No tab gets past the gate without a name: `share.open` takes it.                                                     | SPEC-viewer.md § Open the link, step 1; § Contract                                    |
+| `EndPushedAtOnce`                | A tab with a live socket shows the ended page as soon as the link ends.                                              | SPEC-viewer.md § When the link ends, step 1; § Contract                               |
+| `EndedStaysEnded`                | Once a tab is told its link ended, it never shows the canvas or a gate again.                                        | SPEC-viewer.md § When the link ends, step 2                                           |
+| `LockPushedAtOnce`               | A tab with a live socket goes back to the password page as soon as a password set or changed ends its pass.          | SPEC-viewer.md "When a password is set", contract                                     |
+| `EndedOnlyWhenGone`              | The ended page shows only for a link that is gone: a tab whose pass was trimmed past 1000 opens the live link again. | SPEC-frames.md § Inputs (the 1000-pass cap)                                           |
+| `OpenWithoutPasswordIsNeverSlow` | Opening a password link with no password shows the password page, never the alert to wait.                           | SPEC-viewer.md § Open the link, step 2 (the gate: SPEC-frames.md § Open a share link) |
+| `NoDeadlock`                     | There is always a next step.                                                                                         | (model)                                                                               |
 
 ## What the model leaves out
 
@@ -107,7 +109,7 @@ stateDiagram-v2
 ## Steps the chart hides
 
 - "you reload" from a gate page and from "Canvas, status Reconnecting". Each goes back to "Opening the link", which the reload from the canvas and the ended page already shows.
-- Steps that stay in one chart state are not drawn: a wrong try 1 to 5 in a minute (it answers `wrong`; the `alert` shows on "Asks the password"), a password set or changed while the tab is not on the connected canvas, and a minute passing on a page that is not waiting.
+- Steps that stay in one chart state are not drawn: a wrong try 1 to 5 in a minute (it answers `wrong`; the `alert` shows on "Asks the password"), a password set or changed while the tab is not on the connected canvas, a minute passing on a page that is not waiting, and the server trimming the tab's pass (it shows nothing until the socket is back).
 
 ## Make it again
 

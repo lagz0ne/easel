@@ -47,6 +47,7 @@ const help = `easel: the canvas CLI. Every command takes --json (one JSON value 
   easel ls <canvas>                                the frames: id, name, box, version
   easel get <canvas> <id> [-o <file>]              the document; -o writes it and prints the version
   easel rm <canvas> <id>                           delete a frame
+  easel share <canvas>                             a link anyone who has it can open; prints it
 
 Exit: 0 success, 1 another answer, 2 refused, 64 usage, 65 invalid, 69 unreachable, 70 failed,
 76 missing, 78 a hosts file that cannot be read.
@@ -70,6 +71,7 @@ const options = {
   id: { type: "string" },
   base: { type: "string" },
   out: { type: "string", short: "o" },
+  password: { type: "string" },
   help: { type: "boolean", short: "h" },
 } as const;
 
@@ -153,7 +155,7 @@ const opsInvocations = [
     })),
 ] as const;
 
-/** The words and flags of `easel canvas`, `put`, `ls`, `get` and `rm` (SPEC-frames.md). */
+/** The words and flags of `easel canvas`, `put`, `ls`, `get`, `rm` and `share` (SPEC-frames.md). */
 const framesInvocations = [
   z
     .object({
@@ -229,6 +231,15 @@ const framesInvocations = [
     .transform(({ positionals: [, canvas, id], values }): unknown => ({
       at: values.server,
       command: { kind: "frames", act: { kind: "rm", canvas, id } },
+    })),
+  z
+    .object({
+      positionals: z.tuple([z.literal("share"), z.string()]),
+      values: z.strictObject({ ...common, password: z.string().optional() }),
+    })
+    .transform(({ positionals: [, canvas], values }): unknown => ({
+      at: values.server,
+      command: { kind: "frames", act: { kind: "share", canvas, password: values.password } },
     })),
 ] as const;
 

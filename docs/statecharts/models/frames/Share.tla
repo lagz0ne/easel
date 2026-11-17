@@ -8,15 +8,21 @@
 \* the passes it ends, before it answers (S3). Wrong tries count per (address, link) (S5, D7):
 \* within one minute, tries 1-5 that are wrong answer `wrong`; any try after 5 wrong ones
 \* answers `slow`, even the right password. share.open with no password always answers `locked`
-\* (the password page) on a password link; `slow` only answers a password try.
+\* (the password page) on a password link, even while the address is slowed for wrong tries.
+\* Left out: the flood limit (any open past 30 a minute per address answers `slow`, and the
+\* page calls again after `retryIn`) and the cap of 1000 passes per link (an open past it ends
+\* the link's oldest pass). Neither changes what a tab is shown in the end.
 \* Time is coarse: "a minute passes" clears the wrong tries.
 EXTENDS Naturals
 
 CONSTANTS MaxWrong,  \* spec: 5 wrong tries in a minute (2 here, to keep the model small)
-          MaxLinks   \* bound on links made in one run (model size only)
+          MaxLinks,  \* bound on links made in one run (model size only)
+          Passwords, \* the passwords a share may set; {"none"} while passwords are not built
+          Unsharing  \* unshare is built (FALSE in a slice that ships share without it)
+
+ASSUME "none" \in Passwords /\ Unsharing \in BOOLEAN
 
 Addresses == {"viewer", "other"}
-Passwords == {"none", "p1", "p2"}
 
 VARIABLES
   gen,      \* the newest link made (0: never shared)
@@ -65,14 +71,14 @@ ShareAgain(p) ==
 
 \* canvas.unshare: the link ends; the viewer's open tab is told at once.
 Unshare ==
-  /\ live
+  /\ Unsharing /\ live
   /\ live' = FALSE
   /\ tab' = IF tab = "open" /\ tabLink = gen THEN "ended" ELSE tab
   /\ tabPw' = IF tab' = "open" THEN tabPw ELSE "none"
   /\ UNCHANGED <<gen, pw, wrong, tabLink, History>>
 
 \* share.open { link, name } on the live link: a pass, or `locked` (the password page), also
-\* while the address is slowed: `slow` only answers a password try.
+\* while the address is slowed for wrong tries (the flood limit is left out: see the header).
 ViewerOpensTheLink ==
   /\ tab \in {"none", "ended"} /\ live
   /\ tabLink' = gen

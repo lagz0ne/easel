@@ -43,6 +43,8 @@ const pressOpen = {
 const reconnects = {
   ended: "the socket is back, its read is refused: ended",
   password: "the socket is back, its read is refused: locked",
+  opening:
+    "the socket is back, its read is refused: ended (your pass was the link's oldest past 1000), so the page opens the link again",
 };
 
 const steps = {
@@ -55,6 +57,8 @@ const steps = {
   AMinutePasses: () => "a minute passes",
   APasswordIsSet: () => "a user sets or changes the password (passes end)",
   TheLinkEnds: () => "a user unshares the canvas",
+  // Hidden: it changes nothing the tab shows until its read starts again (on a reconnect).
+  ThePassIsTrimmed: () => null,
   TheSocketDrops: () => "the socket drops",
   TheSocketReconnects: (from, to) => reconnects[to.page] ?? "the socket is back",
   // A reload shows only from the connected canvas and the ended page; from a gate page or while

@@ -8,11 +8,12 @@ import { TinkerError, TinkerNotFound } from "~/base/fallbacks";
 import { abortReasons } from "~/components/errors";
 import { telemetry } from "~/components/telemetry";
 
+import { frames } from "@/frames";
 import { greet } from "@/greet";
 import { issues } from "@/issues";
-import { whoMeta } from "@/issues/sign-in";
 import { routeTree } from "@/routes";
 import { todo } from "@/todo";
+import { tabMeta } from "@/viewer/gate";
 
 /** The tab's one root. A real page hide, or a hot swap of this module, closes it. */
 const stop = new AbortController();
@@ -21,8 +22,8 @@ const app = createScope({
   signal: stop.signal,
   capsules: [
     telemetry.browser({ service: "tinker-browser", console }),
-    // `whoMeta`: the issue board's sign-in stand-in rides each message's meta.
-    ws.client({ url: `${location.origin.replace(/^http/, "ws")}/rpc`, meta: whoMeta }),
+    // `tabMeta`: the issue board's sign-in stand-in, and a share link's pass, ride each message.
+    ws.client({ url: `${location.origin.replace(/^http/, "ws")}/rpc`, meta: tabMeta }),
     greet.api({ remote: ws.client }),
     // The todo feature: the live list over the socket, and its calls.
     todo.board({ read: ws.client }),
@@ -30,6 +31,9 @@ const app = createScope({
     // The issue board: the team's parts over the socket, and its calls.
     issues.board({ read: ws.client }),
     issues.api({ remote: ws.client }),
+    // A share link: its canvas over the socket, and `share.open`.
+    frames.board({ read: ws.client }),
+    frames.viewer({ remote: ws.client }),
   ],
 });
 

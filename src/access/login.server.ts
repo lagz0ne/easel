@@ -32,7 +32,7 @@ export const maxPending = { all: 20, address: 3 } as const;
  * restart clears it. Once a minute, each key with no call in the last minute is deleted, so the
  * map holds only the addresses of the last two minutes.
  */
-const limiter = resource({
+export const limiter = resource({
   label: "access.limiter",
   target: "scope",
   factory: () => {

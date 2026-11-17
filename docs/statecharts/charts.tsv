@@ -18,3 +18,5 @@ fixer-claim-issue	models/fixer/Claim.tla	models/fixer/ClaimIssue.cfg	models/fixe
 fixer-claim-fix	models/fixer/Claim.tla	models/fixer/ClaimFix.cfg	models/fixer/Claim.view.mjs	holds
 fixer-probe	models/fixer/Probe.tla	models/fixer/Probe.cfg	models/fixer/Probe.view.mjs	holds
 fixer-claim-unsafe	models/fixer/Claim.tla	models/fixer/ClaimUnsafe.cfg	models/fixer/ClaimUnsafe.view.mjs	breaks
+frames-share-open	models/frames/Share.tla	models/frames/ShareOpen.cfg	models/frames/Share.view.mjs	holds
+viewer-gate-open	models/viewer/ViewerGate.tla	models/viewer/ViewerGateOpen.cfg	models/viewer/ViewerGate.view.mjs	holds
