@@ -21,18 +21,18 @@ link.
 
 ### Make a canvas
 
-1. `easel canvas new "Checkout flow"` prints its key, `checkout-flow`. A key that is taken answers
-   `taken`.
-2. `easel canvas ls` lists the canvases: key, name, frames, open comments, and the share link if it
-   has one.
+1. `easel canvas new "Checkout flow"` prints its key, `checkout-flow`: the name in lower case, each
+   run of other characters one dash, no dash at either end, cut at 40. A key that is taken answers
+   `taken`; a name with no letter or digit gives no key, and is `invalid` (exit 65).
+2. `easel canvas ls` lists the canvases: key, name, when it was made, and whether it is shared.
 3. `easel share` and `easel unshare` are in "Share a canvas" below.
 4. `easel canvas rm <canvas>` deletes the canvas, with its frames and comments, and ends its link.
 
 ### Make and change frames
 
-1. `easel put <canvas> page.html --name Cart` makes a frame to the right of the others, at
-   1440×900 unless `--size 390x844` is given. It prints the id and version 1. Every open tab shows
-   it.
+1. `easel put <canvas> page.html --name Cart` makes a frame to the right of the others: at y 0,
+   80 px right of the rightmost frame's right edge, or at 0,0 when it is the first. It is 1440×900
+   unless `--size 390x844` is given. It prints the id and version 1. Every open tab shows it.
 2. `easel ls <canvas>` lists the frames: id, name, box, version, open comments.
 3. `easel get <canvas> <id> -o page.html` writes the document and prints the version.
 4. `easel put <canvas> page.html --id <id> --base <version>` writes it again and prints the new
@@ -41,8 +41,9 @@ link.
    again, makes its change on that version, and puts again.
 5. If the document is the one already stored, nothing is written and the version stays: it answers
    `unchanged` with the current version, and exits 0.
-6. `--id` needs `--base`. Without it, the CLI says so and exits 64. An id that is not on the canvas
-   answers `gone`: a put never makes a frame with a given id.
+6. `--id` needs `--base`. Without it, the CLI says so and exits 64. `--name` and `--size` do not go
+   with `--id`: a put with `--id` writes the document only, so the CLI says so and exits 64. An id
+   that is not on the canvas answers `gone`: a put never makes a frame with a given id.
 7. `easel mv <canvas> <id> --at 0,1200` moves the frame; `--size` resizes it. The version stays.
 8. `easel rm <canvas> <id>` deletes the frame and its comments.
 9. `easel shot <canvas> <id> -o shot.webp --scale 0.5` draws the current version as a browser does.
@@ -79,9 +80,14 @@ link.
 ## Contract
 
 Every call but `share.open` is refused `{ signIn: true }` without a live user token. `share.open`
-needs nothing but the link.
+needs nothing but the link. In V1 any signed-in user may read and write any canvas: one server is
+one team.
 
 ```ts
+type CanvasInfo = { key: string; name: string; created: number; shared: boolean }
+type FrameInfo = { id: string; name: string; x: number; y: number; w: number; h: number; version: number }
+type Frame = FrameInfo & { html: string }
+
 // a user
 "canvas.create":  { kind: "created"; key: string } | { kind: "taken" }
 "canvas.list":    { canvases: CanvasInfo[] }
@@ -90,7 +96,7 @@ needs nothing but the link.
 "canvas.unshare": { kind: "unshared" } | { kind: "gone" }
 
 "frame.list":   { kind: "found"; frames: FrameInfo[] } | { kind: "gone" }
-"frame.get":    { kind: "found"; frame: Frame; html: string } | { kind: "gone" }
+"frame.get":    { kind: "found"; frame: Frame } | { kind: "gone" }
 "frame.put":    { kind: "created" | "updated" | "unchanged"; id: string; version: number }
               | { kind: "stale"; id: string; version: number } | { kind: "gone" }
               | { kind: "tooBig"; maxBytes: number }                  // a document over 1 MiB
@@ -121,11 +127,19 @@ every other kind exits 1 and sets `isError`.
 
 Inputs:
 
+- `canvas.create` takes `{ name }`, 1 to 200 characters. Its key is the name's slug: `[a-z0-9-]`, 1
+  to 40 characters, each run of dashes one dash. A key a canvas has answers `taken`. A name whose
+  slug is empty is `invalid`: rpc's input fault, not an answer kind.
 - `frame.put` takes `{ canvas, html, name?, size?, id?, base? }`. `id` and `base` come together or
-  not at all; one without the other is `invalid`. Without them, the put makes a frame.
+  not at all; one without the other is `invalid`, and so is `name` or `size` with `id`. Without
+  them, the put makes a frame.
 - `tooBig` is measured on the document's encoded size, its UTF-8 bytes, not its string length. The
   cmd sets the socket's `maxPayload` to 2 MiB, so a document a little over 1 MiB gets the
   `tooBig` answer and not a closed socket. The CLI checks the same limit before it sends.
+- The CLI also checks the document as it goes on the socket, JSON-encoded: each `"`, `\` and
+  control character takes 2 to 6 bytes there. Over 2 MiB less 64 KiB (`maxSentDocBytes`), the CLI
+  answers `tooBig` and sends nothing, so a document of quotes under 1 MiB does not close the
+  socket.
 - `frame.shot` takes `{ canvas, id, scale, region? }` and answers the picture's address for the
   current version. It draws nothing; the address does.
 - `canvas.share` takes `{ canvas, password? }`. A string of 8 or more characters sets or changes

@@ -4,6 +4,7 @@ import { z } from "zod";
 import { code, name } from "@/access/contract";
 import { build, fingerprint } from "@/ops/contract";
 
+import { framesCommand, framesRun } from "./frames";
 import { entryOf, hostsPath, server } from "./hosts";
 import { login, waitLogin } from "./login";
 import {
@@ -40,8 +41,8 @@ const errorsCommand = z.discriminatedUnion("kind", [
   z.object({ kind: z.literal("tick") }),
 ]);
 
-/** One command, as the cmd read it from its flags. */
-export const command = z.discriminatedUnion("kind", [
+/** One command of the shell's own, as the cmd read it from its flags. */
+const shellCommand = z.discriminatedUnion("kind", [
   z.object({ kind: z.literal("login"), name, setup: code.optional(), noWait: z.boolean() }),
   z.object({ kind: z.literal("resume") }),
   z.object({ kind: z.literal("whoami") }),
@@ -49,6 +50,12 @@ export const command = z.discriminatedUnion("kind", [
   z.object({ kind: z.literal("users"), act: usersCommand }),
   z.object({ kind: z.literal("status") }),
   z.object({ kind: z.literal("errors"), act: errorsCommand }),
+]);
+
+/** One command, as the cmd read it from its flags: the shell's, or a frames command. */
+export const command = z.discriminatedUnion("kind", [
+  ...shellCommand.options,
+  z.object({ kind: z.literal("frames"), act: framesCommand }),
 ]);
 
 export type Command = z.infer<typeof command>;
@@ -93,10 +100,10 @@ const errors = operation({
   },
 });
 
-/** Runs one command; answers its exit code (SPEC-cli.md § Contract). */
-const run = operation({
-  label: "cli.run",
-  input: command,
+/** Runs one of the shell's own commands; answers its exit code. */
+const shell = operation({
+  label: "cli.shell",
+  input: shellCommand,
   depends: { login, waitLogin, whoami, logout, users, opsStatus, errors },
   run: (ops, { input }) => {
     switch (input.kind) {
@@ -116,6 +123,15 @@ const run = operation({
         return ops.errors.run({ input: input.act });
     }
   },
+});
+
+/** Runs one command; answers its exit code (SPEC-cli.md § Contract). */
+const run = operation({
+  label: "cli.run",
+  input: command,
+  depends: { shell, framesRun },
+  run: ({ shell, framesRun }, { input }) =>
+    input.kind === "frames" ? framesRun.run({ input: input.act }) : shell.run({ input }),
 });
 
 /**

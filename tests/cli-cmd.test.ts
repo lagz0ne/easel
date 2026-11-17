@@ -12,7 +12,7 @@ import { join } from "node:path";
 
 import { ws } from "@tinkered/bun/client";
 import { exits } from "@tinkered/cli/test";
-import { createScope } from "@tinkered/core";
+import { createScope, operation } from "@tinkered/core";
 import { makeTestClock } from "@tinkered/core/testing";
 import type { Server as BunServer, Subprocess } from "bun";
 import { afterAll, afterEach, expect, test } from "vite-plus/test";
@@ -20,6 +20,8 @@ import { afterAll, afterEach, expect, test } from "vite-plus/test";
 import { access } from "@/access";
 import { cli } from "@/cli";
 import type { Command } from "@/cli";
+import { frames } from "@/frames";
+import { maxDocBytes } from "@/frames/contract";
 
 type Cmd = typeof import("../cmds/server");
 
@@ -515,5 +517,72 @@ test(
     expect(await agent.run({ kind: "whoami" })).toBe(2);
     expect(agent.lines()).toEqual([{ refused: { signIn: true } }]);
     expect(agent.hosts()).toEqual({});
+  },
+);
+
+// ---- frames on the real cmds: the guard, the socket's maxPayload and the flags as typed
+
+test(
+  "frames on the real server: a guest is refused (2), a document a little over 1 MiB answers tooBig on the socket, and bad put flags are one usage line (64)",
+  slow,
+  async () => {
+    const srv = await serve();
+    const ann = home();
+    const guest = home();
+    await easel(ann, "login", srv.origin, "--name", "ann", "--setup", srv.setupCode());
+    const env = { HOME: ann };
+    expect((await main(["canvas", "new", "Flow", "--json"], env)).code).toBe(0);
+
+    // cmds/server.ts puts the user guard on frames.api: no token, no canvases.
+    expect(await main(["canvas", "ls", "--json", "--server", srv.origin], { HOME: guest })).toEqual(
+      { code: 2, out: `${JSON.stringify({ refused: { signIn: true } })}\n` },
+    );
+
+    // The socket's maxPayload is 2 MiB: over the real socket, without the CLI's own check, the
+    // server answers tooBig and the socket stays open.
+    const token = String(
+      JSON.parse(readFileSync(hostsOf(ann), "utf8")).hosts[srv.origin].user.token,
+    );
+    const bearer = createScope({
+      capsules: [
+        exits({ file: process.env.TINKER_EXITS }),
+        ws.client({
+          url: `${srv.origin.replace(/^http/, "ws")}/rpc`,
+          meta: operation({
+            label: "test.bearer",
+            run: async (): Promise<Record<string, string>> => ({
+              authorization: `Bearer ${token}`,
+            }),
+          }),
+        }),
+        frames.api({ remote: ws.client }),
+      ],
+    });
+    const scope = await bearer.ready;
+    closers.push(() => scope.close());
+    const put = (html: string) =>
+      scope.run(frames.api["frame.put"], { input: { canvas: "flow", html } });
+    expect(await put("x".repeat(maxDocBytes + 4096))).toEqual({
+      kind: "tooBig",
+      maxBytes: maxDocBytes,
+    });
+    expect(await put("<p>1</p>")).toMatchObject({ kind: "created", version: 1 });
+
+    // The flags, through argv: --id without --base, and a bad --base, each one line, no help.
+    const file = join(ann, "x.html");
+    writeFileSync(file, "<p>x</p>");
+    const id = "0123456789ab";
+    expect(await main(["put", "flow", file, "--id", id, "--json"], env)).toEqual({
+      code: 64,
+      out: `${JSON.stringify({ usage: "--id needs --base, the version you got: `easel get` prints it" })}\n`,
+    });
+    expect(await main(["put", "flow", file, "--id", id, "--base", "0"], env)).toEqual({
+      code: 64,
+      out: "--base takes the version you got, 1 or more: `easel get` prints it\n",
+    });
+    expect(await main(["put", "flow", file, "--size", "0x5"], env)).toEqual({
+      code: 64,
+      out: "--size takes WxH in CSS pixels, each 1 to 16000, as 390x844\n",
+    });
   },
 );

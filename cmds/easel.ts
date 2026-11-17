@@ -11,8 +11,10 @@ import { defineMain } from "~/base/main";
 import { access } from "@/access";
 import { cli, command } from "@/cli";
 import type { Command } from "@/cli";
+import { stdinText } from "@/cli/frames";
 import { hostsAt } from "@/cli/hosts";
 import { since } from "@/cli/ops";
+import { frames } from "@/frames";
 import { ops } from "@/ops";
 
 // `easel`: the CLI (SPEC-cli.md). The one place that reads its flags and the hosts file's path
@@ -38,6 +40,13 @@ const help = `easel: the canvas CLI. Every command takes --json (one JSON value 
   easel errors resolve <fingerprint> --build <n>   mark it fixed in build n, once n is live and the error did not come back (owner)
   easel errors hand-off <fingerprint> --reason <text>  a person takes it (owner)
   easel errors tick                                stamp the fixer's tick (owner)
+  easel canvas new <name>                          make a canvas; prints its key
+  easel canvas ls                                  the canvases: key, name, when made, shared
+  easel put <canvas> <file|-> [--name N] [--size WxH]  make a frame from a file, or stdin with -
+  easel put <canvas> <file|-> --id <id> --base <v>     write a frame again on the version you got
+  easel ls <canvas>                                the frames: id, name, box, version
+  easel get <canvas> <id> [-o <file>]              the document; -o writes it and prints the version
+  easel rm <canvas> <id>                           delete a frame
 
 Exit: 0 success, 1 another answer, 2 refused, 64 usage, 65 invalid, 69 unreachable, 70 failed,
 76 missing, 78 a hosts file that cannot be read.
@@ -57,6 +66,10 @@ const options = {
   trace: { type: "string" },
   build: { type: "string" },
   reason: { type: "string" },
+  size: { type: "string" },
+  id: { type: "string" },
+  base: { type: "string" },
+  out: { type: "string", short: "o" },
   help: { type: "boolean", short: "h" },
 } as const;
 
@@ -140,6 +153,85 @@ const opsInvocations = [
     })),
 ] as const;
 
+/** The words and flags of `easel canvas`, `put`, `ls`, `get` and `rm` (SPEC-frames.md). */
+const framesInvocations = [
+  z
+    .object({
+      positionals: z.tuple([z.literal("canvas"), z.literal("new"), z.string()]),
+      values: z.strictObject(common),
+    })
+    .transform(({ positionals: [, , name], values }): unknown => ({
+      at: values.server,
+      command: { kind: "frames", act: { kind: "canvas new", name } },
+    })),
+  z
+    .object({
+      positionals: z.union([
+        z.tuple([z.literal("canvas")]),
+        z.tuple([z.literal("canvas"), z.literal("ls")]),
+      ]),
+      values: z.strictObject(common),
+    })
+    .transform(({ values }): unknown => ({
+      at: values.server,
+      command: { kind: "frames", act: { kind: "canvas ls" } },
+    })),
+  z
+    .object({
+      positionals: z.tuple([z.literal("put"), z.string(), z.string()]),
+      values: z.strictObject({
+        ...common,
+        name: z.string().optional(),
+        // As typed: `put` reads them, and a bad one is one line that names it (64).
+        size: z.string().optional(),
+        id: z.string().optional(),
+        base: z.string().optional(),
+      }),
+    })
+    .transform(({ positionals: [, canvas, file], values }): unknown => ({
+      at: values.server,
+      command: {
+        kind: "frames",
+        act: {
+          kind: "put",
+          canvas,
+          file,
+          name: values.name,
+          size: values.size,
+          id: values.id,
+          base: values.base,
+        },
+      },
+    })),
+  z
+    .object({
+      positionals: z.tuple([z.literal("ls"), z.string()]),
+      values: z.strictObject(common),
+    })
+    .transform(({ positionals: [, canvas], values }): unknown => ({
+      at: values.server,
+      command: { kind: "frames", act: { kind: "ls", canvas } },
+    })),
+  z
+    .object({
+      positionals: z.tuple([z.literal("get"), z.string(), z.string()]),
+      values: z.strictObject({ ...common, out: z.string().optional() }),
+    })
+    .transform(({ positionals: [, canvas, id], values }): unknown => ({
+      at: values.server,
+      command: { kind: "frames", act: { kind: "get", canvas, id, out: values.out } },
+    })),
+  z
+    .object({
+      positionals: z.tuple([z.literal("rm"), z.string(), z.string()]),
+      values: z.strictObject(common),
+    })
+    .transform(({ positionals: [, canvas, id], values }): unknown => ({
+      at: values.server,
+      command: { kind: "frames", act: { kind: "rm", canvas, id } },
+    })),
+] as const;
+
 /**
  * The words and flags of each command, read into its `command` input and the server it names.
  * A flag that the command does not take is bad usage, as a word too many is.
@@ -214,6 +306,7 @@ const invocation = z.union([
       },
     })),
   ...opsInvocations,
+  ...framesInvocations,
 ]);
 
 /** The words and flags, read by `parseArgs`: `--help` anywhere asks for the help. */
@@ -303,6 +396,8 @@ const main = defineMain(async (ctx) => {
 
   const app = createScope({
     signal,
+    // `easel put <canvas> -` reads the document from stdin.
+    tags: [stdinText(() => Bun.stdin.text())],
     capsules: [
       ws.client({ url: `${planned.server.replace(/^http/, "ws")}/rpc`, meta: cli.bearer }),
       access.login({ remote: ws.client }),
@@ -310,6 +405,7 @@ const main = defineMain(async (ctx) => {
       access.owner({ remote: ws.client }),
       ops.user({ remote: ws.client }),
       ops.owner({ remote: ws.client }),
+      frames.api({ remote: ws.client }),
       cli({ stdout, stderr, json: asJson, server: planned.server, hosts: planned.path }),
     ],
   });

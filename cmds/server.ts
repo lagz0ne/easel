@@ -13,6 +13,10 @@ import { accessDoor, owner, user } from "@/access/guards.server";
 import { loginOps } from "@/access/login.server";
 import { accessServer } from "@/access/store.server";
 import { ownerOps, userOps } from "@/access/users.server";
+import { frames } from "@/frames";
+import { socketMaxPayload } from "@/frames/contract";
+import { framesLoads, framesOps, mayRead } from "@/frames/ops.server";
+import { framesServer } from "@/frames/store.server";
 import { greet } from "@/greet";
 import { greetOps } from "@/greet/greet.server";
 import { issues } from "@/issues";
@@ -95,8 +99,13 @@ export default defineMain(async ({ env, args, signal, stdout, stderr, exit }) =>
       issues.api,
       ops.user,
       ops.owner,
+      frames.api,
+      frames.board,
     ],
     origin,
+    // 2 MiB, above the 1 MiB document: a document a little too big gets `tooBig`, not a closed
+    // socket (SPEC-frames § Contract, decision C11). The default is 1 MiB, in both directions.
+    maxPayload: socketMaxPayload,
   });
   // The socket's door: it notes each peer's address, and on an `open` server lets in only this
   // machine (SPEC-access judged rule 12; `serve` cannot bind 127.0.0.1 alone).
@@ -133,6 +142,10 @@ export default defineMain(async ({ env, args, signal, stdout, stderr, exit }) =>
       access.login({ implement: loginOps }),
       access.user({ implement: userOps, onStart: [user] }),
       access.owner({ implement: ownerOps, onStart: [user, owner] }),
+      // Canvases and frames, in EASEL_DB; any signed-in user writes any canvas (SPEC-frames).
+      framesServer({ stdout }),
+      frames.api({ implement: framesOps, onStart: [user] }),
+      frames.board({ serve: true, load: framesLoads, onStart: [mayRead] }),
       // The build that runs: the image sets GIT_SHA and BUILD.
       release({ commit: set.GIT_SHA, build: Number(set.BUILD) }),
       // The error groups, readiness and the fixer's stamp, kept in EASEL_DB.

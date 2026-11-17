@@ -38,11 +38,13 @@ live at https://easel.vibea.dev.
 The "Depends on" column is the one source of each module's dependencies. Each module spec's
 header copies it, and changes with it in the same ship.
 
-Build order: access (with the cli shell) → ops → frames (with share) → queue → mcp → design →
-viewer → fixer.
+Build order: access → cli shell → ops → frames slice (canvas, frames, share without password) →
+viewer canvas slice → pictures and passwords → queue → viewer pins and queue panel → mcp → fixer.
 
-- The cli shell lands with access, because `easel login` is access's first journey. Each later
-  module adds its own commands to the shell.
+- The cli shell lands right after access, as its own unit, because `easel login` is access's first
+  journey. Each later module adds its own commands to the shell.
+- The frames and viewer canvas slices come before pictures, passwords and the queue: a walking
+  skeleton, so a person sees the canvas early.
 - ops comes second, so every module after it is watched from its first deploy. ops depends on no
   later module: frames and queue register their readiness checks and counters with it.
 - Share lives in frames, because a link and its passes guard reads of a canvas (`mayRead`).
@@ -111,7 +113,8 @@ author.
 - Tinker 0.30.1 (`@tinkered/core`, `@tinkered/react`, `@tinkered/bun`). Every function is an
   operation, every stateful page feature is a capsule, and rpc runs over one socket.
 - React 19 and TanStack Router for the viewer page, bundled by Vite (vite-plus).
-- SQLite (`bun:sqlite`, WAL, `synchronous=NORMAL`) through drizzle-orm, in one file under `/data`.
+- SQLite (`bun:sqlite`, WAL, `synchronous=FULL`: a lost write of a revoke or a frame costs more
+  than the fsync) through drizzle-orm, in one file under `/data`.
 - puppeteer-core (Apache-2.0) with an existing Chromium, for pictures. With no Chromium, pictures
   are off.
 - `@modelcontextprotocol/sdk` (MIT), already in `package.json`, for `/mcp` and `easel mcp`.

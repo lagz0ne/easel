@@ -472,21 +472,26 @@ test("the agent stops waiting on an approved code, then an owner revokes the age
 
 // ---- Signed in: whoami, logout, revoke
 
-test("an owner revokes the agent; the agent's next call is refused, and it is told to log in again (exit 2, token dropped)", async () => {
-  const srv = await boot();
-  const a = await ann(srv);
-  const { agent, code } = await pendingAgent(srv);
-  await a.run(users({ kind: "approve", code, owner: false }));
-  expect(await agent.run({ kind: "resume" })).toBe(0);
-  agent.lines();
+// Three CLI scopes: well under 1 s alone, but it has passed 5 s three times under the full suite's load.
+test(
+  "an owner revokes the agent; the agent's next call is refused, and it is told to log in again (exit 2, token dropped)",
+  { timeout: 30_000 },
+  async () => {
+    const srv = await boot();
+    const a = await ann(srv);
+    const { agent, code } = await pendingAgent(srv);
+    await a.run(users({ kind: "approve", code, owner: false }));
+    expect(await agent.run({ kind: "resume" })).toBe(0);
+    agent.lines();
 
-  expect(await a.run(users({ kind: "revoke", name: "agent" }))).toBe(0);
-  expect(await agent.run({ kind: "whoami" })).toBe(2);
-  expect(agent.lines()).toEqual([{ refused: { signIn: true } }]);
-  expect(agent.hosts()).toEqual({});
-  expect(await agent.run({ kind: "whoami" })).toBe(2);
-  expect(await agent.run(login("agent", { noWait: true }))).toBe(0);
-});
+    expect(await a.run(users({ kind: "revoke", name: "agent" }))).toBe(0);
+    expect(await agent.run({ kind: "whoami" })).toBe(2);
+    expect(agent.lines()).toEqual([{ refused: { signIn: true } }]);
+    expect(agent.hosts()).toEqual({});
+    expect(await agent.run({ kind: "whoami" })).toBe(2);
+    expect(await agent.run(login("agent", { noWait: true }))).toBe(0);
+  },
+);
 
 test("the agent logs out: exit 0, the token is dropped; the last owner's logout answers last (exit 1) and keeps it", async () => {
   const srv = await boot();
