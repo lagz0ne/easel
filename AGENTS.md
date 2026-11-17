@@ -135,3 +135,26 @@ read the `SKILL.md` at these moments:
 
 Where pstack and this file or a Tinker skill
 disagree, this file and Tinker win.
+
+## agent-skills
+
+Addy Osmani's agent-skills (MIT) is vendored
+at one pinned commit by
+`scripts/agent-skills-sync.sh`: skills in
+`.claude/skills/`, their `.claude/references/`,
+four `.claude/agents/`, and the commands as
+`/addy-*` (`/addy-spec`, `/addy-plan`, ...).
+Do not edit them; upgrade as for pstack.
+Unlike pstack, these skills load on their own.
+
+Two are left out because they contradict this
+file: `git-workflow-and-versioning` (branches
+and PRs) and `browser-testing-with-devtools`
+(Chrome DevTools MCP). Where a vendored file
+still names them, land work with
+`scripts/ship.sh` and test the browser with
+`agent-browser`.
+
+Trunk rules (this file) override any branch or
+PR advice in them. Where they disagree with this
+file or a Tinker skill, this file and Tinker win.
