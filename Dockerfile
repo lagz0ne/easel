@@ -19,4 +19,5 @@ USER easel
 ARG GIT_SHA=dev
 ENV NODE_ENV=production PORT=3000 GIT_SHA=$GIT_SHA
 EXPOSE 3000
-CMD ["/app/server"]
+# One binary: `easel serve` runs the server; any other command is the CLI (SPEC-cli.md).
+CMD ["/app/server", "serve"]

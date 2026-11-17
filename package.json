@@ -8,7 +8,7 @@
     "db:generate": "bun scripts/db-generate.ts",
     "build": "rm -rf dist && bun run build:client && bun run build:server && bun run check:client && bun run check:tests",
     "build:client": "bun --bun vp build && bun scripts/embed-client.ts",
-    "build:server": "bun build cmds/host.ts cmds/telemetry-worker.ts --compile --bytecode --format=esm --minify --sourcemap=linked --define process.env.NODE_ENV='\"production\"' --metafile=dist/meta.json --outfile dist/server",
+    "build:server": "bun build cmds/easel.ts cmds/telemetry-worker.ts --compile --bytecode --format=esm --minify --sourcemap=linked --define process.env.NODE_ENV='\"production\"' --metafile=dist/meta.json --outfile dist/server",
     "check:client": "bun scripts/check-client.ts dist/client-meta.json",
     "check:tests": "bun scripts/check-no-tests.ts dist/client-meta.json dist/meta.json",
     "start": "dist/server",

@@ -265,27 +265,32 @@ test("login --no-wait prints the pending code and exits 0; login refuses (64) wh
   expect(agent.hosts().pending.code).toBe(code);
 });
 
-test("the agent starts a login and is told to slow down: exit 1, nothing kept; then the agent starts a login", async () => {
-  const srv = await boot();
-  await ann(srv);
-  let told: Record<string, unknown> = {};
-  let path = "";
-  for (let i = 0; i < 8 && told.kind !== "slow"; i++) {
-    const agent = await easel(srv);
-    const code = await agent.run(login(`agent${i}`, { noWait: true }));
-    told = agent.lines()[0];
-    path = agent.path;
-    expect(code).toBe(told.kind === "pending" ? 0 : 1);
-  }
-  expect(told).toEqual({ kind: "slow", retryIn: expect.any(Number) });
-  expect(existsSync(path)).toBe(false);
+// Nine CLI scopes: 0.3 s alone, but it has passed 5 s once under the full suite's load.
+test(
+  "the agent starts a login and is told to slow down: exit 1, nothing kept; then the agent starts a login",
+  { timeout: 30_000 },
+  async () => {
+    const srv = await boot();
+    await ann(srv);
+    let told: Record<string, unknown> = {};
+    let path = "";
+    for (let i = 0; i < 8 && told.kind !== "slow"; i++) {
+      const agent = await easel(srv);
+      const code = await agent.run(login(`agent${i}`, { noWait: true }));
+      told = agent.lines()[0];
+      path = agent.path;
+      expect(code).toBe(told.kind === "pending" ? 0 : 1);
+    }
+    expect(told).toEqual({ kind: "slow", retryIn: expect.any(Number) });
+    expect(existsSync(path)).toBe(false);
 
-  // The same address, once retryIn has passed: the limit has cleared.
-  srv.clock.advance(Number(told.retryIn));
-  const again = await easel(srv);
-  expect(await again.run(login("agent9", { noWait: true }))).toBe(0);
-  expect(again.lines()[0]).toMatchObject({ kind: "pending" });
-});
+    // The same address, once retryIn has passed: the limit has cleared.
+    srv.clock.advance(Number(told.retryIn));
+    const again = await easel(srv);
+    expect(await again.run(login("agent9", { noWait: true }))).toBe(0);
+    expect(again.lines()[0]).toMatchObject({ kind: "pending" });
+  },
+);
 
 test("a name that is taken: exit 1, nothing kept", async () => {
   const srv = await boot();

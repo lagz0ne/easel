@@ -142,8 +142,9 @@ on each push to `main`, and weekly.
   `cmds/client-files.gen.ts`: one
   `with { type: "file" }` import per file.
 - `build:server`: `bun build --compile` of
-  `cmds/host.ts` and the telemetry worker, to
-  one file, `dist/server`.
+  `cmds/easel.ts` and the telemetry worker, to
+  one file, `dist/server`. `server serve` runs
+  the server; any other command is the CLI.
 - The client's files sit inside the binary.
   Nothing is read from disk.
 - `--bytecode`: the server ships as bytecode.
