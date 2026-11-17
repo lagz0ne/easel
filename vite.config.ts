@@ -54,6 +54,9 @@ export default defineConfig({
           root: at("."),
           include: ["tests/browser/**/*.test.tsx"],
           setupFiles: ["tests/browser/exits.setup.ts"],
+          // An IP, not `localhost`: another suite on the machine may hold [::1]:63315 (the
+          // default), and Chromium would resolve `localhost` to it and miss this run's session.
+          api: { host: "127.0.0.1" },
           browser: {
             enabled: true,
             headless: true,
