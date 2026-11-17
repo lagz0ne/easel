@@ -40,7 +40,7 @@ owned=()
 for d in "$src"/skills/*/; do
   n="$(basename "$d")"
   case " $SKIP " in *" $n "*) continue ;; esac
-  [ ! -e "$claude/skills/$n" ] || { echo "agent-skills: .claude/skills/$n exists (pstack?)" >&2; exit 1; }
+  [ ! -e "$claude/skills/$n" ] || { echo "agent-skills: .claude/skills/$n exists (another vendored skill?)" >&2; exit 1; }
   cp -R "$d" "$claude/skills/$n"
   owned+=("skills/$n")
 done

@@ -1,0 +1,12 @@
+.git
+node_modules
+dist
+.tinker
+.vitest
+.tanstack
+.bench
+.ship
+.claude
+.env
+.env.*
+!.env.example

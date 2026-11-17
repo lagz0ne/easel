@@ -1,0 +1,97 @@
+name: deploy
+
+# Continuous delivery: each commit that `gates` passes on main goes live at
+# https://easel.vibea.dev. The image is built from that exact commit, pushed to
+# ghcr.io/lagz0ne/easel as :<sha> and :latest, then Dokploy's deploy hook pulls :latest.
+# The job is green only when the public site answers /api/health.
+#
+# Rollback: `scripts/ship.sh -r <sha>` (a revert goes through gates and lands here), or
+# in Dokploy set the image to ghcr.io/lagz0ne/easel:<good sha> and deploy.
+#
+# Secret DOKPLOY_DEPLOY_HOOK (environment `production`) is the app's deploy hook URL.
+# Without it the image is still pushed and the deploy step is skipped with a notice.
+
+on:
+  workflow_run:
+    workflows: ["gates"]
+    types: [completed]
+    branches: [main]
+  workflow_dispatch:
+
+# One deploy at a time, never cancelled mid-deploy. GitHub keeps only the newest
+# waiting run, so the site converges on the latest green commit.
+concurrency:
+  group: deploy-main
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+jobs:
+  publish:
+    # Only a green gates run of a push or the weekly run on main; a manual run deploys main.
+    if: >-
+      github.event_name == 'workflow_dispatch' ||
+      (github.event.workflow_run.conclusion == 'success' &&
+       github.event.workflow_run.head_branch == 'main')
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    permissions:
+      contents: read
+      packages: write
+    outputs:
+      sha: ${{ steps.sha.outputs.sha }}
+    steps:
+      - id: sha
+        env:
+          RUN_SHA: ${{ github.event.workflow_run.head_sha }}
+        run: echo "sha=${RUN_SHA:-$GITHUB_SHA}" >> "$GITHUB_OUTPUT"
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          ref: ${{ steps.sha.outputs.sha }}
+      - uses: docker/setup-buildx-action@v4
+      - uses: docker/login-action@v4
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      - uses: docker/build-push-action@v7
+        with:
+          context: .
+          push: true
+          tags: |
+            ghcr.io/lagz0ne/easel:${{ steps.sha.outputs.sha }}
+            ghcr.io/lagz0ne/easel:latest
+          labels: |
+            org.opencontainers.image.source=https://github.com/${{ github.repository }}
+            org.opencontainers.image.revision=${{ steps.sha.outputs.sha }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+  deploy:
+    needs: publish
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    environment:
+      name: production
+      url: https://easel.vibea.dev
+    env:
+      HOOK: ${{ secrets.DOKPLOY_DEPLOY_HOOK }}
+      SITE: https://easel.vibea.dev
+    steps:
+      - name: Call the Dokploy deploy hook
+        run: |
+          if [ -z "$HOOK" ]; then
+            echo "::notice::DOKPLOY_DEPLOY_HOOK is not set: image pushed, deploy skipped."
+            exit 0
+          fi
+          curl -fsS --max-time 30 -X POST "$HOOK" -H 'content-type: application/json' -d '{}'
+      - name: The site answers /api/health
+        if: env.HOOK != ''
+        run: |
+          for _ in $(seq 60); do
+            if curl -fsS --max-time 10 "$SITE/api/health"; then echo; exit 0; fi
+            sleep 5
+          done
+          echo "::error::$SITE/api/health did not answer in 5 minutes"
+          exit 1
