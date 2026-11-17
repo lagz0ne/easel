@@ -110,32 +110,6 @@ session and close it after:
 Read `agent-browser skills get core` first. Put
 screenshots in `~/work/tmp/`, never in the repo.
 
-## pstack skills
-
-pstack (MIT) is vendored in `.claude/skills/`
-at one pinned commit by
-`scripts/pstack-sync.sh`. Do not edit those
-folders. To upgrade, change the commit in the
-script, run it, read the diff, and ship it.
-`statechart` comes from the hub
-(`~/.claude/skills/statechart`). The human runs
-any of them as `/<name>`, for example
-`/poteto-mode`. Agents cannot invoke them, so
-read the `SKILL.md` at these moments:
-
-| Moment                                                     | Read                                                                                  |
-| ---------------------------------------------------------- | ------------------------------------------------------------------------------------- |
-| A feature with state (canvas modes, selection, drag)       | `statechart`, before UI or code                                                       |
-| Writing or changing a test                                 | `principle-test-behavior-not-implementation`; `tdd` for a bug with a cheap local test |
-| Splitting work into ships                                  | `principle-sequence-verifiable-units`                                                 |
-| A ship you do not fully trust (shared code, socket, build) | `blast-radius`                                                                        |
-| Before you say "done"                                      | `principle-prove-it-works`: run the smoke, or look with `agent-browser`               |
-| Editing `.ts` or `.tsx`                                    | `typescript-best-practices`                                                           |
-| Docs and commit messages                                   | `unslop`                                                                              |
-
-Where pstack and this file or a Tinker skill
-disagree, this file and Tinker win.
-
 ## agent-skills
 
 Addy Osmani's agent-skills (MIT) is vendored
@@ -144,8 +118,18 @@ at one pinned commit by
 `.claude/skills/`, their `.claude/references/`,
 four `.claude/agents/`, and the commands as
 `/addy-*` (`/addy-spec`, `/addy-plan`, ...).
-Do not edit them; upgrade as for pstack.
-Unlike pstack, these skills load on their own.
+Do not edit them. To upgrade, change the commit
+in the script, run it, read the diff, and ship
+it. These skills load on their own; at these
+moments, make sure the right one is loaded:
+
+| Moment                                               | Skill                                                                |
+| ---------------------------------------------------- | -------------------------------------------------------------------- |
+| A feature with state (canvas modes, selection, drag) | `statechart` (hub: `~/.claude/skills/statechart`), before UI or code |
+| Writing or changing a test; fixing a bug             | `test-driven-development`                                            |
+| Splitting work into ships                            | `planning-and-task-breakdown`, `incremental-implementation`          |
+| Before you say "done"                                | run the smoke, or look with `agent-browser`                          |
+| Docs and decisions                                   | `documentation-and-adrs`                                             |
 
 Two are left out because they contradict this
 file: `git-workflow-and-versioning` (branches
