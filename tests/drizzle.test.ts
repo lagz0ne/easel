@@ -121,7 +121,7 @@ for (const driver of drivers) {
       }).ready;
 
       expect(Array.isArray(seen)).toBe(true);
-    });
+    }, 30_000); // boots and migrates a second database, as beforeAll does
 
     test("the capsule record shows the driver and migrate as setup", () => {
       const record = app.capsules.find((entry) => entry.label.startsWith("drizzle"))!;
