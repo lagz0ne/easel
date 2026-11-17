@@ -15,19 +15,17 @@ export const delivery = resource({
     logsUrl: logsUrl.optional,
     backend: httpBackend,
   },
-  factory: ({ side, service, tracesUrl, logsUrl, backend }, ctx) => {
-    let traces: URL | undefined;
-    let logs: URL | undefined;
-    if (side !== "browser") {
-      if (!tracesUrl.present) return ctx.raise("MissingTag", { label: "telemetry.tracesUrl" });
-      if (!logsUrl.present) return ctx.raise("MissingTag", { label: "telemetry.logsUrl" });
-
-      traces = tracesUrl.value;
-      logs = new URL(logsUrl.value);
-      logs.searchParams.set("_time_field", "time");
-      logs.searchParams.set("_msg_field", "msg");
-      logs.searchParams.set("_stream_fields", "service,side");
-    }
+  factory: ({ side, service, tracesUrl, logsUrl, backend }) => {
+    // easel diverges from upstream 0.30.1: a server with no URL for a kind sends none of it,
+    // and counts it as delivered (OTel's convention: no endpoint, no exporter). Upstream raises
+    // MissingTag. A browser sends to its own route, and needs neither.
+    const server = side !== "browser";
+    const exported = { trace: server && tracesUrl.present, log: server && logsUrl.present };
+    const logs = new URL(logsUrl.present ? logsUrl.value : "http://unset.invalid/");
+    logs.searchParams.set("_time_field", "time");
+    logs.searchParams.set("_msg_field", "msg");
+    logs.searchParams.set("_stream_fields", "service,side");
+    const href = { trace: tracesUrl.present ? tracesUrl.value.href : "", log: logs.href };
 
     return {
       async send(records: Telemetry.Record[], signal: AbortSignal): Promise<Telemetry.Delivery> {
@@ -48,8 +46,10 @@ export const delivery = resource({
             },
           ];
         } else {
+          // A kind with no URL is not sent, and counts as delivered.
+          const sent = records.filter((record) => exported[record.kind]);
           const groups = ["server", "browser", "ssr", "worker"].flatMap((side) => {
-            const spans = records
+            const spans = sent
               .filter((record) => record.kind === "trace" && record.side === side)
               .map((record) => record.json);
             if (!spans.length) return [];
@@ -64,17 +64,15 @@ export const delivery = resource({
               `{"resource":${resource},"scopeSpans":[{"scope":{"name":"tinker.start"},"spans":[${spans.join(",")}]}]}`,
             ];
           });
-          const lines = records
-            .filter((record) => record.kind === "log")
-            .map((record) => record.json);
+          const lines = sent.filter((record) => record.kind === "log").map((record) => record.json);
           batches = [
             {
-              url: traces!.href,
+              url: href.trace,
               body: groups.length ? `{"resourceSpans":[${groups.join(",")}]}` : undefined,
               contentType: "application/json",
             },
             {
-              url: logs!.href,
+              url: href.log,
               body: lines.length ? lines.join("\n") : undefined,
               contentType: "application/stream+json",
             },

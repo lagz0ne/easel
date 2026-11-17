@@ -13,8 +13,9 @@ const root = createScope({
   capsules: [
     telemetry.worker({
       service: settings.service,
-      tracesUrl: new URL(settings.traces),
-      logsUrl: new URL(settings.logs),
+      // No URL, no exporter for that kind (tinker/components/telemetry/delivery.ts).
+      tracesUrl: settings.traces === null ? undefined : new URL(settings.traces),
+      logsUrl: settings.logs === null ? undefined : new URL(settings.logs),
       console,
     }),
   ],

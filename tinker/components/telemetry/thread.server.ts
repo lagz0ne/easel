@@ -28,8 +28,9 @@ export const telemetryWorker = tag({
 /** What the worker command reads from `workerData`; the request side resolves every value. */
 export type ThreadSettings = {
   service: string;
-  traces: string;
-  logs: string;
+  // easel diverges from upstream 0.30.1: null when the URL is not given; the worker sends none of that kind.
+  traces: string | null;
+  logs: string | null;
   fd: number | null;
   /** True when the host's sink has no descriptor: the worker posts its console text back. */
   relay: boolean;
@@ -155,8 +156,9 @@ export const telemetryThread = resource({
     ring: threadRing,
     module: telemetryWorker.required,
     service: telemetryService,
-    tracesUrl: tracesUrl.required,
-    logsUrl: logsUrl.required,
+    // easel diverges from upstream 0.30.1: optional, as on the in-process sink (no URL, no exporter).
+    tracesUrl: tracesUrl.optional,
+    logsUrl: logsUrl.optional,
     console: consoleOutput,
     health: exportHealth.controller,
   },
@@ -168,8 +170,8 @@ export const telemetryThread = resource({
     const relay = console !== null && fd === null;
     const settings: ThreadSettings = {
       service,
-      traces: tracesUrl.href,
-      logs: logsUrl.href,
+      traces: tracesUrl.present ? tracesUrl.value.href : null,
+      logs: logsUrl.present ? logsUrl.value.href : null,
       fd,
       relay,
     };

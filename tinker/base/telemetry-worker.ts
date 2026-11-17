@@ -7,8 +7,9 @@ export declare namespace TelemetryWorker {
   /** What the request side resolved and sent in `workerData`. */
   type Settings = {
     service: string;
-    traces: string;
-    logs: string;
+    // easel diverges from upstream 0.30.1: null when the server was given no URL for that kind.
+    traces: string | null;
+    logs: string | null;
     fd: number | null;
     relay: boolean;
   };

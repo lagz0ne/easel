@@ -24,8 +24,10 @@ export { threadDrain } from "./drain.server";
 
 const sends = {
   service: telemetryService.required,
-  tracesUrl: tracesUrl.required,
-  logsUrl: logsUrl.required,
+  // easel diverges from upstream 0.30.1: no URL means no exporter for that kind (OTel's convention), so a server
+  // starts without Victoria (SPEC-ops.md fact rule 4).
+  tracesUrl: tracesUrl.optional,
+  logsUrl: logsUrl.optional,
   console: consoleOutput,
 } as const;
 
