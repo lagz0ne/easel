@@ -1,5 +1,2 @@
-# Vendored by scripts/agent-skills-sync.sh: kept as upstream.
+# Vendored by scripts/pstack-sync.sh: kept byte-for-byte as upstream.
 .claude/skills/
-.claude/references/
-.claude/agents/
-.claude/commands/
