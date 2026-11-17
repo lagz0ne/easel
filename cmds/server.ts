@@ -11,13 +11,14 @@ import { greet } from "@/greet";
 import { greetOps } from "@/greet/greet.server";
 import { issues } from "@/issues";
 import { issueOps, membersOnly, signedIn } from "@/issues/ops.server";
+import { release } from "@/release";
 import { todo } from "@/todo";
 import { todoOps } from "@/todo/ops.server";
 
 import { pages } from "./pages";
 
-/** The env's defaults: the dev port when `PORT` is unset. */
-const defaults = { PORT: "4318" };
+/** The env's defaults: the dev port when `PORT` is unset; "dev" when no image set `GIT_SHA`. */
+const defaults = { PORT: "4318", GIT_SHA: "dev" };
 
 /** The host starts the server; importing this command opens nothing. */
 export default defineMain(async ({ env, args, signal, stdout, stderr, exit }) => {
@@ -54,6 +55,7 @@ export default defineMain(async ({ env, args, signal, stdout, stderr, exit }) =>
     stop: signal,
     table: {
       "GET /api/health": health,
+      "GET /api/version": release.version,
       "POST /api/telemetry": sink.route,
     },
   });
@@ -69,6 +71,8 @@ export default defineMain(async ({ env, args, signal, stdout, stderr, exit }) =>
         stdout,
       }),
       sink,
+      // The build that runs: the image sets GIT_SHA.
+      release({ commit: { ...defaults, ...env }.GIT_SHA }),
       greet.api({ implement: greetOps }),
       // The todo feature: the server serves the list and is its only writer.
       todo.board({ serve: true }),

@@ -3,7 +3,7 @@ name: deploy
 # Continuous delivery: each commit that `gates` passes on main goes live at
 # https://easel.vibea.dev. The image is built from that exact commit, pushed to
 # ghcr.io/lagz0ne/easel as :<sha> and :latest, then Dokploy's deploy hook pulls :latest.
-# The job is green only when the public site answers /api/health.
+# The job is green only when the public site's /api/version names this commit.
 #
 # Rollback: `scripts/ship.sh -r <sha>` (a revert goes through gates and lands here), or
 # in Dokploy set the image to ghcr.io/lagz0ne/easel:<good sha> and deploy.
@@ -59,6 +59,7 @@ jobs:
         with:
           context: .
           push: true
+          build-args: GIT_SHA=${{ steps.sha.outputs.sha }}
           tags: |
             ghcr.io/lagz0ne/easel:${{ steps.sha.outputs.sha }}
             ghcr.io/lagz0ne/easel:latest
@@ -86,12 +87,16 @@ jobs:
             exit 0
           fi
           curl -fsS --max-time 30 -X POST "$HOOK" -H 'content-type: application/json' -d '{}'
-      - name: The site answers /api/health
+      - name: The site serves this commit
         if: env.HOOK != ''
+        env:
+          SHA: ${{ needs.publish.outputs.sha }}
         run: |
           for _ in $(seq 60); do
-            if curl -fsS --max-time 10 "$SITE/api/health"; then echo; exit 0; fi
+            live=$(curl -fsS --max-time 10 "$SITE/api/version" | jq -r '.commit' || true)
+            if [ "$live" = "$SHA" ]; then echo "live: $live"; exit 0; fi
+            echo "live: ${live:-no answer}, waiting for $SHA"
             sleep 5
           done
-          echo "::error::$SITE/api/health did not answer in 5 minutes"
+          echo "::error::$SITE/api/version did not name $SHA in 5 minutes"
           exit 1

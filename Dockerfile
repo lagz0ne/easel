@@ -15,6 +15,8 @@ RUN useradd --system --uid 10001 --create-home easel
 WORKDIR /app
 COPY --from=build /app/dist/server /app/server
 USER easel
-ENV NODE_ENV=production PORT=3000
+# GET /api/version answers this: the deploy job waits for the commit it shipped.
+ARG GIT_SHA=dev
+ENV NODE_ENV=production PORT=3000 GIT_SHA=$GIT_SHA
 EXPOSE 3000
 CMD ["/app/server"]
