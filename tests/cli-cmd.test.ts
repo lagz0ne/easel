@@ -187,6 +187,8 @@ test("usage is 64, --help is 0, a hosts file that is not one is 78, no server is
   expect((await main(["whoami", "--json"], env)).out).toBe(
     `${JSON.stringify({ config: hostsOf(dir) })}\n`,
   );
+  // A valid file with no server: root reads it anyway (64); anyone else cannot (78).
+  writeFileSync(hostsOf(dir), JSON.stringify({ hosts: {} }));
   chmodSync(hostsOf(dir), 0o000);
   expect((await main(["whoami"], { XDG_CONFIG_HOME: join(dir, ".config") })).code).toBe(
     process.getuid?.() === 0 ? 64 : 78,
