@@ -1,0 +1,19 @@
+# One row per chart, tab-separated. Paths are relative to docs/statecharts. expect: holds | breaks.
+chart	tla	cfg	view	expect
+access-login	models/access/Login.tla	models/access/Login.cfg	models/access/view.mjs	holds
+queue-lease	models/queue/Queue.tla	models/queue/Queue.cfg	models/queue/view.mjs	holds
+queue-two-step	models/queue/Queue.tla	models/queue/QueueTwoStep.cfg	models/queue/view-two-step.mjs	breaks
+viewer-gate	models/viewer/ViewerGate.tla	models/viewer/ViewerGate.cfg	models/viewer/ViewerGate.view.mjs	holds
+viewer-canvas	models/viewer/ViewerCanvas.tla	models/viewer/ViewerCanvas.cfg	models/viewer/ViewerCanvas.view.mjs	holds
+viewer-pin-post	models/viewer/ViewerPin.tla	models/viewer/ViewerPinPost.cfg	models/viewer/ViewerPinPost.view.mjs	holds
+viewer-pin-link	models/viewer/ViewerPin.tla	models/viewer/ViewerPinLink.cfg	models/viewer/ViewerPin.view.mjs	holds
+viewer-queue	models/viewer/ViewerQueue.tla	models/viewer/ViewerQueue.cfg	models/viewer/ViewerQueue.view.mjs	holds
+frames-writes	models/frames/Writes.tla	models/frames/Writes.cfg	models/frames/Writes.view.mjs	holds
+frames-writes-two-step	models/frames/Writes.tla	models/frames/WritesTwoStep.cfg	models/frames/WritesTwoStep.view.mjs	breaks
+frames-pictures	models/frames/Pictures.tla	models/frames/Pictures.cfg	models/frames/Pictures.view.mjs	holds
+frames-share	models/frames/Share.tla	models/frames/Share.cfg	models/frames/Share.view.mjs	holds
+ops-issues	models/ops/Lifecycle.tla	models/ops/Lifecycle.cfg	models/ops/Lifecycle.view.mjs	holds
+fixer-claim-issue	models/fixer/Claim.tla	models/fixer/ClaimIssue.cfg	models/fixer/Claim.view.mjs	holds
+fixer-claim-fix	models/fixer/Claim.tla	models/fixer/ClaimFix.cfg	models/fixer/Claim.view.mjs	holds
+fixer-probe	models/fixer/Probe.tla	models/fixer/Probe.cfg	models/fixer/Probe.view.mjs	holds
+fixer-claim-unsafe	models/fixer/Claim.tla	models/fixer/ClaimUnsafe.cfg	models/fixer/ClaimUnsafe.view.mjs	breaks

@@ -13,6 +13,8 @@
 # The gate runs on that exact tree, in a clean copy under .ship/:
 #   install, check:style, check:plain (types, rules, tests), build, scripts/smoke.sh (browser)
 #   docs only (*.md): check:style only.
+#   a change under docs/statecharts/, to a SPEC*.md or to scripts/statecharts.sh: also
+#   scripts/statecharts.sh --check (needs the hub's statechart skill; without it, ship refuses).
 # Green: one commit, pushed. Red: nothing committed; the logs stay in ~/.cache/ship/<repo>/<run>/.
 # Stop the line: while a `trunk-red` issue is open (CI's trunk-status workflow files it), only --fix
 # and -r ship. One ship at a time on this machine (flock on .ship/lock); others wait their turn.
@@ -82,10 +84,20 @@ make_tree() {
 }
 
 gate() {  # <tree> <run dir>; sets $stage on failure
-  local tree="$1" run="$2" docs=1 f
-  for f in $(git diff-tree -r --name-only HEAD "$tree"); do [[ "$f" == *.md ]] || docs=0; done
+  local tree="$1" run="$2" docs=1 charts=0 f
+  for f in $(git diff-tree -r --name-only HEAD "$tree"); do
+    [[ "$f" == *.md ]] || docs=0
+    case "$f" in docs/statecharts/* | SPEC*.md | scripts/statecharts.sh) charts=1 ;; esac
+  done
   mkdir -p "$run/tree"
   git archive "$tree" | tar -x -C "$run/tree"
+  if [[ $charts -eq 1 ]]; then  # the charts are the oracle: a spec or chart ships only as its models say
+    stage=statecharts; bash "$run/tree/scripts/statecharts.sh" --check >"$run/statecharts.log" 2>&1 || {
+      [[ -x "${STATECHART:-$HOME/.claude/skills/statechart/scripts/statechart}" ]] \
+        || echo "ship refuses: this tree changes the specs or the charts, and the check needs the hub's statechart skill (~/.claude/skills/statechart)" >>"$run/statecharts.log"
+      return 1
+    }
+  fi
   stage=install; (cd "$run/tree" && bun install --frozen-lockfile) >"$run/install.log" 2>&1 || return 1
   stage=check:style; (cd "$run/tree" && bun run check:style) >"$run/style.log" 2>&1 || return 1
   [[ $docs -eq 0 ]] || { log "docs only: style checked, rest skipped"; return 0; }

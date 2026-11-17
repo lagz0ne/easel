@@ -76,7 +76,9 @@ one checkout.
   (`ListAgents`, `SendMessage`).
 - The gate: `check:style`, `check:plain`, `build`,
   then `bun run smoke`. A docs-only ship
-  (`*.md`) runs `check:style` only.
+  (`*.md`) runs `check:style` only; a ship
+  touching `SPEC*.md` or `docs/statecharts/`
+  also runs `scripts/statecharts.sh --check`.
 - After the push, CI `gates` runs. A red main
   opens a `trunk-red` issue. The line stops: only
   `ship.sh --fix` (fix forward) or
