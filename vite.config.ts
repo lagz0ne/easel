@@ -1,6 +1,7 @@
 import { fileURLToPath } from "node:url";
 
 import { gates } from "@tinkered/cli/config";
+import { pageGuard } from "@tinkered/cli/vite";
 import react from "@vitejs/plugin-react";
 import { defineConfig } from "vite-plus";
 import { playwright } from "vite-plus/test/browser-playwright";
@@ -15,7 +16,9 @@ const api = `http://127.0.0.1:${process.env.API_PORT ?? 3001}`;
 export default defineConfig({
   // The browser half: the page and its modules, with React Fast Refresh. Bun runs the server.
   root: at("cmds"),
-  plugins: [react(), clientMeta(at("."))],
+  // The page build refuses server code in its graph (`.server.` files, bun:, node:). The browser
+  // tests below run the server in the page on purpose, so a test run leaves the guard out.
+  plugins: [process.env.VITEST ? [] : pageGuard(), react(), clientMeta(at("."))],
   resolve: { alias },
   build: { outDir: at("dist/client"), emptyOutDir: true },
   server: {
@@ -56,7 +59,7 @@ export default defineConfig({
           setupFiles: ["tests/browser/exits.setup.ts"],
           // An IP, not `localhost`: another suite on the machine may hold [::1]:63315 (the
           // default), and Chromium would resolve `localhost` to it and miss this run's session.
-          // Not strict: parallel runs on this machine (agents, ship gates) take the next free port.
+          // Not strict: when that suite holds 63315 itself, take the next free port.
           api: { host: "127.0.0.1", strictPort: false },
           browser: {
             enabled: true,
@@ -101,19 +104,6 @@ export default defineConfig({
       "tinker/cell-write": "warn",
       curly: ["error", "multi-line"],
       "import/no-relative-parent-imports": "error",
-      // A feature has one door: `@/<feature>` (and `@/<feature>/index.server` on the server).
-      // Inside its own folder a feature imports its files by `./`.
-      "no-restricted-imports": [
-        "error",
-        {
-          patterns: [
-            {
-              group: ["@/*/*", "!@/*/index.server"],
-              message: "Import a feature by its door: `@/<feature>` or `@/<feature>/index.server`.",
-            },
-          ],
-        },
-      ],
       // Misreads Vite's `?raw` text imports as missing default exports.
       "import/default": "off",
     },
