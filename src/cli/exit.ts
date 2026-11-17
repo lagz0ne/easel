@@ -2,6 +2,7 @@ import { operation } from "@tinkered/core";
 import { z } from "zod";
 
 import { loginApi, ownerApi, successKinds, userApi } from "@/access/contract";
+import { opsOwnerApi, opsSuccessKinds, opsUserApi } from "@/ops/contract";
 
 import { entryOf, saveEntry, server } from "./hosts";
 import { say } from "./output";
@@ -32,7 +33,16 @@ const address = z.enum([
   "users.approve",
   "users.deny",
   "users.revoke",
+  "ops.status",
+  "ops.errors",
+  "ops.error",
+  "ops.resolveError",
+  "ops.handOff",
+  "ops.fixerTick",
 ]);
+
+/** Every module's success lists, by call: the CLI reads them, and keeps none of its own. */
+const lists = { ...successKinds, ...opsSuccessKinds };
 
 /**
  * How long the CLI waits for one call's answer: the server answers within 50 s (SPEC.md rule 2),
@@ -65,7 +75,7 @@ export const exitOf = operation({
   label: "cli.exitOf",
   input: z.object({ address, kind: z.string().optional() }),
   run: (_, { input }) => {
-    const list: "always" | readonly string[] = successKinds[input.address];
+    const list: "always" | readonly string[] = lists[input.address];
     const ok = list === "always" || list.some((kind) => kind === input.kind);
 
     return ok ? exits.ok : exits.no;
@@ -92,6 +102,18 @@ const refusal = operation({
   },
 });
 
+/** The rpc fault this error is, of any module's contract; null when it is none. */
+const faultOf = operation({
+  label: "cli.faultOf",
+  input: z.unknown(),
+  run: (_, { input: error }) => {
+    if (loginApi.fault.is(error) || userApi.fault.is(error) || ownerApi.fault.is(error)) {
+      return error;
+    }
+    return opsUserApi.fault.is(error) || opsOwnerApi.fault.is(error) ? error : null;
+  },
+});
+
 /**
  * A call that did not answer: its fault, printed, and its exit code. An error that is no fault
  * of rpc's is the CLI's own bug, and is thrown on.
@@ -99,10 +121,10 @@ const refusal = operation({
 export const faultExit = operation({
   label: "cli.faultExit",
   input: z.unknown(),
-  depends: { say, refusal, server: server.required },
-  run: ({ say, refusal, server }, { input: error }) => {
-    const fault = loginApi.fault.is(error) || userApi.fault.is(error) || ownerApi.fault.is(error);
-    if (!fault) throw error;
+  depends: { say, refusal, faultOf, server: server.required },
+  run: ({ say, refusal, faultOf, server }, { input: thrown }) => {
+    const error = faultOf.run({ input: thrown });
+    if (!error) throw thrown;
 
     if (error.fault === "refused") {
       const text = refusal.run({ input: error.payload });

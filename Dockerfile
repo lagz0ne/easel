@@ -15,9 +15,12 @@ RUN useradd --system --uid 10001 --create-home easel
 WORKDIR /app
 COPY --from=build /app/dist/server /app/server
 USER easel
-# GET /api/version answers this: the deploy job waits for the commit it shipped.
+# GET /api/version answers these: the deploy job waits for the commit it shipped. BUILD is the
+# count of commits on main up to it, so a later build has a larger number (SPEC-ops.md). It has
+# no default: an image built without it refuses to start.
 ARG GIT_SHA=dev
-ENV NODE_ENV=production PORT=3000 GIT_SHA=$GIT_SHA
+ARG BUILD
+ENV NODE_ENV=production PORT=3000 GIT_SHA=$GIT_SHA BUILD=$BUILD
 EXPOSE 3000
 # One binary: `easel serve` runs the server; any other command is the CLI (SPEC-cli.md).
 CMD ["/app/server", "serve"]

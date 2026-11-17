@@ -2,9 +2,20 @@ import { capsule, operation } from "@tinkered/core";
 import { z } from "zod";
 
 import { code, name } from "@/access/contract";
+import { build, fingerprint } from "@/ops/contract";
 
 import { entryOf, hostsPath, server } from "./hosts";
 import { login, waitLogin } from "./login";
+import {
+  errorsHandOff,
+  errorsLs,
+  errorsLsInput,
+  errorsResolve,
+  errorsShow,
+  errorsShowInput,
+  errorsTick,
+  opsStatus,
+} from "./ops";
 import { json, stderr, stdout } from "./output";
 import { approveUser, denyUser, listUsers, logout, revokeUser, whoami } from "./users";
 
@@ -20,6 +31,15 @@ const usersCommand = z.discriminatedUnion("kind", [
   z.object({ kind: z.literal("revoke"), name }),
 ]);
 
+/** An owner's `easel errors` command (SPEC-ops.md). */
+const errorsCommand = z.discriminatedUnion("kind", [
+  errorsLsInput.extend({ kind: z.literal("ls") }),
+  z.object({ kind: z.literal("show"), find: errorsShowInput }),
+  z.object({ kind: z.literal("resolve"), fingerprint, build: build.positive() }),
+  z.object({ kind: z.literal("hand-off"), fingerprint, reason: z.string().trim().min(1).max(500) }),
+  z.object({ kind: z.literal("tick") }),
+]);
+
 /** One command, as the cmd read it from its flags. */
 export const command = z.discriminatedUnion("kind", [
   z.object({ kind: z.literal("login"), name, setup: code.optional(), noWait: z.boolean() }),
@@ -27,6 +47,8 @@ export const command = z.discriminatedUnion("kind", [
   z.object({ kind: z.literal("whoami") }),
   z.object({ kind: z.literal("logout") }),
   z.object({ kind: z.literal("users"), act: usersCommand }),
+  z.object({ kind: z.literal("status") }),
+  z.object({ kind: z.literal("errors"), act: errorsCommand }),
 ]);
 
 export type Command = z.infer<typeof command>;
@@ -50,11 +72,32 @@ const users = operation({
   },
 });
 
+/** Runs one `easel errors` command; answers its exit code. */
+const errors = operation({
+  label: "cli.errorsCommand",
+  input: errorsCommand,
+  depends: { errorsLs, errorsShow, errorsResolve, errorsHandOff, errorsTick },
+  run: (ops, { input }) => {
+    switch (input.kind) {
+      case "ls":
+        return ops.errorsLs.run({ input });
+      case "show":
+        return ops.errorsShow.run({ input: input.find });
+      case "resolve":
+        return ops.errorsResolve.run({ input });
+      case "hand-off":
+        return ops.errorsHandOff.run({ input });
+      case "tick":
+        return ops.errorsTick.run();
+    }
+  },
+});
+
 /** Runs one command; answers its exit code (SPEC-cli.md § Contract). */
 const run = operation({
   label: "cli.run",
   input: command,
-  depends: { login, waitLogin, whoami, logout, users },
+  depends: { login, waitLogin, whoami, logout, users, opsStatus, errors },
   run: (ops, { input }) => {
     switch (input.kind) {
       case "login":
@@ -67,6 +110,10 @@ const run = operation({
         return ops.logout.run();
       case "users":
         return ops.users.run({ input: input.act });
+      case "status":
+        return ops.opsStatus.run();
+      case "errors":
+        return ops.errors.run({ input: input.act });
     }
   },
 });

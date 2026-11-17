@@ -3,7 +3,6 @@ import { bunSqlite } from "@tinkered/bun/sqlite";
 import { createScope } from "@tinkered/core";
 
 import { defineMain } from "~/base/main";
-import { observeServerPanics } from "~/base/panics.server";
 import { health } from "~/components/health";
 import { routes } from "~/components/requests/index.server";
 import { telemetry } from "~/components/telemetry/index.server";
@@ -18,20 +17,40 @@ import { greet } from "@/greet";
 import { greetOps } from "@/greet/greet.server";
 import { issues } from "@/issues";
 import { issueOps, membersOnly, signedIn } from "@/issues/ops.server";
+import { ops } from "@/ops";
+import { opsOwnerOps, opsServer, opsUserOps, ready } from "@/ops/ops.server";
+import { observePanics } from "@/ops/panic.server";
+import { opsTelemetryRoute, opsThreadRoute } from "@/ops/sink.server";
 import { release } from "@/release";
 import { todo } from "@/todo";
 import { todoOps } from "@/todo/ops.server";
 
 import { pages } from "./pages";
 
-/** The env's defaults: the dev port when `PORT` is unset; "dev" when no image set `GIT_SHA`. */
-const defaults = { PORT: "4318", GIT_SHA: "dev" };
+/**
+ * The env's defaults: the dev port when `PORT` is unset; "dev" and build 0 when no image set
+ * `GIT_SHA` and `BUILD`. Production refuses to start without `BUILD`.
+ */
+const defaults = { PORT: "4318", GIT_SHA: "dev", BUILD: "0" };
 
 /** The host starts the server; importing this command opens nothing. */
 export default defineMain(async ({ env, args, signal, stdout, stderr, exit }) => {
-  if (args.length) {
-    stderr.write("Usage: bun cmds/host.ts\n");
-    exit(64);
+  // Why the server will not start, if it will not: bad arguments (64), or production without a
+  // build. A production server runs a build: with no `BUILD`, `/api/version` and every error
+  // group would say build 0, and a resolve could never be checked against the live build
+  // (SPEC-ops.md).
+  const refused = [
+    { code: 64, text: "Usage: bun cmds/host.ts\n", when: args.length > 0 },
+    {
+      code: 78,
+      text: "easel serve: production needs BUILD, a build number above 0; the image sets it\n",
+      // Any NODE_ENV but production, or production with a BUILD above 0.
+      when: !/^(?!production )|^production [1-9]\d*$/.test(`${env.NODE_ENV} ${env.BUILD}`),
+    },
+  ].find((check) => check.when);
+  if (refused) {
+    stderr.write(refused.text);
+    exit(refused.code);
     return { closed: Promise.resolve() };
   }
 
@@ -48,13 +67,21 @@ export default defineMain(async ({ env, args, signal, stdout, stderr, exit }) =>
     history: env.SPAN_HISTORY === undefined ? undefined : Number(env.SPAN_HISTORY),
     origin,
   };
-  const sink =
+  // A tab's batch: Tinker's checks, then ops's error sink, then the sink's queue or worker.
+  const { sink, tabs } =
     env.NODE_ENV === "production"
-      ? telemetry.thread({ ...sends, worker: new URL("./telemetry-worker.js", import.meta.url) })
-      : telemetry.server(sends);
+      ? {
+          sink: telemetry.thread({
+            ...sends,
+            worker: new URL("./telemetry-worker.js", import.meta.url),
+          }),
+          tabs: opsThreadRoute,
+        }
+      : { sink: telemetry.server(sends), tabs: opsTelemetryRoute };
 
   // Who gets in, and where users are kept: EASEL_AUTH, EASEL_DB, EASEL_TRUSTED_PROXIES.
   const auth = accessEnv.parse(env);
+  const set = { ...defaults, ...env };
   const socket = ws.server({
     path: "/rpc",
     services: [
@@ -66,6 +93,8 @@ export default defineMain(async ({ env, args, signal, stdout, stderr, exit }) =>
       todo.api,
       issues.board,
       issues.api,
+      ops.user,
+      ops.owner,
     ],
     origin,
   });
@@ -77,14 +106,15 @@ export default defineMain(async ({ env, args, signal, stdout, stderr, exit }) =>
     table: {
       "GET /api/health": health,
       "GET /api/version": release.version,
-      "POST /api/telemetry": sink.route,
+      "GET /api/ready": ready,
+      "POST /api/telemetry": tabs,
     },
   });
   const app = createScope({
     signal,
     capsules: [
       serve({
-        port: Number({ ...defaults, ...env }.PORT),
+        port: Number(set.PORT),
         pages,
         websocket: door,
         handlers: [table],
@@ -103,8 +133,12 @@ export default defineMain(async ({ env, args, signal, stdout, stderr, exit }) =>
       access.login({ implement: loginOps }),
       access.user({ implement: userOps, onStart: [user] }),
       access.owner({ implement: ownerOps, onStart: [user, owner] }),
-      // The build that runs: the image sets GIT_SHA.
-      release({ commit: { ...defaults, ...env }.GIT_SHA }),
+      // The build that runs: the image sets GIT_SHA and BUILD.
+      release({ commit: set.GIT_SHA, build: Number(set.BUILD) }),
+      // The error groups, readiness and the fixer's stamp, kept in EASEL_DB.
+      opsServer({ database: auth.file }),
+      ops.user({ implement: opsUserOps, onStart: [user] }),
+      ops.owner({ implement: opsOwnerOps, onStart: [user, owner] }),
       greet.api({ implement: greetOps }),
       // The todo feature: the server serves the list and is its only writer.
       todo.board({ serve: true }),
@@ -120,6 +154,8 @@ export default defineMain(async ({ env, args, signal, stdout, stderr, exit }) =>
   });
 
   const live = await app.ready;
-  live.onClose(observeServerPanics(exit.bind(null, 1), app.closed, stderr));
+  // A panic: stderr, then the store, then exit 1 (SPEC-ops.md fact rule 5).
+  const to = { scope: live, exit, closed: app.closed, stderr };
+  live.onClose(live.run(observePanics, { input: to }));
   return app;
 });

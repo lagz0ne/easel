@@ -37,6 +37,7 @@ Each chart's page has the chart, its rules in plain words, and what the model le
 | [queue-lease](queue-lease.md)                       | queue  | A comment: open, claimed, extended, released, resolved, stuck                             |
 | [queue-two-step](queue-two-step.md)                 | queue  | Why a claim is one write: a pick then a write gives one comment to two agents             |
 | [ops-issues](ops-issues.md)                         | ops    | An error group: open, resolved, regressed, evicted                                        |
+| [ops-issues-person](ops-issues-person.md)           | ops    | An error group that an owner resolves or hands off by hand, with no claim                 |
 | [fixer-claim-issue](fixer-claim-issue.md)           | fixer  | A fixer claims a group and opens one issue for it                                         |
 | [fixer-claim-fix](fixer-claim-fix.md)               | fixer  | A fixer ships a fix, notes it, and gives up after two                                     |
 | [fixer-probe](fixer-probe.md)                       | fixer  | The probe: it sees whether the fixer still ticks                                          |

@@ -8,7 +8,9 @@ claim are in [fixer-claim-issue](fixer-claim-issue.md) and [fixer-claim-fix](fix
 The model is [models/ops/Lifecycle.tla](models/ops/Lifecycle.tla) with
 [Lifecycle.cfg](models/ops/Lifecycle.cfg): builds 1 to 3 on one straight main line, and at most 2
 fixes. An error may be seen on the live build or an older one still running. TLC checks every rule
-below on all 167 of its states, and each one holds.
+below on all 167 of its states, and each one holds. This chart is the fixer's half: an owner's own
+`resolve` and `hand-off` are off here (`People = FALSE`), and on in
+[ops-issues-person](ops-issues-person.md), which checks the same rules with them.
 
 ```mermaid
 ---
@@ -99,11 +101,12 @@ stateDiagram-v2
 | `ResolvedNotAlreadyFailing`  | A group is never resolved when it was already seen on the fix's build or later: resolve answers `failing`.                                                                                                           | SPEC-ops.md § An error group moves through its states, step 2; judged rule 7                                                |
 | `RegressedOnlyAfterFix`      | A group is marked regressed only when seen on a build at or after its `fixedIn`; an error from an older build still running changes nothing. Without that check TLC breaks it in 6 steps.                            | SPEC-ops.md § An error group moves through its states, step 3; judged rule 6                                                |
 | `OpenMeansNeverResolved`     | A group that was resolved never comes back as new, also after it was dropped at the cap: it is regressed.                                                                                                            | SPEC-ops.md § An error group moves through its states, step 3; judged rule 4                                                |
-| `ResolvedClosesIssue`        | Once resolved, the group's issue is closed.                                                                                                                                                                          | SPEC-fixer.md § The tick finds work, step 1.2; § A fixer fixes an error, step 6                                             |
-| `PersonSeesAnOpenIssue`      | A group handed to a person has an open issue that says so.                                                                                                                                                           | SPEC-ops.md § An error group moves through its states, step 4; SPEC-fixer.md § A fixer fixes an error, step 8               |
+| `ResolvedClosesIssue`        | Once a fixer resolves a group, its issue is closed.                                                                                                                                                                  | SPEC-fixer.md § The tick finds work, step 1.2; § A fixer fixes an error, step 6                                             |
+| `PersonSeesAnOpenIssue`      | A group a fixer hands to a person has an open issue that says so.                                                                                                                                                    | SPEC-ops.md § An error group moves through its states, step 4; SPEC-fixer.md § A fixer fixes an error, step 8               |
 | `NoFixAfterSecondRegression` | After the second fix did not hold, no fix ships; a person takes it. By construction (judged in code): a regression follows a shipped fix, and the stop check after two fixes comes first, so this cannot break here. | SPEC-fixer.md § A fixer fixes an error, steps 1 and 8; § Success Criteria                                                   |
 | `AtMostTwoFixTries`          | `ship.sh --fixer` gates at most two fixes for one group; a refusal or a red gate hands it to a person, and a stopped line gates nothing.                                                                             | SPEC-fixer.md § A fixer fixes an error, steps 1, 8 and 9                                                                    |
-| `HumanStaysHuman`            | A group handed to a person stays with the person: an error seen again and the fixers leave it `human`.                                                                                                               | SPEC-ops.md § An error group moves through its states, step 4                                                               |
+| `HumanStaysHuman`            | A group handed to a person stays with the person: an error seen again and the fixers leave it `human`. Only an owner's resolve moves it on.                                                                          | SPEC-ops.md § An error group moves through its states, step 4                                                               |
+| `ResolvedIssueGetsClosed`    | A resolved group whose issue is still open gets it closed by the tick (only the tick is fair).                                                                                                                       | SPEC-fixer.md § The tick finds work, step 1.2                                                                               |
 | `NoDeadlock`                 | There is always a next step.                                                                                                                                                                                         | (model)                                                                                                                     |
 
 ## What the model leaves out
@@ -115,14 +118,19 @@ stateDiagram-v2
   the chart's "Fix shipped, its build not live yet" covers it.
 - The other reasons to give up: the error rate rose after a fix (it reverts first), and a cause
   that is not in the code (SPEC-fixer.md § A fixer fixes an error, step 8). Both end in the same `human` state.
-- A person who resolves a `human` group. `human` is the end here, so `HumanStaysHuman` checks only that no fixer and no error takes it out.
+- An owner's `resolve` and `hand-off` with no claim: [ops-issues-person](ops-issues-person.md)
+  has them. Here `human` is the end, so `HumanStaysHuman` checks that no fixer and no error takes
+  it out.
 - Builds as real numbers. The model has builds 1 to 3, so at most two fixes ship; the spec's cap
   is 2 as well.
 - The retired list's size (10 000, oldest out). The model keeps the dropped group's fingerprint
   for ever. A group pushed out of that list would come back as a new `open` group.
 - Unconfirmed groups dropped at the cap, and the `dropped` counter (SPEC-ops.md, judged rule 3).
+  A browser group that has regressed or gone `human` can be dropped at the cap, and it comes back
+  as a new `open` group: only a dropped `resolved` group keeps its fingerprint and `fixedIn`.
 - The tick that closes the issue of a resolved group whose fixer stopped before it closed it. Here
-  resolve and close are one step.
+  resolve and close are one step; the tick's close is in the model (`TickClosesIssue`), and is
+  reached only in [ops-issues-person](ops-issues-person.md).
 
 ## Steps the chart hides
 

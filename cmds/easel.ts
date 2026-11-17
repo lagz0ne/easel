@@ -12,6 +12,8 @@ import { access } from "@/access";
 import { cli, command } from "@/cli";
 import type { Command } from "@/cli";
 import { hostsAt } from "@/cli/hosts";
+import { since } from "@/cli/ops";
+import { ops } from "@/ops";
 
 // `easel`: the CLI (SPEC-cli.md). The one place that reads its flags and the hosts file's path
 // (fact rule 1): it reads them, fills the `cli` capsule's config, runs one command against one
@@ -29,6 +31,13 @@ const help = `easel: the canvas CLI. Every command takes --json (one JSON value 
   easel users approve <code> [--owner]             approve a code; --owner makes an owner (owner)
   easel users deny <code>                          deny a code (owner)
   easel users revoke <name>                        end a user and its token (owner)
+  easel status                                     the build, the checks, the counters, the errors and the fixer's tick
+  easel errors [ls] [--open] [--side server|browser] [--since 2h]
+                                                   the error groups; --open is the work list (owner)
+  easel errors show <fingerprint> | --trace <id>   one group and its samples; --trace takes a failed call's trace id (owner)
+  easel errors resolve <fingerprint> --build <n>   mark it fixed in build n, once n is live and the error did not come back (owner)
+  easel errors hand-off <fingerprint> --reason <text>  a person takes it (owner)
+  easel errors tick                                stamp the fixer's tick (owner)
 
 Exit: 0 success, 1 another answer, 2 refused, 64 usage, 65 invalid, 69 unreachable, 70 failed,
 76 missing, 78 a hosts file that cannot be read.
@@ -42,10 +51,94 @@ const options = {
   "no-wait": { type: "boolean" },
   resume: { type: "boolean" },
   owner: { type: "boolean" },
+  open: { type: "boolean" },
+  side: { type: "string" },
+  since: { type: "string" },
+  trace: { type: "string" },
+  build: { type: "string" },
+  reason: { type: "string" },
   help: { type: "boolean", short: "h" },
 } as const;
 
 const common = { json: z.boolean().optional(), server: z.string().optional() };
+
+/** `--build`: a whole number, as typed. */
+const buildFlag = z
+  .string()
+  .regex(/^\d+$/, "--build takes a build number")
+  .transform((typed) => Number(typed));
+
+/** The words and flags of `easel status` and `easel errors` (SPEC-ops.md). */
+const opsInvocations = [
+  z
+    .object({ positionals: z.tuple([z.literal("status")]), values: z.strictObject(common) })
+    .transform(({ values }): unknown => ({ at: values.server, command: { kind: "status" } })),
+  z
+    .object({
+      positionals: z.union([
+        z.tuple([z.literal("errors")]),
+        z.tuple([z.literal("errors"), z.literal("ls")]),
+      ]),
+      values: z.strictObject({
+        ...common,
+        open: z.boolean().optional(),
+        side: z.string().optional(),
+        since: since.optional(),
+      }),
+    })
+    .transform(({ values }): unknown => ({
+      at: values.server,
+      command: {
+        kind: "errors",
+        act: { kind: "ls", open: !!values.open, side: values.side, since: values.since },
+      },
+    })),
+  z
+    .object({
+      positionals: z.tuple([z.literal("errors"), z.literal("show"), z.string()]),
+      values: z.strictObject(common),
+    })
+    .transform(({ positionals: [, , fingerprint], values }): unknown => ({
+      at: values.server,
+      command: { kind: "errors", act: { kind: "show", find: { fingerprint } } },
+    })),
+  z
+    .object({
+      positionals: z.tuple([z.literal("errors"), z.literal("show")]),
+      values: z.strictObject({ ...common, trace: z.string() }),
+    })
+    .transform(({ values }): unknown => ({
+      at: values.server,
+      command: { kind: "errors", act: { kind: "show", find: { trace: values.trace } } },
+    })),
+  z
+    .object({
+      positionals: z.tuple([z.literal("errors"), z.literal("resolve"), z.string()]),
+      values: z.strictObject({ ...common, build: buildFlag }),
+    })
+    .transform(({ positionals: [, , fingerprint], values }): unknown => ({
+      at: values.server,
+      command: { kind: "errors", act: { kind: "resolve", fingerprint, build: values.build } },
+    })),
+  z
+    .object({
+      positionals: z.tuple([z.literal("errors"), z.literal("hand-off"), z.string()]),
+      values: z.strictObject({ ...common, reason: z.string() }),
+    })
+    .transform(({ positionals: [, , fingerprint], values }): unknown => ({
+      at: values.server,
+      command: { kind: "errors", act: { kind: "hand-off", fingerprint, reason: values.reason } },
+    })),
+  z
+    .object({
+      positionals: z.tuple([z.literal("errors"), z.literal("tick")]),
+      values: z.strictObject(common),
+    })
+    .transform(({ values }): unknown => ({
+      at: values.server,
+      command: { kind: "errors", act: { kind: "tick" } },
+    })),
+] as const;
 
 /**
  * The words and flags of each command, read into its `command` input and the server it names.
@@ -120,6 +213,7 @@ const invocation = z.union([
         act: kind === "deny" ? { kind, code: word } : { kind, name: word },
       },
     })),
+  ...opsInvocations,
 ]);
 
 /** The words and flags, read by `parseArgs`: `--help` anywhere asks for the help. */
@@ -214,6 +308,8 @@ const main = defineMain(async (ctx) => {
       access.login({ remote: ws.client }),
       access.user({ remote: ws.client }),
       access.owner({ remote: ws.client }),
+      ops.user({ remote: ws.client }),
+      ops.owner({ remote: ws.client }),
       cli({ stdout, stderr, json: asJson, server: planned.server, hosts: planned.path }),
     ],
   });

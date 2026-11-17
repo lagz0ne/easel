@@ -26,7 +26,7 @@ AB=(agent-browser --session "$session")
 
 # No VICTORIA_* URL: the built server starts without Victoria and exports nothing
 # (SPEC-ops.md fact rule 4); the smoke judges the app, not the collector.
-PORT="$port" PUBLIC_ORIGIN="$base" NODE_ENV=production EASEL_DB="$out/easel.db" OTEL_SERVICE_NAME=easel-smoke \
+BUILD=1 PORT="$port" PUBLIC_ORIGIN="$base" NODE_ENV=production EASEL_DB="$out/easel.db" OTEL_SERVICE_NAME=easel-smoke \
   "$dir/dist/server" serve >"$out/server.log" 2>&1 &
 server=$!
 cleanup() {

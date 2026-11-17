@@ -83,7 +83,7 @@ calls them. The tick and the wrapper are shell scripts with no model.
      to step 6. Or `git log origin/main` has a commit with the trailer `Fixes-Error: <fingerprint>`
      that is not among the group's noted fixes: an earlier fixer stopped between its push and its
      note. The fixer notes that commit (`easel errors note-fix`) and goes to step 6.
-   - attempts is 2: two shipped fixes have not cured it. It gives up (step 8).
+   - attempts is 2: two shipped fixes have not cured it. Or a person had the group before: its `reason` is set, or its `fixedIn` is none of its noted fixes. It gives up (step 8).
 2. Otherwise the group needs a fix, and the fixer goes on.
 3. **One issue per group.** The fixer looks for the group's issue by its fingerprint label,
    `fp:<first 16 hex of the fingerprint>`, open or closed:

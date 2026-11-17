@@ -171,7 +171,8 @@ CLI: `easel status`, `easel errors ls`, `easel errors show`, `easel errors resol
 ### Fact rules (the code graph decides)
 
 1. The error sink is the only writer of an error group's sightings. It reads Tinker's telemetry
-   records; no operation calls it.
+   records; no operation calls it, except the panic path (fact rule 5), which records the panic
+   before it exits: a crash leaves no telemetry record for the sink to read.
 2. Every `ops.*` rpc call runs the `user` guard. Every one but `ops.status` runs the `owner` guard
    next.
 3. The sink and `ops.resolveError` take time from the run's `clock`, and the build from the
@@ -207,7 +208,8 @@ CLI: `easel status`, `easel errors ls`, `easel errors show`, `easel errors resol
 ## Statecharts
 
 [docs/statecharts/ops-issues.md](docs/statecharts/ops-issues.md): one error group from its first
-sighting to `resolved` or a person, with the fixer as one actor.
+sighting to `resolved` or a person, with the fixer as one actor. [docs/statecharts/ops-issues-person.md](docs/statecharts/ops-issues-person.md):
+the same group when an owner resolves it or hands it off, with no claim.
 
 ## Success Criteria
 

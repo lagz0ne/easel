@@ -13,6 +13,7 @@ frames-writes-two-step	models/frames/Writes.tla	models/frames/WritesTwoStep.cfg	
 frames-pictures	models/frames/Pictures.tla	models/frames/Pictures.cfg	models/frames/Pictures.view.mjs	holds
 frames-share	models/frames/Share.tla	models/frames/Share.cfg	models/frames/Share.view.mjs	holds
 ops-issues	models/ops/Lifecycle.tla	models/ops/Lifecycle.cfg	models/ops/Lifecycle.view.mjs	holds
+ops-issues-person	models/ops/Lifecycle.tla	models/ops/LifecyclePerson.cfg	models/ops/Lifecycle.view.mjs	holds
 fixer-claim-issue	models/fixer/Claim.tla	models/fixer/ClaimIssue.cfg	models/fixer/Claim.view.mjs	holds
 fixer-claim-fix	models/fixer/Claim.tla	models/fixer/ClaimFix.cfg	models/fixer/Claim.view.mjs	holds
 fixer-probe	models/fixer/Probe.tla	models/fixer/Probe.cfg	models/fixer/Probe.view.mjs	holds
