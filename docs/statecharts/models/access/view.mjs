@@ -29,13 +29,16 @@ const cliNames = {
   stopped: "Stopped waiting, can resume",
 };
 
+// A kept code that is pending past its time reads as expired.
+const code = (v) => (v.req === "pending" && v.late ? "expired" : v.req);
+
 const agent = (v) => {
   if (v.cli === "in") {
-    return v.tokenLive ? "Signed in" : "Signed in, token revoked";
+    return v.tokenLive ? "Signed in" : "Signed in, token ended (revoked or logged out)";
   }
 
   if (v.cli === "waiting") {
-    return v.lost ? "Waiting, granted answer lost" : waiting[v.req];
+    return v.lost ? "Waiting, granted answer lost" : waiting[code(v)];
   }
 
   return cliNames[v.cli];
@@ -64,7 +67,7 @@ const labels = {
   TheAgentsCallIsRefused: "the agent's next call is refused, and it is told to log in again",
 };
 
-const ended = (v) => v.req === "denied" || v.req === "expired";
+const ended = (v) => code(v) === "denied" || code(v) === "expired";
 
 // Hidden: stopping on a code that already ended or whose granted answer was lost,
 // and resuming onto a code that already ended. Stopping on a pending or approved
@@ -74,7 +77,7 @@ const hidden = {
   TheAgentResumes: (_from, to) => ended(to),
 };
 
-// TLC names a step by the operator it runs: Approve and Revoke take a parameter.
+// TLC names a step by the operator it runs: Approve, Revoke and Logout take a parameter.
 const named = {
   TheAgentStartsALogin: (_from, to) =>
     to.cli === "slow"
@@ -88,6 +91,13 @@ const named = {
     to.role.ann === "revoked" && from.role.ann !== "revoked"
       ? "an owner revokes Ann"
       : "an owner revokes the agent",
+  Logout: (from, to) => {
+    if (from.role.ann !== to.role.ann) {
+      return "Ann logs out";
+    }
+
+    return to.cli === "out" ? "the agent logs out" : "the agent logs out, but the answer is lost";
+  },
 };
 
 export const step = (action, from, to) => {

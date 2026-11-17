@@ -27,8 +27,8 @@ initial admin password.
 
 - `approve` (the default): a new user waits until an owner approves their code.
 - `open`: each login is granted at once, as an owner. For one person on their own machine. The
-  server listens on 127.0.0.1 only, and refuses to start when `PUBLIC_ORIGIN` is unset or is not a
-  loopback address.
+  server refuses every rpc call from a peer that is not this machine, and refuses to start when
+  `PUBLIC_ORIGIN` is unset or is not a loopback address.
 
 While an `approve` server has no user, each start prints a new one-time setup code to its log, and
 the code from the start before stops working: it answers `wrong`. The first login that gives it
@@ -36,9 +36,11 @@ becomes the owner. Once used, it answers `taken`.
 
 Users, tokens and pending codes are kept in the SQLite file, so they survive a restart.
 
-The rate limits count per client address. Behind Traefik, that is the address Traefik adds last to
-`X-Forwarded-For`; the server trusts that header only from Traefik. Otherwise it is the socket's
-peer address.
+The rate limits count per client address. The server reads `X-Forwarded-For` only when the
+socket's peer is a trusted proxy (`EASEL_TRUSTED_PROXIES`, loopback when unset; production lists
+Traefik's network and Cloudflare's ranges). It reads the header from the right, skips each trusted
+proxy, and takes the first address that is not one (nginx's `real_ip_recursive`). Otherwise the
+address is the socket's peer. An IPv6 address counts by its /64.
 
 ## How a token is made
 
@@ -91,8 +93,11 @@ peer address.
 ### Sign out
 
 1. `easel whoami` calls `users.me`, and prints the name, the role and the server.
-2. `easel logout` calls `login.end`. The server revokes the calling token; it answers `ended`. Then
-   the CLI deletes the token from `hosts.json`.
+2. `easel logout` calls `login.end`. The server removes the calling user, with its token and its
+   codes, in one write; it answers `ended`. The name is free again, so the user can log in again
+   with it. Then the CLI deletes the token from `hosts.json`.
+3. The last owner cannot log out: `login.end` answers `last` and changes nothing, as
+   `users.revoke` does, so a server with an owner always has one. Its token still works.
 
 ## Contract
 
@@ -115,7 +120,8 @@ owner's token.
 
 // user: `easel whoami` and `easel logout`
 "users.me":      { kind: "me"; name: string; owner: boolean }
-"login.end":     { kind: "ended" }    // revokes the calling token on the server
+"login.end":     { kind: "ended" }    // removes the calling user: its token, codes and name
+               | { kind: "last" }     // the caller is the last owner: nothing changes
 
 // owner
 "users.list":    { users: User[]; requests: Request[] }
@@ -148,7 +154,7 @@ journeys. Its rules are the oracle the tests follow.
 1. Every owner call runs the `user` guard, then the `owner` guard.
 2. Every user call (`users.me`, `login.end`, canvas, frame, comment queue) runs the `user` guard.
 3. `login.start`, `login.setup` and `login.wait` run no guard, and write only the `logins` and
-   `users` cells.
+   `users` cells, and the setup code cell that the granting write of `login.setup` clears.
 4. Only the cmd reads `EASEL_AUTH` and the env; no operation reads `process.env`.
 
 ### Judged rules (need reading the code)
@@ -156,7 +162,8 @@ journeys. Its rules are the oracle the tests follow.
 1. The CLI makes each token. The server gets only its SHA-256 digest, keeps only that, and compares
    in constant time. No answer carries a token.
 2. A code is single use: an approve, a deny, its expiry or a revoke ends it, and a second approve
-   answers `gone`.
+   answers `gone`. A day after its code ends, a request is forgotten; an unknown request answers
+   `expired`.
 3. A code is 8 letters from an alphabet with no look-alikes (RFC 8628, section 6.1), and runs out
    after 10 minutes.
 4. The setup code works once, and only while the server has no user. Once used, it answers
@@ -171,15 +178,19 @@ journeys. Its rules are the oracle the tests follow.
    or read, not only at its next connect, and is never told `granted` again.
 9. `users.revoke` on the last owner answers `last`. An owner may revoke themselves while another
    owner remains.
-10. Each rate limit counts per client address. In one minute, from one address: 5 `login.start`
-    calls, 5 `login.setup` calls, 30 `login.wait` calls. Each call counts, whatever it answers.
-    Past that, the call answers `slow` with `retryIn`, even a right setup code.
+10. Each rate limit counts per client address, an IPv6 one by its /64. In one minute, from one
+    address: 5 `login.start` calls, 5 `login.setup` calls, 30 `login.wait` calls. Each call counts,
+    whatever it answers. Past that, the call answers `slow` with `retryIn`, even a right setup code.
 11. At most 20 codes wait for approval at once, and at most 3 from one address. Past that,
     `login.start` answers `slow`.
-12. In `open`, the server listens on 127.0.0.1 only, and does not start unless `PUBLIC_ORIGIN` is a
-    loopback address.
+12. In `open`, the server refuses every rpc call (`/rpc`) from a peer that is not a loopback
+    address; pages, `/api/health` and `/api/version` stay readable. It does not start unless
+    `PUBLIC_ORIGIN` is a loopback address. Listening on 127.0.0.1 alone waits on a hostname option
+    in Tinker's `serve`.
 13. A token, a digest, a code and a request never reach a span attribute, a log record, or the text
     of an `invalid` fault. The setup code reaches the log once, in the line that shows it.
+14. `login.end` removes the calling user, its token and its codes in one write, as `users.revoke`
+    does, so its name is free for a new login. The last owner answers `last` and nothing changes.
 
 ## Success Criteria
 
@@ -187,7 +198,8 @@ journeys. Its rules are the oracle the tests follow.
   code from before a restart (`wrong`), a setup name that a pending code carries (`taken`),
   join (approve, approve as owner, deny, expiry, `--no-wait` and `--resume`, a lost `granted`
   answer), `taken`, revoke (also before the CLI heard, and the last owner), `slow`, and sign out
-  (`whoami`, then `logout`: the token is refused after it).
+  (`whoami`, then `logout`: the token is refused after it, and the name logs in again; the last
+  owner's `logout` answers `last` and its token still works).
 - Every contract kind and refusal is reached by a test; `tinker check` is OK.
 - Each judged rule is judged OK with a file:line.
 - Each rule of [access-login](docs/statecharts/access-login.md) holds, and a test walks each path

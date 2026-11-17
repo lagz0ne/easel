@@ -1,4 +1,5 @@
 import { serve, ws } from "@tinkered/bun";
+import { bunSqlite } from "@tinkered/bun/sqlite";
 import { createScope } from "@tinkered/core";
 
 import { defineMain } from "~/base/main";
@@ -7,6 +8,12 @@ import { health } from "~/components/health";
 import { routes } from "~/components/requests/index.server";
 import { telemetry } from "~/components/telemetry/index.server";
 
+import { access } from "@/access";
+import { accessEnv } from "@/access/env.server";
+import { accessDoor, owner, user } from "@/access/guards.server";
+import { loginOps } from "@/access/login.server";
+import { accessServer } from "@/access/store.server";
+import { ownerOps, userOps } from "@/access/users.server";
 import { greet } from "@/greet";
 import { greetOps } from "@/greet/greet.server";
 import { issues } from "@/issues";
@@ -46,11 +53,25 @@ export default defineMain(async ({ env, args, signal, stdout, stderr, exit }) =>
       ? telemetry.thread({ ...sends, worker: new URL("./telemetry-worker.js", import.meta.url) })
       : telemetry.server(sends);
 
+  // Who gets in, and where users are kept: EASEL_AUTH, EASEL_DB, EASEL_TRUSTED_PROXIES.
+  const auth = accessEnv.parse(env);
   const socket = ws.server({
     path: "/rpc",
-    services: [greet.api, todo.board, todo.api, issues.board, issues.api],
+    services: [
+      access.login,
+      access.user,
+      access.owner,
+      greet.api,
+      todo.board,
+      todo.api,
+      issues.board,
+      issues.api,
+    ],
     origin,
   });
+  // The socket's door: it notes each peer's address, and on an `open` server lets in only this
+  // machine (SPEC-access judged rule 12; `serve` cannot bind 127.0.0.1 alone).
+  const door = accessDoor({ inner: socket, loopbackOnly: auth.mode === "open" });
   const table = routes({
     stop: signal,
     table: {
@@ -65,12 +86,23 @@ export default defineMain(async ({ env, args, signal, stdout, stderr, exit }) =>
       serve({
         port: Number({ ...defaults, ...env }.PORT),
         pages,
-        websocket: socket,
+        websocket: door,
         handlers: [table],
         development: env.NODE_ENV !== "production",
         stdout,
       }),
       sink,
+      bunSqlite({ file: auth.file }),
+      accessServer({
+        mode: auth.mode,
+        origin: auth.origin,
+        stdout,
+        trusted: auth.trusted,
+        durable: auth.durable,
+      }),
+      access.login({ implement: loginOps }),
+      access.user({ implement: userOps, onStart: [user] }),
+      access.owner({ implement: ownerOps, onStart: [user, owner] }),
       // The build that runs: the image sets GIT_SHA.
       release({ commit: { ...defaults, ...env }.GIT_SHA }),
       greet.api({ implement: greetOps }),
@@ -80,6 +112,8 @@ export default defineMain(async ({ env, args, signal, stdout, stderr, exit }) =>
       // The issue board: each part goes to its team's members; every call needs a viewer.
       issues.board({ serve: true, onStart: [signedIn, membersOnly] }),
       issues.api({ implement: issueOps, onStart: [signedIn] }),
+      // The door wraps the socket, so it starts first and reads the socket once it has started.
+      door,
       socket,
       table,
     ],

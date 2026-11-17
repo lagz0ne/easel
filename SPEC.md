@@ -68,8 +68,9 @@ and the list of commands by module.
    sits above that limit, so a document a little too big gets `tooBig`, not a closed socket.
    `frame.shot` answers a picture URL, and the client
    fetches the picture over HTTP, so no picture crosses the socket.
-4. **Rate limits.** A limit counts per client address. The address comes from `X-Forwarded-For` as
-   the trusted proxy (Traefik) sets it: the entry that Traefik added, never one the client sent. A
+4. **Rate limits.** A limit counts per client address. The address comes from `X-Forwarded-For`,
+   read from the right past each trusted proxy (Traefik, Cloudflare): never an entry the client
+   sent. A
    limit is never kept only per link or only for the whole server.
 
 ## Statecharts are the oracle

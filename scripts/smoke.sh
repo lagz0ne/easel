@@ -25,7 +25,7 @@ session="easel-smoke-$$"
 AB=(agent-browser --session "$session")
 
 # Telemetry goes to a closed port: the smoke judges the app, not the collector.
-PORT="$port" PUBLIC_ORIGIN="$base" NODE_ENV=production OTEL_SERVICE_NAME=easel-smoke \
+PORT="$port" PUBLIC_ORIGIN="$base" NODE_ENV=production EASEL_DB="$out/easel.db" OTEL_SERVICE_NAME=easel-smoke \
   VICTORIA_TRACES_URL=http://127.0.0.1:9/ VICTORIA_LOGS_URL=http://127.0.0.1:9/ \
   "$dir/dist/server" >"$out/server.log" 2>&1 &
 server=$!
