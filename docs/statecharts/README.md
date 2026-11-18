@@ -45,6 +45,7 @@ Each chart's page has the chart, its rules in plain words, and what the model le
 | [fixer-claim-unsafe](fixer-claim-unsafe.md)         | fixer  | Why the fixer needs a guard: with neither, an orphaned `ship.sh` pushes without the claim |
 | [viewer-gate](viewer-gate.md)                       | viewer | Opening a link: the password, the pass, an ended link                                     |
 | [viewer-gate-open](viewer-gate-open.md)             | viewer | The first slice: the name gate, a link with no password, an unknown link                  |
+| [viewer-gate-password](viewer-gate-password.md)     | viewer | The shipped gate: passwords, the wait, unshare; the canvas with no comments yet           |
 | [viewer-canvas](viewer-canvas.md)                   | viewer | The canvas: live frames, pan and zoom, reconnecting                                       |
 | [viewer-pin-post](viewer-pin-post.md)               | viewer | Posting a comment: typed, sent, saved, or a fault                                         |
 | [viewer-pin-link](viewer-pin-link.md)               | viewer | A pin when its link ends: the typed text stays to copy                                    |

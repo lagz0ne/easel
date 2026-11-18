@@ -16,7 +16,7 @@ import { routeTree } from "@/routes";
 import { gates, nameKey, openLink, tabMeta } from "@/viewer/gate";
 
 // In a real Chromium: the share link's page over `memory`, with the app's own routes (the
-// viewer-gate-open chart). The server here stands in for share.server.ts, which needs SQLite.
+// viewer-gate-password chart). The server here stands in for share.server.ts, which needs SQLite.
 // Each link the stub knows plays one case; any other link is gone:
 // - `live` opens to `home` with the pass the guard takes;
 // - `stale` opens twice with a pass the guard turns away, as a link that ends after it opened,
@@ -24,15 +24,25 @@ import { gates, nameKey, openLink, tabMeta } from "@/viewer/gate";
 // - `evicted` opens first with a pass the guard turns away (the link's oldest, trimmed past
 //   1000), then with a good one;
 // - `flooded` answers `slow` twice (the flood limit), then opens;
-// - `stuck` answers `slow`, then opens with a pass the guard turns away.
+// - `stuck` answers `slow`, then opens with a pass the guard turns away;
+// - `guarded` asks a password: none answers `locked`, `rightPw` opens with a new pass each time,
+//   `waitPw` answers `slow` for a minute (as after 5 wrong tries), any other is `wrong`. The test
+//   locks its passes (a password set or changed) or ends it (unshare) and pushes the refusal, as
+//   share.server.ts does.
 
 const live = "a".repeat(32);
 const stale = "b".repeat(32);
 const evicted = "c".repeat(32);
 const flooded = "f".repeat(32);
 const stuck = "9".repeat(32);
+const guarded = "7".repeat(32);
 const pass = "1".repeat(32);
 const badPass = "d".repeat(32);
+const rightPw = "correct horse";
+const waitPw = "after five wrong";
+
+/** The `guarded` link's server side: its passes, which of them a password change locked, and whether it ended. */
+const guard = { passes: new Set<string>(), locked: new Set<string>(), ended: false };
 
 /** `share.open` calls the stub answered, by link. */
 const calls = new Map<string, number>();
@@ -43,6 +53,8 @@ const allCalls = () => [...calls.values()].reduce((a, b) => a + b, 0);
 type Answer =
   | { kind: "open"; canvas: string; pass: string }
   | { kind: "slow"; retryIn: number }
+  | { kind: "locked" }
+  | { kind: "wrong" }
   | { kind: "gone" };
 
 const opened = (p: string) => ({ kind: "open" as const, canvas: "home", pass: p });
@@ -58,6 +70,18 @@ const answers = new Map<string, (n: number) => Answer>([
   [stuck, (n: number) => (n === 1 ? slow : opened(badPass))],
 ]);
 
+/** `guarded`'s answer to the n-th call, with `password` or none. */
+const guardedAnswer = (n: number, password?: string): Answer => {
+  if (guard.ended) return gone;
+  if (password === undefined) return { kind: "locked" };
+  if (password === waitPw) return { kind: "slow", retryIn: 60_000 };
+  if (password !== rightPw) return { kind: "wrong" };
+
+  const given = n.toString(16).padStart(32, "2");
+  guard.passes.add(given);
+  return opened(given);
+};
+
 const open = operation({
   label: "test.shareOpen",
   input: shareApi["share.open"].input,
@@ -65,18 +89,45 @@ const open = operation({
     const n = callsTo(input.link) + 1;
     calls.set(input.link, n);
 
-    return answers.get(input.link)?.(n) ?? gone;
+    return input.link === guarded
+      ? guardedAnswer(n, input.password)
+      : (answers.get(input.link)?.(n) ?? gone);
   },
 });
 
-/** `mayRead`'s pass half: the pass for `home` reads `home`; any other read has ended. */
+/** What the guard refuses a read of `home` with `held`; none when it may read. */
+const refusalOf = (held: string) => {
+  if (held === pass) return undefined;
+  if (!guard.passes.has(held) || guard.ended) return { ended: true };
+
+  return guard.locked.has(held) ? { locked: true } : undefined;
+};
+
+/**
+ * `mayRead`'s pass half: the pass for `home` reads `home`, as does a live pass of `guarded`; a
+ * pass a password change locked is refused `locked`; any other read has ended.
+ */
 const passOnly = operation({
   label: "test.passOnly",
   input: transport.hook.start,
-  run: (_, { input }) =>
-    passMeta.safeParse(input.meta).data?.pass === pass && framesBoard.part(input)?.canvas === "home"
-      ? undefined
-      : input.refuse({ ended: true }),
+  run: (_, { input }) => {
+    const held = passMeta.safeParse(input.meta).data?.pass ?? "";
+    const refusal = framesBoard.part(input)?.canvas === "home" ? refusalOf(held) : { ended: true };
+
+    return refusal ? input.refuse(refusal) : undefined;
+  },
+});
+
+/** A password set or changed on `guarded` (every pass locked), or an unshare; then the push. */
+const changeGuarded = operation({
+  label: "test.changeGuarded",
+  input: z.enum(["password", "unshare"]),
+  depends: { invalidate: framesBoard.invalidate },
+  run: async ({ invalidate }, { input }) => {
+    if (input === "password") for (const given of guard.passes) guard.locked.add(given);
+    else guard.ended = true;
+    await invalidate.run({ input: { frames: { canvas: "home" }, docs: { canvas: "home" } } });
+  },
 });
 
 const putFrame = operation({
@@ -89,6 +140,9 @@ const putFrame = operation({
 
 async function boot() {
   calls.clear();
+  guard.passes.clear();
+  guard.locked.clear();
+  guard.ended = false;
   const server = await createScope({
     capsules: [
       exits({ store: localStorage }),
@@ -353,5 +407,151 @@ test("leaving a link mid-retry stops its loop, and a late answer for another lin
   expect(endedHeading().elements()).toHaveLength(0);
 
   await shown.scope.close();
+  await server.close();
+});
+
+const passwordBox = () => page.getByLabelText("Password");
+const openButton = () => page.getByRole("button", { name: "Open" });
+const passwordHeading = () => page.getByRole("heading", { name: "This link asks a password" });
+
+/** Types `password` on the password page and presses Open. */
+async function enter(password: string) {
+  await passwordBox().fill(password);
+  await openButton().click();
+}
+
+test("a password link asks the password after the name and never says to wait first; a wrong one says so; the right one shows the canvas (s2 to s3, s3 to s1, OpenWithoutPasswordIsNeverSlow)", async () => {
+  localStorage.removeItem(nameKey);
+  const server = await boot();
+  const shown = await tab(server, `/s/${guarded}`);
+
+  await page.getByLabelText("Your name").fill("Bo");
+  await page.getByRole("button", { name: "Continue" }).click();
+  await expect.element(passwordHeading()).toBeVisible();
+  expect(passwordBox().element()).toHaveAttribute("type", "password");
+  expect(page.getByRole("alert").elements()).toHaveLength(0);
+  expect(frameList().elements()).toHaveLength(0);
+
+  await enter("not the password");
+  await expect.element(page.getByRole("alert")).toHaveTextContent("That password is wrong.");
+  expect(frameList().elements()).toHaveLength(0);
+  await enter(rightPw);
+  await expect.element(frameList().getByText("Home")).toBeVisible();
+  expectCanvasControlsOnly();
+  // Its calls: the open with the name, the wrong try and the right one.
+  expect(callsTo(guarded)).toBe(3);
+
+  await shown.scope.close();
+  await server.close();
+});
+
+test("with the name kept, a password link opens on the password page (s0 to s3); the password is never kept in the browser", async () => {
+  localStorage.setItem(nameKey, "Bo");
+  const server = await boot();
+  const shown = await tab(server, `/s/${guarded}`);
+
+  await expect.element(passwordHeading()).toBeVisible();
+  await enter(rightPw);
+  await expect.element(frameList().getByText("Home")).toBeVisible();
+  const kept = JSON.stringify([Object.entries(localStorage), Object.entries(sessionStorage)]);
+  expect(kept).not.toContain(rightPw);
+
+  await shown.scope.close();
+  await server.close();
+});
+
+test("past 5 wrong tries the page says to wait; even the right password does not open; a minute later the alert is gone and it opens (s3 to s6, s6 to s3, WaitMeansWait)", async () => {
+  localStorage.setItem(nameKey, "Bo");
+  vi.spyOn(Math, "random").mockReturnValue(0.5);
+  onTestFinished(() => void vi.restoreAllMocks());
+  const server = await boot();
+  const shown = await tab(server, `/s/${guarded}`);
+  await expect.element(passwordHeading()).toBeVisible();
+
+  await enter(waitPw);
+  await expect
+    .element(page.getByRole("alert"))
+    .toHaveTextContent("Too many wrong passwords. Wait a minute, then try again.");
+  expect(frameList().elements()).toHaveLength(0);
+  await expect
+    .poll(() => shown.scope.run(gateOf, { input: guarded }))
+    .toEqual({ link: guarded, page: "password", alert: "wait" });
+
+  shown.clock.advance(60_499);
+  await tick();
+  expect(page.getByRole("alert").elements()).toHaveLength(1);
+  shown.clock.advance(1);
+  await expect.poll(() => page.getByRole("alert").elements().length).toBe(0);
+  await expect.element(passwordHeading()).toBeVisible();
+  await enter(rightPw);
+  await expect.element(frameList().getByText("Home")).toBeVisible();
+
+  await shown.scope.close();
+  await server.close();
+});
+
+test("a password set or changed while the canvas shows takes the tab back to the password page at once; the new password shows the canvas again (s1 to s3, LockPushedAtOnce)", async () => {
+  localStorage.setItem(nameKey, "Bo");
+  const server = await boot();
+  const shown = await tab(server, `/s/${guarded}`);
+  await enter(rightPw);
+  await expect.element(frameList().getByText("Home")).toBeVisible();
+  const before = callsTo(guarded);
+
+  await server.run(changeGuarded, { input: "password" });
+  await expect.element(passwordHeading()).toBeVisible();
+  expect(frameList().elements()).toHaveLength(0);
+  // It asks; it does not open the link again on its own.
+  expect(callsTo(guarded)).toBe(before);
+  expect(await shown.scope.run(tabMeta)).not.toHaveProperty("pass");
+
+  await enter(rightPw);
+  await expect.element(frameList().getByText("Home")).toBeVisible();
+  expect(endedHeading().elements()).toHaveLength(0);
+
+  await shown.scope.close();
+  await server.close();
+});
+
+test("an unshare while the canvas shows takes the tab to the ended page at once, and it stays there (s1 to s4, EndPushedAtOnce, EndedStaysEnded)", async () => {
+  localStorage.setItem(nameKey, "Bo");
+  const server = await boot();
+  const shown = await tab(server, `/s/${guarded}`);
+  await enter(rightPw);
+  await expect.element(frameList().getByText("Home")).toBeVisible();
+
+  await server.run(changeGuarded, { input: "unshare" });
+  await expect.element(endedHeading()).toBeVisible();
+  expectNoControl();
+  expect(frameList().elements()).toHaveLength(0);
+  await tick(200);
+  await expect.element(endedHeading()).toBeVisible();
+
+  await shown.scope.close();
+  await server.close();
+});
+
+test("Open on the password page of a link that has ended shows the ended page, from the wait too (s3 to s4, s6 to s4)", async () => {
+  localStorage.setItem(nameKey, "Bo");
+  const server = await boot();
+
+  for (const first of [null, waitPw]) {
+    guard.ended = false;
+    const shown = await tab(server, `/s/${guarded}`);
+    await expect.element(passwordHeading()).toBeVisible();
+
+    if (first) {
+      await enter(first);
+      await expect.element(page.getByRole("alert")).toBeVisible();
+    }
+    guard.ended = true;
+    await enter(rightPw);
+    await expect.element(endedHeading()).toBeVisible();
+    expectNoControl();
+
+    shown.root.unmount();
+    await shown.scope.close();
+  }
+
   await server.close();
 });

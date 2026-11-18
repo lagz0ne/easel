@@ -14,8 +14,8 @@ import { loginOps } from "@/access/login.server";
 import { accessServer } from "@/access/store.server";
 import { userOps } from "@/access/users.server";
 import { cli } from "@/cli";
-import { framesRun } from "@/cli/frames";
-import type { FramesCommand } from "@/cli/frames";
+import { framesRun, shareRun } from "@/cli/frames";
+import type { FramesCommand, ShareCommand } from "@/cli/frames";
 import { frames } from "@/frames";
 import { framesApi } from "@/frames/contract";
 import { framesLoads, framesOps, mayRead } from "@/frames/ops.server";
@@ -24,7 +24,8 @@ import { framesServer } from "@/frames/store.server";
 
 // `easel share <canvas>` (SPEC-frames.md § Share a canvas) as the cmd runs it: the CLI's capsule
 // over the memory transport against the real share server on SQLite in memory. It prints the
-// link's page on its own server (decision C4); `--password` is bad usage until passwords are built.
+// link's page on its own server (decision C4); `--password` sets the link's password and
+// `--no-password` removes it (a short one, or both, is bad usage); `easel unshare` ends the link.
 
 const closers: Array<() => unknown> = [];
 
@@ -131,7 +132,11 @@ async function easel(srv: Srv, json = true) {
   return {
     out,
     err,
-    run: (command: FramesCommand) => scope.run(framesRun, { input: command }),
+    /** A share command goes to `shareRun`, any other to `framesRun`, as `cli.run` sends them. */
+    run: (command: FramesCommand | ShareCommand) =>
+      command.kind === "share" || command.kind === "unshare"
+        ? scope.run(shareRun, { input: command })
+        : scope.run(framesRun, { input: command }),
     login: () =>
       scope.run(cli.run, {
         input: { kind: "login", name: "ann", setup: srv.setupCode(), noWait: false },
@@ -190,16 +195,56 @@ test("share on a canvas that is not there exits 1 and says how to make it", asyn
   expect(a.err.join("")).toContain("no canvas nope: make it with `easel canvas new`");
 });
 
-test("share --password exits 64 with one line, sends nothing, and the canvas stays unshared", async () => {
+test("share --password prints the same link and never the password; --no-password too; a short one, or both, exits 64 and sends nothing", async () => {
   const srv = await boot();
   const a = await ann(srv);
+  const pw = "correct horse";
 
   expect(await a.run({ kind: "share", canvas: "flow", password: "hunter2" })).toBe(64);
-  expect(a.lines()).toEqual([
-    { usage: "--password is not built yet: a share link opens for anyone who has it" },
-  ]);
+  expect(a.lines()).toEqual([{ usage: "--password takes 8 to 1024 characters" }]);
+  expect(await a.run({ kind: "share", canvas: "flow", password: pw, noPassword: true })).toBe(64);
+  expect(a.lines()).toEqual([{ usage: "--password and --no-password do not go together" }]);
   expect(await a.run({ kind: "canvas ls" })).toBe(0);
   expect(a.lines()).toMatchObject([{ canvases: [{ key: "flow", shared: false }] }]);
+
+  expect(await a.run({ kind: "share", canvas: "flow", password: pw })).toBe(0);
+  const [first] = a.lines();
+  expect(first).toEqual({ kind: "shared", url: expect.stringMatching(link) });
+  expect(await a.run({ kind: "share", canvas: "flow", noPassword: true })).toBe(0);
+  expect(await a.run({ kind: "share", canvas: "flow", password: "battery staple" })).toBe(0);
+  expect(a.lines()).toEqual([first, first]);
+  expect(a.out.join("") + a.err.join("")).not.toContain(pw);
+});
+
+test("unshare exits 0 and says the link has ended; ls says not shared; sharing again prints a new link; a canvas that is not there exits 1", async () => {
+  const srv = await boot();
+  const a = await ann(srv, false);
+
+  expect(await a.run({ kind: "share", canvas: "flow" })).toBe(0);
+  const first = a.out.splice(0).join("");
+  expect(await a.run({ kind: "unshare", canvas: "flow" })).toBe(0);
+  expect(a.out.splice(0).join("")).toBe("flow is not shared: its link has ended\n");
+  expect(await a.run({ kind: "unshare", canvas: "flow" })).toBe(0);
+  a.out.splice(0);
+  expect(await a.run({ kind: "share", canvas: "flow" })).toBe(0);
+  const again = a.out.splice(0).join("");
+  expect(again).toMatch(new RegExp(`^${origin}/s/[0-9a-f]{32}\n$`));
+  expect(again).not.toBe(first);
+
+  expect(await a.run({ kind: "unshare", canvas: "nope" })).toBe(1);
+  expect(a.out.join("")).toBe("");
+  expect(a.err.join("")).toContain("no canvas nope: make it with `easel canvas new`");
+});
+
+test("unshare with --json prints {kind: unshared}; without a sign-in it exits 2", async () => {
+  const srv = await boot();
+  const a = await ann(srv);
+  const guest = await easel(srv);
+
+  expect(await a.run({ kind: "unshare", canvas: "flow" })).toBe(0);
+  expect(a.lines()).toEqual([{ kind: "unshared" }]);
+  expect(await guest.run({ kind: "unshare", canvas: "flow" })).toBe(2);
+  expect(guest.lines()).toEqual([{ refused: { signIn: true } }]);
 });
 
 test("share without a sign-in exits 2; with its server gone, 69", async () => {

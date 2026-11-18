@@ -1,7 +1,7 @@
 import { data, remoteData, rpc } from "@tinkered/core";
 import { z } from "zod";
 
-import { sharePath } from "./share";
+import { sharePassword, sharePath } from "./share";
 
 // frames' contract (SPEC-frames.md § Contract): the CLI, MCP and the page import it. `framesApi`
 // is a user's calls (the `user` guard runs first, fact rule 1). `framesBoard` is the board a live
@@ -207,13 +207,17 @@ export const framesApi = rpc({
     input: z.null(),
     output: z.object({ canvases: z.array(canvasInfo) }),
   },
-  // Strict: a `password` field is `invalid` until passwords are built (SPEC-frames § Inputs).
+  // `password`: 8 or more characters set or change it, `null` removes it, none keeps it as it is.
   "canvas.share": {
-    input: z.strictObject({ canvas: canvasKey }),
+    input: z.strictObject({ canvas: canvasKey, password: sharePassword.nullable().optional() }),
     output: z.discriminatedUnion("kind", [
       z.object({ kind: z.literal("shared"), path: sharePath }),
       gone,
     ]),
+  },
+  "canvas.unshare": {
+    input: z.strictObject({ canvas: canvasKey }),
+    output: z.discriminatedUnion("kind", [z.object({ kind: z.literal("unshared") }), gone]),
   },
   "frame.put": {
     input: putInput,
@@ -268,6 +272,7 @@ export const framesSuccessKinds = {
   "canvas.create": ["created"],
   "canvas.list": "always",
   "canvas.share": ["shared"],
+  "canvas.unshare": ["unshared"],
   "frame.put": ["created", "updated", "unchanged"],
   "frame.list": ["found"],
   "frame.get": ["found"],

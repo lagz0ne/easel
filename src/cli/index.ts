@@ -4,7 +4,7 @@ import { z } from "zod";
 import { code, name } from "@/access/contract";
 import { build, fingerprint } from "@/ops/contract";
 
-import { framesCommand, framesRun } from "./frames";
+import { framesCommand, framesRun, shareCommand, shareRun } from "./frames";
 import { entryOf, hostsPath, server } from "./hosts";
 import { login, waitLogin } from "./login";
 import {
@@ -52,10 +52,11 @@ const shellCommand = z.discriminatedUnion("kind", [
   z.object({ kind: z.literal("errors"), act: errorsCommand }),
 ]);
 
-/** One command, as the cmd read it from its flags: the shell's, or a frames command. */
+/** One command, as the cmd read it from its flags: the shell's, a frames command, or a share one. */
 export const command = z.discriminatedUnion("kind", [
   ...shellCommand.options,
   z.object({ kind: z.literal("frames"), act: framesCommand }),
+  z.object({ kind: z.literal("share"), act: shareCommand }),
 ]);
 
 export type Command = z.infer<typeof command>;
@@ -129,9 +130,12 @@ const shell = operation({
 const run = operation({
   label: "cli.run",
   input: command,
-  depends: { shell, framesRun },
-  run: ({ shell, framesRun }, { input }) =>
-    input.kind === "frames" ? framesRun.run({ input: input.act }) : shell.run({ input }),
+  depends: { shell, framesRun, shareRun },
+  run: ({ shell, framesRun, shareRun }, { input }) => {
+    if (input.kind === "frames") return framesRun.run({ input: input.act });
+    if (input.kind === "share") return shareRun.run({ input: input.act });
+    return shell.run({ input });
+  },
 });
 
 /**

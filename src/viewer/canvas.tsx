@@ -18,8 +18,14 @@ import { liveSet, painted, paintScript, stage, zoomShown } from "./stage";
 
 type Stage = ReturnType<typeof stage.factory>;
 
-/** A refusal that says the link has ended: `mayRead` turned the pass away. */
-const ended = z.object({ ended: z.literal(true) });
+/**
+ * A refusal that ended the pass: the link ended, or a password set or changed. The gate's
+ * `refusals` takes the tab to the ended page, the link opened again, or the password page.
+ */
+const ended = z.union([
+  z.object({ ended: z.literal(true) }),
+  z.object({ locked: z.literal(true) }),
+]);
 
 /** The canvases whose frames this tab has read at least once. */
 const readOnce = resource({
@@ -195,8 +201,8 @@ function Status({ lost, fault }: { lost: boolean; fault: boolean }) {
 }
 
 /**
- * The canvas. A read refused `{ ended: true }` says Opening: the gate's `refusals` opens the link
- * once more, or shows the ended page. A dropped socket keeps the frames read so far.
+ * The canvas. A read refused `{ ended: true }` or `{ locked: true }` says Opening: the gate's
+ * `refusals` opens the link once more, shows the ended page, or asks the password. A dropped socket keeps the frames read so far.
  */
 export function Canvas({ canvas, opening }: { canvas: string; opening: React.ReactNode }) {
   const part = frames.board.frames.where({ canvas });

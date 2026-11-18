@@ -20,12 +20,13 @@ import {
   version,
 } from "@/frames/contract";
 import type { FramesAddress } from "@/frames/contract";
+import { sharePassword } from "@/frames/share";
 
 import { callDeadline, exits, faultExit } from "./exit";
 import { server } from "./hosts";
 import { say } from "./output";
 
-// `easel canvas new|ls`, `easel put`, `easel ls`, `easel get`, `easel rm`, `easel share` and `easel shot`
+// `easel canvas new|ls`, `easel put`, `easel ls`, `easel get`, `easel rm`, `easel share`, `easel unshare` and `easel shot`
 // (SPEC-frames.md § Make a canvas, § Make and change frames, § Share a canvas). Each prints its answer and exits by
 // the call's success list in frames' contract (SPEC-cli.md fact rule 3). A frames fault is told
 // as the shell tells any fault (`faultExit`): refused 2, invalid 65, link 69, failed 70.
@@ -54,8 +55,6 @@ export const framesCommand = z.discriminatedUnion("kind", [
   z.object({ kind: z.literal("ls"), canvas: canvasKey }),
   z.object({ kind: z.literal("get"), canvas: canvasKey, id: frameId, out: z.string().optional() }),
   z.object({ kind: z.literal("rm"), canvas: canvasKey, id: frameId }),
-  /** `--password` as typed: passwords are not built, so `share` says so (64). */
-  z.object({ kind: z.literal("share"), canvas: canvasKey, password: z.string().optional() }),
   /** `--scale` and `--region` as typed: `shot` reads them, and names a bad one (64). */
   z.object({
     kind: z.literal("shot"),
@@ -68,6 +67,20 @@ export const framesCommand = z.discriminatedUnion("kind", [
 ]);
 
 export type FramesCommand = z.infer<typeof framesCommand>;
+
+/** `easel share` and `easel unshare`, as the cmd read them from their flags. */
+export const shareCommand = z.discriminatedUnion("kind", [
+  /** `--password` as typed, and `--no-password`: `share` reads them, and names a bad one (64). */
+  z.object({
+    kind: z.literal("share"),
+    canvas: canvasKey,
+    password: z.string().optional(),
+    noPassword: z.boolean().optional(),
+  }),
+  z.object({ kind: z.literal("unshare"), canvas: canvasKey }),
+]);
+
+export type ShareCommand = z.infer<typeof shareCommand>;
 
 /** `--size 390x844`, as typed. */
 const sizeFlag = z
@@ -95,6 +108,7 @@ const address = z.enum([
   "frame.get",
   "frame.delete",
   "canvas.share",
+  "canvas.unshare",
   "frame.shot",
 ] satisfies FramesAddress[]);
 
@@ -548,31 +562,78 @@ export const rm = operation({
 });
 
 /**
+ * What `easel share` sends: the canvas, and the password: a string sets it, `--no-password`
+ * (null) removes it, none keeps it.
+ */
+const shareFlags = z
+  .object({
+    canvas: z.string(),
+    password: z.string().optional(),
+    noPassword: z.boolean().optional(),
+  })
+  .refine((flags) => !(flags.password !== undefined && flags.noPassword), {
+    message: "--password and --no-password do not go together",
+  })
+  .refine(
+    (flags) => flags.password === undefined || sharePassword.safeParse(flags.password).success,
+    {
+      message: `--password takes ${sharePassword.minLength ?? 8} to ${sharePassword.maxLength ?? 1024} characters`,
+    },
+  )
+  .transform(({ canvas, password, noPassword }) =>
+    noPassword
+      ? { canvas, password: null }
+      : password === undefined
+        ? { canvas }
+        : { canvas, password },
+  );
+
+/** A canvas that is not there: how to make it. */
+const noCanvas = operation({
+  label: "cli.noCanvas",
+  input: z.object({ canvas: z.string(), answer: z.object({ kind: z.literal("gone") }) }),
+  depends: { say },
+  run: ({ say }, { input }) =>
+    say.run({
+      input: {
+        json: input.answer,
+        text: `no canvas ${input.canvas}: make it with \`easel canvas new\``,
+        error: true,
+      },
+    }),
+});
+
+/**
  * `easel share <canvas>` (`canvas.share`): prints the link's page on this server,
- * `<server>/s/<link>`. Sharing a shared canvas prints the same link (judged rule 11). A password
- * is not built yet: `--password` is bad usage, 64, before any call.
+ * `<server>/s/<link>`. Sharing a shared canvas prints the same link (judged rule 11).
+ * `--password <pw>` sets or changes the password (8 characters or more), `--no-password` removes
+ * it; with neither, it stays. Both together, or a short password, is bad usage, 64, before any
+ * call. The password is never printed.
  */
 export const share = operation({
   label: "cli.share",
-  input: framesCommand.options[6],
+  input: shareCommand.options[0],
   depends: {
     say,
     usage,
+    noCanvas,
     exitOf: framesExitOf,
     framesFault,
     deadline: framesDeadline,
     origin: server.required,
     shareCall: frames.api["canvas.share"],
   },
-  run: async ({ say, usage, exitOf, framesFault, deadline, origin, shareCall }, { input }) => {
-    if (input.password !== undefined) {
-      return usage.run({
-        input: "--password is not built yet: a share link opens for anyone who has it",
-      });
+  run: async (
+    { say, usage, noCanvas, exitOf, framesFault, deadline, origin, shareCall },
+    { input },
+  ) => {
+    const flags = shareFlags.safeParse(input);
+    if (!flags.success) {
+      return usage.run({ input: flags.error.issues.map((issue) => issue.message).join("; ") });
     }
 
     const stop = deadline.run({ input: "canvas.share" });
-    const reply = await shareCall.settle({ input: { canvas: input.canvas }, signal: stop.signal });
+    const reply = await shareCall.settle({ input: flags.data, signal: stop.signal });
     stop.abort();
     if (reply.status === "cancelled") return framesFault.run({ input: reply.reason });
     if (reply.status === "failed") return framesFault.run({ input: reply.error });
@@ -585,17 +646,53 @@ export const share = operation({
         break;
       }
       case "gone":
-        say.run({
-          input: {
-            json: answer,
-            text: `no canvas ${input.canvas}: make it with \`easel canvas new\``,
-            error: true,
-          },
-        });
+        noCanvas.run({ input: { canvas: input.canvas, answer } });
         break;
     }
 
     return exitOf.run({ input: { address: "canvas.share", kind: answer.kind } });
+  },
+});
+
+/**
+ * `easel unshare <canvas>` (`canvas.unshare`): the link ends, and each tab that has it open says
+ * so at once. On a canvas that is not shared it says `unshared` too. Sharing again makes a new
+ * link.
+ */
+export const unshare = operation({
+  label: "cli.unshare",
+  input: shareCommand.options[1],
+  depends: {
+    say,
+    noCanvas,
+    exitOf: framesExitOf,
+    framesFault,
+    deadline: framesDeadline,
+    unshareCall: frames.api["canvas.unshare"],
+  },
+  run: async ({ say, noCanvas, exitOf, framesFault, deadline, unshareCall }, { input }) => {
+    const stop = deadline.run({ input: "canvas.unshare" });
+    const reply = await unshareCall.settle({
+      input: { canvas: input.canvas },
+      signal: stop.signal,
+    });
+    stop.abort();
+    if (reply.status === "cancelled") return framesFault.run({ input: reply.reason });
+    if (reply.status === "failed") return framesFault.run({ input: reply.error });
+
+    const answer = reply.value;
+    switch (answer.kind) {
+      case "unshared":
+        say.run({
+          input: { json: answer, text: `${input.canvas} is not shared: its link has ended` },
+        });
+        break;
+      case "gone":
+        noCanvas.run({ input: { canvas: input.canvas, answer } });
+        break;
+    }
+
+    return exitOf.run({ input: { address: "canvas.unshare", kind: answer.kind } });
   },
 });
 
@@ -706,7 +803,7 @@ const shotFailure = operation({
  */
 export const shot = operation({
   label: "cli.shot",
-  input: framesCommand.options[7],
+  input: framesCommand.options[6],
   depends: {
     say,
     usage,
@@ -765,11 +862,10 @@ export const shot = operation({
   },
 });
 
-/** The commands on a canvas as a whole: make one, list them, share one. */
+/** The commands on a canvas as a whole: make one, list them. */
 const canvasCommand = z.discriminatedUnion("kind", [
   framesCommand.options[0],
   framesCommand.options[1],
-  framesCommand.options[6],
 ]);
 
 /** The commands on a canvas's frames. */
@@ -778,22 +874,20 @@ const frameCommand = z.discriminatedUnion("kind", [
   framesCommand.options[3],
   framesCommand.options[4],
   framesCommand.options[5],
-  framesCommand.options[7],
+  framesCommand.options[6],
 ]);
 
 /** Runs one command on a canvas as a whole; answers its exit code. */
 const canvasRun = operation({
   label: "cli.canvasCommand",
   input: canvasCommand,
-  depends: { canvasNew, canvasLs, share },
+  depends: { canvasNew, canvasLs },
   run: (ops, { input }) => {
     switch (input.kind) {
       case "canvas new":
         return ops.canvasNew.run({ input });
       case "canvas ls":
         return ops.canvasLs.run();
-      case "share":
-        return ops.share.run({ input });
     }
   },
 });
@@ -815,6 +909,21 @@ const frameRun = operation({
         return ops.rm.run({ input });
       case "shot":
         return ops.shot.run({ input });
+    }
+  },
+});
+
+/** Runs `easel share` or `easel unshare`; answers its exit code. */
+export const shareRun = operation({
+  label: "cli.shareRun",
+  input: shareCommand,
+  depends: { share, unshare },
+  run: (ops, { input }) => {
+    switch (input.kind) {
+      case "share":
+        return ops.share.run({ input });
+      case "unshare":
+        return ops.unshare.run({ input });
     }
   },
 });

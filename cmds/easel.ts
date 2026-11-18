@@ -48,6 +48,9 @@ const help = `easel: the canvas CLI. Every command takes --json (one JSON value 
   easel get <canvas> <id> [-o <file>]              the document; -o writes it and prints the version
   easel rm <canvas> <id>                           delete a frame
   easel share <canvas>                             a link anyone who has it can open; prints it
+  easel share <canvas> --password <pw>             the link asks a password (8 or more characters)
+  easel share <canvas> --no-password               the link asks none; open tabs stay open
+  easel unshare <canvas>                           end the link; open tabs say it has ended
   easel shot <canvas> <id> -o <file> [--scale 0.25|0.5|1|2] [--region x,y,w,h]
                                                    draw the frame as a browser does; writes a WebP
 
@@ -74,6 +77,7 @@ const options = {
   base: { type: "string" },
   out: { type: "string", short: "o" },
   password: { type: "string" },
+  "no-password": { type: "boolean" },
   scale: { type: "string" },
   region: { type: "string" },
   help: { type: "boolean", short: "h" },
@@ -160,7 +164,7 @@ const opsInvocations = [
 ] as const;
 
 /**
- * The words and flags of `easel canvas`, `put`, `ls`, `get`, `rm`, `share` and `shot`
+ * The words and flags of `easel canvas`, `put`, `ls`, `get`, `rm`, `share`, `unshare` and `shot`
  * (SPEC-frames.md).
  */
 const framesInvocations = [
@@ -242,11 +246,32 @@ const framesInvocations = [
   z
     .object({
       positionals: z.tuple([z.literal("share"), z.string()]),
-      values: z.strictObject({ ...common, password: z.string().optional() }),
+      values: z.strictObject({
+        ...common,
+        password: z.string().optional(),
+        "no-password": z.literal(true).optional(),
+      }),
     })
     .transform(({ positionals: [, canvas], values }): unknown => ({
       at: values.server,
-      command: { kind: "frames", act: { kind: "share", canvas, password: values.password } },
+      command: {
+        kind: "share",
+        act: {
+          kind: "share",
+          canvas,
+          password: values.password,
+          noPassword: values["no-password"],
+        },
+      },
+    })),
+  z
+    .object({
+      positionals: z.tuple([z.literal("unshare"), z.string()]),
+      values: z.strictObject(common),
+    })
+    .transform(({ positionals: [, canvas], values }): unknown => ({
+      at: values.server,
+      command: { kind: "share", act: { kind: "unshare", canvas } },
     })),
   z
     .object({

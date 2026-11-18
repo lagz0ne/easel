@@ -5,8 +5,8 @@ import { user } from "@/access/guards.server";
 
 import { framesApi, framesBoard, frames, keyOfName, maxDocBytes } from "./contract";
 import { shotFrame } from "./pictures.server";
-import { passMeta } from "./share";
-import { passCanvas, shareCanvas } from "./share.server";
+import { endedRefusal, lockedRefusal, passMeta } from "./share";
+import { passCanvas, shareCanvas, unshareCanvas } from "./share.server";
 import { canvases, dropFrame, readDoc, saveCanvas, saveFrame } from "./store.server";
 
 // frames' calls (after the `user` guard, fact rule 1) and the board's guard and load. V1: any
@@ -14,9 +14,10 @@ import { canvases, dropFrame, readDoc, saveCanvas, saveFrame } from "./store.ser
 
 /**
  * Every board read (fact rule 6): a live user, or a live pass for the part's canvas. A read whose
- * meta carries a pass is judged by the pass alone: one that is not live for that canvas is
- * refused `{ ended: true }`, and the page says the link has ended. Any other read goes to `user`:
- * no token, or a dead one, is refused `{ signIn: true }`.
+ * meta carries a pass is judged by the pass alone: one a password set or changed ended is refused
+ * `{ locked: true }`, and the page asks the password; any other that is not live for that canvas
+ * is refused `{ ended: true }`, and the page says the link has ended. Any other read goes to
+ * `user`: no token, or a dead one, is refused `{ signIn: true }`.
  */
 export const mayRead = operation({
   label: "frames.mayRead",
@@ -26,9 +27,16 @@ export const mayRead = operation({
     const sent = passMeta.safeParse(input.meta);
     if (!sent.success) return user.run({ input });
 
-    const canvas = await passCanvas.run({ input: sent.data.pass });
-    const part = framesBoard.part(input);
-    return canvas !== null && part?.canvas === canvas ? undefined : input.refuse({ ended: true });
+    const held = await passCanvas.run({ input: sent.data.pass });
+    if (held === null || framesBoard.part(input)?.canvas !== held.canvas) {
+      return input.refuse(endedRefusal);
+    }
+    switch (held.state) {
+      case "live":
+        return undefined;
+      case "locked":
+        return input.refuse(lockedRefusal);
+    }
   },
 });
 
@@ -150,6 +158,7 @@ export const framesOps = {
   "canvas.create": createCanvas,
   "canvas.list": listCanvases,
   "canvas.share": shareCanvas,
+  "canvas.unshare": unshareCanvas,
   "frame.put": putFrame,
   "frame.list": listFrames,
   "frame.get": getFrame,

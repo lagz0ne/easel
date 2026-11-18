@@ -21,13 +21,10 @@ import { framesLoads, framesOps, mayRead } from "@/frames/ops.server";
 import { shareOps, shareServer } from "@/frames/share.server";
 import { framesServer } from "@/frames/store.server";
 
-// Share without a password, over the memory transport, against the frames-share-open and
-// viewer-gate-open charts (docs/statecharts) and SPEC-frames' share rules. Each test that follows
-// an arrow or a rule is named by its wording.
-//
-// Unreached in this ship, as the charts' pages list them: every password rule (until passwords),
-// and AnEndedLinkStaysEnded and EndPushedAtOnce (until unshare or canvas rm). An unknown link is
-// the one way to the page that says the link has ended.
+// Share without a password, over the memory transport, against the frames-share and
+// viewer-gate-password charts (docs/statecharts) and SPEC-frames' share rules. Each test that
+// follows an arrow or a rule is named by its wording. Passwords and unshare, with
+// AnEndedLinkStaysEnded and EndPushedAtOnce, are tests/share-password.test.ts's.
 
 const closers: Array<() => unknown> = [];
 
@@ -193,26 +190,6 @@ test("share on a canvas that is not there answers gone; a guest's share is refus
     payload: { signIn: true },
   });
   expect((await a.canvases()).canvases).toMatchObject([{ key: "flow", shared: false }]);
-});
-
-test("a password stops on the client until passwords are built: canvas.share and share.open send nothing", async () => {
-  const srv = await boot();
-  const { a, link } = await sharedFlow(srv);
-  const sent = (call: () => Promise<unknown>) =>
-    Promise.try(call).then(
-      () => "sent",
-      (error: unknown) => String(error),
-    );
-  // A client that skips this check meets the server's own `invalid` (tests/share-cmd.test.ts).
-  const withPassword = { canvas: "flow", password: "hunter2hunter2" };
-  const openWithPassword = { link, name: "Bo", password: "hunter2hunter2" };
-
-  expect(
-    await sent(() => a.scope.run(frames.api["canvas.share"], { input: withPassword })),
-  ).toContain("DataValidationFailed");
-  expect(
-    await sent(() => a.scope.run(frames.viewer["share.open"], { input: openWithPassword })),
-  ).toContain("DataValidationFailed");
 });
 
 // ---- Open a share link (frames-share-open: "the viewer opens the live link"; viewer-gate-open)

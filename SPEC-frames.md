@@ -142,22 +142,21 @@ Inputs:
   socket.
 - `frame.shot` takes `{ canvas, id, scale, region? }` and answers the picture's address for the
   current version. It draws nothing; the address does.
-- `canvas.share` takes `{ canvas, password? }`. A string of 8 or more characters sets or changes
-  the password, `null` removes it, and no field keeps it as it is.
+- `canvas.share` takes `{ canvas, password? }`. A string of 8 to 1024 characters sets or changes
+  the password, `null` removes it, and no field keeps it as it is. A password out of those bounds
+  is `invalid`, and `easel share --password` with one is bad usage (64), as is `--password` with
+  `--no-password`.
 - `canvas.share` answers the link's page as a path, `/s/<link>`. `easel share` prints it joined
   to the server URL it called, so the server needs no public origin (decision C4).
-- Until passwords are built, `canvas.share` and `share.open` take no `password` field: a call
-  with one is `invalid`, and `easel share --password` is bad usage (64). The
-  [frames-share-open](docs/statecharts/frames-share-open.md) and
-  [viewer-gate-open](docs/statecharts/viewer-gate-open.md) charts are that slice.
-- `share.open` takes `{ link, password?, name }`. `name` is 1 to 40 characters.
+- `share.open` takes `{ link, password?, name }`. `name` is 1 to 40 characters; `password`, 1 to 1024. A password on a link that has none is no try: the link opens.
 - A `share.open` with no password, on a link that has one, answers `locked`. It is not a try, and
   is never locked out.
 - The flood limit: every `share.open` counts, any link, password or not, at most 30 a minute per
   client address (the address and the sliding minute of `login.start`'s limit, keyed as in
   decisions D7 and A8, an IPv6 address by its /64). Past it, `share.open` answers `slow` with
   `retryIn`. The page stays on Opening and calls again after `retryIn` plus up to 1 s, so tabs
-  slowed together do not call together. It never shows the wait page.
+  slowed together do not call together. It never shows the wait page. A password try past it
+  answers `slow` as a try past 5 wrong ones does, and the password page says to wait.
 - A link keeps at most 1000 passes. An open past that ends the link's oldest pass, which is
   refused `{ ended: true }` on its next read. A page whose pass is refused that way calls
   `share.open` once more. It shows the ended page only if the link is gone or the new pass is

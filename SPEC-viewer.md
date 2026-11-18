@@ -150,7 +150,9 @@ refused with `{ locked: true }`, and the server pushes that refusal to open tabs
 set or changed ends their pass. Then the page shows the password page.
 
 The behaviour above is checked against the statecharts in `docs/statecharts/`: `viewer-gate`,
-`viewer-canvas`, `viewer-pin-post`, `viewer-pin-link` and `viewer-queue`.
+`viewer-canvas`, `viewer-pin-post`, `viewer-pin-link` and `viewer-queue`. Until comments ship, the
+gate as built is checked against `viewer-gate-password`: the full gate, with the canvas's three
+camera controls.
 
 ## Rules
 
