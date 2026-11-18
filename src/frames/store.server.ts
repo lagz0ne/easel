@@ -3,13 +3,16 @@ import { capsule, data, operation, tag } from "@tinkered/core";
 import { z } from "zod";
 
 import { canvasInfo, frames } from "./contract";
+import { boardKey } from "./keys.server";
 
 // frames' state: canvases and frames in the app's one SQLite file (SPEC.md, tech stack), so they
 // survive a restart. A frame's document lives only in SQLite (decision C12): the `frames` cell
 // holds its metadata and version, and frame.get and the board's `docs` read the html from the
 // row. Each write is one SQLite statement or transaction, with no `await` between its check and
 // its write, and sets its cell after, from the row as stored then (judged rules 2 and 4). Only
-// `saveCanvas`, `saveFrame` and `dropFrame` write (fact rule 2).
+// `saveCanvas`, `saveFrame`, `dropFrame` and `bumpKeys` write (fact rule 2). Each frame on the
+// board carries its picture key for its version and its canvas's key generation (SPEC-frames §
+// Pictures); `bumpKeys` raises the generation and writes the canvas's keys again.
 
 /** The canvases, by key. A server cell: not served on the board. */
 export const canvases = data({
@@ -38,7 +41,14 @@ CREATE TABLE IF NOT EXISTS frames_frames (
   html TEXT NOT NULL,
   made INTEGER NOT NULL,
   PRIMARY KEY (canvas, id)
+);
+CREATE TABLE IF NOT EXISTS frames_keygen (
+  canvas TEXT PRIMARY KEY NOT NULL,
+  gen INTEGER NOT NULL
 );`;
+
+/** A canvas's picture key generation, in the statement it is part of: 0 until its first bump. */
+const genOf = "COALESCE((SELECT gen FROM frames_keygen WHERE canvas = ?), 0)";
 
 /** The gap between a new frame and the rightmost one (decision C2). */
 export const frameGap = 80;
@@ -56,6 +66,20 @@ const frameRow = z.object({
 });
 
 const canvasRow = z.object({ key: z.string(), name: z.string(), created: z.number() });
+
+/** A frame's row with its canvas's key generation, read in the same statement. */
+const keyedRow = frameRow.extend({ gen: z.number() });
+
+/** The board's member for a frame's row: the row, with its picture key (none while pictures are off). */
+const boardFrame = operation({
+  label: "frames.boardFrame",
+  input: keyedRow,
+  depends: { boardKey },
+  run: ({ boardKey }, { input: { gen, ...row } }) => ({
+    ...row,
+    k: boardKey.run({ input: { canvas: row.canvas, id: row.id, version: row.version, gen } }),
+  }),
+});
 
 /** Where the store says what it skipped at start: the server's log. */
 const stdout = tag<{ write(chunk: string): unknown } | null>({
@@ -114,8 +138,8 @@ const frameWrite = z.discriminatedUnion("kind", [
 export const saveFrame = operation({
   label: "frames.saveFrame",
   input: frameWrite,
-  depends: { connection: bunSqlite.connection, cells: frames.atScope.controller },
-  run: async ({ connection, cells }, { input, clock }) => {
+  depends: { connection: bunSqlite.connection, cells: frames.atScope.controller, boardFrame },
+  run: async ({ connection, cells, boardFrame }, { input, clock }) => {
     const db = connection.db.$client;
     const answer = db.transaction(() => {
       if (input.kind === "new") {
@@ -129,12 +153,12 @@ export const saveFrame = operation({
               .query("SELECT MAX(x + w) AS right FROM frames_frames WHERE canvas = ?")
               .get(input.canvas),
           ).right;
-        const row = frameRow.parse(
+        const row = keyedRow.parse(
           db
             .query(
               `INSERT INTO frames_frames (canvas, id, name, x, y, w, h, version, html, made)
                VALUES (?, ?, ?, ?, 0, ?, ?, 1, ?, ?)
-               RETURNING canvas, id, name, x, y, w, h, version`,
+               RETURNING canvas, id, name, x, y, w, h, version, ${genOf} AS gen`,
             )
             .get(
               input.canvas,
@@ -145,6 +169,7 @@ export const saveFrame = operation({
               input.h,
               input.html,
               clock.currentTimeMillis(),
+              input.canvas,
             ),
         );
         return { kind: "created" as const, row };
@@ -156,10 +181,10 @@ export const saveFrame = operation({
         .query(
           `UPDATE frames_frames SET html = ?, version = version + 1
            WHERE canvas = ? AND id = ? AND version = ? AND html IS NOT ?
-           RETURNING canvas, id, name, x, y, w, h, version`,
+           RETURNING canvas, id, name, x, y, w, h, version, ${genOf} AS gen`,
         )
-        .get(input.html, input.canvas, input.id, input.base, input.html);
-      if (saved !== null) return { kind: "updated" as const, row: frameRow.parse(saved) };
+        .get(input.html, input.canvas, input.id, input.base, input.html, input.canvas);
+      if (saved !== null) return { kind: "updated" as const, row: keyedRow.parse(saved) };
 
       const now = db
         .query("SELECT version, html IS ? AS same FROM frames_frames WHERE canvas = ? AND id = ?")
@@ -176,7 +201,7 @@ export const saveFrame = operation({
     switch (answer.kind) {
       case "created":
       case "updated":
-        cells.set(answer.row);
+        cells.set(boardFrame.run({ input: answer.row }));
         return { kind: answer.kind, id: answer.row.id, version: answer.row.version };
       case "unchanged":
       case "stale":
@@ -200,6 +225,82 @@ export const dropFrame = operation({
     cells.delete(input);
     return { kind: "deleted" as const };
   },
+});
+
+/**
+ * The bump (SPEC-frames § Pictures, the frames-pictures chart's "the link ends"): the canvas's key
+ * generation goes up by one, and each of its frames on the board gets its key again, so every key
+ * handed out before stops working. One transaction raises it and reads the frames; the cells are
+ * set after, from those rows. Unshare and a password set or changed call it; a canvas with no
+ * frames bumps too. Answers the new generation.
+ */
+export const bumpKeys = operation({
+  label: "frames.bumpKeys",
+  input: z.object({ canvas: z.string() }),
+  depends: { connection: bunSqlite.connection, cells: frames.atScope.controller, boardFrame },
+  run: async ({ connection, cells, boardFrame }, { input }) => {
+    const db = connection.db.$client;
+    const rows = db.transaction(() => {
+      db.query(
+        "INSERT INTO frames_keygen (canvas, gen) VALUES (?, 1) ON CONFLICT (canvas) DO UPDATE SET gen = gen + 1",
+      ).run(input.canvas);
+      return db
+        .query(
+          `SELECT canvas, id, name, x, y, w, h, version, ${genOf} AS gen FROM frames_frames WHERE canvas = ?`,
+        )
+        .all(input.canvas, input.canvas)
+        .map((row) => keyedRow.parse(row));
+    })();
+
+    for (const row of rows) cells.set(boardFrame.run({ input: row }));
+    const gen = z
+      .object({ gen: z.number() })
+      .parse(db.query(`SELECT ${genOf} AS gen`).get(input.canvas)).gen;
+    return { gen };
+  },
+});
+
+/**
+ * A picture's one read (judged rule 7): the frame's version, its document, its box and its
+ * canvas's key generation, in one statement, so the document drawn is the version read.
+ */
+export const readPicture = operation({
+  label: "frames.readPicture",
+  input: z.object({ canvas: z.string(), id: z.string() }),
+  depends: { connection: bunSqlite.connection },
+  run: async ({ connection }, { input }) =>
+    z
+      .object({
+        version: z.number(),
+        w: z.number(),
+        h: z.number(),
+        html: z.string(),
+        gen: z.number(),
+      })
+      .safeParse(
+        connection.db.$client
+          .query(
+            `SELECT version, w, h, html, ${genOf} AS gen FROM frames_frames WHERE canvas = ? AND id = ?`,
+          )
+          .get(input.canvas, input.canvas, input.id),
+      ).data,
+});
+
+/** After a draw, the check again: whether the frame is there, and its canvas's key generation now. */
+export const readStill = operation({
+  label: "frames.readStill",
+  input: z.object({ canvas: z.string(), id: z.string() }),
+  depends: { connection: bunSqlite.connection },
+  run: async ({ connection }, { input }) =>
+    z
+      .object({ live: z.number(), gen: z.number() })
+      .parse(
+        connection.db.$client
+          .query(
+            `SELECT EXISTS (SELECT 1 FROM frames_frames WHERE canvas = ? AND id = ?) AS live, ${genOf} AS gen`,
+          )
+          .get(input.canvas, input.id, input.canvas),
+      ),
 });
 
 /** One frame's document and version, read from its row: frame.get and the board's `docs`. */
@@ -231,23 +332,28 @@ const load = operation({
     canvasCells: canvases.atScope.controller,
     frameCells: frames.atScope.controller,
     out: stdout,
+    boardFrame,
   },
-  run: async ({ connection, canvasCells, frameCells, out }) => {
+  run: async ({ connection, canvasCells, frameCells, out, boardFrame }) => {
     const db = connection.db.$client;
     db.exec("PRAGMA synchronous = FULL");
     db.exec(schema);
 
     const canvasRows = db.query("SELECT key, name, created FROM frames_canvases").all();
     const frameRows = db
-      .query("SELECT canvas, id, name, x, y, w, h, version FROM frames_frames ORDER BY made, rowid")
+      .query(
+        `SELECT f.canvas, f.id, f.name, f.x, f.y, f.w, f.h, f.version, COALESCE(g.gen, 0) AS gen
+         FROM frames_frames f LEFT JOIN frames_keygen g ON g.canvas = f.canvas
+         ORDER BY f.made, f.rowid`,
+      )
       .all();
     const goodCanvases = canvasRows.flatMap((row) => canvasRow.safeParse(row).data ?? []);
-    const goodFrames = frameRows.flatMap((row) => frameRow.safeParse(row).data ?? []);
+    const goodFrames = frameRows.flatMap((row) => keyedRow.safeParse(row).data ?? []);
     const bad = canvasRows.length + frameRows.length - goodCanvases.length - goodFrames.length;
     if (bad) out?.write(`frames: skipped ${bad} rows that do not parse\n`);
 
     for (const row of goodCanvases) canvasCells.set({ ...row, shared: false });
-    for (const row of goodFrames) frameCells.set(row);
+    for (const row of goodFrames) frameCells.set(boardFrame.run({ input: row }));
   },
 });
 

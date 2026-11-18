@@ -16,6 +16,7 @@ import { ownerOps, userOps } from "@/access/users.server";
 import { frames } from "@/frames";
 import { socketMaxPayload } from "@/frames/contract";
 import { framesLoads, framesOps, mayRead } from "@/frames/ops.server";
+import { pictureRoute, picturesServer } from "@/frames/pictures.server";
 import { shareOps, shareServer } from "@/frames/share.server";
 import { framesServer } from "@/frames/store.server";
 import { greet } from "@/greet";
@@ -119,6 +120,8 @@ export default defineMain(async ({ env, args, signal, stdout, stderr, exit }) =>
       "GET /api/version": release.version,
       "GET /api/ready": ready,
       "POST /api/telemetry": tabs,
+      // A frame's picture: its key is the right to it, no user and no pass (SPEC-frames § Pictures).
+      "GET /api/pictures/{canvas}/{id}/{version}": pictureRoute,
     },
   });
   const app = createScope({
@@ -144,6 +147,9 @@ export default defineMain(async ({ env, args, signal, stdout, stderr, exit }) =>
       access.login({ implement: loginOps }),
       access.user({ implement: userOps, onStart: [user] }),
       access.owner({ implement: ownerOps, onStart: [user, owner] }),
+      // Pictures: the Chromium at EASEL_CHROMIUM (none: pictures are off), and the key secret
+      // beside EASEL_DB. Before framesServer: the board's keys need the secret.
+      picturesServer({ chromium: env.EASEL_CHROMIUM, database: auth.file }),
       // Canvases and frames, in EASEL_DB; any signed-in user writes any canvas (SPEC-frames).
       framesServer({ stdout }),
       frames.api({ implement: framesOps, onStart: [user] }),

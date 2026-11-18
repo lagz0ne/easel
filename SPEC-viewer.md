@@ -129,8 +129,11 @@ width and height, added on each side of it.
 | Zoom status            | rounded down: steps of 10%; under 10% of 1%; under 1% of 0.1%         |
 | Label                  | kept at its screen size; rewritten after a 10% zoom drift and at rest |
 
-Until pictures are built (decision C10), the picture is the plain card of "See the frames"
-step 4: a colour that is not white, under the frame's name on its label.
+A shell's picture is its frame's address on the board: its version and its key `k`, at scale 0.5,
+or 0.25 when 0.5 would be over 8 megapixels. Past that, and with pictures off (no `k`), the shell
+is the plain card of "See the frames" step 4: a colour that is not white, under the frame's name on
+its label. A picture that fails to load (a busy server answers 503) is asked again after 1 s, 2 s
+and 4 s; after the third try the card shows.
 
 ## Contract
 

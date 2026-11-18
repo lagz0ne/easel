@@ -119,6 +119,17 @@
   background-color: var(--e-card);
 }
 
+/* The frame's picture fills its card. Until it decodes, or if it fails, the card's color shows:
+   its alt text stays unseen. */
+.e-pic {
+  display: block;
+  width: 100%;
+  height: 100%;
+  color: transparent;
+  user-select: none;
+  pointer-events: none;
+}
+
 /* A live document. The viewer is read-only, so a drag or a wheel over it moves the canvas. */
 .e-doc {
   position: absolute;

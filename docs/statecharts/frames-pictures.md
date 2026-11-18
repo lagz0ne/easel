@@ -75,6 +75,11 @@ stateDiagram-v2
 - A copy a browser kept before a delete: it is that browser's own, and no shared cache holds one, since every answer is `private`.
 - How the board gets to the tab: [viewer-canvas](viewer-canvas.md). How a link ends: [frames-share](frames-share.md).
 
+## Where the code is
+
+- The route is `pictureRoute` in [src/frames/pictures.server.ts](../../src/frames/pictures.server.ts): `findPicture` checks the key and the version (404, 307), and `drawPicture` draws and checks again (400, 503, 404). The one read is `readPicture`, and the check after the draw is `readStill`, both in [src/frames/store.server.ts](../../src/frames/store.server.ts). [tests/pictures.test.ts](../../tests/pictures.test.ts) names each test by the arrow or rule it follows.
+- "the link ends" is `bumpKeys` in store.server.ts: it raises the canvas's key generation and writes the board's keys again. Its tests in tests/pictures.test.ts reach it directly. Its callers, `easel unshare` and a password set or changed, are wired in ship 5.
+
 ## Steps the chart hides
 
 - "the tab is opened again in a browser with no copy kept": it acts as the first browser did before it kept any.

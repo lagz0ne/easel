@@ -4,6 +4,7 @@ import { z } from "zod";
 import { user } from "@/access/guards.server";
 
 import { framesApi, framesBoard, frames, keyOfName, maxDocBytes } from "./contract";
+import { shotFrame } from "./pictures.server";
 import { passMeta } from "./share";
 import { passCanvas, shareCanvas } from "./share.server";
 import { canvases, dropFrame, readDoc, saveCanvas, saveFrame } from "./store.server";
@@ -153,6 +154,7 @@ export const framesOps = {
   "frame.list": listFrames,
   "frame.get": getFrame,
   "frame.delete": deleteFrame,
+  "frame.shot": shotFrame,
 } as const;
 
 /** The board's loads: `frames.board({ serve: true, load: framesLoads, onStart: [mayRead] })`. */

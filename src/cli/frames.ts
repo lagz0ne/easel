@@ -13,6 +13,8 @@ import {
   framesSuccessKinds,
   maxDocBytes,
   maxSentDocBytes,
+  pictureRegion,
+  pictureScale,
   putOutput,
   size,
   version,
@@ -23,7 +25,7 @@ import { callDeadline, exits, faultExit } from "./exit";
 import { server } from "./hosts";
 import { say } from "./output";
 
-// `easel canvas new|ls`, `easel put`, `easel ls`, `easel get`, `easel rm` and `easel share`
+// `easel canvas new|ls`, `easel put`, `easel ls`, `easel get`, `easel rm`, `easel share` and `easel shot`
 // (SPEC-frames.md § Make a canvas, § Make and change frames, § Share a canvas). Each prints its answer and exits by
 // the call's success list in frames' contract (SPEC-cli.md fact rule 3). A frames fault is told
 // as the shell tells any fault (`faultExit`): refused 2, invalid 65, link 69, failed 70.
@@ -54,6 +56,15 @@ export const framesCommand = z.discriminatedUnion("kind", [
   z.object({ kind: z.literal("rm"), canvas: canvasKey, id: frameId }),
   /** `--password` as typed: passwords are not built, so `share` says so (64). */
   z.object({ kind: z.literal("share"), canvas: canvasKey, password: z.string().optional() }),
+  /** `--scale` and `--region` as typed: `shot` reads them, and names a bad one (64). */
+  z.object({
+    kind: z.literal("shot"),
+    canvas: canvasKey,
+    id: frameId,
+    out: z.string().min(1),
+    scale: z.string().optional(),
+    region: z.string().optional(),
+  }),
 ]);
 
 export type FramesCommand = z.infer<typeof framesCommand>;
@@ -84,6 +95,7 @@ const address = z.enum([
   "frame.get",
   "frame.delete",
   "canvas.share",
+  "frame.shot",
 ] satisfies FramesAddress[]);
 
 /**
@@ -587,17 +599,212 @@ export const share = operation({
   },
 });
 
-/** Runs one frames command; answers its exit code. The shell's `cli.run` sends each here. */
-export const framesRun = operation({
-  label: "cli.frames",
-  input: framesCommand,
-  depends: { canvasNew, canvasLs, put, ls, get, rm, share },
+/**
+ * How `easel shot` fetches a picture: the cmd gives the global `fetch`; a test, one that reaches
+ * its server's routes with no port. Unset, each fetch fails, as a server out of reach.
+ */
+export const pictureFetch = tag<(request: Request) => Promise<Response>>({
+  label: "cli.pictureFetch",
+  default: () => Promise.reject(new Error("easel shot: no fetch given")),
+});
+
+/** `easel shot` tries a picture 3 times: a busy server (503) or no answer is tried again. */
+export const shotTries = 3;
+
+/** `--scale 0.5`, as typed: one of the four. `--region x,y,w,h`, as typed. */
+const shotFlags = z.object({
+  scale: z
+    .enum(["0.25", "0.5", "1", "2"], "--scale takes 0.25, 0.5, 1 or 2")
+    .default("1")
+    .transform(Number)
+    .pipe(pictureScale),
+  region: z
+    .string()
+    .regex(/^\d+,\d+,\d+,\d+$/, "--region takes x,y,w,h in the frame's CSS pixels, as 0,0,390,844")
+    .transform((typed) => typed.split(",").map(Number))
+    .transform(([x = 0, y = 0, w = 0, h = 0]) => ({ x, y, w, h }))
+    .pipe(pictureRegion)
+    .optional(),
+});
+
+/**
+ * One picture, fetched from the server it names, at most 3 tries. A 503 waits its `Retry-After`
+ * (at most 5 s), a fetch that fails or runs past the call deadline waits 1 s, then it tries again.
+ * Answers the last status (0: no answer at all) and, on 200, the bytes.
+ */
+const fetchPicture = operation({
+  label: "cli.fetchPicture",
+  input: z.string(),
+  depends: { send: pictureFetch },
+  run: async ({ send }, { input: url, clock, signal }) => {
+    let status = 0;
+    for (let tried = 1; tried <= shotTries; tried++) {
+      const stop = new AbortController();
+      const late = clock.sleep(callDeadline, AbortSignal.any([signal, stop.signal])).then(
+        () => stop.abort(),
+        () => undefined,
+      );
+      const got = await send(new Request(url, { signal: stop.signal }))
+        .then(async (response) => ({
+          status: response.status,
+          wait: Number(response.headers.get("retry-after") ?? 1),
+          bytes: response.status === 200 ? new Uint8Array(await response.arrayBuffer()) : null,
+        }))
+        .catch(() => ({ status: 0, wait: 1, bytes: null }));
+      stop.abort();
+      await late;
+      status = got.status;
+      if (got.bytes !== null) return { status, bytes: got.bytes };
+      if ((status !== 0 && status !== 503) || tried === shotTries) break;
+
+      const wait = Number.isFinite(got.wait) ? Math.min(Math.max(got.wait, 0), 5) : 1;
+      await clock.sleep(wait * 1000, signal);
+    }
+    return { status, bytes: null };
+  },
+});
+
+/** What each bad flag of `easel shot` says: one line that names it. */
+const badShotFlag = {
+  scale: "--scale takes 0.25, 0.5, 1 or 2",
+  region:
+    "--region takes x,y,w,h in the frame's CSS pixels, each 0 to 16000, w and h at least 1, as 0,0,390,844",
+} as const;
+
+/**
+ * The exit and the line for a picture not fetched: busy or out of reach after 3 tries, 69; gone,
+ * 1; off the frame or too big, 65; any other status, 70.
+ */
+const shotFailure = operation({
+  label: "cli.shotFailure",
+  input: z.object({ status: z.number(), id: z.string() }),
+  run: (_, { input: { status, id } }) => {
+    if (status === 0 || status === 503) {
+      return {
+        exit: exits.unreachable,
+        text: `the server did not draw it in ${shotTries} tries: it is busy, or out of reach. Try again in a minute`,
+      };
+    }
+    if (status === 404) {
+      return { exit: exits.no, text: `no picture of ${id}: it was deleted, or its link ended` };
+    }
+    if (status === 400) {
+      return {
+        exit: exits.invalid,
+        text: "the region is off the frame, or the picture is over 8 megapixels or 16000 px a side: use a smaller --scale or --region",
+      };
+    }
+    return { exit: exits.failed, text: `the picture failed: HTTP ${status}` };
+  },
+});
+
+/**
+ * `easel shot <canvas> <id> -o <file> [--scale 0.25|0.5|1|2] [--region x,y,w,h]`: asks the server
+ * for the address of the frame's current version (`frame.shot`), fetches it, and writes the WebP
+ * to the file. Pictures off or no frame: 1. A busy server after 3 tries: 69. A region off the frame
+ * or too big a picture: 65. The address carries a key: it is never printed.
+ */
+export const shot = operation({
+  label: "cli.shot",
+  input: framesCommand.options[7],
+  depends: {
+    say,
+    usage,
+    exitOf: framesExitOf,
+    framesFault,
+    deadline: framesDeadline,
+    origin: server.required,
+    shotCall: frames.api["frame.shot"],
+    fetchPicture,
+    shotFailure,
+  },
+  run: async (
+    { say, usage, exitOf, framesFault, deadline, origin, shotCall, fetchPicture, shotFailure },
+    { input },
+  ) => {
+    const flags = shotFlags.safeParse({ scale: input.scale, region: input.region });
+    if (!flags.success) {
+      const scale = flags.error.issues.some((issue) => issue.path[0] === "scale");
+      return usage.run({ input: scale ? badShotFlag.scale : badShotFlag.region });
+    }
+
+    const stop = deadline.run({ input: "frame.shot" });
+    const call = { canvas: input.canvas, id: input.id, ...flags.data };
+    const reply = await shotCall.settle({ input: call, signal: stop.signal });
+    stop.abort();
+    if (reply.status === "cancelled") return framesFault.run({ input: reply.reason });
+    if (reply.status === "failed") return framesFault.run({ input: reply.error });
+
+    const answer = reply.value;
+    if (answer.kind !== "ready") {
+      const text =
+        answer.kind === "off"
+          ? "pictures are off: the server has no Chromium (EASEL_CHROMIUM)"
+          : `no frame ${input.id} on ${input.canvas}`;
+      say.run({ input: { json: answer, text, error: true } });
+      return exitOf.run({ input: { address: "frame.shot", kind: answer.kind } });
+    }
+
+    const got = await fetchPicture.run({ input: new URL(answer.url, origin).href });
+    if (got.bytes !== null) {
+      writeFileSync(input.out, got.bytes);
+      say.run({
+        input: {
+          json: { kind: answer.kind, version: answer.version, file: input.out },
+          text: `${input.id} v${answer.version} written to ${input.out}`,
+        },
+      });
+      return exitOf.run({ input: { address: "frame.shot", kind: answer.kind } });
+    }
+
+    const told = shotFailure.run({ input: { status: got.status, id: input.id } });
+    say.run({
+      input: { json: { kind: "failed", status: got.status }, text: told.text, error: true },
+    });
+    return told.exit;
+  },
+});
+
+/** The commands on a canvas as a whole: make one, list them, share one. */
+const canvasCommand = z.discriminatedUnion("kind", [
+  framesCommand.options[0],
+  framesCommand.options[1],
+  framesCommand.options[6],
+]);
+
+/** The commands on a canvas's frames. */
+const frameCommand = z.discriminatedUnion("kind", [
+  framesCommand.options[2],
+  framesCommand.options[3],
+  framesCommand.options[4],
+  framesCommand.options[5],
+  framesCommand.options[7],
+]);
+
+/** Runs one command on a canvas as a whole; answers its exit code. */
+const canvasRun = operation({
+  label: "cli.canvasCommand",
+  input: canvasCommand,
+  depends: { canvasNew, canvasLs, share },
   run: (ops, { input }) => {
     switch (input.kind) {
       case "canvas new":
         return ops.canvasNew.run({ input });
       case "canvas ls":
         return ops.canvasLs.run();
+      case "share":
+        return ops.share.run({ input });
+    }
+  },
+});
+
+/** Runs one command on a canvas's frames; answers its exit code. */
+const frameRun = operation({
+  label: "cli.frameCommand",
+  input: frameCommand,
+  depends: { put, ls, get, rm, shot },
+  run: (ops, { input }) => {
+    switch (input.kind) {
       case "put":
         return ops.put.run({ input });
       case "ls":
@@ -606,8 +813,21 @@ export const framesRun = operation({
         return ops.get.run({ input });
       case "rm":
         return ops.rm.run({ input });
-      case "share":
-        return ops.share.run({ input });
+      case "shot":
+        return ops.shot.run({ input });
     }
+  },
+});
+
+/** Runs one frames command; answers its exit code. The shell's `cli.run` sends each here. */
+export const framesRun = operation({
+  label: "cli.frames",
+  input: framesCommand,
+  depends: { canvasRun, frameRun },
+  run: ({ canvasRun, frameRun }, { input }) => {
+    const whole = canvasCommand.safeParse(input);
+    return whole.success
+      ? canvasRun.run({ input: whole.data })
+      : frameRun.run({ input: frameCommand.parse(input) });
   },
 });

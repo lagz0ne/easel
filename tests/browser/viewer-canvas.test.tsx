@@ -11,7 +11,7 @@ import { z } from "zod";
 
 import { frames } from "@/frames";
 import { frames as frameCells, framesBoard } from "@/frames/contract";
-import { Canvas } from "@/viewer/canvas";
+import { Canvas, picRetryMs } from "@/viewer/canvas";
 
 // The canvas in a real Chromium (the viewer-canvas chart, SPEC-viewer.md § Pan and zoom, § Watch
 // an agent work, § Numbers). The server is the board alone over `memory`: its `docs` load reads a
@@ -27,7 +27,17 @@ const liveCap = 12;
 const restMs = 120;
 const paintCapMs = 1_500;
 
-type Put = { id: string; name: string; x: number; y: number; w: number; h: number; html: string };
+type Put = {
+  id: string;
+  name: string;
+  x: number;
+  y: number;
+  w: number;
+  h: number;
+  html: string;
+  /** The picture key the board carries; none: pictures are off. */
+  k?: string;
+};
 
 /** Each frame's document on the "server", by id. */
 const htmls = new Map<string, { version: number; html: string }>();
@@ -57,6 +67,7 @@ const put = operation({
     w: z.number(),
     h: z.number(),
     html: z.string(),
+    k: z.string().optional(),
   }),
   depends: { cells: frameCells.controller, invalidate: framesBoard.invalidate },
   run: async ({ cells, invalidate }, { input }) => {
@@ -163,6 +174,8 @@ const shown = () => shells().filter((s) => !s.hidden);
 const docs = () => [...region().querySelectorAll<HTMLIFrameElement>("iframe")];
 const liveIds = () => docs().map((d) => d.dataset.id ?? "");
 const cardOf = (id: string) => shellOf(id)?.querySelector<HTMLElement>(".e-card");
+/** The shell's picture: the img in its card. */
+const picOf = (id: string) => cardOf(id)?.querySelector<HTMLImageElement>("img");
 /** The picture is on top while its card shows. */
 const cardHidden = (id: string) => cardOf(id)?.hidden;
 const docOf = (id: string) => docs().find((d) => d.dataset.id === id);
@@ -870,4 +883,88 @@ test("a label keeps its screen size at rest, and a live document takes no pointe
   expect(label()).toBeCloseTo(atFit, 0);
   const [doc] = docs();
   expect(doc && getComputedStyle(doc).pointerEvents).toBe("none");
+});
+
+test("a shell's picture is its frame's address on the board: version, key and scale; with pictures off, a plain card", async () => {
+  const server = await boot([
+    frame("a", 0, 0, { k: "key-a1", html: silent }),
+    frame("off", 400, 0),
+  ]);
+  const at = await tab(server);
+  await opened(at, 2);
+
+  expect(picOf("a")?.getAttribute("src")).toBe(`/api/pictures/${canvas}/a/1?s=0.5&k=key-a1`);
+  expect(picOf("a")?.alt).toBe("Frame a");
+  // Pictures off: no key, so the shell is a plain card with no picture to ask for.
+  expect(picOf("off")).toBeNull();
+  expect(cardOf("off")).toBeTruthy();
+
+  // A new version brings its own key: the picture moves to it, on top until the document paints.
+  expect(liveIds()).toContain("a");
+  at.clock.advance(paintCapMs);
+  await tick();
+  expect(cardHidden("a")).toBe(true);
+  await server.run(put, { input: frame("a", 0, 0, { k: "key-a2", html: silent }) });
+  await expect.poll(() => versionOf("a")).toBe("2");
+  expect(cardHidden("a")).toBe(false);
+  expect(picOf("a")?.getAttribute("src")).toBe(`/api/pictures/${canvas}/a/2?s=0.5&k=key-a2`);
+  at.clock.advance(paintCapMs - 1);
+  await tick();
+  expect(cardHidden("a")).toBe(false);
+  at.clock.advance(1);
+  await tick();
+  expect(cardHidden("a")).toBe(true);
+});
+
+test("a picture that fails (a busy server's 503) is asked again after 1, 2 and 4 s, then left a card", async () => {
+  // No server draws here: each try fails, as a 503 does, and each is one error.
+  const errors = { n: 0 };
+  const onError = (event: Event) => {
+    if (event.target instanceof HTMLImageElement) errors.n++;
+  };
+  document.addEventListener("error", onError, true);
+  onTestFinished(() => document.removeEventListener("error", onError, true));
+  const server = await boot([frame("a", 0, 0, { k: "key-a1", html: silent })]);
+  const at = await tab(server);
+  // No rest: the tab's clock moves only by the waits below.
+  await expect.poll(() => errors.n).toBe(1);
+  const img = picOf("a");
+  const src = img?.getAttribute("src");
+
+  for (const [i, wait] of picRetryMs.entries()) {
+    await tick();
+    at.clock.advance(wait - 1);
+    await tick(100);
+    expect(errors.n).toBe(i + 1);
+
+    at.clock.advance(1);
+    await expect.poll(() => errors.n).toBe(i + 2);
+  }
+
+  // The fourth failed too: no more tries, the card stays, with the same img and address.
+  await tick();
+  at.clock.advance(60_000);
+  await tick(200);
+  expect(errors.n).toBe(4);
+  expect(picOf("a")).toBe(img);
+  expect(img?.getAttribute("src")).toBe(src);
+});
+
+test("a shell asks for its picture at 0.5, at 0.25 when 0.5 is over 8 megapixels (8 MP itself is allowed), and not at all past that", async () => {
+  const server = await boot([
+    frame("small", 0, 0, { w: 8_000, h: 4_000, k: "key-s" }),
+    frame("big", 8_400, 0, { w: 10_000, h: 8_000, k: "key-b" }),
+    frame("huge", 0, 8_400, { w: 16_000, h: 16_000, k: "key-h" }),
+    frame("edge", 18_800, 0, { w: 16_000, h: 8_000, k: "key-e" }),
+  ]);
+  const at = await tab(server);
+  await opened(at, 4);
+
+  // 32 MP at 0.5 is 8 MP, the limit; 80 MP at 0.25 is 5 MP; 128 MP at 0.25 is 8 MP, the limit;
+  // 256 MP at 0.25 is 16 MP: a card.
+  expect(picOf("small")?.getAttribute("src")).toBe(`/api/pictures/${canvas}/small/1?s=0.5&k=key-s`);
+  expect(picOf("big")?.getAttribute("src")).toBe(`/api/pictures/${canvas}/big/1?s=0.25&k=key-b`);
+  expect(picOf("edge")?.getAttribute("src")).toBe(`/api/pictures/${canvas}/edge/1?s=0.25&k=key-e`);
+  expect(picOf("huge")).toBeNull();
+  expect(cardOf("huge")).toBeTruthy();
 });

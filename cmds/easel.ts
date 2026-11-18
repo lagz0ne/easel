@@ -11,7 +11,7 @@ import { defineMain } from "~/base/main";
 import { access } from "@/access";
 import { cli, command } from "@/cli";
 import type { Command } from "@/cli";
-import { stdinText } from "@/cli/frames";
+import { pictureFetch, stdinText } from "@/cli/frames";
 import { hostsAt } from "@/cli/hosts";
 import { since } from "@/cli/ops";
 import { frames } from "@/frames";
@@ -48,6 +48,8 @@ const help = `easel: the canvas CLI. Every command takes --json (one JSON value 
   easel get <canvas> <id> [-o <file>]              the document; -o writes it and prints the version
   easel rm <canvas> <id>                           delete a frame
   easel share <canvas>                             a link anyone who has it can open; prints it
+  easel shot <canvas> <id> -o <file> [--scale 0.25|0.5|1|2] [--region x,y,w,h]
+                                                   draw the frame as a browser does; writes a WebP
 
 Exit: 0 success, 1 another answer, 2 refused, 64 usage, 65 invalid, 69 unreachable, 70 failed,
 76 missing, 78 a hosts file that cannot be read.
@@ -72,6 +74,8 @@ const options = {
   base: { type: "string" },
   out: { type: "string", short: "o" },
   password: { type: "string" },
+  scale: { type: "string" },
+  region: { type: "string" },
   help: { type: "boolean", short: "h" },
 } as const;
 
@@ -155,7 +159,10 @@ const opsInvocations = [
     })),
 ] as const;
 
-/** The words and flags of `easel canvas`, `put`, `ls`, `get`, `rm` and `share` (SPEC-frames.md). */
+/**
+ * The words and flags of `easel canvas`, `put`, `ls`, `get`, `rm`, `share` and `shot`
+ * (SPEC-frames.md).
+ */
 const framesInvocations = [
   z
     .object({
@@ -240,6 +247,31 @@ const framesInvocations = [
     .transform(({ positionals: [, canvas], values }): unknown => ({
       at: values.server,
       command: { kind: "frames", act: { kind: "share", canvas, password: values.password } },
+    })),
+  z
+    .object({
+      positionals: z.tuple([z.literal("shot"), z.string(), z.string()]),
+      values: z.strictObject({
+        ...common,
+        out: z.string(),
+        // As typed: `shot` reads them, and a bad one is one line that names it (64).
+        scale: z.string().optional(),
+        region: z.string().optional(),
+      }),
+    })
+    .transform(({ positionals: [, canvas, id], values }): unknown => ({
+      at: values.server,
+      command: {
+        kind: "frames",
+        act: {
+          kind: "shot",
+          canvas,
+          id,
+          out: values.out,
+          scale: values.scale,
+          region: values.region,
+        },
+      },
     })),
 ] as const;
 
@@ -407,8 +439,8 @@ const main = defineMain(async (ctx) => {
 
   const app = createScope({
     signal,
-    // `easel put <canvas> -` reads the document from stdin.
-    tags: [stdinText(() => Bun.stdin.text())],
+    // `easel put <canvas> -` reads the document from stdin; `easel shot` fetches the picture.
+    tags: [stdinText(() => Bun.stdin.text()), pictureFetch((request) => fetch(request))],
     capsules: [
       ws.client({ url: `${planned.server.replace(/^http/, "ws")}/rpc`, meta: cli.bearer }),
       access.login({ remote: ws.client }),

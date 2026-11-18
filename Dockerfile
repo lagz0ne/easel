@@ -9,8 +9,17 @@ COPY . .
 # build: client, server binary, and its checks (no test code in dist).
 RUN bun run build
 
-# Debian, not distroless: frames are drawn by Chromium later, which comes from apt.
+# Debian, not distroless: frames are drawn by Chromium, which comes from apt, with Liberation
+# (metric-compatible with Arial, Times and Courier) and Noto's color emoji. EASEL_CHROMIUM names
+# it; with no Chromium there, the server still starts, pictures are off, and /api/ready says so.
 FROM docker.io/library/debian:trixie-slim
+RUN apt-get update \
+  && apt-get install -y --no-install-recommends chromium fonts-liberation fonts-noto-color-emoji \
+  && rm -rf /var/lib/apt/lists/*
+# A managed policy: WebRTC sends no UDP outside the egress proxy, whatever flags Chromium gets.
+RUN mkdir -p /etc/chromium/policies/managed \
+  && printf '{"WebRtcIPHandling":"disable_non_proxied_udp"}\n' \
+    > /etc/chromium/policies/managed/easel.json
 RUN useradd --system --uid 10001 --create-home easel
 WORKDIR /app
 COPY --from=build /app/dist/server /app/server
@@ -20,7 +29,7 @@ USER easel
 # no default: an image built without it refuses to start.
 ARG GIT_SHA=dev
 ARG BUILD
-ENV NODE_ENV=production PORT=3000 GIT_SHA=$GIT_SHA BUILD=$BUILD
+ENV NODE_ENV=production PORT=3000 GIT_SHA=$GIT_SHA BUILD=$BUILD EASEL_CHROMIUM=/usr/bin/chromium
 EXPOSE 3000
 # One binary: `easel serve` runs the server; any other command is the CLI (SPEC-cli.md).
 CMD ["/app/server", "serve"]

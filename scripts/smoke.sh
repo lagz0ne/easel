@@ -19,6 +19,11 @@ if [[ ! -x "$dir/dist/server" ]]; then
   (cd "$dir" && bun run build:client >/dev/null && bun run build:server >/dev/null)
 fi
 
+# Pictures draw with the Chromium on this machine: Playwright's headless shell for the browser tests
+# (tests/support/chromium.ts finds it). Nothing is downloaded.
+chromium="$(cd "$dir" && bun -e 'import { localChromium } from "./tests/support/chromium"; console.log(localChromium() ?? "")')"
+[[ -n "$chromium" ]] || { echo "smoke: no local Chromium for pictures (bunx playwright install chromium)" >&2; exit 1; }
+
 port="$(bun -e 'const s=Bun.serve({port:0,fetch:()=>new Response()});console.log(s.port);s.stop(true)')"
 base="http://127.0.0.1:$port"
 session="easel-smoke-$$"
@@ -26,7 +31,7 @@ AB=(agent-browser --session "$session")
 
 # No VICTORIA_* URL: the built server starts without Victoria and exports nothing
 # (SPEC-ops.md fact rule 4); the smoke judges the app, not the collector.
-BUILD=1 PORT="$port" PUBLIC_ORIGIN="$base" NODE_ENV=production EASEL_DB="$out/easel.db" OTEL_SERVICE_NAME=easel-smoke \
+BUILD=1 PORT="$port" PUBLIC_ORIGIN="$base" NODE_ENV=production EASEL_DB="$out/easel.db" EASEL_CHROMIUM="$chromium" OTEL_SERVICE_NAME=easel-smoke \
   "$dir/dist/server" serve >"$out/server.log" 2>&1 &
 server=$!
 cleanup() {
@@ -74,8 +79,8 @@ echo "smoke: ok   live-todo ($((SECONDS - t0)) s)"
 
 # 3. The canvas: an agent's frames, opened by share link, draw as shells with a live, sandboxed
 #    document at rest, Fit works, Zoom in zooms, a drag pans, and a frame the agent puts while the
-#    tab is open shows.
-#    The setup code and the link stay in variables: neither is printed.
+#    tab is open shows. A shell shows its picture, drawn by Chromium, and `easel shot` writes one.
+#    The setup code and the link stay in variables: neither is printed, nor is a picture's key.
 flow=canvas
 t0=$SECONDS
 easel() { HOME="$out/home" "$dir/dist/server" "$@"; }
@@ -84,13 +89,20 @@ code="$(grep -oE 'setup code: [^[:space:]]+' "$out/server.log" | head -1 | cut -
 [[ -n "$code" ]] || fail "no setup code in the server log"
 easel login "$base" --name smoke --setup "$code" >/dev/null 2>&1 || fail "easel login --setup"
 easel canvas new "Smoke" >/dev/null 2>&1 || fail "easel canvas new"
-echo '<p>first</p>' | easel put smoke - --name "Smoke one" >/dev/null 2>&1 || fail "easel put"
+made="$(echo '<p style="background:#c00">first</p>' | easel put smoke - --name "Smoke one" --json 2>/dev/null)" ||
+  fail "easel put"
+id="$(jq -r .id <<<"$made")"
+easel shot smoke "$id" -o "$out/shot.webp" --scale 0.5 >/dev/null 2>&1 || fail "easel shot"
+[[ "$(head -c 4 "$out/shot.webp")" == RIFF && "$(tail -c +9 "$out/shot.webp" | head -c 4)" == WEBP ]] ||
+  fail "easel shot wrote no WebP"
 link="$(easel share smoke 2>/dev/null)" || fail "easel share"
 "${AB[@]}" open "$link" >/dev/null || fail "open the share link"
 "${AB[@]}" wait --text "Who is looking?" >/dev/null || fail "the name gate never showed"
 "${AB[@]}" find label "Your name" fill "Smoke" >/dev/null || fail "no name gate"
 "${AB[@]}" find role button click --name "Continue" >/dev/null || fail "no Continue button"
 "${AB[@]}" wait --text "Smoke one" >/dev/null || fail "the frame's shell never showed"
+"${AB[@]}" wait --fn 'document.querySelector("img.e-pic")?.complete && document.querySelector("img.e-pic").naturalWidth > 0' >/dev/null ||
+  fail "the frame's shell never showed its picture"
 "${AB[@]}" find role button click --name "Fit" >/dev/null || fail "no Fit button"
 "${AB[@]}" wait --fn 'document.querySelector("iframe[sandbox=\"allow-scripts\"]") !== null' >/dev/null ||
   fail "the frame's document never went live at rest"

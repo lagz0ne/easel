@@ -98,8 +98,11 @@ export const frame = frameInfo.extend({ html: z.string() });
 
 export type Frame = z.infer<typeof frame>;
 
-/** The board's frame: a frame's metadata, keyed by canvas and id. */
-const boardFrame = frameInfo.extend({ canvas: z.string() });
+/**
+ * The board's frame: a frame's metadata, keyed by canvas and id, with its picture key `k` for its
+ * version (SPEC-frames § Pictures). No `k`: pictures are off, and the shell is a plain card.
+ */
+const boardFrame = frameInfo.extend({ canvas: z.string(), k: z.string().optional() });
 
 /** The board's document: one version of one frame's html. */
 const boardDoc = z.object({
@@ -162,6 +165,35 @@ export const putOutput = z.union([
 
 const one = z.object({ canvas: canvasKey, id: frameId });
 
+/** Where pictures are: `/api/pictures/<canvas>/<id>/<version>?s=<scale>&k=<key>[&r=x,y,w,h]`. */
+export const picturePrefix = "/api/pictures/";
+
+/** A picture's scales: 0.25, 0.5, 1 and 2. Any other answers 400. */
+export const pictureScale = z.union([z.literal(0.25), z.literal(0.5), z.literal(1), z.literal(2)]);
+
+/** A region of a frame, in its CSS pixels: `--region x,y,w,h`. */
+export const pictureRegion = z.object({
+  x: z.number().int().min(0).max(16_000),
+  y: z.number().int().min(0).max(16_000),
+  w: side,
+  h: side,
+});
+
+/** No picture is over 8 megapixels or 16000 px on a side (judged rule 6). */
+export const maxPicturePixels = 8_000_000;
+export const maxPictureSide = 16_000;
+
+/**
+ * What `frame.shot` answers: a picture's address on this server, as a path. The CLI joins it to
+ * its own server only in this shape, so an answer cannot send the fetch to another host.
+ */
+export const picturePath = z
+  .string()
+  .regex(
+    /^\/api\/pictures\/[a-z0-9-]+\/[0-9a-f]{12}\/[1-9]\d*\?s=[0-9.]+&k=[\w-]+(&r=\d+,\d+,\d+,\d+)?$/,
+    "not a picture's path",
+  );
+
 /** A user's calls. Each needs a live user token (`{ signIn: true }` without one). */
 export const framesApi = rpc({
   "canvas.create": {
@@ -202,6 +234,21 @@ export const framesApi = rpc({
     input: one,
     output: z.discriminatedUnion("kind", [z.object({ kind: z.literal("deleted") }), gone]),
   },
+  // The picture's address for the current version; it draws nothing (fact rule 3). `off`: the
+  // server has no Chromium.
+  "frame.shot": {
+    input: z.strictObject({
+      canvas: canvasKey,
+      id: frameId,
+      scale: pictureScale,
+      region: pictureRegion.optional(),
+    }),
+    output: z.discriminatedUnion("kind", [
+      z.object({ kind: z.literal("ready"), url: picturePath, version: z.number() }),
+      z.object({ kind: z.literal("off") }),
+      gone,
+    ]),
+  },
 });
 
 export type FramesAddress = Extract<keyof typeof framesApi.contracts, string>;
@@ -225,6 +272,7 @@ export const framesSuccessKinds = {
   "frame.list": ["found"],
   "frame.get": ["found"],
   "frame.delete": ["deleted"],
+  "frame.shot": ["ready"],
 } as const satisfies {
   readonly [A in FramesAddress]: KindOf<A> extends never ? "always" : readonly KindOf<A>[];
 };

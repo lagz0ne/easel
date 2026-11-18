@@ -200,9 +200,25 @@ a region.
 - For an older version, it answers `307` to the current version's address, with its key and
   `Cache-Control: no-store`.
 - A wrong key, a missing or deleted frame, or a version not yet made answers 404. A scale outside
-  0.25, 0.5, 1 and 2 answers 400.
+  0.25, 0.5, 1 and 2 answers 400, and so does a region off the frame or a picture over the limits
+  of judged rule 6. With pictures off, every picture answers 404 and the board carries no keys.
+  Each answer but a picture has `Cache-Control: no-store`.
 - At most 2 draws run at once. A request that waits 5 s for a slot answers 503 with
-  `Retry-After: 1`, and so does a draw that runs past 20 s. `easel shot` tries 3 times, then exits 69.
+  `Retry-After: 1`, and so does a draw that runs past 20 s or fails. `easel shot` tries 3 times,
+  then exits 69. A 404 exits 1, and a 400 exits 65.
+- `EASEL_CHROMIUM` names the Chromium; the image sets it to `/usr/bin/chromium`. Unset, pictures
+  are off and the `chromium` readiness check holds; set to a path with no Chromium that runs, the
+  check fails. Chromium reaches the network only through the server's egress proxy, which opens a
+  tunnel to port 443 of a public address and nothing else (judged rule 5). It dials the addresses
+  it checked, in turn, and gives each connect 10 s, and a client 10 s to send its request. WebRTC
+  sends no UDP outside the proxy (a flag and the image's managed policy). Each draw has a browser
+  context of its own, closed with the draw, popups included; a dialog is dismissed.
+- Known risk: Chromium runs with `--no-sandbox`, as the server's user, in the server's container.
+  A Chromium exploit in a drawn document would run as the server. The authors of documents are
+  signed-in users only, and the container is the boundary. The follow-up is Chromium in a
+  container of its own.
+- `bumpKeys` raises a canvas's key generation and writes its frames' cells again with new keys.
+  `easel unshare` and a password set or changed call it.
 
 ## Rules
 
@@ -214,8 +230,8 @@ number or section.
 ### Fact rules (the code graph decides)
 
 1. Every call above but `share.open` runs the `user` guard first. `share.open` runs no guard.
-2. Every operation that writes `frames` or `docs` calls a store operation: `saveFrame`, `saveBox`
-   or `dropFrame`.
+2. Every operation that writes `frames` or `docs` calls a store operation: `saveFrame`, `saveBox`,
+   `dropFrame` or `bumpKeys`.
 3. `pictureRoute` draws through the one `pictures.render`. `frame.shot` does not draw.
 4. `pictureRoute` depends on `pictureKey`, not on a user or a pass.
 5. The store's start hook writes cells only from rows it read.
