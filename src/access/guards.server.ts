@@ -3,7 +3,7 @@ import { BlockList, isIP } from "node:net";
 
 import { capsule, operation, resource, tag, transport } from "@tinkered/core";
 import type { Capsule, Scope } from "@tinkered/core";
-import type { Server } from "bun";
+import type { Server, ServerWebSocket, WebSocketHandler } from "bun";
 import { z } from "zod";
 
 import { roles } from "./contract";
@@ -121,7 +121,7 @@ type Door = {
     scope: Scope.Handle,
     server: Server<never>,
   ) => Response | null | undefined | Promise<Response | null | undefined>;
-  websocket?: object;
+  websocket?: WebSocketHandler<unknown>;
   maxBody?: number;
 };
 
@@ -134,24 +134,45 @@ const loopback = new BlockList();
 loopback.addSubnet("127.0.0.0", 8, "ipv4");
 loopback.addAddress("::1", "ipv6");
 
+/** How long a stop may take before every connection is cut: under Docker's 10 s to SIGKILL. */
+const grace = tag<number>({ label: "accessDoor.grace", default: 8000 });
+
+/** The door's live sockets, its server once a request named it, and whether it stops. */
+type DoorState = {
+  sockets: Set<ServerWebSocket<unknown>>;
+  server: Server<never> | null;
+  stopping: boolean;
+};
+
+/** The door's state, one per scope: its start fills it, its close reads it. */
+const doorState = resource({
+  label: "accessDoor.state",
+  target: "scope",
+  factory: (): DoorState => ({ sockets: new Set(), server: null, stopping: false }),
+});
+
 /**
  * The socket's door, around `ws.server`: it writes the peer's address on each request, so
  * `clientAddress` reads it, and in `open` it refuses every rpc call (`/rpc`, `/rpc/*`) from a peer
  * that is not this machine (judged rule 12). Pages, `/api/health` and `/api/version` stay
  * readable. Tinker's `serve` takes no hostname, so it cannot listen on 127.0.0.1 alone; this is
  * the stand-in until it does.
- * Install: `serve({ websocket: door })`, with `door` before `socket` in `capsules`.
+ *
+ * A stop drains (SPEC-ops judged rule 8; Go's `Shutdown` with `RegisterOnShutdown`): the door
+ * refuses new requests and sockets with 503, closes each socket with 1001 "going away", so a tab
+ * reads a drop and reconnects, and cuts every connection once `grace` runs out.
+ * Install: `serve({ websocket: door })`, with `door` before `socket` in `capsules`, so its close
+ * runs before `serve`'s.
  */
 export const accessDoor = capsule({
   label: "accessDoor",
-  config: { inner: inner.required, loopbackOnly },
+  config: { inner: inner.required, loopbackOnly, grace },
   hooks: {
-    async start({ config, next, session }): Promise<Door> {
+    async start({ config, next, session, load }): Promise<Door> {
       await next();
       const scope = session({}, { role: "handler", explain: "Reads the socket's door" });
       const door = scope.resolve(config.inner);
-
-      return {
+      const peers: Door = {
         ...door,
         fetch: (request, scope, server) => {
           const ip = server.requestIP(request);
@@ -164,6 +185,42 @@ export const accessDoor = capsule({
           return door.fetch(request, scope, server);
         },
       };
+
+      // easel diverges from upstream 0.30.1: the door keeps each socket and the server, so its
+      // close can drain them (below). Remove with that hook.
+      const held = await load(doorState, { role: "state", explain: "The door's live sockets" });
+      const inbound = door.websocket;
+
+      return {
+        ...peers,
+        websocket: inbound && {
+          ...inbound,
+          open: (ws) => (held.sockets.add(ws), inbound.open?.(ws)),
+          close: (ws, code, reason) => (held.sockets.delete(ws), inbound.close?.(ws, code, reason)),
+        },
+        fetch: (request, scope, server) => {
+          held.server = server;
+          return held.stopping
+            ? new Response(null, { status: 503 })
+            : peers.fetch(request, scope, server);
+        },
+      };
+    },
+    // easel diverges from upstream 0.30.1: `serve`'s close awaits `server.stop()`, which waits for
+    // every open socket, and a socket never ends by itself, so a SIGTERM hung until SIGKILL. And the
+    // scope's close ended each live read cleanly, so a tab never knew to reconnect. Remove this hook
+    // once `serve` drains as it does.
+    async close({ config, load, next }) {
+      const held = await load(doorState, { role: "state", explain: "The door's live sockets" });
+      held.stopping = true;
+      for (const ws of held.sockets) ws.close(1001, "going away");
+
+      // A timer, not a run: the root's close waits for every run, so a run would wait on itself.
+      const late = setTimeout(() => void held.server?.stop(true), config.grace);
+      const result = await next();
+      clearTimeout(late);
+
+      return result;
     },
   },
 });
