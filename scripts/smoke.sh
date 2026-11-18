@@ -72,5 +72,41 @@ title="smoke $$ $RANDOM"
 no_page_errors
 echo "smoke: ok   live-todo ($((SECONDS - t0)) s)"
 
+# 3. The canvas: an agent's frames, opened by share link, draw as shells with a live, sandboxed
+#    document at rest, Fit works, Zoom in zooms, a drag pans, and a frame the agent puts while the
+#    tab is open shows.
+#    The setup code and the link stay in variables: neither is printed.
+flow=canvas
+t0=$SECONDS
+easel() { HOME="$out/home" "$dir/dist/server" "$@"; }
+mkdir -p "$out/home"
+code="$(grep -oE 'setup code: [^[:space:]]+' "$out/server.log" | head -1 | cut -d' ' -f3)"
+[[ -n "$code" ]] || fail "no setup code in the server log"
+easel login "$base" --name smoke --setup "$code" >/dev/null 2>&1 || fail "easel login --setup"
+easel canvas new "Smoke" >/dev/null 2>&1 || fail "easel canvas new"
+echo '<p>first</p>' | easel put smoke - --name "Smoke one" >/dev/null 2>&1 || fail "easel put"
+link="$(easel share smoke 2>/dev/null)" || fail "easel share"
+"${AB[@]}" open "$link" >/dev/null || fail "open the share link"
+"${AB[@]}" wait --text "Who is looking?" >/dev/null || fail "the name gate never showed"
+"${AB[@]}" find label "Your name" fill "Smoke" >/dev/null || fail "no name gate"
+"${AB[@]}" find role button click --name "Continue" >/dev/null || fail "no Continue button"
+"${AB[@]}" wait --text "Smoke one" >/dev/null || fail "the frame's shell never showed"
+"${AB[@]}" find role button click --name "Fit" >/dev/null || fail "no Fit button"
+"${AB[@]}" wait --fn 'document.querySelector("iframe[sandbox=\"allow-scripts\"]") !== null' >/dev/null ||
+  fail "the frame's document never went live at rest"
+zoom='document.querySelector("output[aria-label=Zoom]")?.textContent'
+world='document.querySelector(".e-world")?.style.transform'
+"${AB[@]}" eval "window.smokeZoom = $zoom" >/dev/null || fail "no Zoom status"
+"${AB[@]}" find role button click --name "Zoom in" >/dev/null || fail "no Zoom in button"
+"${AB[@]}" wait --fn "$zoom !== window.smokeZoom" >/dev/null || fail "Zoom in did not change the Zoom status"
+"${AB[@]}" eval "window.smokeWorld = $world" >/dev/null || fail "no world to move"
+"${AB[@]}" mouse move 400 300 >/dev/null && "${AB[@]}" mouse down >/dev/null &&
+  "${AB[@]}" mouse move 520 360 >/dev/null && "${AB[@]}" mouse up >/dev/null || fail "the drag"
+"${AB[@]}" wait --fn "$world !== window.smokeWorld" >/dev/null || fail "a drag did not pan the canvas"
+echo '<p>second</p>' | easel put smoke - --name "Smoke two" >/dev/null 2>&1 || fail "easel put while open"
+"${AB[@]}" wait --text "Smoke two" >/dev/null || fail "the agent's new frame never showed"
+no_page_errors
+echo "smoke: ok   canvas ($((SECONDS - t0)) s)"
+
 echo "smoke: OK"
 [[ -n "${SMOKE_OUT:-}" ]] || rm -rf "$out"

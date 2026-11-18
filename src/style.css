@@ -1,1 +1,9 @@
-/* Add app styles here. */
+/* The app's styles. Each colour, space and type size comes from the design tokens. */
+@import "./design/tokens.css";
+
+body {
+  margin: 0;
+  background-color: var(--e-bg);
+  color: var(--e-text);
+  font-family: var(--e-font);
+}

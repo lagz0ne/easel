@@ -1,0 +1,130 @@
+@import "../design/tokens.css";
+
+/* The canvas (SPEC-viewer.md): a quiet toolbar over the frames. Colour, space and type come only
+   from the design tokens (SPEC-design.md fact rule 1); px here are borders and places. */
+.e-canvas {
+  position: fixed;
+  inset: 0;
+  overflow: hidden;
+  background-color: var(--e-bg);
+  color: var(--e-text);
+  font-family: var(--e-font);
+}
+
+.e-toolbar {
+  position: absolute;
+  top: var(--e-3);
+  left: var(--e-3);
+  z-index: 1;
+  display: flex;
+  align-items: center;
+  gap: var(--e-1);
+  padding: var(--e-1);
+  background-color: var(--e-surface);
+  border-radius: var(--e-radius);
+  box-shadow: var(--e-shadow);
+  font-size: var(--e-size-2);
+}
+
+.e-toolbar button {
+  padding: var(--e-1) var(--e-2);
+  font-family: inherit;
+  font-size: var(--e-size-2);
+  color: var(--e-text);
+  background-color: var(--e-surface);
+  border: 1px solid var(--e-muted);
+  border-radius: var(--e-radius);
+  cursor: pointer;
+}
+
+.e-toolbar button:focus-visible {
+  outline: 2px solid var(--e-focus);
+  outline-offset: 2px;
+  box-shadow: 0 0 0 2px var(--e-bg);
+}
+
+.e-toolbar button:disabled {
+  color: var(--e-muted);
+  cursor: default;
+}
+
+.e-toolbar output {
+  min-width: 6ch;
+  text-align: center;
+  font-variant-numeric: tabular-nums;
+}
+
+.e-toolbar [role="status"],
+.e-toolbar [role="alert"] {
+  margin: 0;
+  padding: 0 var(--e-2);
+}
+
+.e-toolbar [role="alert"] {
+  color: var(--e-danger);
+}
+
+.e-empty {
+  position: absolute;
+  top: 45%;
+  width: 100%;
+  margin: 0;
+  text-align: center;
+  color: var(--e-muted);
+  font-size: var(--e-size-3);
+}
+
+/* The viewport takes the drag, the wheel and the pinch; the browser does none of its own. */
+.e-viewport {
+  position: absolute;
+  inset: 0;
+  overflow: hidden;
+  touch-action: none;
+  cursor: grab;
+  contain: strict;
+}
+
+/* The world: the one element the camera transforms. */
+.e-world {
+  position: absolute;
+  top: 0;
+  left: 0;
+  transform-origin: 0 0;
+}
+
+.e-shell {
+  position: absolute;
+  contain: layout style;
+}
+
+/* A label keeps its screen size: the stage writes its inverse zoom and its width. */
+.e-label {
+  position: absolute;
+  bottom: 100%;
+  left: 0;
+  padding-bottom: var(--e-1);
+  overflow: hidden;
+  color: var(--e-muted);
+  font-size: var(--e-size-1);
+  white-space: nowrap;
+  text-overflow: ellipsis;
+  transform-origin: 0 100%;
+  pointer-events: none;
+}
+
+/* The picture: a plain card until pictures are built (decision C10). */
+.e-card {
+  position: absolute;
+  inset: 0;
+  background-color: var(--e-card);
+}
+
+/* A live document. The viewer is read-only, so a drag or a wheel over it moves the canvas. */
+.e-doc {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  border: 0;
+  pointer-events: none;
+}

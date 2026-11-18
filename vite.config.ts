@@ -46,10 +46,14 @@ export default defineConfig({
         // Found up front, so a first run does not reload the page mid-test.
         optimizeDeps: {
           include: [
+            "@tinkered/cli/test",
+            "@tinkered/core",
             "@tinkered/core/testing",
             "@tinkered/react",
+            "react",
             "react-dom/client",
             "@tanstack/react-router",
+            "zod",
           ],
         },
         test: {

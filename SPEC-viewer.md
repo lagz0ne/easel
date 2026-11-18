@@ -28,14 +28,16 @@ rules below hold it to that.
    gives the iframe; inside the sandbox, the script posts once the document has painted. Until
    then, its picture stays on top, so the viewer never sees a blank white box.
 3. A frame far out of view draws nothing.
-4. With pictures off (no Chromium on the server), a shell shows the name on a plain card.
-5. An empty canvas says it has no frames yet.
+4. With pictures off (no Chromium on the server), a shell shows a plain card. The name sits on a
+   label above the card, as Figma and tldraw show frame names, not on the card.
+5. An empty canvas says it has no frames yet, once a board read has arrived. It still says so
+   while `Reconnecting`; before any read has arrived it says nothing of the frames.
 
 ### Pan and zoom
 
 1. The viewer drags on the canvas, or scrolls, and it pans.
 2. Ctrl+scroll or a pinch zooms around the pointer. Buttons `Zoom in`, `Zoom out` and `Fit` in the
-   toolbar do the same. A `status` shows the zoom in steps of 10%.
+   toolbar do the same. A `status` shows the zoom, rounded down to steps of 10% (26% reads 20%).
 3. While the canvas moves, the set of live documents stays as it is. When it rests, the frames now
    in view go live, nearest first, one at a time. The one change allowed mid-move: a frame an
    agent deletes goes at once.
@@ -46,6 +48,9 @@ rules below hold it to that.
    the live document reloads with no white flash.
 2. An agent adds a frame. It shows in every tab.
 3. An agent moves or deletes a frame. Every tab shows it moved, or gone along with its pins.
+   A move is unreached until `frame.move` ships: the stage reads a shell's box once, so a moved
+   frame would keep its old box for `Fit` and for what shows and goes live. The `frame.move` work
+   fixes that, with a test that moves a frame far away and back.
 
 ### Lose the socket
 
@@ -103,6 +108,30 @@ rules below hold it to that.
 5. A comment whose last allowed claim ran out shows as stuck ([queue](SPEC-queue.md)).
 6. Clicking a comment in the panel moves the canvas to its frame and opens its pin.
 
+## Numbers
+
+The canvas's numbers, from `docs/canvas-speed.md`. A margin is a share of the viewport's own
+width and height, added on each side of it.
+
+| What                   | Number                                                                |
+| ---------------------- | --------------------------------------------------------------------- |
+| Live documents at rest | 12 at most (decision C7)                                              |
+| Reading zoom           | 30%: under it, no document is live                                    |
+| Goes live              | a frame within 0.1 of the view, at rest                               |
+| Stays live             | a live frame within 0.5 of the view, at rest                          |
+| Shell shows            | a frame within 0.5 of the view                                        |
+| Shell hidden           | at rest, a frame past 0.75; while moving, only past 1.5               |
+| Rest                   | 120 ms with no pan or zoom                                            |
+| Going live             | one new iframe per animation frame, nearest the view's centre first   |
+| Paint wait             | the picture stays on top until the paint post, or 1.5 s               |
+| Zoom                   | 0.1% to 400%; a button or a wheel notch is ×1.25                      |
+| Fit                    | a 40 px edge; never past 100%                                         |
+| Zoom status            | rounded down: steps of 10%; under 10% of 1%; under 1% of 0.1%         |
+| Label                  | kept at its screen size; rewritten after a 10% zoom drift and at rest |
+
+Until pictures are built (decision C10), the picture is the plain card of "See the frames"
+step 4: a colour that is not white, under the frame's name on its label.
+
 ## Contract
 
 The page reads `easel.board` (cells `frames`, `docs` and `comments`, keyed by canvas, and the
@@ -130,7 +159,7 @@ The behaviour above is checked against the statecharts in `docs/statecharts/`: `
 4. No page module imports a `.server.` file (the page build refuses one).
 5. The page reads `docs` only by `of({ canvas, id })`, never by `where`.
 6. Each stateful page feature (camera, live set, comment mode, connection status, clock) is a
-   capsule. There is no useState, useEffect or useReducer.
+   Tinker cell or resource. There is no useState, useEffect or useReducer.
 7. The page's only calls are `share.open` and `comment.add`.
 8. One page module adds the paint script, to the document it gives the iframe. No server module
    and no stored document carries it.
@@ -151,6 +180,17 @@ The behaviour above is checked against the statecharts in `docs/statecharts/`: `
    carries it. While it is not known whether a send saved, the textbox offers no `Cancel`.
 7. The ended page, and the password page after `{ locked: true }`, keep the text of a comment
    being typed, and never say "not posted" of one that may have saved.
+8. The server refuses an `/rpc` upgrade whose `Origin` is present and is not `PUBLIC_ORIGIN`, so a
+   frame's script (`Origin: "null"`) cannot open a socket of its own ([access](SPEC-access.md)
+   judged rule 15).
+
+### Accepted risk
+
+A frame's script can read the page's URL through `document.baseURI`, and the page URL holds the
+share link. The sandbox (judged rule 4) keeps the tab's storage, cookies, pass and socket from it,
+and judged rule 8 keeps it from opening a socket, but it can send the link elsewhere. The author
+owns the canvas and wrote the script, so this is accepted: it gives no one more than the author
+already gave.
 
 ## Success Criteria
 
@@ -159,7 +199,10 @@ The behaviour above is checked against the statecharts in `docs/statecharts/`: `
 - No white box, measured by screencast: each of the 200 test frames fills its box with a colour
   that is not white. In a screencast (CDP `Page.startScreencast`) of a pan across the whole board,
   a zoom, and an agent's write to a live frame, no captured image shows a frame's box more than
-  5% white.
+  5% white. Deferred: it is not built yet. Until then, browser tests hold the rule it measures (a
+  picture stays on top until its document paints, also when a frame goes live again). A script
+  over the smoke's built server will measure it: it drives the pan, the zoom and the write with
+  CDP's screencast on, and counts the white pixels in each frame's box in each image.
 - A test replays each statechart's steps in `docs/statecharts/viewer-*.md` and holds each of its
   rules.
 - The smoke has one canvas flow: open a board, frames show, pan and zoom.

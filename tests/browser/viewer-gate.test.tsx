@@ -156,17 +156,30 @@ const interactive = [
   "tab",
 ] as const;
 
-/** The page shows no control at all: the canvas's CanvasControls = {}, and the ended page's. */
+/** The page shows no control at all: the ended page's. */
 function expectNoControl() {
   for (const role of interactive) {
     expect(page.getByRole(role).elements(), role).toHaveLength(0);
   }
 }
 
-const frameList = () => page.getByRole("list", { name: "Frames" });
+/** The canvas's CanvasControls: Zoom in, Zoom out and Fit, and no other control. */
+function expectCanvasControlsOnly() {
+  for (const role of interactive.filter((r) => r !== "button")) {
+    expect(page.getByRole(role).elements(), role).toHaveLength(0);
+  }
+  const buttons = page
+    .getByRole("button")
+    .elements()
+    .map((b) => b.textContent);
+  expect(buttons.toSorted()).toEqual(["Fit", "Zoom in", "Zoom out"]);
+}
+
+const frameList = () => page.getByRole("region", { name: "Frames" });
+const reconnecting = () => page.getByRole("status").filter({ hasText: "Reconnecting" });
 const endedHeading = () => page.getByRole("heading", { name: "This link has ended" });
 
-test("the name is asked once per browser, before any call; then the canvas lists its frames live, as text, with no control", async () => {
+test("the name is asked once per browser, before any call; then the canvas shows its frames live, names as text, with only the camera's controls", async () => {
   localStorage.removeItem(nameKey);
   const server = await boot();
   const first = await tab(server, `/s/${live}`);
@@ -182,8 +195,8 @@ test("the name is asked once per browser, before any call; then the canvas lists
   // A frame name is text: markup in it is shown, never drawn.
   server.run(putFrame, { input: { id: "f2", name: "<b>Checkout</b>" } });
   await expect.element(frameList().getByText("<b>Checkout</b>")).toBeVisible();
-  expect(document.querySelector('ul[aria-label="Frames"] b')).toBeNull();
-  expectNoControl();
+  expect(document.querySelector('section[aria-label="Frames"] b')).toBeNull();
+  expectCanvasControlsOnly();
   first.root.unmount();
   await first.scope.close();
 
@@ -192,7 +205,7 @@ test("the name is asked once per browser, before any call; then the canvas lists
   const second = await tab(server, `/s/${live}`);
   await expect.element(frameList().getByText("<b>Checkout</b>")).toBeVisible();
   expect(page.getByLabelText("Your name").elements()).toHaveLength(0);
-  expectNoControl();
+  expectCanvasControlsOnly();
 
   await second.scope.close();
   await server.close();
@@ -207,7 +220,7 @@ test("an unknown link, a path that is no link, and a pass turned away twice each
 
     await expect.element(endedHeading()).toBeVisible();
     expectNoControl();
-    expect(page.getByRole("list").elements()).toHaveLength(0);
+    expect(frameList().elements()).toHaveLength(0);
 
     shown.root.unmount();
     await shown.scope.close();
@@ -255,11 +268,16 @@ test("a dropped link says Reconnecting, and the frames read so far stay", async 
   const server = await boot();
   const shown = await tab(server, `/s/${live}`);
   await expect.element(frameList().getByText("Home")).toBeVisible();
-  expect(page.getByRole("status").elements()).toHaveLength(0);
+  expect(reconnecting().elements()).toHaveLength(0);
 
   await server.close();
-  await expect.element(page.getByRole("status")).toHaveTextContent("Reconnecting");
-  await expect.element(frameList().getByText("Home")).toBeVisible();
+  // The board knows the link dropped; then the page must say so, by then and not later.
+  await expect
+    .poll(() => shown.scope.resolve(frames.board.faults).get().frames?.fault)
+    .toBe("link");
+  await tick();
+  expect(reconnecting().elements()).toHaveLength(1);
+  expect(frameList().getByText("Home").elements()).toHaveLength(1);
 
   await shown.scope.close();
 });

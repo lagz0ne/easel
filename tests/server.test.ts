@@ -51,10 +51,11 @@ const proxied = (path: string, body: unknown) =>
     body: JSON.stringify(body),
   });
 
-/** One greet over the command's own port, on a socket that sends `origin`. */
-async function greetOver(root: Root, origin: string) {
-  // Bun's WebSocket takes headers: a browser sets Origin itself.
-  const socket = new WebSocket(`ws://${urlOf(root).host}/rpc`, { headers: { origin } } as never);
+/** One greet over the command's own port, on a socket that sends `origin`, or none as the CLI. */
+async function greetOver(root: Root, origin?: string) {
+  // Bun's WebSocket takes headers: a browser sets Origin itself. With none, Bun sends no Origin.
+  const headers = origin === undefined ? {} : { origin };
+  const socket = new WebSocket(`ws://${urlOf(root).host}/rpc`, { headers } as never);
   const reply = await new Promise<string>((done) => {
     socket.onopen = () => socket.send(JSON.stringify([{ i: 1, a: "greet", t: '{"name":"Duke"}' }]));
     socket.onmessage = (e) => done(JSON.parse(String(e.data))[0].t);
@@ -66,12 +67,22 @@ async function greetOver(root: Root, origin: string) {
   return reply;
 }
 
-test("PUBLIC_ORIGIN reaches rpc: a socket from the public origin passes behind a TLS proxy", async () => {
-  expect(JSON.parse(await greetOver(started, "https://app.example"))).toEqual({
-    ok: true,
-    value: { text: "Hello, Duke." },
-  });
-  expect(await greetOver(started, "https://evil.example")).not.toContain("Hello");
+/** A greet's answer as data, or the word that says how the socket ended. */
+const answer = async (root: Root, origin?: string): Promise<unknown> => {
+  const reply = await greetOver(root, origin);
+
+  return reply.startsWith("{") ? JSON.parse(reply) : reply;
+};
+
+test("PUBLIC_ORIGIN reaches rpc: a socket from the public origin passes behind a TLS proxy; a foreign one, and a sandboxed frame's \"null\", are refused; the CLI's, with no Origin, passes", async () => {
+  // OWASP's cross-site WebSocket hijacking guidance: check Origin on the upgrade. Tinker's
+  // `ws.server({ origin })` does, and the command gives it PUBLIC_ORIGIN (SPEC-access judged rule 15).
+  const hello = { ok: true, value: { text: "Hello, Duke." } };
+
+  expect(await answer(started, "https://app.example")).toEqual(hello);
+  expect(await answer(started, "https://evil.example")).toBe("refused");
+  expect(await answer(started, "null")).toBe("refused");
+  expect(await answer(started)).toEqual(hello);
 });
 
 test("PUBLIC_ORIGIN reaches telemetry: a tab batch from the public origin is taken", async () => {
@@ -108,6 +119,10 @@ test("an empty PUBLIC_ORIGIN counts as unset: rpc and telemetry take the request
   // The socket's request URL is http://localhost:<port>, so that is the origin it takes.
   const local = await greetOver(plain, "http://localhost");
   expect(local).toBe("refused"); // port differs: not the request URL's origin
+  expect(await greetOver(plain, "null")).toBe("refused");
+  expect(await greetOver(plain, "https://app.example")).toBe("refused");
+  expect(await answer(plain, at.origin)).toMatchObject({ ok: true });
+  expect(await answer(plain)).toMatchObject({ ok: true });
   expect((await post("/api/telemetry", { logs: [], traces: [] }))?.status).toBe(202);
   quiet.abort();
   await plain.closed;

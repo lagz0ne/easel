@@ -191,6 +191,20 @@ journeys. Its rules are the oracle the tests follow.
     of an `invalid` fault. The setup code reaches the log once, in the line that shows it.
 14. `login.end` removes the calling user, its token and its codes in one write, as `users.revoke`
     does, so its name is free for a new login. The last owner answers `last` and nothing changes.
+15. An `/rpc` upgrade whose `Origin` is present and is not `PUBLIC_ORIGIN` is refused 403, as
+    OWASP's guidance on cross-site WebSocket hijacking asks: a foreign page, and a sandboxed frame
+    (whose `Origin` is `"null"`), cannot open the socket. A client with no `Origin`, as the CLI,
+    passes; a token or a pass still guards each call. With `PUBLIC_ORIGIN` unset (tests, dev), the
+    request URL's origin stands in. Tinker's `ws.server({ origin })` makes the check; the cmd gives
+    it `PUBLIC_ORIGIN`.
+
+### Accepted risks
+
+- A frame's script can read the page's URL through `document.baseURI`, and the page URL holds the
+  share link (`/s/<link>`). The sandbox keeps it from the tab's storage, cookies and socket, and
+  rule 15 keeps it from opening one of its own from the frame; it can still send the link
+  elsewhere. The author owns the canvas and wrote the script, so this is no escalation
+  ([viewer](SPEC-viewer.md) § Rules).
 
 ## Success Criteria
 

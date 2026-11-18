@@ -174,11 +174,11 @@ test("a stop drains: a waiting call's socket closes 1001 going away, the error t
   expect(storedLabels(file)).toEqual(["page.board"]);
 });
 
-test("a viewer's tab says Reconnecting when the server stops, and shows the canvas again once it is back (viewer-gate-open s1 to s4, s4 to s1)", async () => {
-  const file = join(folder(), "easel.db");
-  const first = await run("0", { EASEL_DB: file });
-  const port = first.url.port;
-  const held: { token?: string; pass?: string } = {};
+/** Who a client is: an agent's token, or a viewer's pass. */
+type Held = { token?: string; pass?: string };
+
+/** A client of the server on `port`, as the page and the CLI are: its meta comes from `held`. */
+async function client(port: string, held: Held) {
   const meta = operation({
     label: "test.meta",
     run: async (): Promise<Record<string, string>> => ({
@@ -186,7 +186,7 @@ test("a viewer's tab says Reconnecting when the server stops, and shows the canv
       ...(held.pass ? { pass: held.pass } : {}),
     }),
   });
-  const tab = await createScope({
+  const scope = await createScope({
     capsules: [
       exits({ file: process.env.TINKER_EXITS }),
       ws.client({ url: `ws://localhost:${port}/rpc`, meta }),
@@ -196,9 +196,22 @@ test("a viewer's tab says Reconnecting when the server stops, and shows the canv
       frames.viewer({ remote: ws.client }),
     ],
   }).ready;
-  closers.push(() => tab.close());
+  closers.push(() => scope.close());
 
-  // Ann shares `flow` with one frame; the tab opens the link and reads its frames (s1, Canvas).
+  return scope;
+}
+
+/** The id a put answered with. */
+const idOf = (out: { kind: string }) => ("id" in out && typeof out.id === "string" ? out.id : "");
+
+test("a viewer's tab says Reconnecting when the server stops, and once it is back shows what an agent added, deleted and wrote while it was down (viewer-gate-open s1 to s4, s4 to s1)", async () => {
+  const file = join(folder(), "easel.db");
+  const first = await run("0", { EASEL_DB: file });
+  const port = first.url.port;
+  const held: Held = {};
+  const tab = await client(port, held);
+
+  // Ann shares `flow` with two frames; the tab opens the link and reads them (s1, Canvas).
   const token = randomBytes(32).toString("base64url");
   const setup = {
     name: "ann",
@@ -210,8 +223,10 @@ test("a viewer's tab says Reconnecting when the server stops, and shows the canv
   expect((await tab.run(frames.api["canvas.create"], { input: { name: "flow" } })).kind).toBe(
     "created",
   );
-  const put = { canvas: "flow", html: "<p>1</p>", name: "Home" };
-  expect((await tab.run(frames.api["frame.put"], { input: put })).kind).toBe("created");
+  const home = { canvas: "flow", html: "<p>1</p>", name: "Home" };
+  const homeId = idOf(await tab.run(frames.api["frame.put"], { input: home }));
+  const keep = { canvas: "flow", html: "<p>1</p>", name: "Keep" };
+  const keepId = idOf(await tab.run(frames.api["frame.put"], { input: keep }));
   const shared = await tab.run(frames.api["canvas.share"], { input: { canvas: "flow" } });
   const link = shared.kind === "shared" ? shared.path.slice("/s/".length) : "";
   held.token = undefined;
@@ -220,23 +235,50 @@ test("a viewer's tab says Reconnecting when the server stops, and shows the canv
 
   const list = tab.resolve(frames.board.frames.where({ canvas: "flow" }));
   closers.push(list.watch(() => undefined));
+  const doc = tab.resolve(frames.board.docs.of({ canvas: "flow", id: keepId }));
+  closers.push(doc.watch(() => undefined));
   const faults = tab.resolve(frames.board.faults);
-  // The page's own test for Reconnecting: the board's `link` fault (src/viewer/viewer.tsx).
+  // The page's own test for Reconnecting: the board's `link` fault (src/viewer/canvas.tsx).
   const reconnecting = () => faults.get().frames?.fault === "link";
-  const names = () => list.get().map((f) => f.name);
-  await until(() => names().length === 1);
+  const names = () =>
+    list
+      .get()
+      .map((f) => f.name)
+      .toSorted();
+  await until(() => names().length === 2 && doc.get()?.version === 1);
   expect(reconnecting()).toBe(false);
 
   // SIGTERM: the socket drops (s1 to s4), and the frames read so far stay.
   first.stop.abort();
   expect(await within(first.closed, grace + 1000)).toBe("closed");
   await until(reconnecting);
-  expect(names()).toEqual(["Home"]);
+  expect(names()).toEqual(["Home", "Keep"]);
 
-  // The next deploy, on the same port and file: the socket is back (s4 to s1).
+  // While the tab is down, another server on the same file takes an agent's add, delete and write.
+  const side = await run("0", { EASEL_DB: file });
+  const agent = await client(side.url.port, { token });
+  const added = { canvas: "flow", html: "<p>n</p>", name: "New" };
+  expect((await agent.run(frames.api["frame.put"], { input: added })).kind).toBe("created");
+  const gone = { canvas: "flow", id: homeId };
+  expect((await agent.run(frames.api["frame.delete"], { input: gone })).kind).toBe("deleted");
+  const wrote = { canvas: "flow", id: keepId, base: 1, html: "<p>2</p>" };
+  expect((await agent.run(frames.api["frame.put"], { input: wrote })).kind).toBe("updated");
+  await agent.close();
+  side.stop.abort();
+  expect(await within(side.closed, grace + 1000)).toBe("closed");
+  expect(reconnecting()).toBe(true);
+  expect(names()).toEqual(["Home", "Keep"]);
+
+  // The next deploy, on the same port and file: the socket is back (s4 to s1). Each time the
+  // status is seen gone, the frames are already the new ones: no old list without Reconnecting.
+  const seen: string[] = [];
+  closers.push(faults.watch(() => void (reconnecting() || seen.push(names().join(",")))));
   await run(port, { EASEL_DB: file });
   await until(() => !reconnecting());
-  expect(names()).toEqual(["Home"]);
+  expect(seen[0]).toBe("Keep,New");
+  expect(names()).toEqual(["Keep", "New"]);
+  await until(() => doc.get()?.version === 2);
+  expect(doc.get()?.html).toBe("<p>2</p>");
 });
 
 // ---- The door alone: what no real route can hold open
