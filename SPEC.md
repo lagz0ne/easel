@@ -199,7 +199,7 @@ export const putFrame = operation({
   first in each scope.
 - Page tests (`tests/browser/`) run in Chromium, with `exits({ store: localStorage })` first, and
   find controls by role and name.
-- A bug gets a failing test first (pstack `tdd`).
+- A bug gets a failing test first (agent-skills `test-driven-development`).
 - The browser smoke holds the critical paths only. When the canvas lands, its one flow is: open a
   board, frames show, pan and zoom.
 
