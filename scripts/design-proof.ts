@@ -23,11 +23,19 @@
 //   S5 all instances of a component are at one revision.
 //   S6 at most one primary Button in a Popover.
 //   S7 each instance is a component of the system.
+//   S8 spacing (padding, margin, gap) is a step of the scale: var(--e-N), 0 or auto.
+//   S9 line height is a token pair of the type scale: var(--e-leading-N), 1 or normal.
+//   S10 motion: transform and opacity only, 300ms at most, the ease-out curve,
+//       hover only on a fine pointer, and a reduced-motion fallback.
+//   S11 a shadow is one of three elevations, or a ring.
+//   S12 a size is on the 4px grid.
+//   T1 text: … not ..., curly quotes, a no-break space between a number and its unit.
 
 const CANVAS = "zPdfXgdRrQ";
 const API = "https://doop.vibea.dev/api/frames";
 
-type Kind = "screen" | "sheet";
+// main: the frame that holds the main of a component (the Design system page).
+type Kind = "screen" | "sheet" | "main";
 
 const FRAMES: ReadonlyArray<{ id: string; kind: Kind }> = [
   { id: "XdLqS2sMuW", kind: "screen" },
@@ -40,6 +48,24 @@ const FRAMES: ReadonlyArray<{ id: string; kind: Kind }> = [
   { id: "1A1h0JmwpC", kind: "sheet" },
   { id: "cntUqBSroa", kind: "sheet" },
   { id: "AzGdKz1J0q", kind: "sheet" },
+  { id: "TzwdUcgEaX", kind: "main" },
+  { id: "D48PqkGGUI", kind: "main" },
+  { id: "gzLC5Ibcw-", kind: "main" },
+  { id: "rkU29f53cr", kind: "main" },
+  { id: "h4m9C4jnKu", kind: "main" },
+  { id: "Rk7zzTkrLE", kind: "main" },
+  { id: "lwA-HdEVrs", kind: "main" },
+  { id: "m9kFsNX7Se", kind: "main" },
+  { id: "0XdM1aSoUC", kind: "main" },
+  { id: "rowNLAFNJw", kind: "main" },
+  { id: "va6sy6Uh7B", kind: "main" },
+  { id: "nAH5uFT9zC", kind: "main" },
+  { id: "kyEwrYqamq", kind: "main" },
+  { id: "a3OQLvzeCe", kind: "main" },
+  { id: "YOxWpiAsR2", kind: "main" },
+  { id: "SHxXnHWKlc", kind: "main" },
+  { id: "ReBto2wCjH", kind: "main" },
+  { id: "QdFEPJTAa8", kind: "main" },
 ];
 
 const COMPONENTS: Readonly<Record<string, string>> = {
@@ -110,6 +136,8 @@ type Parsed = {
   instances: Array<Instance>;
   css: Array<Css>;
   natives: Array<string>;
+  // The copy a viewer reads: text nodes and text attributes, one per line.
+  copy: string;
 };
 
 type Finding = { frame: string; rule: string; what: string };
@@ -153,6 +181,8 @@ const parseProps = (raw: string | null): Record<string, string> => {
 type Open = {
   inst: Instance | undefined;
   sample: boolean;
+  // Inside <style> or <script>: its text is code, not copy.
+  raw: boolean;
   style: Css | undefined;
   prop: string | undefined;
 };
@@ -247,10 +277,12 @@ const onElement = (s: ReadState, el: HTMLRewriterTypes.Element): void => {
   const sample = isSample(s, el);
   noteNative(s, tag, inst, sample);
   noteInline(s, el, sample);
+  noteCopyAttrs(s, el, sample);
   const style = openStyle(s, el, tag);
   if (el.selfClosing || !el.canHaveContent) return;
 
-  s.stack.push({ inst, sample, style, prop: mainProp(s, el, inst) });
+  const raw = tag === "style" || tag === "script";
+  s.stack.push({ inst, sample, raw, style, prop: mainProp(s, el, inst) });
   el.onEndTag(() => {
     s.stack.pop();
   });
@@ -263,6 +295,24 @@ const addPropText = (s: ReadState, open: Open | undefined, text: string): void =
   inst.props[open.prop] = (inst.props[open.prop] ?? "") + text;
 };
 
+const COPY_ATTRS = ["placeholder", "aria-label", "title", "alt"] as const;
+
+const noteCopyAttrs = (s: ReadState, el: HTMLRewriterTypes.Element, sample: boolean): void => {
+  if (sample) return;
+
+  for (const a of COPY_ATTRS) {
+    const v = el.getAttribute(a);
+    if (v !== null) s.parsed.copy += `${decode(v)}\n`;
+  }
+};
+
+const addCopy = (s: ReadState, open: Open | undefined, t: HTMLRewriterTypes.Text): void => {
+  if (open?.raw === true || open?.sample === true) return;
+
+  s.parsed.copy += decode(t.text);
+  if (t.lastInTextNode) s.parsed.copy += "\n";
+};
+
 const onText = (s: ReadState, t: HTMLRewriterTypes.Text): void => {
   const open = top(s);
   if (open?.style !== undefined) {
@@ -270,12 +320,18 @@ const onText = (s: ReadState, t: HTMLRewriterTypes.Text): void => {
     return;
   }
 
+  addCopy(s, open, t);
+
   for (const o of s.stack) if (o.inst !== undefined) o.inst.text += t.text;
   addPropText(s, open, t.text);
 };
 
 const parseFrame = async (frame: string, html: string): Promise<Parsed> => {
-  const s: ReadState = { frame, stack: [], parsed: { instances: [], css: [], natives: [] } };
+  const s: ReadState = {
+    frame,
+    stack: [],
+    parsed: { instances: [], css: [], natives: [], copy: "" },
+  };
   const rewriter = new HTMLRewriter().on("*", {
     element: (el) => onElement(s, el),
     text: (t) => onText(s, t),
@@ -326,18 +382,198 @@ const SHAPE_OK = /^(0|inherit|normal|none|50%|var\([^()]+\))$/;
 const shapeOk = (value: string): boolean =>
   value.split(/\s+(?![^(]*\))/).every((part) => SHAPE_OK.test(part));
 
+// --- Detail: S8 to S12 -----------------------------------------------------
+// Sources: Emil Kowalski, emil-design-eng (motion); Vercel Web Interface
+// Guidelines (motion, type, copy); Refactoring UI (spacing scale, elevation);
+// Radix Themes (size and line-height pairs).
+
+const DEPTH: Readonly<Record<string, number>> = { "(": 1, ")": -1, "{": 1, "}": -1 };
+
+// Split on a separator that is not inside parentheses.
+const splitTop = (value: string, sep: string): Array<string> => {
+  const out: Array<string> = [];
+  let depth = 0;
+  let cur = "";
+
+  for (const ch of value) {
+    depth += DEPTH[ch] ?? 0;
+    const cut = ch === sep && depth === 0;
+    if (cut) out.push(cur.trim());
+    cur = cut ? "" : cur + ch;
+  }
+
+  out.push(cur.trim());
+  return out.filter((p) => p !== "");
+};
+
+const normal = (value: string): string =>
+  value
+    .replace(/\s+/g, " ")
+    .replace(/\s*,\s*/g, ",")
+    .trim();
+
+const SPACE_PROP = /^(padding|margin|gap|row-gap|column-gap)(-|$)/;
+const SPACE_OK = /^(0|auto|var\(--e-\d\))$/;
+const LEADING_OK = /^(1|normal|inherit|var\(--e-leading-\d\))$/;
+const SIZE_PROP = /^(min-|max-)?(width|height)$/;
+
+// Elevation 1 (card), 2 (pin), 3 (popover, menu): a contact layer and an
+// ambient layer, as Refactoring UI. Anything else is a ring.
+const ELEVATION = new Set([
+  "0 0 0 1px var(--e-line),0 1px 2px var(--e-shadow-low)",
+  "0 1px 2px var(--e-shadow-mid),0 2px 6px var(--e-shadow-low)",
+  "0 1px 2px var(--e-shadow-low),0 8px 24px var(--e-shadow-mid)",
+]);
+
+const RING =
+  /^(inset )?(0 0 0 [1-3]px|-?[1-3]px 0 0) (var\(--e-[a-z-]+\)|color-mix\(in srgb,var\(--e-focus\) 18%,transparent\))$/;
+
+const shadowOk = (value: string): boolean => {
+  const v = normal(value);
+  if (v.includes("--e-shadow")) return ELEVATION.has(v);
+
+  return v === "none" || splitTop(v, ",").every((l) => RING.test(l));
+};
+
+const sizeOk = (value: string): boolean =>
+  [...value.matchAll(/(-?\d*\.?\d+)px/g)].every((m) => Number(m[1]) % 4 === 0);
+
+const EASE_OUT = "cubic-bezier(0.23,1,0.32,1)";
+
+const durationsMs = (v: string): Array<number> =>
+  [...v.matchAll(/(?<![\w.-])(\d*\.?\d+)(ms|s)\b/g)].map(
+    (m) => Number(m[1]) * (m[2] === "s" ? 1000 : 1),
+  );
+
+type MotionRule = { why: string; bad: (prop: string, v: string) => boolean };
+
+// A loop (infinite) may run longer and ease in and out; nothing else may.
+const MOTION_RULES: ReadonlyArray<MotionRule> = [
+  { why: "names all", bad: (_p, v) => /\ball\b/.test(v) },
+  {
+    why: "moves more than transform and opacity",
+    bad: (p, v) =>
+      p === "transition" && splitTop(v, ",").some((t) => !/^(transform|opacity|none)\b/.test(t)),
+  },
+  {
+    why: "is longer than 300ms",
+    bad: (_p, v) => !v.includes("infinite") && durationsMs(v).some((ms) => ms > 300),
+  },
+  { why: "eases in", bad: (_p, v) => /\bease-in\b(?!-out)/.test(v) },
+  {
+    why: "has a curve that is not the ease-out",
+    bad: (_p, v) =>
+      [...v.matchAll(/cubic-bezier\([^)]*\)/g)].some(
+        (m) => normal(m[0]).replace(/ /g, "") !== EASE_OUT,
+      ),
+  },
+  {
+    why: "has a default curve",
+    bad: (_p, v) => !v.includes("infinite") && /\b(ease|linear|ease-in-out)\b(?!-)/.test(v),
+  },
+];
+
+const checkMotion = (frame: string, what: string, d: Decl): void => {
+  if (!/^(transition|animation)/.test(d.prop)) return;
+
+  const v = normal(d.value);
+  for (const r of MOTION_RULES) {
+    if (r.bad(d.prop, v)) report(frame, "S10", `${what} ${r.why}`);
+  }
+};
+
+type DeclRule = {
+  rule: string;
+  applies: (prop: string) => boolean;
+  ok: (value: string) => boolean;
+};
+
+const DECL_RULES: ReadonlyArray<DeclRule> = [
+  {
+    rule: "S8",
+    applies: (p) => SPACE_PROP.test(p),
+    ok: (v) => splitTop(normal(v), " ").every((part) => SPACE_OK.test(part)),
+  },
+  { rule: "S9", applies: (p) => p === "line-height", ok: (v) => LEADING_OK.test(v) },
+  { rule: "S11", applies: (p) => p === "box-shadow", ok: shadowOk },
+  { rule: "S12", applies: (p) => SIZE_PROP.test(p), ok: sizeOk },
+];
+
+const checkDetail = (frame: string, what: string, d: Decl): void => {
+  for (const r of DECL_RULES) if (r.applies(d.prop) && !r.ok(d.value)) report(frame, r.rule, what);
+
+  checkMotion(frame, what, d);
+};
+
+const HOVER_MEDIA =
+  /@media\s*\(\s*hover\s*:\s*hover\s*\)\s*and\s*\(\s*pointer\s*:\s*fine\s*\)\s*\{/;
+
+const blockEnd = (css: string, open: number): number => {
+  let depth = 0;
+  for (let i = open; i < css.length; i++) {
+    depth += DEPTH[css.charAt(i)] ?? 0;
+    if (depth === 0) return i + 1;
+  }
+  return css.length;
+};
+
+const withoutHoverMedia = (css: string): string => {
+  let out = css;
+  for (let at = out.search(HOVER_MEDIA); at >= 0; at = out.search(HOVER_MEDIA)) {
+    out = out.slice(0, at) + out.slice(blockEnd(out, out.indexOf("{", at)));
+  }
+  return out;
+};
+
+// S10 on a whole stylesheet: hover needs a fine pointer; motion needs a fallback.
+const checkBlock = (frame: string, owner: string, css: string): void => {
+  if (/:hover\b/.test(withoutHoverMedia(css))) {
+    report(frame, "S10", `${owner} has :hover outside (hover:hover) and (pointer:fine)`);
+  }
+
+  const moves = /(transition|animation)\s*:\s*(?!none)/.test(css);
+  if (moves && !css.includes("prefers-reduced-motion")) {
+    report(frame, "S10", `${owner} moves with no prefers-reduced-motion fallback`);
+  }
+};
+
 const checkDecl = (frame: string, owner: string, d: Decl): void => {
   if (d.prop.startsWith("--")) return;
 
   const what = `${owner} ${d.selector} ${d.prop}: ${d.value}`;
   if (COLOUR.test(d.value)) report(frame, "S1", what);
   if (SHAPE_PROPS.has(d.prop) && !shapeOk(d.value)) report(frame, "S2", what);
+  checkDetail(frame, what, d);
 };
 
+// A component's CSS is the same in each frame: report it on the system, once.
 const checkCss = (frame: string, parsed: Parsed): void => {
   for (const block of parsed.css) {
-    const owner = COMPONENTS[block.owner] ?? block.owner;
-    for (const d of declarations(block.css)) checkDecl(frame, owner, d);
+    const comp = COMPONENTS[block.owner];
+    const where = comp === undefined ? frame : "system";
+    const owner = comp ?? block.owner;
+    checkBlock(where, owner, block.css);
+    for (const d of declarations(block.css)) checkDecl(where, owner, d);
+  }
+};
+
+// --- Copy: T1 --------------------------------------------------------------
+
+const COPY_RULES: ReadonlyArray<{ why: string; bad: RegExp }> = [
+  { why: "three dots, not …", bad: /\.\.\./ },
+  { why: "a straight quote, not “ ”", bad: /"/ },
+  { why: "a straight apostrophe, not ’", bad: /\w'\w/ },
+  {
+    why: "a plain space between a number and its unit",
+    bad: /\b\d+ (min|h|days?|hours?|ms|s|px|MB|KB)\b/,
+  },
+];
+
+const checkCopy = (frame: string, parsed: Parsed): void => {
+  for (const line of parsed.copy.split("\n")) {
+    for (const r of COPY_RULES) {
+      if (r.bad.test(line)) report(frame, "T1", `${r.why}: ${line.trim().slice(0, 60)}`);
+    }
   }
 };
 
@@ -452,6 +688,7 @@ const checkInstance = (proof: Proof, f: Frame, parsed: Parsed, i: Instance): voi
 
 const checkFrame = (proof: Proof, f: Frame, parsed: Parsed): void => {
   checkCss(f.id, parsed);
+  checkCopy(f.id, parsed);
   for (const tag of parsed.natives) report(f.id, "S3", `a native <${tag}> outside a component`);
   checkRestyle(f.id, parsed);
 
@@ -515,7 +752,8 @@ const checkRevs = (proof: Proof): void => {
 };
 
 const printReport = (proof: Proof): number => {
-  for (const f of findings) console.log(`${f.frame} ${f.rule} ${f.what}`);
+  const lines = [...new Set(findings.map((f) => `${f.frame} ${f.rule} ${f.what}`))];
+  for (const line of lines) console.log(line);
 
   const traced = [...proof.shown.entries()]
     .filter(([id]) => proof.epic.has(id))
@@ -527,12 +765,12 @@ const printReport = (proof: Proof): number => {
   for (const [id, titles] of traced) console.log(`  ${id}: ${[...new Set(titles)].join(" | ")}`);
   for (const [id, why] of Object.entries(NOT_SHOWN)) console.log(`  ${id}: (elsewhere) ${why}`);
 
-  if (findings.length === 0) {
+  if (lines.length === 0) {
     console.log("\ndesign proof: OK");
     return 0;
   }
 
-  console.log(`\ndesign proof: ${findings.length} findings. Fix each in Doop, then run it again.`);
+  console.log(`\ndesign proof: ${lines.length} findings. Fix each in Doop, then run it again.`);
   return 1;
 };
 
