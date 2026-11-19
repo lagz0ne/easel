@@ -49,8 +49,8 @@ server healthy.
 | ID   | Journey                          | Actor  | Design                                                                                       | Review |
 | ---- | -------------------------------- | ------ | -------------------------------------------------------------------------------------------- | ------ |
 | E4.1 | Ask for a change                 | viewer | [queue](../SPEC-queue.md#a-viewer-adds-a-comment), [viewer](../SPEC-viewer.md#pin-a-comment) | ready  |
-| E4.2 | Do the change and reply          | agent  | [queue](../SPEC-queue.md#an-agent-works-the-queue)                                           | active |
-| E4.3 | A comment that no agent finishes | agent  | [queue](../SPEC-queue.md#a-comment-no-agent-finishes)                                        | to do  |
+| E4.2 | Do the change and reply          | agent  | [queue](../SPEC-queue.md#an-agent-works-the-queue)                                           | ready  |
+| E4.3 | A comment that no agent finishes | agent  | [queue](../SPEC-queue.md#a-comment-no-agent-finishes)                                        | active |
 | E4.4 | Follow the comments              | viewer | [viewer](../SPEC-viewer.md#follow-the-queue)                                                 | to do  |
 
 ### E4.1 Ask for a change
@@ -108,9 +108,18 @@ The current specs do not meet these requirements. Change the specs before the qu
 | M10 | A question or a result can use the form that shows it best: text, HTML, a diagram, or a comparison of options or of before and after.  | The viewer can see two options side by side and pick one.                                          |
 | M11 | When the agent says that the change is done, it gives the proof: what changed, before and after, and how the change meets the request. | The viewer can decide from the proof alone, with no other tool.                                    |
 | M12 | The viewer accepts the result, or opens the request again with a note.                                                                 | A request that the viewer opens again goes back to the queue with all its history.                 |
+| M14 | A request with a question waits for a viewer. It is not in the agent queue, and it never becomes stuck.                                | A question with no answer does not block other requests.                                           |
+| M15 | A result with no answer from a viewer counts as done. A viewer can open it again later.                                                | No request stays open only because no viewer answered.                                             |
+| M16 | Any viewer of the link can answer a question, accept a result, or open a request again. The request shows who did it.                  | A team decides together, and each step shows a name.                                               |
+| M17 | The questions, the options, the proof and the decision stay with the request after it is done.                                         | A person can find later why a part of the design is as it is.                                      |
+| M18 | A request that waits for a long time shows that it may be outdated.                                                                    | A person can tell an old request from a new one at a glance.                                       |
 | M13 | The viewer sees each question and each result.                                                                                         | Within 1 second, with no reload.                                                                   |
 
-Decided: requests have no priority. Oldest first (M1) is the only order.
+Decided:
+
+- Requests have no priority. Oldest first (M1) is the only order.
+- Loose ends are better than stuck work. When a person does not answer, the work goes on, and a
+  person can open it again later (M14, M15, M18).
 
 #### Design changes that E4.2 needs
 
