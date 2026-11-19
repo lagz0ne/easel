@@ -1,69 +1,70 @@
-// Chart queue-lease (Queue.cfg): the life of comment 2, behind the older comment 1.
-export const title = "queue: the life of comment 2, behind the older comment 1 (agents A and B)";
+// Chart queue-lease (Queue.cfg): the life of request 2, behind the older request 1.
+export const title = "queue: the life of request 2, behind the older request 1 (agents A and B)";
 
 const AGENTS = ["A", "B"];
-const C = 2;
-const CAP = 2; // StuckAfter in Queue.cfg
+const R = 2;
+const CAP = 2; // NeedsPersonAfter in Queue.cfg
 
-const live = (v) => v.lease[C] === "live";
-const stuck = (v) => v.status[C] === "open" && !live(v) && v.attempts[C] >= CAP;
+const live = (v) => v.lease[R] === "live";
+const person = (v) => v.status[R] === "open" && !live(v) && v.tries[R] >= CAP;
 
-// An agent still works on the comment, but its claim is no longer the live one.
+// An agent still works on the request, but its claim is no longer the live one.
 const staleHolder = (v) =>
-  AGENTS.some((a) => v.agent[a] === "working" && v.claim[a] === C && v.mine[a] === "out");
+  AGENTS.some((a) => v.agent[a] === "working" && v.claim[a] === R && v.mine[a] === "out");
 
 const base = (v) => {
-  if (v.status[C] === "done") {
-    return "Done";
+  if (v.status[R] === "out") {
+    return "Out of the queue: a result, a question or a decline";
   }
 
   if (live(v)) {
-    return "Claimed";
+    return v.tries[R] > 1 ? "In work, 2nd try" : "In work";
   }
 
-  if (stuck(v)) {
-    return "Stuck";
+  if (person(v)) {
+    return "Needs a person";
   }
 
-  return v.lease[C] === "out" ? "Lease ran out, shows open" : "Open";
+  const once = v.tries[R] > 0 ? ", tried once" : "";
+
+  return (v.lease[R] === "out" ? "Lease ran out, shows waiting" : "Waiting") + once;
 };
 
 export const state = (v) => {
-  if (v.status[C] === "unposted") {
+  if (v.status[R] === "unposted") {
     return "Not posted";
   }
 
   const earlier = staleHolder(v) ? ", an earlier holder still works on it" : "";
-  const kept = v.old === C ? ", its holder keeps an old handle too" : "";
+  const kept = v.old === R ? ", its holder keeps an old handle too" : "";
 
   return base(v) + earlier + kept;
 };
 
-const active = (v) => (live(v) ? "claimed" : "open");
+const active = (v) => (live(v) ? "inWork" : "waiting");
 
 export const group = (v) => {
-  if (v.status[C] === "done") {
-    return "done";
+  if (v.status[R] === "out") {
+    return "out";
   }
 
-  return stuck(v) ? "stuck" : active(v);
+  return person(v) ? "person" : active(v);
 };
 
-export const colors = { open: "blue", claimed: "yellow", stuck: "orange", done: "teal" };
+export const colors = { waiting: "blue", inWork: "yellow", person: "orange", out: "teal" };
 
 const steps = {
   ViewerPosts: () => "a viewer posts it",
   AgentTakes: (from, to) =>
-    from.agent.A === "working" && to.old === C
+    from.agent.A === "working" && to.old === R
       ? "the earlier holder runs next again and gets it, keeping its old handle"
       : "an agent runs next and gets it",
   AgentUsesTheOldHandle: () => "its holder uses the old handle: told lost",
   AgentExtends: () => "the holder extends it",
-  LeaseRunsOut: (from, to) =>
-    to.attempts[C] >= CAP ? "the lease runs out [its 2nd claim]" : "the lease runs out",
+  LeaseRunsOut: () => "the lease runs out",
   AgentReleases: () => "the holder releases it",
-  AgentResolves: () => "the holder resolves it",
-  HandleToldDone: () => "the earlier holder is told done",
+  AgentEndsTheTry: () => "the holder resolves, asks or declines",
+  HandleToldWrongState: () => "the earlier holder is told wrongState",
   HandleToldLost: () => "the earlier holder is told lost",
 };
 

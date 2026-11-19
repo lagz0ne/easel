@@ -21,3 +21,4 @@ fixer-claim-unsafe	models/fixer/Claim.tla	models/fixer/ClaimUnsafe.cfg	models/fi
 frames-share-open	models/frames/Share.tla	models/frames/ShareOpen.cfg	models/frames/Share.view.mjs	holds
 viewer-gate-open	models/viewer/ViewerGate.tla	models/viewer/ViewerGateOpen.cfg	models/viewer/ViewerGate.view.mjs	holds
 viewer-gate-password	models/viewer/ViewerGate.tla	models/viewer/ViewerGatePassword.cfg	models/viewer/ViewerGate.view.mjs	holds
+request-life	models/request/Request.tla	models/request/Request.cfg	models/request/Request.view.mjs	holds

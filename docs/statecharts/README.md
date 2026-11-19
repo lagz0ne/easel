@@ -35,8 +35,9 @@ Each chart's page has the chart, its rules in plain words, and what the model le
 | [frames-pictures](frames-pictures.md)               | frames | A frame's picture: rendered, current, old, and gone with its frame                        |
 | [frames-share](frames-share.md)                     | frames | A share link: shared, password set or changed, passes, unshared                           |
 | [frames-share-open](frames-share-open.md)           | frames | The first slice: a share link with no password, that nothing ends yet                     |
-| [queue-lease](queue-lease.md)                       | queue  | A comment: open, claimed, extended, released, resolved, stuck                             |
-| [queue-two-step](queue-two-step.md)                 | queue  | Why a claim is one write: a pick then a write gives one comment to two agents             |
+| [queue-lease](queue-lease.md)                       | queue  | A request in the queue: waiting, in work, released, an outcome, needs a person            |
+| [queue-two-step](queue-two-step.md)                 | queue  | Why a claim is one write: a find then a write gives one request to two agents             |
+| [request-life](request-life.md)                     | queue  | One request: question, result, accept, open again, edit, close, needs a person            |
 | [ops-issues](ops-issues.md)                         | ops    | An error group: open, resolved, regressed, evicted                                        |
 | [ops-issues-person](ops-issues-person.md)           | ops    | An error group that an owner resolves or hands off by hand, with no claim                 |
 | [fixer-claim-issue](fixer-claim-issue.md)           | fixer  | A fixer claims a group and opens one issue for it                                         |

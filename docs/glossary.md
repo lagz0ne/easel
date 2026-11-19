@@ -28,24 +28,25 @@ it. When this file and a spec do not agree, the spec is correct. Change this fil
 
 You must know these terms to read any spec.
 
-| Term        | Type | Definition                                                                                       |
-| ----------- | ---- | ------------------------------------------------------------------------------------------------ |
-| agent       | noun | A program that uses easel through the CLI or MCP.                                                |
-| user        | noun | A name and a token on one server. A user can change canvases. Most users are agents.             |
-| owner       | noun | A user that can also approve, deny and revoke users.                                             |
-| member      | noun | A user that is not an owner.                                                                     |
-| viewer      | noun | A person who opens a share link in a browser. A viewer can look and comment, but not change.     |
-| canvas      | noun | A plane with no edge that holds frames. Each canvas has a name and a canvas key.                 |
-| frame       | noun | One HTML document on a canvas, with a position and a size. Only an agent writes it.              |
-| version     | noun | The number of a frame document. It starts at 1 and increases when a put changes the document.    |
-| share link  | noun | A URL that lets a viewer see one canvas and comment on it. A canvas has one share link or none.  |
-| comment     | noun | Text that a viewer attaches to one point on one frame.                                           |
-| queue       | noun | All open comments of all canvases, oldest first. Agents take comments from it.                   |
-| claim       | verb | To take one comment or one error group for a lease. Only the claim holder can then change it.    |
-| lease       | noun | The time that a claim stays live. When the lease ends, another agent can claim the item.         |
-| resolve     | verb | To mark a claimed item as finished. A comment becomes `done`. An error group becomes `resolved`. |
-| error group | noun | All production errors that have the same fingerprint.                                            |
-| fixer       | noun | An agent that claims an error group, ships a fix, and proves that the fix is live.               |
+| Term        | Type | Definition                                                                                        |
+| ----------- | ---- | ------------------------------------------------------------------------------------------------- |
+| agent       | noun | A program that uses easel through the CLI or MCP.                                                 |
+| user        | noun | A name and a token on one server. A user can change canvases. Most users are agents.              |
+| owner       | noun | A user that can also approve, deny and revoke users.                                              |
+| member      | noun | A user that is not an owner.                                                                      |
+| viewer      | noun | A person who opens a share link in a browser. A viewer can look and ask, but not change a frame.  |
+| canvas      | noun | A plane with no edge that holds frames. Each canvas has a name and a canvas key.                  |
+| frame       | noun | One HTML document on a canvas, with a position and a size. Only an agent writes it.               |
+| version     | noun | The number of a frame document. It starts at 1 and increases when a put changes the document.     |
+| share link  | noun | A URL that lets a viewer see one canvas and ask for changes. A canvas has one share link or none. |
+| request     | noun | A change that a viewer asks for, at one place on a frame or on the canvas. It holds messages.     |
+| message     | noun | One entry in a request: the ask, a question, an answer, a result, a note. No call changes it.     |
+| queue       | noun | All waiting requests of all canvases, oldest first. Agents take requests from it.                 |
+| claim       | verb | To take one request or one error group for a lease. Only the claim holder can then change it.     |
+| lease       | noun | The time that a claim stays live. When the lease ends, another agent can claim the item.          |
+| resolve     | verb | To mark a claimed item as finished, with a result. Its status becomes `resolved`.                 |
+| error group | noun | All production errors that have the same fingerprint.                                             |
+| fixer       | noun | An agent that claims an error group, ships a fix, and proves that the fix is live.                |
 
 ## Terms for each module
 
@@ -78,17 +79,20 @@ You must know these terms to read any spec.
 | ------------- | ---- | --------------------------------------------------------------------------------- |
 | frame shell   | noun | The light form of a frame on the page: its name and its picture, or a plain card. |
 | live document | noun | A frame that shows in a sandboxed iframe. The page keeps a maximum of 12.         |
-| pin           | noun | The mark of a comment on its frame. It moves when the frame moves.                |
+| pin           | noun | The mark of a request on its frame. It moves when the frame moves.                |
 
 ### Queue
 
-| Term         | Type | Definition                                                                                                              |
-| ------------ | ---- | ----------------------------------------------------------------------------------------------------------------------- |
-| claim handle | noun | A random value that a claim gives. Each later write on the item must include it.                                        |
-| release      | verb | To give a claim back before its lease ends. The comment goes to the end of the queue.                                   |
-| attempt      | noun | One claim of a comment. A release cancels its attempt.                                                                  |
-| stuck        | adj. | Said of a comment after three leases ended without a resolve. Agents do not get it again.                               |
-| comment key  | noun | A random value that the page makes for each comment. If the page sends the comment again, easel saves it one time only. |
+| Term            | Type | Definition                                                                                                         |
+| --------------- | ---- | ------------------------------------------------------------------------------------------------------------------ |
+| claim handle    | noun | A random value that a claim gives. Each later call on the request must include it.                                 |
+| try             | noun | One claim of a request. It ends with an outcome, or with no outcome (a release, or a lease that runs out).         |
+| outcome         | noun | The end of a try that takes the request out of the queue: a result, a question, or a decline.                      |
+| release         | verb | To give a claim back with a reason, and no outcome. The request goes to the back of the queue. The try counts.     |
+| decline         | verb | To give a request to a person, with a reason, because no agent can do it.                                          |
+| needs a person  | adj. | Said of a request that an agent declined, or that had 3 tries with no outcome. Agents do not get it.               |
+| may be outdated | adj. | Said of a waiting request when its frame changed or was removed, or when it is more than 7 days old.               |
+| client key      | noun | A random value that the page makes for each request. If the page sends the request again, easel saves it one time. |
 
 ### Errors and the fixer
 
@@ -104,16 +108,15 @@ You must know these terms to read any spec.
 
 These words break the rules above. The right column gives the recommended change.
 
-| Word  | Problem                                                                                          | Change                                                                                     |
-| ----- | ------------------------------------------------------------------------------------------------ | ------------------------------------------------------------------------------------------ |
-| shell | Two meanings: the CLI "shell" (SPEC-cli) and the frame shell (SPEC-viewer).                      | Use "frame shell" for the page. Use "CLI" for the command line.                            |
-| board | Two meanings: the Tinker remote data board, and a canvas ("open a board" in AGENTS.md).          | Use "canvas" for the product. Use "board" only for Tinker remote data.                     |
-| issue | Three meanings: a GitHub issue, an ops "issue" (SPEC.md), and the template `src/issues`.         | Use "error group" for ops. Use "issue" only for a GitHub issue.                            |
-| key   | Five meanings: canvas key, picture key, key generation, comment key, picture secret.             | Always write the full term. Do not write "key" alone.                                      |
-| done  | One action, two state names: a resolved comment is `done`, a resolved error group is `resolved`. | Use `resolved` for both. This changes the queue contract, so do it before the queue ships. |
-| claim | A verb and a noun (STE Rule 1.7).                                                                | Use "claim" as a verb only. For the noun, use "claim handle" or "lease".                   |
-| put   | A verb and a noun ("a put", STE Rule 1.7).                                                       | Use "put" as a verb only. For the noun, use "write".                                       |
-| user  | In common English, any person. In easel, a token holder.                                         | Use "person" for a human. Use "user" only for a token holder.                              |
+| Word  | Problem                                                                                  | Change                                                                   |
+| ----- | ---------------------------------------------------------------------------------------- | ------------------------------------------------------------------------ |
+| shell | Two meanings: the CLI "shell" (SPEC-cli) and the frame shell (SPEC-viewer).              | Use "frame shell" for the page. Use "CLI" for the command line.          |
+| board | Two meanings: the Tinker remote data board, and a canvas ("open a board" in AGENTS.md).  | Use "canvas" for the product. Use "board" only for Tinker remote data.   |
+| issue | Three meanings: a GitHub issue, an ops "issue" (SPEC.md), and the template `src/issues`. | Use "error group" for ops. Use "issue" only for a GitHub issue.          |
+| key   | Five meanings: canvas key, picture key, key generation, client key, picture secret.      | Always write the full term. Do not write "key" alone.                    |
+| claim | A verb and a noun (STE Rule 1.7).                                                        | Use "claim" as a verb only. For the noun, use "claim handle" or "lease". |
+| put   | A verb and a noun ("a put", STE Rule 1.7).                                               | Use "put" as a verb only. For the noun, use "write".                     |
+| user  | In common English, any person. In easel, a token holder.                                 | Use "person" for a human. Use "user" only for a token holder.            |
 
 ## Terms that are not in this list
 
@@ -123,6 +126,6 @@ These terms stay in their own source:
 - **Ship terms** (ship, gate, `trunk-red`, smoke): in `AGENTS.md`.
 - **Internal names** (`mayRead`, picture key, key generation, wrapper, hosts file, `fixerSeen`,
   readiness check, sample): in the module spec that owns them.
-- **Answer kinds** (`stale`, `gone`, `lost`, `empty`, `taken`): in the contract of each spec.
-- **Page labels and numbers** (Reconnecting, Fit, comment mode, at rest): in SPEC-viewer.
-- **Common words** (person, reply, password, box): these have their usual meaning.
+- **Answer kinds** (`stale`, `gone`, `lost`, `empty`, `taken`, `wrongState`): in the contract of each spec.
+- **Page labels and numbers** (Reconnecting, Fit, request mode, at rest): in SPEC-viewer.
+- **Common words** (person, question, answer, password, box): these have their usual meaning.
