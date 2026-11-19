@@ -93,8 +93,8 @@ gate() {  # <tree> <run dir>; sets $stage on failure
   git archive "$tree" | tar -x -C "$run/tree"
   if [[ $charts -eq 1 ]]; then  # the charts are the oracle: a spec or chart ships only as its models say
     stage=statecharts; bash "$run/tree/scripts/statecharts.sh" --check >"$run/statecharts.log" 2>&1 || {
-      [[ -x "${STATECHART:-$HOME/.claude/skills/statechart/scripts/statechart}" ]] \
-        || echo "ship refuses: this tree changes the specs or the charts, and the check needs the hub's statechart skill (~/.claude/skills/statechart)" >>"$run/statecharts.log"
+      [[ -n "${STATECHART:-}" || -n "$(command -v statechart)" || -x "$HOME/.claude/skills/statechart/scripts/statechart" ]] \
+        || echo "ship refuses: this tree changes the specs or the charts, and the check needs the hub's statechart tool (\$STATECHART, or statechart on PATH)" >>"$run/statecharts.log"
       return 1
     }
   fi

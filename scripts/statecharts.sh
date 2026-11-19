@@ -17,16 +17,16 @@
 # charts.tsv: tab-separated `chart  tla  cfg  view  expect`, with paths relative to
 # docs/statecharts. Blank lines, lines starting with `#`, and the header row are skipped.
 #
-# Needs the statechart skill from the hub (~/.claude/skills/statechart, or $STATECHART pointing
-# at its scripts/statechart), and Bun or Node on PATH. Its first run installs TLC and Java with
-# mise, so it needs the network once. scripts/ship.sh runs --check as a gate, on this host, for a
+# Needs the hub's statechart tool: $STATECHART, else `statechart` on PATH (the hub links it in
+# ~/.local/bin), else ~/.claude/skills/statechart/scripts/statechart. Needs Bun or Node on PATH.
+# Its first run installs TLC and Java with mise, so it needs the network once. scripts/ship.sh runs --check as a gate, on this host, for a
 # ship that changes docs/statecharts/, a SPEC*.md or this script. CI does not: CI has no skill.
 set -euo pipefail
 
 root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 dir="$root/docs/statecharts"
 manifest="$dir/charts.tsv"
-tool="${STATECHART:-$HOME/.claude/skills/statechart/scripts/statechart}"
+tool="${STATECHART:-$(command -v statechart || echo "$HOME/.claude/skills/statechart/scripts/statechart")}"
 export PATH="$HOME/.bun/bin:$PATH"
 
 usage() { sed -n '4,4s/^#   //p' "${BASH_SOURCE[0]}"; }
