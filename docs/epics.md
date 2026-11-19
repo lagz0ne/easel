@@ -170,3 +170,26 @@ The number of stops before a request goes to a person (P1) is a design value, no
 | ------ | ------------------------------------------------------------------------- | ----------------------------- |
 | P1, P6 | Three claims of any kind make a comment stuck. A release gives no reason. | SPEC-queue, queue-lease chart |
 | P4     | Nothing frees a stuck comment ("Freeing a stuck comment" is deferred).    | SPEC-queue, SPEC-viewer       |
+
+### E4.4 Follow the requests
+
+- **Actor:** viewer.
+- **Need:** see what happens to all requests on the canvas, and find the requests that wait for a
+  viewer.
+- **Trigger:** the viewer opens the canvas, or comes back to it.
+- **Success end:** the viewer knows the state of each request, and acts on the ones that wait.
+
+| ID  | Requirement                                                                                                                                                                              | Fit criterion                                                                                    |
+| --- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------ |
+| F1  | The viewer sees all requests on the canvas and the state of each: waiting, in work (with the agent name), question for a viewer, result to check, done, needs a person, may be outdated. | Each state looks different. No reading is needed to tell them apart.                             |
+| F2  | The viewer finds at a glance the requests that wait for a viewer: questions and results to check.                                                                                        | The count of these requests is always visible.                                                   |
+| F3  | From a request, the viewer goes to its place on the canvas. From a place on the canvas, the viewer opens its request.                                                                    | One action in each direction.                                                                    |
+| F4  | A change of state shows at once.                                                                                                                                                         | Within 1 second, with no reload.                                                                 |
+| F5  | Done requests do not get in the way of open ones. A person can still find them (M17).                                                                                                    | Open work shows first. Old decisions are one step away.                                          |
+| F6  | A viewer who comes back sees what changed while they were away.                                                                                                                          | An indicator shows each request that changed since the last visit of that browser, with a count. |
+
+Decided:
+
+- A viewer gets no notice outside the browser (mail, chat). A viewer has no address, and nothing
+  blocks while a viewer is away. F6 covers the return.
+- A viewer sees the requests of one canvas only. An owner who needs all canvases uses the CLI.
