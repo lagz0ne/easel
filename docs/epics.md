@@ -238,15 +238,16 @@ Decided:
 - **Success end:** the agent sees what it can do in easel.
 - **Failure end:** the agent cannot get in, and the user knows why.
 
-| ID  | Requirement                                                   | Fit criterion                                                                                        |
-| --- | ------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------- |
-| C1  | A user connects an agent in a way that its platform supports. | A user connects an agent in the Claude web app, and a cloud agent from a phone, with no shell there. |
-| C2  | The user can stop the access of an agent at once.             | After the stop, the next action of the agent fails.                                                  |
-| C3  | A failed connection says why.                                 | The user sees the cause without logs: no access, access stopped, or a wrong address.                 |
+| ID  | Requirement                                                                                                                                     | Fit criterion                                                                                        |
+| --- | ----------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------- |
+| C1  | A user connects an agent in a way that its platform supports.                                                                                   | A user connects an agent in the Claude web app, and a cloud agent from a phone, with no shell there. |
+| C2  | The user can stop the access of one agent at once, in easel. This is also true when the access leaked or the user does not control the harness. | After the stop, the next action of that agent fails, and the other agents keep working.              |
+| C3  | A failed connection says why.                                                                                                                   | The user sees the cause without logs: no access, access stopped, or a wrong address.                 |
 
-Open questions:
+Decided:
 
-- C2: must a user stop one agent and keep the others working?
+- Easel owns the access, the queue and the time limits. A harness can give more protection, but
+  easel does not depend on it.
 
 ### E5.2 Work with no shell
 
@@ -256,17 +257,19 @@ Open questions:
 - **Success end:** the work ends as it does with the CLI.
 - **Failure end:** the agent knows what happened and what to do next.
 
-| ID  | Requirement                                                                        | Fit criterion                                                                                 |
-| --- | ---------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------- |
-| W1  | All actions of an agent in E2, E3 and E4 are possible with no shell.               | An agent does the full E4.2 loop through MCP only.                                            |
-| W2  | The agent learns from easel alone what each action does and when to use it.        | An agent that does not know easel does a request, with the list of actions as its only guide. |
-| W3  | The agent sees a frame as a viewer sees it.                                        | An agent with no tool other than easel sees the picture of a frame.                           |
-| W4  | Each failure tells the agent what happened and what to do next.                    | After each failure, the next action of the agent is correct, with no person.                  |
-| W5  | Text in a request or a frame never makes an agent do more than the request allows. | A frame or a request that tells the agent to act on another canvas changes nothing there.     |
+| ID  | Requirement                                                                                 | Fit criterion                                                                                                              |
+| --- | ------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------- |
+| W1  | All actions of an agent in E2, E3 and E4 are possible with no shell.                        | An agent does the full E4.2 loop through MCP only.                                                                         |
+| W2  | The agent learns from easel alone what each action does and when to use it.                 | An agent that does not know easel does a request, with the list of actions as its only guide.                              |
+| W3  | The agent sees a frame as a viewer sees it.                                                 | An agent with no tool other than easel sees the picture of a frame.                                                        |
+| W4  | Each failure tells the agent what happened and what to do next.                             | After each failure, the next action of the agent is correct, with no person.                                               |
+| W5  | Text in a request or a frame never makes an agent do more than the request allows.          | A frame or a request that tells the agent to act on another canvas changes nothing there.                                  |
+| W6  | No access is given because of text in a request or a frame.                                 | Each access that easel gives comes from a person who decided it.                                                           |
+| W7  | Easel notices when the work of an agent looks wrong, and acts before a person must find it. | When an agent acts in a way that is not normal, a person learns of it from easel, and no harm grows while no person looks. |
 
 Open questions:
 
-- W6: can text in a request or a frame make an agent that is an owner give access to someone?
+- W7: which signs show that the work of an agent looks wrong, and what must easel do then?
 
 ### E5.3 Work reaches an agent
 
