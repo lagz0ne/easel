@@ -51,7 +51,7 @@ server healthy.
 | E4.1 | Ask for a change            | viewer | [queue](../SPEC-queue.md#a-viewer-adds-a-comment), [viewer](../SPEC-viewer.md#pin-a-comment) | ready  |
 | E4.2 | Do the change and reply     | agent  | [queue](../SPEC-queue.md#an-agent-works-the-queue)                                           | ready  |
 | E4.3 | A request no agent finishes | agent  | [queue](../SPEC-queue.md#a-comment-no-agent-finishes)                                        | ready  |
-| E4.4 | Follow the requests         | viewer | [viewer](../SPEC-viewer.md#follow-the-queue)                                                 | active |
+| E4.4 | Follow the requests         | viewer | [viewer](../SPEC-viewer.md#follow-the-queue)                                                 | ready  |
 
 ### E4.1 Ask for a change
 
@@ -61,21 +61,23 @@ server healthy.
 - **Success end:** all people on the canvas see the request, and an agent can take it.
 - **Failure end:** easel does not accept the request. The viewer keeps the text and knows why.
 
-| ID  | Requirement                                                                              | Fit criterion                                                                                          |
-| --- | ---------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------ |
-| N1  | The viewer can point at the exact part of a frame that the request is about.             | Another person who reads the request finds that part without help.                                     |
-| N2  | The viewer can ask about the canvas as a whole, not about one frame.                     | A request such as "add a frame for the checkout page" has no frame, and an agent can still act on it.  |
-| N3  | The viewer knows if easel received the request.                                          | Easel never loses a request silently, and never saves one request two times.                           |
-| N4  | Each request has a short reference that people can use when they talk about it.          | Two requests on one canvas never have the same reference.                                              |
-| N5  | All people who look at the canvas see the new request.                                   | They see it within 1 second, with no reload.                                                           |
-| N6  | The request shows who asked.                                                             | The request shows the name that the viewer gave.                                                       |
-| N7  | The request stays on the part that it is about.                                          | When an agent moves the frame, the request moves with it.                                              |
-| N8  | The request keeps what the viewer saw. A frame can change, become old, or be removed.    | A person can see what the viewer saw, and can see that the frame changed or was removed since.         |
-| N9  | The viewer can correct or take back a request, for example one sent too soon by mistake. | A request sent by mistake can be corrected or removed before an agent starts work on it.               |
-| N10 | If easel cannot accept the request, the viewer keeps the text and knows why.             | The text is never lost when the frame is removed, the link stops, or the canvas has too many requests. |
-| N11 | One viewer cannot flood a canvas with requests.                                          | A flood from one viewer does not stop other viewers.                                                   |
+| ID  | Requirement                                                                                                                                                  | Fit criterion                                                                                                                            |
+| --- | ------------------------------------------------------------------------------------------------------------------------------------------------------------ | ---------------------------------------------------------------------------------------------------------------------------------------- |
+| N1  | The viewer can point at the exact part of a frame that the request is about.                                                                                 | Another person who reads the request finds that part without help.                                                                       |
+| N2  | The viewer can ask about the canvas as a whole, not about one frame.                                                                                         | A request such as "add a frame for the checkout page" has no frame, and an agent can still act on it.                                    |
+| N3  | The viewer knows if easel received the request.                                                                                                              | Easel never loses a request silently, and never saves one request two times.                                                             |
+| N4  | Each request has a short reference that people can use when they talk about it.                                                                              | Two requests on one canvas never have the same reference.                                                                                |
+| N5  | All people who look at the canvas see the new request.                                                                                                       | They see it within 1 second, with no reload.                                                                                             |
+| N6  | The request shows who asked.                                                                                                                                 | The request shows the name that the viewer gave.                                                                                         |
+| N7  | The request stays on the part that it is about.                                                                                                              | When an agent moves the frame, the request moves with it.                                                                                |
+| N8  | The request keeps what the viewer saw. A frame can change, become old, or be removed.                                                                        | A person can see what the viewer saw, and can see that the frame changed or was removed since.                                           |
+| N9  | The viewer can correct a request, for example one sent too soon by mistake. The viewer can take back a request at any time, also while an agent works on it. | A request sent by mistake can be corrected before an agent starts work on it. A request that the viewer takes back never shows a result. |
+| N10 | If easel does not accept what a viewer typed, the viewer keeps the text and knows why. This applies to a request, a correction, an answer and a note.        | The text is never lost when the frame is removed, the link stops, the canvas has too many requests, or another viewer acted first.       |
+| N11 | One viewer cannot flood a canvas with requests.                                                                                                              | A flood from one viewer does not stop other viewers.                                                                                     |
 
 #### Design changes that E4.1 needs
+
+All rows below are closed in the specs (`224aa9e`, `c02b9e3`, `08a5056`).
 
 The current specs do not meet these requirements. Change the specs before the queue is built.
 
@@ -94,34 +96,40 @@ The current specs do not meet these requirements. Change the specs before the qu
 - **Success end:** the viewer accepts the result.
 - **Failure end:** the agent cannot do the request. Another agent or a person can take it.
 
-| ID  | Requirement                                                                                                                            | Fit criterion                                                                                      |
-| --- | -------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------- |
-| M1  | No request waits for ever while newer requests get done.                                                                               | Agents take requests in the order they came.                                                       |
-| M2  | Two agents never work on the same request at the same time.                                                                            | No request gets two changes from two agents.                                                       |
-| M3  | The agent has all the facts it needs without a browser: the text, the place, what the viewer saw, and the current frame.               | An agent does the change with the CLI or MCP only.                                                 |
-| M4  | A request comes back to the queue if its agent stops.                                                                                  | No person must free a request after an agent crashes.                                              |
-| M5  | An agent that needs more time keeps the request.                                                                                       | A second agent does not take a request while the first agent still works on it.                    |
-| M6  | An agent that cannot do the request gives it back.                                                                                     | Another agent can take it at once.                                                                 |
-| M7  | A waiting agent gets a new request quickly, without a busy loop.                                                                       | A new request reaches a waiting agent within 1 second.                                             |
-| M8  | A request allows a change only to what it is about: its frame, or its canvas for a request about the whole canvas (N2).                | The text of a request cannot make an agent change another canvas or another user.                  |
-| M9  | The agent can ask the viewer a question before it makes the change.                                                                    | The viewer sees the question on the request and answers it. No agent works on it until the answer. |
-| M10 | A question or a result can use the form that shows it best: text, HTML, a diagram, or a comparison of options or of before and after.  | The viewer can see two options side by side and pick one.                                          |
-| M11 | When the agent says that the change is done, it gives the proof: what changed, before and after, and how the change meets the request. | The viewer can decide from the proof alone, with no other tool.                                    |
-| M12 | The viewer accepts the result, or opens the request again with a note.                                                                 | A request that the viewer opens again goes back to the queue with all its history.                 |
-| M13 | The viewer sees each question and each result.                                                                                         | Within 1 second, with no reload.                                                                   |
-| M14 | A request with a question waits for a viewer. It is not in the agent queue, and it never becomes stuck.                                | A question with no answer does not block other requests.                                           |
-| M15 | A result with no answer from a viewer counts as done. A viewer can open it again later.                                                | No request stays open only because no viewer answered.                                             |
-| M16 | Any viewer of the link can answer a question, accept a result, or open a request again. The request shows who did it.                  | A team decides together, and each step shows a name.                                               |
-| M17 | The questions, the options, the proof and the decision stay with the request after it is done.                                         | A person can find later why a part of the design is as it is.                                      |
-| M18 | A request that waits for a long time shows that it may be outdated.                                                                    | A person can tell an old request from a new one at a glance.                                       |
+| ID  | Requirement                                                                                                                            | Fit criterion                                                                                                           |
+| --- | -------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------- |
+| M1  | No request waits for ever while newer requests get done.                                                                               | Agents take requests in the order they came.                                                                            |
+| M2  | Two agents never work on the same request at the same time.                                                                            | No request gets two changes from two agents.                                                                            |
+| M3  | The agent has all the facts it needs without a browser: the text, the place, what the viewer saw, and the current frame.               | An agent does the change with the CLI or MCP only.                                                                      |
+| M4  | A request comes back to the queue if its agent stops.                                                                                  | No person must free a request after an agent crashes.                                                                   |
+| M5  | An agent that needs more time keeps the request.                                                                                       | A second agent does not take a request while the first agent still works on it.                                         |
+| M6  | An agent that cannot do the request gives it back.                                                                                     | Another agent can take it at once.                                                                                      |
+| M7  | A waiting agent gets a new request quickly, without a busy loop.                                                                       | A new request reaches a waiting agent within 1 second.                                                                  |
+| M8  | A request allows a change only to what it is about: its frame, or its canvas for a request about the whole canvas (N2).                | The text of a request cannot make an agent change another canvas or another user.                                       |
+| M9  | The agent can ask the viewer a question before it makes the change.                                                                    | The viewer sees the question on the request and answers it. No agent works on it until the answer.                      |
+| M10 | A question or a result can use the form that shows it best: text, HTML, a diagram, or a comparison of options or of before and after.  | The viewer can see two options side by side and pick one.                                                               |
+| M11 | When the agent says that the change is done, it gives the proof: what changed, before and after, and how the change meets the request. | The viewer can decide from the proof alone, with no other tool.                                                         |
+| M12 | The viewer accepts the result, or opens the request again with a note.                                                                 | A request that the viewer opens again goes back to the queue with all its history.                                      |
+| M13 | The viewer sees each question and each result.                                                                                         | Within 1 second, with no reload.                                                                                        |
+| M14 | A request with a question waits for a viewer. It is not in the agent queue, and it never becomes stuck.                                | A question with no answer does not block other requests.                                                                |
+| M15 | A result with no answer from a viewer counts as done. A viewer can open it again later.                                                | No request stays open only because no viewer answered.                                                                  |
+| M16 | Any viewer of the link can answer a question, accept a result, or open a request again. The request shows who did it.                  | A team decides together, and each step shows a name.                                                                    |
+| M17 | The questions, the options, the proof and the decision stay with the request after it is done.                                         | A person can find later why a part of the design is as it is.                                                           |
+| M18 | A request that waits for a long time shows that it may be outdated.                                                                    | A person can tell an old request from a new one at a glance.                                                            |
+| M19 | An answer from a viewer does not put the request behind requests that came later.                                                      | An agent takes a request that was asked and then answered before a request that was asked after it.                     |
+| M20 | A viewer who acts on a request knows when another viewer acted on it first.                                                            | When two viewers act on one request at the same time, each viewer sees the outcome, and the text of each is kept (N10). |
 
 Decided:
 
 - Requests have no priority. Oldest first (M1) is the only order.
 - Loose ends are better than stuck work. When a person does not answer, the work goes on, and a
   person can open it again later (M14, M15, M18).
+- The name on a step is the name that the viewer gave. Easel does not prove it. The need of M16 is
+  to work as a team, not proof. Proof of who acted is an E1 need, if it becomes necessary.
 
 #### Design changes that E4.2 needs
+
+All rows below are closed in the specs (`224aa9e`, `c02b9e3`, `08a5056`).
 
 | Req.     | Gap in the design now                                                                                           | Spec                          |
 | -------- | --------------------------------------------------------------------------------------------------------------- | ----------------------------- |
@@ -166,6 +174,8 @@ The number of stops before a request goes to a person (P1) is a design value, no
 
 #### Design changes that E4.3 needs
 
+All rows below are closed in the specs (`224aa9e`, `c02b9e3`, `08a5056`).
+
 | Req.   | Gap in the design now                                                     | Spec                          |
 | ------ | ------------------------------------------------------------------------- | ----------------------------- |
 | P1, P6 | Three claims of any kind make a comment stuck. A release gives no reason. | SPEC-queue, queue-lease chart |
@@ -193,3 +203,15 @@ Decided:
 - A viewer gets no notice outside the browser (mail, chat). A viewer has no address, and nothing
   blocks while a viewer is away. F6 covers the return.
 - A viewer sees the requests of one canvas only. An owner who needs all canvases uses the CLI.
+
+### E4 walk of the slice
+
+On 2026-11-19, E4 was read from left to right as one viewer: open the link, ask, follow, answer,
+accept. The walk changed N9 and N10, and added M19 and M20.
+
+| Req. | Gap in the design now                                                       | Spec                     |
+| ---- | --------------------------------------------------------------------------- | ------------------------ |
+| N9   | No viewer takes back a request while an agent holds it.                     | SPEC-queue, request-life |
+| N10  | Only the text of a new request is kept when easel does not accept it.       | SPEC-viewer              |
+| M19  | An answer puts the request at the back of the queue.                        | SPEC-queue               |
+| M20  | The design does not say what a viewer sees when another viewer acted first. | SPEC-viewer              |
