@@ -9,13 +9,15 @@ is one HTML document an agent wrote, shown at its own size and place. Agents mak
 through the CLI ([cli](SPEC-cli.md)). Every open tab sees each change live
 ([viewer](SPEC-viewer.md)). A frame can be drawn as a picture, as a browser would draw it, for the
 viewer's shells and for agents. A user shares a canvas by a link, with an optional password. A
-viewer who opens the link gets a pass, and looks and comments with it ([queue](SPEC-queue.md)).
+viewer who opens the link gets a pass, and looks and asks for changes with it
+([queue](SPEC-queue.md)). easel keeps each old version of a frame that a request refers to.
 
 Prior art: a put with a base is optimistic concurrency, as HTTP `If-Match` with `412` and
 CouchDB's `_rev`: the first write on a version wins, and a later write on the same version is
 refused. A picture address signed with an HMAC is a signed URL, as S3's presigned URLs and
 imgproxy's signatures. A share link with an optional password is Figma's and Excalidraw's view
-link.
+link. Old versions are kept by reference, as an OCI registry's garbage collection keeps each blob
+that a manifest refers to and removes the rest.
 
 ## Journeys
 
@@ -26,14 +28,15 @@ link.
    `taken`; a name with no letter or digit gives no key, and is `invalid` (exit 65).
 2. `easel canvas ls` lists the canvases: key, name, when it was made, and whether it is shared.
 3. `easel share` and `easel unshare` are in "Share a canvas" below.
-4. `easel canvas rm <canvas>` deletes the canvas, with its frames and comments, and ends its link.
+4. `easel canvas rm <canvas>` deletes the canvas, with its frames, kept versions, requests and
+   messages, and ends its link.
 
 ### Make and change frames
 
 1. `easel put <canvas> page.html --name Cart` makes a frame to the right of the others: at y 0,
    80 px right of the rightmost frame's right edge, or at 0,0 when it is the first. It is 1440×900
    unless `--size 390x844` is given. It prints the id and version 1. Every open tab shows it.
-2. `easel ls <canvas>` lists the frames: id, name, box, version, open comments.
+2. `easel ls <canvas>` lists the frames: id, name, box, version, open requests.
 3. `easel get <canvas> <id> -o page.html` writes the document and prints the version.
 4. `easel put <canvas> page.html --id <id> --base <version>` writes it again and prints the new
    version. The first write on a version wins. If the frame changed since that version, nothing is
@@ -45,7 +48,8 @@ link.
    with `--id`: a put with `--id` writes the document only, so the CLI says so and exits 64. An id
    that is not on the canvas answers `gone`: a put never makes a frame with a given id.
 7. `easel mv <canvas> <id> --at 0,1200` moves the frame; `--size` resizes it. The version stays.
-8. `easel rm <canvas> <id>` deletes the frame and its comments.
+8. `easel rm <canvas> <id>` deletes the frame. Its requests stay, marked "may be outdated"
+   ([queue](SPEC-queue.md)), and so do the versions that they refer to.
 9. `easel shot <canvas> <id> -o shot.webp --scale 0.5` draws the current version as a browser does.
    The scales are 0.25, 0.5, 1 and 2. `--region x,y,w,h` crops to part of it. The CLI gets the
    picture's address from the server and fetches it over HTTP. With no Chromium on the server, it
@@ -53,7 +57,8 @@ link.
 
 ### Share a canvas
 
-1. A user runs `easel share <canvas>`. It prints a link. Anyone with the link can look and comment.
+1. A user runs `easel share <canvas>`. It prints a link. Anyone with the link can look and ask for
+   changes. A new link, or a password change, keeps the requests of the canvas.
 2. `easel share <canvas> --password <pw>` does the same, and the link asks for the password. A
    password has at least 8 characters.
 3. `easel share` on a canvas that is shared prints the same link. `--password` sets or changes the
@@ -196,9 +201,13 @@ a region.
   when their pass does.
 - For the current version, it answers a WebP of that version with
   `Cache-Control: private, max-age=31536000, immutable`.
-- For an older version, it answers `307` to the current version's address, with its key and
+- For an older version that a request refers to (a kept version), it answers a WebP of that
+  version, as for the current version. The board carries a key for each kept version, on the
+  request or the message that refers to it.
+- For another older version, it answers `307` to the current version's address, with its key and
   `Cache-Control: no-store`.
-- A wrong key, a missing or deleted frame, or a version not yet made answers 404. A scale outside
+- A wrong key, a version not yet made, or a deleted frame with no kept version at that address
+  answers 404. A scale outside
   0.25, 0.5, 1 and 2 answers 400, and so does a region off the frame or a picture over the limits
   of judged rule 6. With pictures off, every picture answers 404 and the board carries no keys.
   Each answer but a picture has `Cache-Control: no-store`.
@@ -216,7 +225,8 @@ a region.
   A Chromium exploit in a drawn document would run as the server. The authors of documents are
   signed-in users only, and the container is the boundary. The follow-up is Chromium in a
   container of its own.
-- `bumpKeys` raises a canvas's key generation and writes its frames' cells again with new keys.
+- `bumpKeys` raises a canvas's key generation and writes its frames' cells, and the keys of its
+  kept versions, again with new keys.
   `easel unshare` and a password set or changed call it.
 
 ## Rules
@@ -229,14 +239,14 @@ number or section.
 ### Fact rules (the code graph decides)
 
 1. Every call above but `share.open` runs the `user` guard first. `share.open` runs no guard.
-2. Every operation that writes `frames` or `docs` calls a store operation: `saveFrame`, `saveBox`,
-   `dropFrame` or `bumpKeys`.
+2. Every operation that writes `frames`, `docs` or kept versions calls a store operation:
+   `saveFrame`, `saveBox`, `dropFrame`, `dropCanvas` or `bumpKeys`.
 3. `pictureRoute` draws through the one `pictures.render`. `frame.shot` does not draw.
 4. `pictureRoute` depends on `pictureKey`, not on a user or a pass.
 5. The store's start hook writes cells only from rows it read.
 6. Every board read runs the `mayRead` guard: a user, or a live pass for that canvas.
-7. The viewer's calls are `share.open` and `comment.add` only. No viewer call writes `frames` or
-   `docs`.
+7. The viewer's calls are `share.open` and the viewer calls of the queue (`request.add`, `edit`,
+   `answer`, `accept`, `reopen`, `close`) only. No viewer call writes `frames` or `docs`.
 
 ### Judged rules (need reading the code)
 
@@ -257,8 +267,9 @@ number or section.
 6. No picture is larger than 8 megapixels or 16000 px on a side.
 7. A picture answer is the drawing of the version its address names. The server takes that
    version and its document in one read, draws them, and checks the frame and the key again before
-   it sends. An older version's address answers a redirect, never a picture. A deleted frame, or a
-   key from before the link ended, answers 404, also when it happens during the draw.
+   it sends. An older version's address answers a redirect, never a picture, unless the version
+   is kept. A deleted frame with no kept version there, or a key from before the link ended,
+   answers 404, also when it happens during the draw.
 8. A picture answer is `private`, so only the browser that asked keeps it: after a delete, no
    shared cache serves it.
 9. A picture key is compared in constant time.
@@ -290,6 +301,9 @@ number or section.
     `<meta name="referrer">` says the same, so a link does not leave in a `Referer` header.
     The proxy's access logs (Traefik's) do hold the path `/s/<link>`: whoever reads them can open
     the link.
+16. A version that a request or a message refers to is kept until its canvas is removed. A put
+    that replaces a kept version saves the old document first, in the same transaction. A frame
+    delete keeps the kept versions of the frame. Nothing else keeps an old version.
 
 ## Success Criteria
 
@@ -308,7 +322,7 @@ number or section.
 
 ## Out of Scope (Deferred)
 
-- Frame history and undo.
+- Frame history and undo. Only the versions that requests refer to are kept (judged rule 16).
 - Groups, links between frames, and z-order beyond the order frames were made.
 - Assets uploaded beside a document: a document inlines what it needs, or loads it over https.
 - Share links that expire by time.

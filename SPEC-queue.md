@@ -71,8 +71,8 @@ Prior art:
      before and after.
    - It needs a fact from the viewer, so it runs `easel ask <claim> --text "Which blue?"`, with an
      optional HTML part and up to 6 options. The request leaves the queue and waits for a viewer.
-   - It cannot do the request, so it runs `easel decline <claim> --reason "The frame has no
-form."`. The request goes to a person.
+   - It cannot do the request, so it runs `easel decline <claim> --reason "No form here."`. The
+     request goes to a person.
 5. An agent that needs longer runs `easel extend <claim>` before its lease runs out. The lease
    starts again (`--lease`, as for `next`).
 6. An agent that stops for a cause outside the request (a network error, a shutdown) runs

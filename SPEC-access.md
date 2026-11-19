@@ -152,7 +152,7 @@ journeys. Its rules are the oracle the tests follow.
 ### Fact rules (the code graph decides)
 
 1. Every owner call runs the `user` guard, then the `owner` guard.
-2. Every user call (`users.me`, `login.end`, canvas, frame, comment queue) runs the `user` guard.
+2. Every user call (`users.me`, `login.end`, canvas, frame, and the agent calls of the request queue) runs the `user` guard.
 3. `login.start`, `login.setup` and `login.wait` run no guard, and write only the `logins` and
    `users` cells, and the setup code cell that the granting write of `login.setup` clears.
 4. Only the cmd reads `EASEL_AUTH` and the env; no operation reads `process.env`.

@@ -69,6 +69,7 @@ stateDiagram-v2
 - Scales, regions and the size limits; a scale outside the four answers 400.
 - The draw slots, the 5 s wait, the 20 s draw limit and the 503 answer, and `easel shot`'s retries.
 - What a drawn document may load.
+- Kept versions: an old version that a request refers to is drawn as the current one is, from its kept document (SPEC-frames.md judged rule 16). It is not built yet. The model has no request, so here every old version is not kept, and `AnOldAddressIsRedirectedNotDrawn` holds for the old versions that are not kept. When kept versions ship, this chart gets a kept version and its rule.
 - The two-read design: `OneRead = FALSE` in [Pictures.tla](models/frames/Pictures.tla) reads the version, then the document in a second read, and lets an agent's write land between them. TLC breaks `AnOldAddressIsRedirectedNotDrawn` in 4 steps and both picture rules in 5: the server draws version 2 for version 1's address. Pictures.cfg checks the one-read design, `OneRead = TRUE`. That the code takes both in one read stays a judged rule.
 - The HMAC itself and its constant-time compare: a wrong key is the same 404 as a key from before the link ended.
 - Versions past 2, more than one tab, and more than one request at a time.

@@ -3,23 +3,26 @@
 ## Objective
 
 easel is an endless canvas of frames, where each frame is one HTML document that an agent wrote.
-People look and comment. Agents do the rest.
+People look and ask for changes. Agents do the rest.
 
 - **Agent first.** One CLI, `easel`, does everything, as paseo's CLI does. Every command takes
   `--json`, and its exit codes say what happened, so an agent never needs a browser.
-- **People look and comment.** A person opens a share link, pans and zooms, pins comments on
-  frames, and watches the frames change as agents work.
-- **One queue.** Comments form one queue that agents take oldest first, with a lease. An agent
-  changes the frame and replies.
+- **People look and ask.** A person opens a share link, pans and zooms, asks for changes at a
+  place on a frame or on the canvas, and watches the frames and the requests change as agents
+  work.
+- **One queue.** Requests form one queue that agents take oldest first, with a lease. Each try
+  ends with an outcome: a result with its proof, a question for a viewer, or a decline to a
+  person. A viewer accepts a result, or opens the request again.
 - **Server-authoritative, with optimistic concurrency.** Each write names the version it read. The
   first write on a version wins; a later write on the same version answers `stale`, and the writer
   reads again. This is HTTP `If-Match` with `412`, or CouchDB's `_rev`. There is no CRDT.
 - **Access by approval.** A user is created on demand by a one-time code that an owner approves.
   Users share canvases by link, with an optional password. A viewer edits nothing.
 
-Success: an agent signs in, makes a canvas, puts frames, and shares the link. A person comments on
-a frame. An agent takes that comment, changes the frame, and resolves it. The person sees each step
-live at https://easel.vibea.dev.
+Success: an agent signs in, makes a canvas, puts frames, and shares the link. A person asks for a
+change on a frame. An agent takes that request, changes the frame, and resolves it with the frame
+before and after. The person sees each step live at https://easel.vibea.dev, and accepts the
+result.
 
 ## Capability map
 
@@ -29,10 +32,10 @@ live at https://easel.vibea.dev.
 | cli       | The `easel` shell, built with access: serve, hosts file, rpc client, `--json`, the exit table        | access                        |
 | ops       | Errors grouped for agents, issues (list, resolve, regressed), status, readiness, build, backups      | access                        |
 | frames    | Canvases and frames: documents, versions, boxes, pictures; share links, passwords, passes, `mayRead` | access, ops                   |
-| queue     | Comments: a viewer adds one; agents claim (lease), extend, release, resolve                          | access, frames, ops           |
+| queue     | Requests: a viewer asks; agents claim (lease) and end each try with an outcome; viewers decide       | access, frames, ops           |
 | mcp       | The same calls as MCP tools: `/mcp` over HTTP, `easel mcp` on stdio                                  | access, frames, queue, ops    |
 | design    | easel's own design system: tokens, type, the few controls the page uses                              | none                          |
-| viewer    | The browser page: shells, live frames, pan and zoom, pins, queue panel                               | access, frames, queue, design |
+| viewer    | The browser page: shells, live frames, pan and zoom, pins, the requests panel                        | access, frames, queue, design |
 | fixer     | An agent that fixes production errors: claims a group, opens one issue, ships a fix, proves it       | access, ops, cli              |
 
 The "Depends on" column is the one source of each module's dependencies. Each module spec's
@@ -243,10 +246,11 @@ export const putFrame = operation({
 
 ## Out of Scope (Deferred)
 
-- Editing in the browser: viewers look and comment only.
+- Editing in the browser: viewers look and ask only.
 - Accounts with passwords, OAuth, and SSO: a user is a name and a token.
 - Real-time co-presence (cursors, who is looking).
-- Frame history and undo: the version number is enough for V1.
+- Frame history and undo. easel keeps only the versions that requests refer to
+  ([frames](SPEC-frames.md)), to show what a viewer saw and the frame before and after a change.
 - Many servers: one process and one SQLite file.
 
 ## Open Questions

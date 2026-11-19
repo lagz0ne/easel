@@ -35,7 +35,7 @@ it. It adds no logging inside the operations.
 
 Other modules register with ops; ops does not depend on them. A module adds a named readiness check
 (frames: Chromium; the server: the database and free disk on `/data`) and its counters (queue:
-depth, oldest open comment, leases that ran out). These are a list in a tag, as `routes` gathers
+depth, oldest waiting request, leases that ran out, requests that need a person). These are a list in a tag, as `routes` gathers
 its table. The [fixer](SPEC-fixer.md) registers one more entry the same way: which group has a live
 fixer lease, and which claim holds it. ops reads it, and still imports no other module.
 

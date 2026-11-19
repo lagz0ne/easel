@@ -54,15 +54,15 @@ Each module's spec holds its commands' journeys and answers, and is the source o
 This table lists every command by its exact name, and must match those specs. When a module's spec
 adds, renames or drops a command, this table changes in the same ship.
 
-| Module                   | Commands                                                                                                                                         |
-| ------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------ |
-| cli                      | `serve`, `--help`                                                                                                                                |
-| [access](SPEC-access.md) | `login` (`--setup`, `--no-wait`, `--resume`), `whoami`, `logout`, `users`, `users approve` (`--owner`), `users deny`, `users revoke`             |
-| [ops](SPEC-ops.md)       | `status`, `errors ls` (`--open`, `--side`, `--since`), `errors show` (`--trace`), `errors resolve`, `errors hand-off`, `errors tick`             |
-| [frames](SPEC-frames.md) | `canvas new`, `canvas ls`, `canvas rm`, `share` (`--password`, `--no-password`), `unshare`, `ls`, `get`, `put`, `mv`, `rm`, `shot`               |
-| [queue](SPEC-queue.md)   | `next` (`--wait`, `--canvas`, `--lease`), `extend` (`--lease`), `release`, `resolve`                                                             |
-| [mcp](SPEC-mcp.md)       | `mcp`                                                                                                                                            |
-| [fixer](SPEC-fixer.md)   | `errors claim`, `errors extend`, `errors note-issue`, `errors note-fix`, `errors resolve --claim` (`--wait`), `errors give-up`, `errors release` |
+| Module                   | Commands                                                                                                                                                                                                                                                                                                 |
+| ------------------------ | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| cli                      | `serve`, `--help`                                                                                                                                                                                                                                                                                        |
+| [access](SPEC-access.md) | `login` (`--setup`, `--no-wait`, `--resume`), `whoami`, `logout`, `users`, `users approve` (`--owner`), `users deny`, `users revoke`                                                                                                                                                                     |
+| [ops](SPEC-ops.md)       | `status`, `errors ls` (`--open`, `--side`, `--since`), `errors show` (`--trace`), `errors resolve`, `errors hand-off`, `errors tick`                                                                                                                                                                     |
+| [frames](SPEC-frames.md) | `canvas new`, `canvas ls`, `canvas rm`, `share` (`--password`, `--no-password`), `unshare`, `ls`, `get`, `put`, `mv`, `rm`, `shot`                                                                                                                                                                       |
+| [queue](SPEC-queue.md)   | `next` (`--wait`, `--canvas`, `--lease`), `extend` (`--lease`), `release` and `decline` (`--reason`), `ask` (`--text`, `--html <file>`, `--option`, up to 6), `resolve` (`--text`, `--html <file>`), `requests` (`--canvas`, `--state`), `edit <canvas> <n>` (`--text`), `close <canvas> <n>` (`--text`) |
+| [mcp](SPEC-mcp.md)       | `mcp`                                                                                                                                                                                                                                                                                                    |
+| [fixer](SPEC-fixer.md)   | `errors claim`, `errors extend`, `errors note-issue`, `errors note-fix`, `errors resolve --claim` (`--wait`), `errors give-up`, `errors release`                                                                                                                                                         |
 
 `errors resolve` is ops' command; with `--claim` it is the fixer's (`fixer.resolve`).
 
@@ -91,7 +91,7 @@ protocol, 78 config; 130 is 128 + SIGINT. Each of Tinker's seven faults has a ro
 
 A waiting command that prints a pending answer first takes its exit code from its last answer.
 
-`empty` is a success kind of `comment.next`: a poll that finds no work is a normal answer, as SQS
+`empty` is a success kind of `request.next`: a poll that finds no work is a normal answer, as SQS
 `ReceiveMessage` with no messages. So `easel next` exits 0 with `{ kind: "empty" }`
 ([queue](SPEC-queue.md)).
 
