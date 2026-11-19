@@ -131,6 +131,7 @@ moments, make sure the right one is loaded:
 | Writing or changing a test; fixing a bug             | `test-driven-development`                                   |
 | Splitting work into ships                            | `planning-and-task-breakdown`, `incremental-implementation` |
 | Before you say "done"                                | run the smoke, or look with `agent-browser`                 |
+| A design on the Doop canvas changes                  | `bun run design:proof` until it prints OK; show its output  |
 | Docs and decisions                                   | `documentation-and-adrs`                                    |
 
 Two are left out because they contradict this

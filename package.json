@@ -18,6 +18,7 @@
     "check:style": "bun --bun vp check",
     "check:plain": "bun scripts/embed-client.ts && bun --bun tinker check",
     "smoke": "bash scripts/smoke.sh",
+    "design:proof": "bun scripts/design-proof.ts",
     "ship": "bash scripts/ship.sh",
     "prepare": "git config core.hooksPath .githooks || true"
   },
