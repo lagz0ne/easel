@@ -271,17 +271,22 @@ Open questions:
 ### E5.3 Work reaches an agent
 
 - **Actor:** agent. A person starts the work when the agent runs in a chat.
-- **Need:** a request reaches an agent that can do it, also an agent that is not running or does
-  not wait for work.
+- **Need:** a request reaches an agent that can do it, also an agent that does not wait for work.
 - **Trigger:** a request is waiting.
 - **Success end:** an agent has the request.
 - **Failure end:** no agent can take the request. It waits in the queue, and people see that it
   waits (F1).
 
-| ID  | Requirement                                                                                           | Fit criterion                                                                                        |
-| --- | ----------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------- |
-| D1  | All requests wait in one queue, also when different kinds of agents do them.                          | The order of M1 is the same for an agent that asks for work and for an agent that easel gives it to. |
-| D2  | An agent that asks for work gets it (pull).                                                           | M7 is true for an agent with no shell.                                                               |
-| D3  | Easel can give a request to an agent that does not ask for work, also one that is not running (push). | A new request reaches an agent that was not running, and no person starts it.                        |
-| D4  | When a person tells it to, an agent in a chat does all requests that wait on a canvas.                | A person says "do the open requests on canvas X", and each of them ends with an outcome.             |
-| D5  | A person starts work on the requests from a phone.                                                    | From a phone only, a person gets the open requests on a canvas done.                                 |
+| ID  | Requirement                                                                            | Fit criterion                                                                                                 |
+| --- | -------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------- |
+| D1  | All requests wait in one queue until an agent connects and takes them.                 | A request made when no agent is connected waits, and an agent that connects later gets it in the order of M1. |
+| D2  | An agent that asks for work gets it (pull).                                            | M7 is true for an agent with no shell.                                                                        |
+| D4  | When a person tells it to, an agent in a chat does all requests that wait on a canvas. | A person says "do the open requests on canvas X", and each of them ends with an outcome.                      |
+| D5  | A person starts work on the requests from a phone.                                     | From a phone only, a person gets the open requests on a canvas done.                                          |
+
+Decided:
+
+- For now, agents get work only by pull, through MCP. Easel runs no agent of its own. Requests
+  wait in the queue until an agent connects.
+- Deferred: easel gives a request to an agent that does not ask for work, also one that is not
+  running (push).
