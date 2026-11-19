@@ -53,6 +53,10 @@ server healthy.
 | E4.3 | A request no agent finishes | agent  | [queue](../SPEC-queue.md#a-comment-no-agent-finishes)                                        | ready  |
 | E4.4 | Follow the requests         | viewer | [viewer](../SPEC-viewer.md#follow-the-queue)                                                 | ready  |
 
+The design of each state that a viewer sees is on the Doop canvas
+[easel — design](https://doop.vibea.dev/c/zPdfXgdRrQ): one sheet for each journey (E4.1 to
+E4.4). Each state shows the IDs below that it meets.
+
 ### E4.1 Ask for a change
 
 - **Actor:** viewer.
@@ -189,14 +193,14 @@ All rows below are closed in the specs (`224aa9e`, `c02b9e3`, `08a5056`).
 - **Trigger:** the viewer opens the canvas, or comes back to it.
 - **Success end:** the viewer knows the state of each request, and acts on the ones that wait.
 
-| ID  | Requirement                                                                                                                                                                              | Fit criterion                                                                                    |
-| --- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------ |
-| F1  | The viewer sees all requests on the canvas and the state of each: waiting, in work (with the agent name), question for a viewer, result to check, done, needs a person, may be outdated. | Each state looks different. No reading is needed to tell them apart.                             |
-| F2  | The viewer finds at a glance the requests that wait for a viewer: questions and results to check.                                                                                        | The count of these requests is always visible.                                                   |
-| F3  | From a request, the viewer goes to its place on the canvas. From a place on the canvas, the viewer opens its request.                                                                    | One action in each direction.                                                                    |
-| F4  | A change of state shows at once.                                                                                                                                                         | Within 1 second, with no reload.                                                                 |
-| F5  | Done requests do not get in the way of open ones. A person can still find them (M17).                                                                                                    | Open work shows first. Old decisions are one step away.                                          |
-| F6  | A viewer who comes back sees what changed while they were away.                                                                                                                          | An indicator shows each request that changed since the last visit of that browser, with a count. |
+| ID  | Requirement                                                                                                                                                                                                                   | Fit criterion                                                                |
+| --- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------- |
+| F1  | The viewer sees all requests on the canvas and the state of each: waiting, in work (with the agent name), question for a viewer, result to check, done, needs a person, may be outdated, closed (by a person, or taken back). | Each state looks different. No reading is needed to tell them apart.         |
+| F2  | The viewer finds at a glance the requests that wait for a viewer: questions, results to check, and requests that need a person (P4).                                                                                          | The count of these requests is always visible.                               |
+| F3  | From a request, the viewer goes to its place on the canvas. From a place on the canvas, the viewer opens its request.                                                                                                         | One action in each direction.                                                |
+| F4  | A change of state shows at once.                                                                                                                                                                                              | Within 1 second, with no reload.                                             |
+| F5  | Done requests do not get in the way of open ones. A person can still find them (M17).                                                                                                                                         | Open work shows first. Old decisions are one step away.                      |
+| F6  | A viewer who comes back sees what changed while they were away.                                                                                                                                                               | A mark shows each request that changed since the last visit of that browser. |
 
 Decided:
 
@@ -207,14 +211,16 @@ Decided:
 ### E4 walk of the slice
 
 On 2026-11-19, E4 was read from left to right as one viewer: open the link, ask, follow, answer,
-accept. The walk changed N9 and N10, and added M19 and M20.
+accept. The walk changed N9 and N10, and added M19 and M20. The state sheets of the design (same
+day) added closed to F1, needs a person to F2 as SPEC-viewer has it, and removed the count from F6.
 
-| Req. | Gap in the design now                                                       | Spec                     |
-| ---- | --------------------------------------------------------------------------- | ------------------------ |
-| N9   | No viewer takes back a request while an agent holds it.                     | SPEC-queue, request-life |
-| N10  | Only the text of a new request is kept when easel does not accept it.       | SPEC-viewer              |
-| M19  | An answer puts the request at the back of the queue.                        | SPEC-queue               |
-| M20  | The design does not say what a viewer sees when another viewer acted first. | SPEC-viewer              |
+| Req. | Gap in the design now                                                                                | Spec                     |
+| ---- | ---------------------------------------------------------------------------------------------------- | ------------------------ |
+| N9   | No viewer takes back a request while an agent holds it.                                              | SPEC-queue, request-life |
+| N10  | Only the text of a new request is kept when easel does not accept it.                                | SPEC-viewer              |
+| M19  | An answer puts the request at the back of the queue.                                                 | SPEC-queue               |
+| M20  | The design does not say what a viewer sees when another viewer acted first.                          | SPEC-viewer              |
+| F6   | `Requests` also shows how many requests changed. The F6 fit has no count: one number (F2) is enough. | SPEC-viewer              |
 
 ## E5: Work through MCP
 
