@@ -46,12 +46,12 @@ server healthy.
 
 ## E4: Comment and get a change
 
-| ID   | Journey                          | Actor  | Design                                                                                       | Review |
-| ---- | -------------------------------- | ------ | -------------------------------------------------------------------------------------------- | ------ |
-| E4.1 | Ask for a change                 | viewer | [queue](../SPEC-queue.md#a-viewer-adds-a-comment), [viewer](../SPEC-viewer.md#pin-a-comment) | ready  |
-| E4.2 | Do the change and reply          | agent  | [queue](../SPEC-queue.md#an-agent-works-the-queue)                                           | ready  |
-| E4.3 | A comment that no agent finishes | agent  | [queue](../SPEC-queue.md#a-comment-no-agent-finishes)                                        | active |
-| E4.4 | Follow the comments              | viewer | [viewer](../SPEC-viewer.md#follow-the-queue)                                                 | to do  |
+| ID   | Journey                     | Actor  | Design                                                                                       | Review |
+| ---- | --------------------------- | ------ | -------------------------------------------------------------------------------------------- | ------ |
+| E4.1 | Ask for a change            | viewer | [queue](../SPEC-queue.md#a-viewer-adds-a-comment), [viewer](../SPEC-viewer.md#pin-a-comment) | ready  |
+| E4.2 | Do the change and reply     | agent  | [queue](../SPEC-queue.md#an-agent-works-the-queue)                                           | ready  |
+| E4.3 | A request no agent finishes | agent  | [queue](../SPEC-queue.md#a-comment-no-agent-finishes)                                        | ready  |
+| E4.4 | Follow the requests         | viewer | [viewer](../SPEC-viewer.md#follow-the-queue)                                                 | active |
 
 ### E4.1 Ask for a change
 
@@ -108,12 +108,12 @@ The current specs do not meet these requirements. Change the specs before the qu
 | M10 | A question or a result can use the form that shows it best: text, HTML, a diagram, or a comparison of options or of before and after.  | The viewer can see two options side by side and pick one.                                          |
 | M11 | When the agent says that the change is done, it gives the proof: what changed, before and after, and how the change meets the request. | The viewer can decide from the proof alone, with no other tool.                                    |
 | M12 | The viewer accepts the result, or opens the request again with a note.                                                                 | A request that the viewer opens again goes back to the queue with all its history.                 |
+| M13 | The viewer sees each question and each result.                                                                                         | Within 1 second, with no reload.                                                                   |
 | M14 | A request with a question waits for a viewer. It is not in the agent queue, and it never becomes stuck.                                | A question with no answer does not block other requests.                                           |
 | M15 | A result with no answer from a viewer counts as done. A viewer can open it again later.                                                | No request stays open only because no viewer answered.                                             |
 | M16 | Any viewer of the link can answer a question, accept a result, or open a request again. The request shows who did it.                  | A team decides together, and each step shows a name.                                               |
 | M17 | The questions, the options, the proof and the decision stay with the request after it is done.                                         | A person can find later why a part of the design is as it is.                                      |
 | M18 | A request that waits for a long time shows that it may be outdated.                                                                    | A person can tell an old request from a new one at a glance.                                       |
-| M13 | The viewer sees each question and each result.                                                                                         | Within 1 second, with no reload.                                                                   |
 
 Decided:
 
@@ -130,3 +130,43 @@ Decided:
 | M9, M12  | A comment has two stored states, `open` and `done`. There is no state that waits for the viewer, and no accept. | SPEC-queue, queue-lease chart |
 | M11, N8  | easel keeps no old version of a frame ("Frame history" is out of scope), so "before" cannot be shown.           | SPEC.md, SPEC-frames          |
 | M1       | "Priorities" is in the deferred list. Remove it: the need is not there.                                         | SPEC-queue                    |
+
+### E4.3 A request no agent finishes
+
+- **Actor:** agent. A person decides at the end.
+- **Need:** a request that agents cannot finish does not block other work and is not lost. A
+  person sees it and decides.
+- **Trigger:** a try on the request ends with no change.
+- **Success end:** a person makes the request clear and sends it back to the agents, or closes it.
+
+A retry helps only when the cause is outside the request. The same request usually fails for the
+same reason, so the answer to a failure is a clear outcome, not one more try.
+
+| Case                                                                    | Answer                                            |
+| ----------------------------------------------------------------------- | ------------------------------------------------- |
+| The agent stops: crash, kill, restart, lost connection, lease ends.     | Retry: another agent takes it (M4).               |
+| A short error outside easel: model rate limit, network, deploy.         | Retry, as above.                                  |
+| The request is unclear.                                                 | Ask the viewer (M9).                              |
+| The request is not possible or not allowed.                             | Give it back with the reason, to a person (P2).   |
+| The result is wrong.                                                    | The viewer opens it again (M12).                  |
+| Another agent changed the frame during the work.                        | Get the frame again and go on, in the same claim. |
+| The frame or the canvas is removed.                                     | Mark it "may be outdated" (N8, M18).              |
+| The request itself makes each agent stop (size, hostile text, timeout). | Send it to a person (P1).                         |
+
+| ID  | Requirement                                                                                                           | Fit criterion                                                    |
+| --- | --------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------- |
+| P1  | A request that agents stop on again and again, with no outcome, goes to a person.                                     | A request never loops for ever between agents.                   |
+| P2  | An agent that gives back a request says why.                                                                          | A person sees the reason for each try that ended with no change. |
+| P3  | People see which requests no agent could finish.                                                                      | They find them at a glance, on the canvas.                       |
+| P4  | Any viewer of the link, or an owner from the CLI, can make the request clear and send it back, or close it.           | No request stays without a way out.                              |
+| P5  | An agent that does not understand a request asks a question (M9). It does not fail again and again.                   | An unclear request reaches a person after one try.               |
+| P6  | Each try ends with one clear outcome: done, a question, or given back with a reason. Only a stopped agent gives none. | A person can see why each try ended.                             |
+
+The number of stops before a request goes to a person (P1) is a design value, not a requirement.
+
+#### Design changes that E4.3 needs
+
+| Req.   | Gap in the design now                                                     | Spec                          |
+| ------ | ------------------------------------------------------------------------- | ----------------------------- |
+| P1, P6 | Three claims of any kind make a comment stuck. A release gives no reason. | SPEC-queue, queue-lease chart |
+| P4     | Nothing frees a stuck comment ("Freeing a stuck comment" is deferred).    | SPEC-queue, SPEC-viewer       |
