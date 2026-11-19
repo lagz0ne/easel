@@ -40,7 +40,7 @@ server healthy.
 | E2  | Make frames               | An agent puts HTML frames on a canvas and changes them safely. | agent              | [frames](../SPEC-frames.md#make-a-canvas): make a canvas, make and change frames                                                      | Built, except `frame.move` | to do  |
 | E3  | Share and look            | A person opens a link and sees the frames change at once.      | agent, viewer      | [frames](../SPEC-frames.md#share-a-canvas): share, open; [viewer](../SPEC-viewer.md#journeys) 7; [design](../SPEC-design.md#journeys) | Built                      | to do  |
 | E4  | Comment and get a change  | A viewer asks for a change. An agent makes it and replies.     | viewer, agent      | [queue](../SPEC-queue.md#journeys) 3; [viewer](../SPEC-viewer.md#pin-a-comment): pin a comment, follow the queue                      | Not built                  | active |
-| E5  | Work through MCP          | An agent with no shell does all of E2, E3 and E4.              | agent              | [mcp](../SPEC-mcp.md#journeys) 3                                                                                                      | Not built                  | to do  |
+| E5  | Work through MCP          | An agent with no shell does all of E2, E3 and E4.              | agent              | [mcp](../SPEC-mcp.md#journeys) 3                                                                                                      | Not built                  | active |
 | E6  | Watch production          | An owner and an agent see errors, health and backups.          | owner, server      | [ops](../SPEC-ops.md#journeys) 5                                                                                                      | Built, except backups      | to do  |
 | E7  | Fix errors with no person | An agent fixes a production error and proves the fix.          | fixer, tick, probe | [fixer](../SPEC-fixer.md#journeys) 5                                                                                                  | Not built                  | to do  |
 
@@ -215,3 +215,73 @@ accept. The walk changed N9 and N10, and added M19 and M20.
 | N10  | Only the text of a new request is kept when easel does not accept it.       | SPEC-viewer              |
 | M19  | An answer puts the request at the back of the queue.                        | SPEC-queue               |
 | M20  | The design does not say what a viewer sees when another viewer acted first. | SPEC-viewer              |
+
+## E5: Work through MCP
+
+| ID   | Journey               | Actor | Design                                                                                          | Review |
+| ---- | --------------------- | ----- | ----------------------------------------------------------------------------------------------- | ------ |
+| E5.1 | Connect an agent      | user  | [mcp](../SPEC-mcp.md#a-local-agent-adds-easel), [mcp](../SPEC-mcp.md#a-remote-agent-adds-easel) | active |
+| E5.2 | Work with no shell    | agent | [mcp](../SPEC-mcp.md#an-agent-works-through-mcp)                                                | active |
+| E5.3 | Work reaches an agent | agent | [queue](../SPEC-queue.md#an-agent-works-the-queue)                                              | active |
+
+Decided:
+
+- E5 serves agents that run on a machine, and hosted agents with no shell: an agent in the Claude
+  web app, and a cloud agent that a person starts from a phone.
+- Easel connects in the ways that these platforms support. It does not ask them for more.
+
+### E5.1 Connect an agent
+
+- **Actor:** a user who runs an agent.
+- **Need:** give an agent access to easel, also an agent with no shell.
+- **Trigger:** the user wants an agent to work on canvases.
+- **Success end:** the agent sees what it can do in easel.
+- **Failure end:** the agent cannot get in, and the user knows why.
+
+| ID  | Requirement                                                   | Fit criterion                                                                                        |
+| --- | ------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------- |
+| C1  | A user connects an agent in a way that its platform supports. | A user connects an agent in the Claude web app, and a cloud agent from a phone, with no shell there. |
+| C2  | The user can stop the access of an agent at once.             | After the stop, the next action of the agent fails.                                                  |
+| C3  | A failed connection says why.                                 | The user sees the cause without logs: no access, access stopped, or a wrong address.                 |
+
+Open questions:
+
+- C2: must a user stop one agent and keep the others working?
+
+### E5.2 Work with no shell
+
+- **Actor:** agent.
+- **Need:** do the work of an agent in E2, E3 and E4, with the same results as with the CLI.
+- **Trigger:** the agent has a task on a canvas, or gets a request.
+- **Success end:** the work ends as it does with the CLI.
+- **Failure end:** the agent knows what happened and what to do next.
+
+| ID  | Requirement                                                                        | Fit criterion                                                                                 |
+| --- | ---------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------- |
+| W1  | All actions of an agent in E2, E3 and E4 are possible with no shell.               | An agent does the full E4.2 loop through MCP only.                                            |
+| W2  | The agent learns from easel alone what each action does and when to use it.        | An agent that does not know easel does a request, with the list of actions as its only guide. |
+| W3  | The agent sees a frame as a viewer sees it.                                        | An agent with no tool other than easel sees the picture of a frame.                           |
+| W4  | Each failure tells the agent what happened and what to do next.                    | After each failure, the next action of the agent is correct, with no person.                  |
+| W5  | Text in a request or a frame never makes an agent do more than the request allows. | A frame or a request that tells the agent to act on another canvas changes nothing there.     |
+
+Open questions:
+
+- W6: can text in a request or a frame make an agent that is an owner give access to someone?
+
+### E5.3 Work reaches an agent
+
+- **Actor:** agent. A person starts the work when the agent runs in a chat.
+- **Need:** a request reaches an agent that can do it, also an agent that is not running or does
+  not wait for work.
+- **Trigger:** a request is waiting.
+- **Success end:** an agent has the request.
+- **Failure end:** no agent can take the request. It waits in the queue, and people see that it
+  waits (F1).
+
+| ID  | Requirement                                                                                           | Fit criterion                                                                                        |
+| --- | ----------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------- |
+| D1  | All requests wait in one queue, also when different kinds of agents do them.                          | The order of M1 is the same for an agent that asks for work and for an agent that easel gives it to. |
+| D2  | An agent that asks for work gets it (pull).                                                           | M7 is true for an agent with no shell.                                                               |
+| D3  | Easel can give a request to an agent that does not ask for work, also one that is not running (push). | A new request reaches an agent that was not running, and no person starts it.                        |
+| D4  | When a person tells it to, an agent in a chat does all requests that wait on a canvas.                | A person says "do the open requests on canvas X", and each of them ends with an outcome.             |
+| D5  | A person starts work on the requests from a phone.                                                    | From a phone only, a person gets the open requests on a canvas done.                                 |
