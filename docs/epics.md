@@ -49,7 +49,7 @@ server healthy.
 | ID   | Journey                          | Actor  | Design                                                                                       | Review |
 | ---- | -------------------------------- | ------ | -------------------------------------------------------------------------------------------- | ------ |
 | E4.1 | Ask for a change                 | viewer | [queue](../SPEC-queue.md#a-viewer-adds-a-comment), [viewer](../SPEC-viewer.md#pin-a-comment) | ready  |
-| E4.2 | Do the change and reply          | agent  | [queue](../SPEC-queue.md#an-agent-works-the-queue)                                           | to do  |
+| E4.2 | Do the change and reply          | agent  | [queue](../SPEC-queue.md#an-agent-works-the-queue)                                           | active |
 | E4.3 | A comment that no agent finishes | agent  | [queue](../SPEC-queue.md#a-comment-no-agent-finishes)                                        | to do  |
 | E4.4 | Follow the comments              | viewer | [viewer](../SPEC-viewer.md#follow-the-queue)                                                 | to do  |
 
@@ -84,3 +84,40 @@ The current specs do not meet these requirements. Change the specs before the qu
 | N2   | A comment must have a frame, and the claim allows a change to that frame only (queue rule 14).                       | SPEC-queue, SPEC-mcp    |
 | N8   | A comment does not keep the frame version. A frame delete also deletes its comments (`easel rm`, `easel canvas rm`). | SPEC-queue, SPEC-frames |
 | N9   | No call corrects or removes a comment.                                                                               | SPEC-queue, SPEC-viewer |
+
+### E4.2 Do the change and reply
+
+- **Actor:** agent. The viewer takes part when the agent asks a question or shows the result.
+- **Need:** take a request, make the change without a conflict, and prove to the viewer that the
+  change is done in the right way.
+- **Trigger:** the agent is ready for work.
+- **Success end:** the viewer accepts the result.
+- **Failure end:** the agent cannot do the request. Another agent or a person can take it.
+
+| ID  | Requirement                                                                                                                            | Fit criterion                                                                                      |
+| --- | -------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------- |
+| M1  | No request waits for ever while newer requests get done.                                                                               | Agents take requests in the order they came.                                                       |
+| M2  | Two agents never work on the same request at the same time.                                                                            | No request gets two changes from two agents.                                                       |
+| M3  | The agent has all the facts it needs without a browser: the text, the place, what the viewer saw, and the current frame.               | An agent does the change with the CLI or MCP only.                                                 |
+| M4  | A request comes back to the queue if its agent stops.                                                                                  | No person must free a request after an agent crashes.                                              |
+| M5  | An agent that needs more time keeps the request.                                                                                       | A second agent does not take a request while the first agent still works on it.                    |
+| M6  | An agent that cannot do the request gives it back.                                                                                     | Another agent can take it at once.                                                                 |
+| M7  | A waiting agent gets a new request quickly, without a busy loop.                                                                       | A new request reaches a waiting agent within 1 second.                                             |
+| M8  | A request allows a change only to what it is about: its frame, or its canvas for a request about the whole canvas (N2).                | The text of a request cannot make an agent change another canvas or another user.                  |
+| M9  | The agent can ask the viewer a question before it makes the change.                                                                    | The viewer sees the question on the request and answers it. No agent works on it until the answer. |
+| M10 | A question or a result can use the form that shows it best: text, HTML, a diagram, or a comparison of options or of before and after.  | The viewer can see two options side by side and pick one.                                          |
+| M11 | When the agent says that the change is done, it gives the proof: what changed, before and after, and how the change meets the request. | The viewer can decide from the proof alone, with no other tool.                                    |
+| M12 | The viewer accepts the result, or opens the request again with a note.                                                                 | A request that the viewer opens again goes back to the queue with all its history.                 |
+| M13 | The viewer sees each question and each result.                                                                                         | Within 1 second, with no reload.                                                                   |
+
+Decided: requests have no priority. Oldest first (M1) is the only order.
+
+#### Design changes that E4.2 needs
+
+| Req.     | Gap in the design now                                                                                           | Spec                          |
+| -------- | --------------------------------------------------------------------------------------------------------------- | ----------------------------- |
+| M9, M12  | A comment has one reply. Threads are out of scope.                                                              | SPEC-queue                    |
+| M10, M11 | A reply is plain text of 1 to 2000 characters.                                                                  | SPEC-queue, SPEC-mcp          |
+| M9, M12  | A comment has two stored states, `open` and `done`. There is no state that waits for the viewer, and no accept. | SPEC-queue, queue-lease chart |
+| M11, N8  | easel keeps no old version of a frame ("Frame history" is out of scope), so "before" cannot be shown.           | SPEC.md, SPEC-frames          |
+| M1       | "Priorities" is in the deferred list. Remove it: the need is not there.                                         | SPEC-queue                    |
