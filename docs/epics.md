@@ -220,9 +220,9 @@ accept. The walk changed N9 and N10, and added M19 and M20.
 
 | ID   | Journey               | Actor | Design                                                                                          | Review |
 | ---- | --------------------- | ----- | ----------------------------------------------------------------------------------------------- | ------ |
-| E5.1 | Connect an agent      | user  | [mcp](../SPEC-mcp.md#a-local-agent-adds-easel), [mcp](../SPEC-mcp.md#a-remote-agent-adds-easel) | active |
-| E5.2 | Work with no shell    | agent | [mcp](../SPEC-mcp.md#an-agent-works-through-mcp)                                                | active |
-| E5.3 | Work reaches an agent | agent | [queue](../SPEC-queue.md#an-agent-works-the-queue)                                              | active |
+| E5.1 | Connect an agent      | user  | [mcp](../SPEC-mcp.md#a-local-agent-adds-easel), [mcp](../SPEC-mcp.md#a-remote-agent-adds-easel) | ready  |
+| E5.2 | Work with no shell    | agent | [mcp](../SPEC-mcp.md#an-agent-works-through-mcp)                                                | ready  |
+| E5.3 | Work reaches an agent | agent | [queue](../SPEC-queue.md#an-agent-works-the-queue)                                              | ready  |
 
 Decided:
 
@@ -257,19 +257,19 @@ Decided:
 - **Success end:** the work ends as it does with the CLI.
 - **Failure end:** the agent knows what happened and what to do next.
 
-| ID  | Requirement                                                                                 | Fit criterion                                                                                                              |
-| --- | ------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------- |
-| W1  | All actions of an agent in E2, E3 and E4 are possible with no shell.                        | An agent does the full E4.2 loop through MCP only.                                                                         |
-| W2  | The agent learns from easel alone what each action does and when to use it.                 | An agent that does not know easel does a request, with the list of actions as its only guide.                              |
-| W3  | The agent sees a frame as a viewer sees it.                                                 | An agent with no tool other than easel sees the picture of a frame.                                                        |
-| W4  | Each failure tells the agent what happened and what to do next.                             | After each failure, the next action of the agent is correct, with no person.                                               |
-| W5  | Text in a request or a frame never makes an agent do more than the request allows.          | A frame or a request that tells the agent to act on another canvas changes nothing there.                                  |
-| W6  | No access is given because of text in a request or a frame.                                 | Each access that easel gives comes from a person who decided it.                                                           |
-| W7  | Easel notices when the work of an agent looks wrong, and acts before a person must find it. | When an agent acts in a way that is not normal, a person learns of it from easel, and no harm grows while no person looks. |
+| ID  | Requirement                                                                        | Fit criterion                                                                                 |
+| --- | ---------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------- |
+| W1  | All actions of an agent in E2, E3 and E4 are possible with no shell.               | An agent does the full E4.2 loop through MCP only.                                            |
+| W2  | The agent learns from easel alone what each action does and when to use it.        | An agent that does not know easel does a request, with the list of actions as its only guide. |
+| W3  | The agent sees a frame as a viewer sees it.                                        | An agent with no tool other than easel sees the picture of a frame.                           |
+| W4  | Each failure tells the agent what happened and what to do next.                    | After each failure, the next action of the agent is correct, with no person.                  |
+| W5  | Text in a request or a frame never makes an agent do more than the request allows. | A frame or a request that tells the agent to act on another canvas changes nothing there.     |
+| W6  | No access is given because of text in a request or a frame.                        | Each access that easel gives comes from a person who decided it.                              |
 
-Open questions:
+Decided:
 
-- W7: which signs show that the work of an agent looks wrong, and what must easel do then?
+- Deferred: easel notices agent work that looks wrong and acts first. Add it when a real case
+  comes.
 
 ### E5.3 Work reaches an agent
 
