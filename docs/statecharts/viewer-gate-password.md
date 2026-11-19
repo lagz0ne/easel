@@ -2,8 +2,8 @@
 
 The same tab as [viewer-gate](viewer-gate.md), as the share-passwords ship builds it: a link may
 ask a password, and `easel unshare` ends a link. The canvas has the three controls that have
-shipped, Zoom in, Zoom out and Fit; comments are not built, so this chart leaves out the Comment
-button and the Comments region that [viewer-gate](viewer-gate.md) lists. Every other step is the
+shipped, Zoom in, Zoom out and Fit; requests are not built, so this chart leaves out the Request
+button and the Requests region that [viewer-gate](viewer-gate.md) lists. Every other step is the
 full chart's. The model is [models/viewer/ViewerGate.tla](models/viewer/ViewerGate.tla) with
 [ViewerGatePassword.cfg](models/viewer/ViewerGatePassword.cfg). TLC checks every rule below on
 all 94 of its states, and each one holds.
@@ -105,7 +105,7 @@ stateDiagram-v2
 
 ## What the model leaves out
 
-- Everything [viewer-gate](viewer-gate.md) leaves out, and the comments, until they ship.
+- Everything [viewer-gate](viewer-gate.md) leaves out, and the requests, until they ship.
 - A pass that `mayRead` turns away while the link is live and the new one is turned away too:
   the page asks once more, then shows the ended page, so a bug on the server cannot loop it.
   tests/browser/viewer-gate.test.tsx checks it.

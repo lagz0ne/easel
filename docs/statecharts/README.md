@@ -46,11 +46,11 @@ Each chart's page has the chart, its rules in plain words, and what the model le
 | [fixer-claim-unsafe](fixer-claim-unsafe.md)         | fixer  | Why the fixer needs a guard: with neither, an orphaned `ship.sh` pushes without the claim |
 | [viewer-gate](viewer-gate.md)                       | viewer | Opening a link: the password, the pass, an ended link                                     |
 | [viewer-gate-open](viewer-gate-open.md)             | viewer | The first slice: the name gate, a link with no password, an unknown link                  |
-| [viewer-gate-password](viewer-gate-password.md)     | viewer | The shipped gate: passwords, the wait, unshare; the canvas with no comments yet           |
+| [viewer-gate-password](viewer-gate-password.md)     | viewer | The shipped gate: passwords, the wait, unshare; the canvas with no requests yet           |
 | [viewer-canvas](viewer-canvas.md)                   | viewer | The canvas: live frames, pan and zoom, reconnecting                                       |
-| [viewer-pin-post](viewer-pin-post.md)               | viewer | Posting a comment: typed, sent, saved, or a fault                                         |
-| [viewer-pin-link](viewer-pin-link.md)               | viewer | A pin when its link ends: the typed text stays to copy                                    |
-| [viewer-queue](viewer-queue.md)                     | viewer | The queue panel: open, claimed, stuck, resolved                                           |
+| [viewer-pin-post](viewer-pin-post.md)               | viewer | Sending a request: typed, sent, saved, or a fault                                         |
+| [viewer-pin-link](viewer-pin-link.md)               | viewer | A request when its link ends or its frame goes: the typed text stays                      |
+| [viewer-queue](viewer-queue.md)                     | viewer | The Requests panel: each state, the count for a viewer, the Changed mark                  |
 
 `queue-two-step`, `frames-writes-two-step` and `fixer-claim-unsafe` break on purpose. Each shows
 the bug that a design prevents: one write for a claim or a save, and the fixer's two guards (the

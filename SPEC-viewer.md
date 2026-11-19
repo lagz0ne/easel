@@ -6,7 +6,8 @@ Module `viewer` of [SPEC.md](SPEC.md). Depends on [access](SPEC-access.md),
 ## Objective
 
 The browser page a person reaches by a share link ([frames](SPEC-frames.md)). It shows a canvas's
-frames, lets the person pan, zoom and comment, and shows each change an agent makes, live. It
+frames, lets the person pan, zoom and ask for changes, and shows each change an agent makes and
+each request, live. It
 changes no frame. The speed it must reach is set in [canvas-speed](docs/canvas-speed.md), and the
 rules below hold it to that.
 
@@ -47,7 +48,8 @@ rules below hold it to that.
 1. An agent writes a frame's document. Every open tab shows the new version: a new picture, and
    the live document reloads with no white flash.
 2. An agent adds a frame. It shows in every tab.
-3. An agent moves or deletes a frame. Every tab shows it moved, or gone along with its pins.
+3. An agent moves or removes a frame. Every tab shows it moved, or gone along with its pins. The
+   requests of a removed frame stay in the panel, marked "may be outdated" ([queue](SPEC-queue.md)).
    A move is unreached until `frame.move` ships: the stage reads a shell's box once, so a moved
    frame would keep its old box for `Fit` and for what shows and goes live. The `frame.move` work
    fixes that, with a test that moves a frame far away and back.
@@ -58,55 +60,87 @@ rules below hold it to that.
 2. When the socket is back, the page reads the whole board again and shows what changed while it
    was down. Only then does `Reconnecting` go.
 
-### Pin a comment
+### Ask for a change
 
-1. A viewer presses the button `Comment` (it shows pressed), and the canvas goes into comment mode.
-2. They click a place on a frame, and a textbox `Comment` opens there. The page makes a client key
-   for this comment.
-3. They type and press the button `Post`. It sends `comment.add` with the key. A pin (button
-   `Comment #<n>`) shows at that place, in every tab on the canvas, and the button `Comment` turns
-   off. While the socket is down, `Post` waits.
-4. Escape, or the button `Cancel`, closes the textbox and posts nothing.
-5. If the frame was deleted meanwhile, nothing is posted, and a `status` says the frame is gone.
-   An agent's change to the frame leaves the textbox as it is.
+1. A viewer presses the button `Request` (it shows pressed), and the canvas goes into request mode.
+2. They click a place on a frame, or on the canvas out of all frames, for a request about the
+   whole canvas. A textbox `Request` opens there. The page makes a client key for this request,
+   and keeps the frame version that it shows.
+3. They type and press the button `Send`. It sends `request.add` with the key and the version. A
+   pin (button `Request #<n>`) shows at that place, in every tab on the canvas within 1 s, and the
+   button `Request` turns off. While the socket is down, `Send` waits.
+4. Escape, or the button `Cancel`, closes the textbox and sends nothing.
+5. If the frame was removed meanwhile, nothing is saved. The textbox stays with the text and says
+   that the frame is gone. An agent's change to the frame leaves the textbox as it is.
 6. If the call faults (the socket drops, or the server fails), the textbox stays with the text and
    says it is not known yet whether it saved. It has no `Cancel` then. When the socket is back
-   (or, after a server fault, when the viewer presses `Post`), the page sends the comment again
-   with the same key. The server saves a key once, so the comment never posts twice, and its
+   (or, after a server fault, when the viewer presses `Send`), the page sends the request again
+   with the same key. The server saves a key once, so the request is never saved twice, and its
    answer says whether it saved.
-7. If the canvas has too many open comments (`full`), or the viewer posts too fast (`slow`),
+7. If the canvas has too many open requests (`full`), or the viewer sends too fast (`slow`),
    nothing is saved: the textbox stays with the text and says why.
 
 ### When the link ends
 
 1. A user unshares the canvas. Each open tab on the link is told at once: the server pushes the
    refusal `{ ended: true }`. A tab whose socket was down is told by its read when it is back.
-2. The tab shows the ended page. If a comment was being typed, the page keeps its text to copy,
-   and says it was not posted, or that it is not known whether it saved.
+2. The tab shows the ended page. If a request or an answer was being typed, the page keeps its
+   text to copy, and says it was not sent, or that it is not known whether it saved.
 
 ### When a password is set
 
 1. A user sets or changes the link's password. That ends every pass on the link
    ([frames](SPEC-frames.md)), and each open tab on it is told at once: the server pushes the
    refusal `{ locked: true }`. A tab whose socket was down is told by its read when it is back.
-2. The tab goes back to the password page. If a comment was being typed, its text stays visible
-   there to copy, as on the ended page, and the page says it was not posted, or that it is not
+2. The tab goes back to the password page. If a request or an answer was being typed, its text
+   stays visible there to copy, as on the ended page, and the page says it was not sent, or that it is not
    known whether it saved.
 
-### Follow the queue
+### Follow the requests
 
-1. A panel (a `complementary` region named `Comments`) lists the canvas's comments, oldest first.
-   Each shows its number, author, text and state: open, claimed (with the agent's name), stuck,
-   or done.
-2. When an agent claims a comment, every tab shows it as claimed at once.
-3. When the agent resolves it, it shows as done, with the agent's reply. When it gives the claim
-   back, it shows as open at once.
-4. If an agent's lease runs out before it resolves, the comment shows as open again, with no write
-   to the board: the board stores no `claimed` state. A comment shows as claimed while its
-   `claimedUntil` is ahead of the server's time. The board carries the server's clock offset, and
-   a clock capsule keeps the page's own estimate of server time.
-5. A comment whose last allowed claim ran out shows as stuck ([queue](SPEC-queue.md)).
-6. Clicking a comment in the panel moves the canvas to its frame and opens its pin.
+1. The toolbar has the button `Requests`. It always shows the count of requests that wait for a
+   viewer: a question, a result to check, or "needs a person". Its name says the count, for
+   example `Requests, 2 wait for you`. When the count is 0, the button has no count.
+2. The button opens a panel (a `complementary` region named `Requests`). It has three groups, each
+   with a heading and oldest first:
+   - `For a viewer`: questions, results to check, and requests that need a person.
+   - `In the queue`: waiting, and in work (with the name of the agent).
+   - `Done`: accepted and closed. This group is collapsed when the panel opens.
+3. Each row shows the number, the author, the start of the text, and the state. Each state has its
+   own icon, color and word, so a viewer can tell the states apart without reading. A waiting
+   request can also show the mark "may be outdated" ([queue](SPEC-queue.md)).
+4. A searchbox `Find` above the groups keeps only the rows whose number, author or text matches.
+5. Each change of a request shows in every tab within 1 s, with no reload. A lease that runs out
+   shows with no write to the board: the board stores no "in work" and no "needs a person". The
+   page derives each state as the queue spec says, from the board and its estimate of the server's
+   time. The board carries the server's clock offset, and a clock capsule keeps the estimate.
+6. A click on a row moves the canvas to the place of the request and opens it. A click on a pin
+   opens its request. A request of a removed frame moves the canvas to where the frame was.
+7. An open request (a `dialog` named `Request #<n>`) shows all its messages, oldest first, each
+   with its kind, the name of its sender and its time. An HTML part shows in a sandboxed iframe,
+   as a live document does. A result shows the pictures of the frame before and after, side by
+   side. A question with options shows one button for each option, side by side.
+8. The controls of an open request follow its state. Any viewer of the link can use them, and each
+   use is a message with the name of the viewer.
+
+   | State          | Controls                                                  | Call                       |
+   | -------------- | --------------------------------------------------------- | -------------------------- |
+   | waiting        | `Edit` (the text), `Close`                                | `request.edit`, `close`    |
+   | in work        | none: it says which agent works on it                     |                            |
+   | question       | an option button, or textbox `Answer` and `Send`; `Close` | `request.answer`, `close`  |
+   | result         | `Accept`; `Open again`, with a textbox for the note       | `request.accept`, `reopen` |
+   | needs a person | the reason; `Edit`, `Close`                               | `request.edit`, `close`    |
+   | accepted       | `Open again`, with a textbox for the note                 | `request.reopen`           |
+   | closed         | none                                                      |                            |
+
+9. If the request changed state since the dialog opened (`wrongState`), nothing is saved. The
+   dialog shows the new state and keeps the typed text. `full` and `slow` keep the text too and say
+   why.
+10. A request that changed since the last visit shows the mark `Changed`, and the button
+    `Requests` also shows how many changed. The browser keeps in `localStorage`, for each canvas,
+    the time of the last visit, and for each request, its `updated` time when the viewer last
+    opened it. A request shows `Changed` when its `updated` is after both. When the canvas opens,
+    the page reads the time of the last visit, then writes the time now.
 
 ## Numbers
 
@@ -137,12 +171,17 @@ and 4 s; after the third try the card shows.
 
 ## Contract
 
-The page reads `easel.board` (cells `frames`, `docs` and `comments`, keyed by canvas, and the
-server's clock offset). Its calls are two:
+The page reads `easel.board` (cells `frames`, `docs`, `requests` and `messages`, keyed by canvas,
+and the server's clock offset). Its calls are:
 
 - `share.open { link, password?, name }` ([frames](SPEC-frames.md)), once at the gate.
-- `comment.add { canvas, frameId, x, y, body, key }` ([queue](SPEC-queue.md)). `key` is the
-  client key: one per comment, the same on each retry of it.
+- `request.add { canvas, frameId, version, x, y, text, key }` ([queue](SPEC-queue.md)). `key` is
+  the client key: one per request, the same on each retry of it.
+- `request.edit`, `answer`, `accept`, `reopen` and `close` ([queue](SPEC-queue.md)), from the
+  controls of an open request.
+
+The pictures of a result (before and after) are pictures of frame versions. [frames](SPEC-frames.md)
+keeps each version that a request refers to.
 
 A read or a call can be refused with `{ ended: true }`, and the server pushes that refusal to open
 tabs when the link ends. Then the page shows that the link has ended. A read or a call can be
@@ -150,7 +189,7 @@ refused with `{ locked: true }`, and the server pushes that refusal to open tabs
 set or changed ends their pass. Then the page shows the password page.
 
 The behaviour above is checked against the statecharts in `docs/statecharts/`: `viewer-gate`,
-`viewer-canvas`, `viewer-pin-post`, `viewer-pin-link` and `viewer-queue`. Until comments ship, the
+`viewer-canvas`, `viewer-pin-post`, `viewer-pin-link` and `viewer-queue`. Until requests ship, the
 gate as built is checked against `viewer-gate-password`: the full gate, with the canvas's three
 camera controls.
 
@@ -159,16 +198,20 @@ camera controls.
 ### Fact rules (the code graph decides)
 
 1. Every board read runs `mayRead` first.
-2. No page module writes `frames`, `docs` or `comments`, and the page calls no frame operation.
+2. No page module writes `frames`, `docs`, `requests` or `messages`, and the page calls no frame
+   operation.
 3. No page module calls `fetch`, `XMLHttpRequest`, `EventSource` or `WebSocket`.
 4. No page module imports a `.server.` file (the page build refuses one).
 5. The page reads `docs` only by `of({ canvas, id })`, never by `where`.
-6. Each stateful page feature (camera, live set, comment mode, connection status, clock) is a
-   Tinker cell or resource. There is no useState, useEffect or useReducer.
-7. The page's only calls are `share.open` and `comment.add`.
+6. Each stateful page feature (camera, live set, request mode, open request, connection status,
+   clock, last visit) is a Tinker cell or resource. There is no useState, useEffect or useReducer.
+7. The page's only calls are `share.open` and `request.add`, `edit`, `answer`, `accept`, `reopen`
+   and `close`.
 8. One page module adds the paint script, to the document it gives the iframe. No server module
    and no stored document carries it.
 9. The panel reads time only from the clock capsule, never from `Date.now()`.
+10. One page function derives the state of a request (queue spec, table `State`). The panel, the
+    pin, the dialog and the count all use it.
 
 ### Judged rules (need reading the code)
 
@@ -181,13 +224,17 @@ camera controls.
    `allow-same-origin`, so it cannot read the page, its storage or the pass.
 5. `Reconnecting` shows from the moment the socket drops until the full board read after
    reconnect has arrived.
-6. A comment's client key is made once, when its textbox opens, and every send of that comment
+6. A request's client key is made once, when its textbox opens, and every send of that request
    carries it. While it is not known whether a send saved, the textbox offers no `Cancel`.
-7. The ended page, and the password page after `{ locked: true }`, keep the text of a comment
-   being typed, and never say "not posted" of one that may have saved.
+7. The ended page, and the password page after `{ locked: true }`, keep the text of a request or
+   an answer being typed, and never say "not sent" of one that may have saved.
 8. The server refuses an `/rpc` upgrade whose `Origin` is present and is not `PUBLIC_ORIGIN`, so a
    frame's script (`Origin: "null"`) cannot open a socket of its own ([access](SPEC-access.md)
    judged rule 15).
+9. An HTML part of a message runs in the same sandbox as a live document (judged rule 4), never in
+   the page.
+10. A refused viewer call (`wrongState`, `gone`, `full`, `slow`) never clears the typed text.
+11. The mark `Changed` reads and writes only `localStorage`. It sends nothing to the server.
 
 ### Accepted risk
 
@@ -210,6 +257,12 @@ already gave.
   CDP's screencast on, and counts the white pixels in each frame's box in each image.
 - A test replays each statechart's steps in `docs/statecharts/viewer-*.md` and holds each of its
   rules.
+- A page test answers each state of a request on the board and finds its row in the right group,
+  with its own icon and word, the right count on `Requests`, and the controls of the table.
+- A page test with a moved clock shows a lease that runs out as waiting, or as "needs a person",
+  with no board write.
+- A page test with a stored last visit shows `Changed` on each request updated after it, and the
+  mark goes when the viewer opens the request.
 - The smoke has one canvas flow: open a board, frames show, pan and zoom.
 
 ## Out of Scope (Deferred)

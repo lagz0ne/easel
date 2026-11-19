@@ -1,7 +1,7 @@
 ---- MODULE ViewerPin ----
-\* Pinning a comment in the easel viewer while the frame, the socket and the link change
-\* (SPEC-viewer.md "Pin a comment", "When the link ends"; SPEC-queue.md comment.add).
-\* comment.add carries a client key, made when the textbox opens and sent again with each retry
+\* Pinning a request in the easel viewer while the frame, the socket and the link change
+\* (SPEC-viewer.md "Ask for a change", "When the link ends"; SPEC-queue.md request.add).
+\* request.add carries a client key, made when the textbox opens and sent again with each retry
 \* of that draft, so the server saves one draft once. An unshare pushes the refusal
 \* { ended: true } to the tab; a password set or changed ends its pass and pushes { locked: true },
 \* and the tab goes back to the password page. Either way a typed or unsure draft stays visible.
@@ -18,15 +18,16 @@ VARIABLES page,      \* "canvas", "ended" (the ended page) or "password" (the pa
           link,      \* the share link on the server: "live", "ended", or "locked" (a password
                      \* set or changed ended this tab's pass)
           conn,      \* the one socket: "up" or "down"
-          pin,       \* "off", "placing" (Comment pressed), "typing" (textbox open, Post and Cancel),
-                     \* "sending" (Post pressed), "unsure" (after a fault: textbox kept, no Cancel)
+          pin,       \* "off", "placing" (Request pressed), "typing" (textbox open, Send and Cancel),
+                     \* "sending" (Send pressed), "unsure" (after a fault: textbox kept, no Cancel)
           note,      \* what the textbox says: "none", "unknown" (not known yet if it saved),
-                     \* "refused" (full or slow: not saved, Post again)
-          copies,    \* comments on the server with this draft's client key
+                     \* "refused" (full or slow: not saved, Send again), "gone" (the frame was
+                     \* removed: not saved, the text stays to copy)
+          copies,    \* requests on the server with this draft's client key
           frame,     \* the frame on the server: "there" or "gone"
           updated,   \* an agent has rewritten the frame's document (bound: once)
-          closedBy,  \* how the draft closed: "none", "post", "cancel", "gone"
-          endText,   \* what the ended or password page shows of the draft: "none", "not posted",
+          closedBy,  \* how the draft closed: "none", "send", "cancel"
+          endText,   \* what the ended or password page shows of the draft: "none", "not sent",
                      \* "unknown"
           lost       \* a step threw away typed text that was not saved
 
@@ -45,13 +46,13 @@ Init ==
 RefusedPage == IF link = "ended" THEN "ended" ELSE "password"
 EndThePage ==
   /\ page' = RefusedPage /\ pin' = "off" /\ note' = "none"
-  /\ endText' = CASE pin = "typing"                -> "not posted"
+  /\ endText' = CASE pin = "typing"                -> "not sent"
                   [] pin \in {"sending", "unsure"} -> "unknown"
                   [] OTHER                         -> "none"
   /\ lost' = (pin \in Drafting /\ endText' = "none")
 
 \* One draft per run is enough to show each rule; a second draft repeats the first.
-YouPressComment ==
+YouPressRequest ==
   /\ page = "canvas" /\ pin = "off" /\ closedBy = "none"
   /\ pin' = "placing"
   /\ UNCHANGED <<page, link, conn, note, copies, frame, updated, closedBy, endText, lost>>
@@ -69,29 +70,34 @@ YouCancel ==
   /\ closedBy' = IF pin = "typing" THEN "cancel" ELSE "none"
   /\ UNCHANGED <<page, link, conn, copies, frame, updated, endText, lost>>
 
-\* You press Post: comment.add goes over the socket with the draft's key. Post waits for the socket.
-YouPost ==
+\* You press Send: request.add goes over the socket with the draft's key. Send waits for the socket.
+YouSend ==
   /\ page = "canvas" /\ pin = "typing" /\ conn = "up"
   /\ pin' = "sending" /\ note' = "none"
   /\ UNCHANGED <<page, link, conn, copies, frame, updated, closedBy, endText, lost>>
 
-\* The server runs comment.add: mayRead, the frame, then the key. A key it has seen answers
-\* added with the same n and saves nothing. The answer comes back in the same step.
+\* The server runs request.add: mayRead, the key, then the frame. A key it has seen answers
+\* added with the same n and saves nothing, also when the frame was removed since. A frame that
+\* is gone answers gone: nothing is saved, and the textbox stays with the text (E4.1 N10).
+\* The answer comes back in the same step.
 TheServerAnswers ==
   /\ page = "canvas" /\ pin \in {"sending", "unsure"} /\ conn = "up"
   /\ CASE link # "live" ->
             /\ EndThePage
             /\ UNCHANGED <<link, conn, copies, frame, updated, closedBy>>
-       [] frame = "gone" ->
-            /\ pin' = "off" /\ note' = "none" /\ closedBy' = "gone"
+       [] copies = 1 ->
+            /\ pin' = "off" /\ note' = "none" /\ closedBy' = "send"
             /\ UNCHANGED <<page, link, conn, copies, frame, updated, endText, lost>>
+       [] frame = "gone" ->
+            /\ pin' = "typing" /\ note' = "gone"
+            /\ UNCHANGED <<page, link, conn, copies, frame, updated, closedBy, endText, lost>>
        [] OTHER ->
             /\ copies' = 1
-            /\ pin' = "off" /\ note' = "none" /\ closedBy' = "post"
+            /\ pin' = "off" /\ note' = "none" /\ closedBy' = "send"
             /\ UNCHANGED <<page, link, conn, frame, updated, endText, lost>>
 
-\* A new key on a canvas with too many open comments (full), or from a pass that posts too fast
-\* (slow): nothing saved, the textbox stays with the text, says why, and offers Post again.
+\* A new key on a canvas with too many open requests (full), or from a pass that sends too fast
+\* (slow): nothing saved, the textbox stays with the text, says why, and offers Send again.
 \* It answers so to a first send and to a resend from "unsure" alike; a key the server has seen
 \* answers added first, so this answer means this draft is not saved.
 TheServerAnswersFull ==
@@ -101,13 +107,13 @@ TheServerAnswersFull ==
   /\ UNCHANGED <<page, link, conn, copies, frame, updated, closedBy, endText, lost>>
 
 \* The server fails (failed) on a send or a resend. This call saved nothing, but an earlier send
-\* of the draft may have, so the textbox stays unsure, with no Cancel; Post sends it again.
+\* of the draft may have, so the textbox stays unsure, with no Cancel; Send sends it again.
 TheServerFails ==
   /\ Socket /\ page = "canvas" /\ pin \in {"sending", "unsure"} /\ conn = "up"
   /\ pin' = "unsure" /\ note' = "unknown"
   /\ UNCHANGED <<page, link, conn, copies, frame, updated, closedBy, endText, lost>>
 
-\* The server saves the comment, and the socket drops before the answer arrives.
+\* The server saves the request, and the socket drops before the answer arrives.
 TheServerSavesThenTheSocketDrops ==
   /\ Socket /\ page = "canvas" /\ pin = "sending" /\ conn = "up" /\ link = "live" /\ frame = "there"
   /\ copies' = 1 /\ conn' = "down"
@@ -139,12 +145,13 @@ AgentUpdatesTheFrame ==
   /\ updated' = TRUE
   /\ UNCHANGED <<page, link, conn, pin, note, copies, frame, closedBy, endText, lost>>
 
-\* An agent deletes the frame, with its comments. A draft on it stays open until Post.
+\* An agent removes the frame. Its pins go; its requests stay, in the Requests panel
+\* (SPEC-queue judged rule 17). A draft on it stays open until Send.
 AgentDeletesTheFrame ==
   /\ Changes /\ page = "canvas" /\ frame = "there"
-  /\ frame' = "gone" /\ copies' = 0
+  /\ frame' = "gone"
   /\ IF pin = "placing" THEN pin' = "off" ELSE UNCHANGED pin
-  /\ UNCHANGED <<page, link, conn, note, updated, closedBy, endText, lost>>
+  /\ UNCHANGED <<page, link, conn, note, copies, updated, closedBy, endText, lost>>
 
 \* A user runs easel unshare. The server pushes the refusal to the tab (TheRefusalArrives).
 TheLinkEnds ==
@@ -175,7 +182,7 @@ Closed ==
   /\ page = "canvas" /\ pin = "off" /\ closedBy # "none" /\ conn = "up" /\ link = "live"
   /\ UNCHANGED vars
 
-Next == Closed \/ YouPressComment \/ YouClickOnTheFrame \/ YouCancel \/ YouPost
+Next == Closed \/ YouPressRequest \/ YouClickOnTheFrame \/ YouCancel \/ YouSend
      \/ TheServerAnswers \/ TheServerAnswersFull \/ TheServerFails
      \/ TheServerSavesThenTheSocketDrops \/ TheSocketDrops \/ TheSocketReconnects
      \/ AgentUpdatesTheFrame \/ AgentDeletesTheFrame \/ TheLinkEnds \/ APasswordIsSet
@@ -187,26 +194,28 @@ TypeOK ==
   /\ page \in {"canvas", "ended", "password"} /\ link \in {"live", "ended", "locked"}
   /\ conn \in {"up", "down"}
   /\ pin \in {"off", "placing", "typing", "sending", "unsure"}
-  /\ note \in {"none", "unknown", "refused"}
+  /\ note \in {"none", "unknown", "refused", "gone"}
   /\ copies \in 0..2 /\ frame \in {"there", "gone"} /\ updated \in BOOLEAN
-  /\ closedBy \in {"none", "post", "cancel", "gone"}
-  /\ endText \in {"none", "not posted", "unknown"}
+  /\ closedBy \in {"none", "send", "cancel"}
+  /\ endText \in {"none", "not sent", "unknown"}
   /\ lost \in BOOLEAN
 
 \* An open textbox survives a frame update; typed text is never thrown away unsaved.
 NoTextLost == ~lost
 
-\* One draft makes at most one comment, however often it is sent.
-OnePostOneComment == copies <= 1
+\* One draft makes at most one request, however often it is sent.
+OneSendOneRequest == copies <= 1
 
-\* Escape, or the button Cancel, closes the textbox and posts nothing.
-CancelPostsNothing == closedBy = "cancel" => copies = 0
+\* Escape, or the button Cancel, closes the textbox and sends nothing.
+CancelSendsNothing == closedBy = "cancel" => copies = 0
 
-\* If the frame was deleted meanwhile, nothing is posted, and a status says the frame is gone.
-GonePostsNothing == closedBy = "gone" => copies = 0
+\* If the frame was removed meanwhile, nothing is saved, and the textbox stays with the text and
+\* says the frame is gone.
+GoneSendsNothing == note = "gone" => (copies = 0 /\ pin = "typing")
 
-\* The pin Comment #n shows only for a saved comment. (A deleted frame takes its pins away.)
-PinShows == page = "canvas" /\ closedBy = "post" /\ frame = "there"
+\* The pin Request #n shows only for a saved request. (A removed frame takes its pins away; the
+\* request stays in the panel.)
+PinShows == page = "canvas" /\ closedBy = "send" /\ frame = "there"
 PinMeansSaved == PinShows => copies = 1
 
 \* A textbox that offers Cancel has saved nothing; when the tab cannot know, it says so.
@@ -218,8 +227,8 @@ TextboxSaysWhetherSaved ==
 \* textbox, no pin.
 EndedPageOnly == page # "canvas" => pin = "off"
 
-\* The ended page and the password page keep the typed text to copy, and never say "not posted"
+\* The ended page and the password page keep the typed text to copy, and never say "not sent"
 \* of a saved one.
-EndedPageKeepsText == endText = "not posted" => copies = 0
+EndedPageKeepsText == endText = "not sent" => copies = 0
 
 ====

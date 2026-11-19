@@ -1,106 +1,148 @@
 ---- MODULE ViewerQueue ----
-\* One comment in the Comments panel of the easel viewer while agents work it
-\* (SPEC-viewer.md "Follow the queue"; SPEC-queue.md "An agent works the queue").
-\* The board stores no "claimed" status: a comment is claimed while its claimedUntil is ahead of
-\* the server's time. The page reads that time from a clock capsule (its own clock plus the
-\* server's offset, carried by the board), so a lease that runs out shows as open with no write.
-\* MaxClaims stands for the 3 claims that run out before a comment is stuck, kept small for TLC.
+\* One request in the Requests panel of the easel viewer while agents and viewers work on it
+\* (SPEC-viewer.md "Follow the requests"; SPEC-queue.md). The board stores no "in work" and
+\* no "needs a person": the page derives them from claimedUntil, tries and the server's time,
+\* which it reads from a clock capsule (its own clock plus the server's offset, carried by the
+\* board). So a lease that runs out shows with no write.
+\* The "changed" mark (E4.4 F6): this browser keeps, for each request, the `updated` time it
+\* last opened, and the time of its last visit. A request shows "changed" while it changed
+\* after both. The model keeps one flag: the tab has seen the latest change.
+\* Cap stands for the 3 tries with no outcome before a request needs a person; small for TLC.
 EXTENDS Naturals
 
-MaxClaims == 2
+Cap == 2
 
-VARIABLES status,    \* on the server (cell comments): "open" or "done"
-          until,     \* on the server: claimedUntil is "none" or "set"
-          claims,    \* on the server: claims counted against the comment (attempts)
-          expired,   \* the server's time is past claimedUntil (time alone, no write)
-          tStatus, tUntil, tClaims,  \* the tab's copy of the same cell
-          conn       \* the one socket: "up" or "down"
+VARIABLES status,   \* on the server: "open" | "asking" | "resolved" | "accepted" | "person" |
+                    \* "closed" ("accepted" stands for resolved with acceptedBy set)
+          until,    \* on the server: claimedUntil is "none" or "set"
+          tries,    \* on the server: tries since the request was posted or sent back
+          expired,  \* the server's time is past claimedUntil (time alone, no write)
+          tStatus, tUntil, tTries,  \* the tab's copy of the same cell
+          seen,     \* this browser opened the request after its latest change
+          conn      \* the one socket: "up" or "down"
 
-vars == <<status, until, claims, expired, tStatus, tUntil, tClaims, conn>>
+vars == <<status, until, tries, expired, tStatus, tUntil, tTries, seen, conn>>
 
-\* What a comment shows, from a cell and the time. Both the panel and the queue use this.
+\* What a request shows, from a cell and the time. The panel and the queue use one function.
 Shows(s, u, c) ==
-  CASE s = "done"                       -> "done"
-    [] u = "set" /\ ~expired            -> "claimed"
-    [] u = "set" /\ c >= MaxClaims      -> "stuck"
-    [] OTHER                            -> "open"
+  CASE s # "open"                   -> s
+    [] u = "set" /\ ~expired        -> "inWork"
+    [] c >= Cap                     -> "needsPerson"
+    [] OTHER                        -> "waiting"
 
-Truth == Shows(status, until, claims)
-Panel == Shows(tStatus, tUntil, tClaims)
+Truth == Shows(status, until, tries)
+Panel == Shows(tStatus, tUntil, tTries)
+\* The states that wait for a viewer: the count on the Requests button counts them.
+ForAViewer(s) == s \in {"asking", "resolved", "person", "needsPerson"}
 
 Init ==
-  /\ status = "open" /\ until = "none" /\ claims = 0 /\ expired = FALSE
-  /\ tStatus = "open" /\ tUntil = "none" /\ tClaims = 0
+  /\ status = "open" /\ until = "none" /\ tries = 0 /\ expired = FALSE
+  /\ tStatus = "open" /\ tUntil = "none" /\ tTries = 0
+  /\ seen = TRUE
   /\ conn = "up"
 
-\* A board write reaches the tab at once over a live socket.
-Push == IF conn = "up"
-          THEN tStatus' = status' /\ tUntil' = until' /\ tClaims' = claims'
-          ELSE UNCHANGED <<tStatus, tUntil, tClaims>>
+\* A board write reaches the tab at once over a live socket. Every write changes `updated`,
+\* so the request shows "changed" until the viewer opens it.
+Push == /\ IF conn = "up"
+             THEN tStatus' = status' /\ tUntil' = until' /\ tTries' = tries'
+             ELSE UNCHANGED <<tStatus, tUntil, tTries>>
+        /\ seen' = FALSE
+        /\ UNCHANGED conn
 
-\* easel next claims the oldest open comment; one whose lease ran out is open to it, unless stuck.
 AgentClaims ==
-  /\ Truth = "open"
-  /\ until' = "set" /\ expired' = FALSE /\ claims' = claims + 1
+  /\ Truth = "waiting"
+  /\ until' = "set" /\ expired' = FALSE /\ tries' = tries + 1
   /\ UNCHANGED status
   /\ Push
-  /\ UNCHANGED conn
 
 \* A lease ends by time alone, with no timer and no write. The tab's clock passes it too.
 TheLeaseRunsOut ==
-  /\ until = "set" /\ ~expired
+  /\ until = "set" /\ ~expired /\ status = "open"
   /\ expired' = TRUE
-  /\ UNCHANGED <<status, until, claims, tStatus, tUntil, tClaims, conn>>
+  /\ UNCHANGED <<status, until, tries, tStatus, tUntil, tTries, seen, conn>>
 
-AgentResolves ==
-  /\ Truth = "claimed"
-  /\ status' = "done"
-  /\ UNCHANGED <<until, claims, expired>>
-  /\ Push
-  /\ UNCHANGED conn
-
-\* easel release gives the claim back: claimedUntil cleared, the claim not counted.
 AgentReleases ==
-  /\ Truth = "claimed"
-  /\ until' = "none" /\ claims' = claims - 1
-  /\ UNCHANGED <<status, expired>>
+  /\ Truth = "inWork"
+  /\ until' = "none"
+  /\ UNCHANGED <<status, tries, expired>>
   /\ Push
-  /\ UNCHANGED conn
+
+\* resolve, ask or decline
+Outcome(s) ==
+  /\ Truth = "inWork"
+  /\ status' = s /\ until' = "none"
+  /\ UNCHANGED <<tries, expired>>
+  /\ Push
+
+\* edit, answer, reopen: back to the queue, tries at 0
+SendBack ==
+  /\ status' = "open" /\ until' = "none" /\ tries' = 0
+  /\ UNCHANGED expired
+  /\ Push
+
+AViewerEdits == Truth \in {"waiting", "needsPerson", "person"} /\ SendBack
+AViewerAnswers == Truth = "asking" /\ SendBack
+AViewerReopens == Truth \in {"resolved", "accepted"} /\ SendBack
+
+AViewerAccepts ==
+  /\ Truth = "resolved"
+  /\ status' = "accepted"
+  /\ UNCHANGED <<until, tries, expired>>
+  /\ Push
+
+AViewerCloses ==
+  /\ Truth \in {"waiting", "needsPerson", "person", "asking"}
+  /\ status' = "closed"
+  /\ UNCHANGED <<until, tries, expired>>
+  /\ Push
+
+\* The viewer opens the request in this browser: its "changed" mark goes.
+YouOpenIt ==
+  /\ conn = "up" /\ ~seen
+  /\ seen' = TRUE
+  /\ UNCHANGED <<status, until, tries, expired, tStatus, tUntil, tTries, conn>>
 
 TheSocketDrops ==
   /\ conn = "up"
   /\ conn' = "down"
-  /\ UNCHANGED <<status, until, claims, expired, tStatus, tUntil, tClaims>>
+  /\ UNCHANGED <<status, until, tries, expired, tStatus, tUntil, tTries, seen>>
 
 \* Back up, the tab reads the whole board again.
 TheSocketReconnects ==
   /\ conn = "down"
   /\ conn' = "up"
-  /\ tStatus' = status /\ tUntil' = until /\ tClaims' = claims
-  /\ UNCHANGED <<status, until, claims, expired>>
+  /\ tStatus' = status /\ tUntil' = until /\ tTries' = tries
+  /\ UNCHANGED <<status, until, tries, expired, seen>>
 
-Next == AgentClaims \/ TheLeaseRunsOut \/ AgentResolves \/ AgentReleases
-     \/ TheSocketDrops \/ TheSocketReconnects
+Next == AgentClaims \/ TheLeaseRunsOut \/ AgentReleases
+     \/ Outcome("resolved") \/ Outcome("asking") \/ Outcome("person")
+     \/ AViewerEdits \/ AViewerAnswers \/ AViewerAccepts \/ AViewerReopens \/ AViewerCloses
+     \/ YouOpenIt \/ TheSocketDrops \/ TheSocketReconnects
 
 Spec == Init /\ [][Next]_vars
 
+States == {"waiting", "inWork", "needsPerson", "asking", "resolved", "accepted", "person", "closed"}
+
 TypeOK ==
-  /\ status \in {"open", "done"} /\ tStatus \in {"open", "done"}
+  /\ status \in {"open", "asking", "resolved", "accepted", "person", "closed"}
+  /\ tStatus \in {"open", "asking", "resolved", "accepted", "person", "closed"}
   /\ until \in {"none", "set"} /\ tUntil \in {"none", "set"}
-  /\ claims \in 0..MaxClaims /\ tClaims \in 0..MaxClaims
-  /\ expired \in BOOLEAN
+  /\ tries \in 0..Cap /\ tTries \in 0..Cap
+  /\ expired \in BOOLEAN /\ seen \in BOOLEAN
   /\ conn \in {"up", "down"}
+  /\ Panel \in States
 
-\* If an agent's lease runs out before it resolves, the comment shows as open again (or stuck).
-LeaseOutShowsOpen == Truth \in {"open", "stuck"} /\ conn = "up" => Panel \in {"open", "stuck"}
-
-\* When an agent claims, resolves or releases a comment, every connected tab shows it at once.
+\* E4.4 F1, F4: every connected tab shows the state of the request now, with no reload.
 PanelShowsLatest == conn = "up" => Panel = Truth
 
-\* A done comment never shows as open or claimed again.
-DoneStaysDone == status = "done" /\ conn = "up" => Panel = "done"
+\* A lease that runs out shows as waiting again, or as "needs a person", with no write.
+LeaseOutShowsWithNoWrite ==
+  (conn = "up" /\ until = "set" /\ expired /\ status = "open") => Panel \in {"waiting", "needsPerson"}
 
-\* A comment past its last claim shows as stuck, not as open.
-StuckShowsStuck == Truth = "stuck" /\ conn = "up" => Panel = "stuck"
+\* E4.4 F2: the count for a viewer counts the request exactly when it waits for a viewer.
+TheCountIsRight == conn = "up" => (ForAViewer(Panel) <=> ForAViewer(Truth))
+
+\* E4.4 F6: after a change, the request shows "changed" until the viewer opens it.
+AChangeShowsUntilOpened == [][(status' # status \/ tries' # tries) => ~seen']_vars
 
 ====

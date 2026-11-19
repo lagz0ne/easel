@@ -1,53 +1,74 @@
-// The reader's words for ViewerQueue.tla: one comment on the server, and what the panel shows.
-export const title = "Viewer: one comment in the Comments panel while agents work it";
+// The reader's words for ViewerQueue.tla: one request on the server, and what the panel shows.
+export const title =
+  "Viewer: one request in the Requests panel while agents and viewers work on it";
 
-// The same derivation as Shows() in the model; 2 is its MaxClaims.
-const shows = (status, until, claims, expired) => {
-  if (status === "done") {
-    return "done";
+// The same derivation as Shows() in the model; 2 is its Cap.
+const shows = (status, until, tries, expired) => {
+  if (status !== "open") {
+    return status;
   }
 
   if (until === "set" && !expired) {
-    return "claimed";
+    return "inWork";
   }
 
-  return until === "set" && claims >= 2 ? "stuck" : "open";
+  return tries >= 2 ? "needsPerson" : "waiting";
 };
 
-const comment = {
-  open: "Open",
-  claimed: "Claimed, lease live",
-  stuck: "Stuck: its last claim ran out",
-  done: "Done",
+const request = {
+  waiting: "Waiting",
+  inWork: "In work, lease live",
+  needsPerson: "Needs a person: no outcome after 2 tries",
+  asking: "Question for a viewer",
+  resolved: "Result to check",
+  accepted: "Accepted",
+  person: "Needs a person: declined",
+  closed: "Closed",
 };
 
 const panel = {
-  open: "Shows open",
-  claimed: "Shows claimed by the agent",
-  stuck: "Shows stuck",
-  done: "Shows done, with the reply",
+  waiting: "Shows waiting",
+  inWork: "Shows in work, with the agent name",
+  needsPerson: "Shows needs a person, counted for a viewer",
+  asking: "Shows the question, counted for a viewer",
+  resolved: "Shows the result, counted for a viewer",
+  accepted: "Shows accepted, in the Done group",
+  person: "Shows needs a person, with the reason, counted for a viewer",
+  closed: "Shows closed, in the Done group",
 };
 
 // While the socket is down the panel may be behind; one label covers what it shows then.
 const panelNow = (v) =>
   v.conn === "up"
-    ? panel[shows(v.tStatus, v.tUntil, v.tClaims, v.expired)]
+    ? panel[shows(v.tStatus, v.tUntil, v.tTries, v.expired)]
     : "Status Reconnecting (may be behind)";
 
 export const state = (v) => ({
-  Comment: comment[shows(v.status, v.until, v.claims, v.expired)],
+  Request: request[shows(v.status, v.until, v.tries, v.expired)],
   Panel: panelNow(v),
+  Mark: v.seen ? "No mark" : "Marked changed",
 });
+
+const outcomes = {
+  resolved: "the agent resolves it",
+  asking: "the agent asks a question",
+  person: "the agent declines it",
+};
 
 const steps = {
   AgentClaims: () => "an agent claims it (easel next)",
   // No write: the server's time and the tab's clock capsule pass claimedUntil.
-  TheLeaseRunsOut: (from, to) =>
-    to.claims >= 2 ? "its last lease runs out" : "the lease runs out",
-  AgentResolves: () => "the agent resolves it",
-  AgentReleases: () => "the agent gives it back",
+  TheLeaseRunsOut: () => "the lease runs out",
+  AgentReleases: () => "the agent releases it",
+  Outcome: (from, to) => outcomes[to.status],
+  AViewerEdits: () => "a viewer edits it",
+  AViewerAnswers: () => "a viewer answers",
+  AViewerAccepts: () => "a viewer accepts the result",
+  AViewerReopens: () => "a viewer opens it again",
+  AViewerCloses: () => "a viewer closes it",
+  YouOpenIt: () => "you open it",
   TheSocketDrops: () => "the socket drops",
   TheSocketReconnects: () => "the socket is back, the board is read",
 };
 
-export const step = (action, from, to) => steps[action](from, to);
+export const step = (action, from, to) => steps[action.replace(/\(.*$/, "")](from, to);

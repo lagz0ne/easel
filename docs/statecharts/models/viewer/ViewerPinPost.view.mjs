@@ -2,4 +2,4 @@
 // under this chart's own title.
 export { state, group, colors, step } from "./ViewerPin.view.mjs";
 
-export const title = "Viewer: post a comment while the socket drops or the server refuses it";
+export const title = "Viewer: send a request while the socket drops or the server refuses it";
