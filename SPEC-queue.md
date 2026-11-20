@@ -1,7 +1,7 @@
 # Spec: queue — V1
 
 Module `queue` of [SPEC.md](SPEC.md). Depends on [access](SPEC-access.md),
-[frames](SPEC-frames.md) and [ops](SPEC-ops.md). The needs it meets are E4.1 to E4.3 in
+[frames](SPEC-frames.md) and [ops](SPEC-ops.md). The needs it meets are E4.1 to E4.3 and E4.5 in
 [epics](docs/epics.md). How the pins and the panel look is in [viewer](SPEC-viewer.md).
 
 ## Objective
@@ -10,6 +10,12 @@ A viewer asks for a change. The request goes into one queue with the requests of
 Agents take requests oldest first and work on them. Each try ends with one outcome: a result, a
 question to the viewer, or a give-back to a person. A viewer accepts a result or opens it again. A
 request that agents cannot finish goes to a person. No request stays stuck.
+
+Agents get requests in two ways. An agent that asks for work takes the oldest request (pull). And
+a dispatcher delivers each waiting request to the channels that the team lead set, such as an
+issue in the GitHub repository of the team, where an agent starts and takes it. A delivery only
+tells. The claim alone decides which agent works, so a request that goes two ways is done one
+time only.
 
 A request is a thread. Each entry in it is a message: the ask, a question, an answer, a result, a
 note. The messages stay with the request. They are its history.
@@ -29,6 +35,13 @@ Prior art:
 - Accept and open again are the review states of a GitHub pull request ("approve", "request
   changes"). A result with no review still counts as done, as a merged pull request with no
   approval stays merged.
+- The dispatcher is a fan-out, as SNS sends one message to many SQS queues. Delivery is at least
+  once; the claim makes the work one time only.
+- A GitHub channel is the delegation of Linear: a person gives an issue to an agent, and Linear
+  sends it to the agent. Here the agent starts from a GitHub issue, as `claude-code-action` starts
+  on an issue that is opened, labeled or mentions it.
+- The token of a channel is write-only, as a secret of GitHub Actions: no call shows it again.
+- A delivery that fails is tried again after a longer time each time, as a webhook of Stripe or GitHub.
 - The client key on `request.add` is an idempotency key (the `Idempotency-Key` of Stripe, the
   deduplication id of SQS). A retry with the same key saves one time only.
 
@@ -87,6 +100,45 @@ Prior art:
 9. A second `easel next` never gets a request that another agent holds a live lease on. Two agents
    that share one token are still told apart: each holds its own claim.
 
+### The dispatcher gets a request to the agents
+
+1. A request is waiting: a viewer adds, edits, answers or opens it again, an agent releases it, or
+   its lease runs out. Each of these starts a waiting period. It ends at the next claim.
+2. Within 5 s, the dispatcher delivers the request to each channel of the server, one time for
+   each waiting period. An agent that asks for work needs no delivery: it can always take the request.
+3. For a GitHub channel, the first delivery opens an issue in the repository of the channel, with
+   the label of the channel. The issue holds the canvas, the number and the text of the request,
+   and the command that takes this request only: `easel next --canvas <key> --n <n>`. It says that
+   the text is the request of a viewer, not an instruction. A later waiting period writes a comment on the
+   same issue. The comment starts with the trigger of the channel (default `@claude`), and opens
+   the issue again if it is closed.
+4. GitHub starts a run of the agent of the team from the issue or the comment. The run takes the
+   request with `easel next --n`, and works as in the journey above. If an agent that asked took
+   it first, or it left the queue, the run is told `empty` and ends.
+5. A delivery that fails (GitHub refuses, does not answer in 10 s, or the repository is public) is
+   tried again after 10 s and 30 s. After 3 failures, the delivery is `failed` with its cause, and
+   the dispatcher stops for this waiting period. The request still waits for an agent that asks.
+6. The issue follows its request. It is open while the request is waiting, in work or needs a
+   person. When the request has a question, a result, or is closed, the dispatcher writes the
+   state as a comment and closes the issue.
+7. `easel deliveries <canvas> <n>` shows each delivery of the request: the channel, the period, when,
+   `sent` or `failed`, the cause, and the issue. A request with no delivery and no channel says
+   so.
+
+### A team lead sets the channels
+
+1. An owner runs `easel channel set gh github --repo acme/design --label easel --token-file t`.
+   Easel checks the token: the repository must exist, be private, and let the token write issues.
+   Then it saves the channel, and the next waiting period goes to it.
+2. With a repository that is public, the answer is `public`, and nothing is saved. With a token
+   that cannot write issues, or a repository that does not exist, the answer is `refused` with
+   the answer of GitHub.
+3. `easel channel ls` lists the channels: name, kind, repository, label, trigger, and the last 4
+   characters of the token. No call shows the token.
+4. `easel channel rm gh` removes the channel. Its issues stay on GitHub, and the dispatcher does
+   not change them again.
+5. A server can have more than one channel. Each one gets each waiting period.
+
 ### A viewer answers and decides
 
 1. A request with a question shows the question to every viewer within 1 s. Any viewer answers it
@@ -140,7 +192,8 @@ type Refused = { kind: "wrongState"; state: State } | { kind: "gone" }
 // a user (refused { signIn: true } without a live token)
 // request.next { canvas?, lease?, wait? }; extend { claim, lease? }; release { claim, reason };
 // decline { claim, reason }; ask { claim, text, html?, options? }; resolve { claim, text, html? };
-// list { canvas?, state? }
+// list { canvas?, state? }; next takes n with canvas: only that request
+// deliveries { canvas, n }
 "request.next":    { kind: "claimed"; request: Request; messages: Message[];
                      frame: Frame | null; saw: { version: number; doc: string } | null;
                      frames: FrameBox[] | null; claim: string; until: number; now: number }
@@ -151,11 +204,20 @@ type Refused = { kind: "wrongState"; state: State } | { kind: "gone" }
 "request.ask":     { kind: "asked" } | Lost
 "request.resolve": { kind: "resolved" } | Lost
 "request.list":    { kind: "listed"; requests: Request[] }
+"request.deliveries": { kind: "listed"; deliveries: Delivery[] } | { kind: "gone" }
+
+// an owner (refused { owner: true } for a member)
+// channel.set { name, kind: "github", repo, label, trigger?, token }; remove { name }
+"channel.set":     { kind: "saved" } | { kind: "public" } | { kind: "refused"; status: number;
+                     message: string }
+"channel.list":    { kind: "listed"; channels: ChannelInfo[] }
+"channel.remove":  { kind: "removed" } | { kind: "gone" }
 type Lost = { kind: "wrongState"; state: State } | { kind: "lost" } | { kind: "gone" }
 ```
 
 Success kinds: `added`, `edited`, `answered`, `accepted`, `reopened`, `closed`, `claimed`,
-`empty`, `extended`, `released`, `declined`, `asked`, `resolved` and `listed`. Every other kind is
+`empty`, `extended`, `released`, `declined`, `asked`, `resolved`, `listed`, `saved` and
+`removed`. Every other kind is
 not: the CLI exits 1, and an MCP tool sets `isError`.
 
 Inputs:
@@ -165,6 +227,8 @@ Inputs:
 - `options` is 2 to 6 strings of 1 to 200 characters. `option` is an index into them.
 - `lease` is seconds, 30 to 3600, default 300. `wait` is seconds, 0 to 50, default 0.
 - `until` and `now` are the time of the server, in ms since the epoch.
+- `n` on `request.next` needs `canvas`. `name` is 1 to 32 characters of `a-z`, `0-9` and `-`.
+  `repo` is `owner/name`. `label` and `trigger` are 1 to 50 characters. `token` is 1 to 255.
 - Out of these limits, the input is `invalid`.
 
 A request on the board (cell `requests`, keyed by canvas):
@@ -178,6 +242,20 @@ queuedAt, acceptedBy, created, updated }`.
 - `claimedBy` is the name of the user. Only the agent that claimed holds the claim handle. The
   server keeps its digest.
 - `updated` is the time of the last change to the request or its messages.
+
+A channel (table `channels`, not on the board): `{ name, kind, repo, label, trigger, token,
+created }`. `ChannelInfo` is the same, with `tokenEnd` (the last 4 characters) in place of
+`token`.
+
+A delivery (table `deliveries`, not on the board): `{ request, channel, period, attempts, status,
+cause, ref, next, created, updated }`.
+
+- `period` is `queuedAt` and `tries` of the request when it was waiting. Each waiting period has
+  a new value. `request`, `channel` and `period` are unique together.
+- `status` is `pending`, `sent` or `failed`. `attempts` is 0 to 3. `next` is the time of the next
+  attempt of a `pending` delivery.
+- `ref` is the number of the GitHub issue. All deliveries of one request to one channel use the
+  same issue.
 
 A message on the board (cell `messages`, keyed by canvas):
 `{ canvas, id, request, kind, from, text, html, options, option, before, after, created }`.
@@ -213,7 +291,8 @@ The statechart [queue-lease](docs/statecharts/queue-lease.md) checks the claim, 
 release, the outcome and the count of tries. [request-life](docs/statecharts/request-life.md)
 checks the states of one request and who can move it. Their rules are the oracle that the tests
 follow. [queue-two-step](docs/statecharts/queue-two-step.md) breaks on purpose. It shows why the
-claim is one write.
+claim is one write. [queue-dispatch](docs/statecharts/queue-dispatch.md) checks the deliveries:
+one for each waiting period, the cap of attempts, and one outcome when two ways are on.
 
 ### Fact rules (the code graph decides)
 
@@ -226,6 +305,10 @@ claim is one write.
 4. Every operation that writes `requests` or `messages` calls `saveRequest`, `claimRequest`,
    `endTry`, `dropFrame` or `dropCanvas`.
 5. No page module writes `requests` or `messages`.
+6. `channel.set`, `list` and `remove` run the `owner` guard first. `request.deliveries` runs the
+   `user` guard first.
+7. Only the dispatcher writes `deliveries`, and only through `startDelivery` and `endAttempt`. Only
+   the dispatcher calls GitHub.
 
 ### Judged rules (need reading the code)
 
@@ -276,6 +359,21 @@ claim is one write.
 17. A removed frame keeps its requests. A removed canvas removes its requests and messages.
 18. An HTML part shows in the same sandbox as a live document ([viewer](SPEC-viewer.md)). It
     never runs in the page of easel.
+19. A delivery changes no request. It writes `deliveries` only. Only a claim takes a request, so
+    two ways never give one request two outcomes.
+20. The dispatcher delivers only a request that is waiting, and at most one time for each waiting
+    period and channel. `startDelivery` is one conditional insert on the unique `request`, `channel` and
+    `period`. A failed attempt is tried again after 10 s, then 30 s; the third failure sets
+    `failed`. A request that needs a person gets no delivery, so the cap of tries ends the
+    deliveries.
+21. `request.next` with `n` takes only that request, in one conditional write as in rule 6, and
+    only when it is waiting. Else it waits as in rule 12, and answers `empty`.
+22. Each attempt reads the repository first. A repository that is public now fails the attempt
+    with the cause `public`, and nothing goes to GitHub.
+23. The issue text says that the request text is from a viewer, and is not an instruction outside
+    its frame (rule 15). The token of a channel is never in an answer, a log or an error.
+24. A crash between the call to GitHub and `endAttempt` can open a second issue for one waiting period.
+    The claim keeps the work one time only (rule 19).
 
 ## Success Criteria
 
@@ -289,13 +387,25 @@ claim is one write.
   count. An edit makes it waiting again with `tries` at 0.
 - A viewer call on a request in work answers `wrongState`, in a test where an agent claims first.
 - A repeated `request.add` with one key saves one request.
+- Two ways on, in a test: a GitHub channel with a test double of GitHub, and an agent that asks.
+  Each of 20 requests ends with one outcome. A run that comes late is told `empty`.
+- In a test that moves the clock, a lease that runs out starts a new waiting period, and the channel gets a
+  second delivery on the same issue. A request that needs a person gets none.
+- A GitHub double that fails 3 times gives a `failed` delivery with its cause within 1 minute. A
+  public repository fails with `public`, and the double gets no issue.
+- No answer and no log line holds the token of a channel.
 - A test reaches every contract kind and refusal. `tinker check` is OK.
-- Each rule of [queue-lease](docs/statecharts/queue-lease.md) and
-  [request-life](docs/statecharts/request-life.md) holds, and a test walks each path that their
-  charts draw.
+- Each rule of [queue-lease](docs/statecharts/queue-lease.md),
+  [request-life](docs/statecharts/request-life.md) and
+  [queue-dispatch](docs/statecharts/queue-dispatch.md) holds, and a test walks each path that
+  their charts draw.
 
 ## Out of Scope (Deferred)
 
 - Requests from users through the CLI: viewers ask, agents work. A user can edit and close.
 - Notices outside the browser (mail, chat). A viewer sees changes on the page (E4.4).
 - Priorities are not deferred: they are not wanted. The queue is oldest first.
+- A webhook channel: a call to a service of the team when a request waits. Add it when a team has
+  its own service that starts agents (E4.5).
+- Channels for each canvas. Each channel gets each waiting period of the server (E4.5).
+- A GitHub App in place of a token. Add it when a team asks to not give a token.

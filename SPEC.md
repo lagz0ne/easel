@@ -26,17 +26,17 @@ result.
 
 ## Capability map
 
-| Module id | Responsibility                                                                                       | Depends on                    |
-| --------- | ---------------------------------------------------------------------------------------------------- | ----------------------------- |
-| access    | Users, login codes, owner approval, tokens, the `user` and `owner` guards                            | none                          |
-| cli       | The `easel` shell, built with access: serve, hosts file, rpc client, `--json`, the exit table        | access                        |
-| ops       | Errors grouped for agents, issues (list, resolve, regressed), status, readiness, build, backups      | access                        |
-| frames    | Canvases and frames: documents, versions, boxes, pictures; share links, passwords, passes, `mayRead` | access, ops                   |
-| queue     | Requests: a viewer asks; agents claim (lease) and end each try with an outcome; viewers decide       | access, frames, ops           |
-| mcp       | The same calls as MCP tools: `/mcp` over HTTP, `easel mcp` on stdio                                  | access, frames, queue, ops    |
-| design    | easel's own design system: tokens, type, the few controls the page uses                              | none                          |
-| viewer    | The browser page: shells, live frames, pan and zoom, pins, the requests panel                        | access, frames, queue, design |
-| fixer     | An agent that fixes production errors: claims a group, opens one issue, ships a fix, proves it       | access, ops, cli              |
+| Module id | Responsibility                                                                                                    | Depends on                    |
+| --------- | ----------------------------------------------------------------------------------------------------------------- | ----------------------------- |
+| access    | Users, login codes, owner approval, tokens, the `user` and `owner` guards                                         | none                          |
+| cli       | The `easel` shell, built with access: serve, hosts file, rpc client, `--json`, the exit table                     | access                        |
+| ops       | Errors grouped for agents, issues (list, resolve, regressed), status, readiness, build, backups                   | access                        |
+| frames    | Canvases and frames: documents, versions, boxes, pictures; share links, passwords, passes, `mayRead`              | access, ops                   |
+| queue     | Requests: a viewer asks; a dispatcher delivers to channels; agents claim (lease) and end each try; viewers decide | access, frames, ops           |
+| mcp       | The same calls as MCP tools: `/mcp` over HTTP, `easel mcp` on stdio                                               | access, frames, queue, ops    |
+| design    | easel's own design system: tokens, type, the few controls the page uses                                           | none                          |
+| viewer    | The browser page: shells, live frames, pan and zoom, pins, the requests panel                                     | access, frames, queue, design |
+| fixer     | An agent that fixes production errors: claims a group, opens one issue, ships a fix, proves it                    | access, ops, cli              |
 
 The "Depends on" column is the one source of each module's dependencies. Each module spec's
 header copies it, and changes with it in the same ship.

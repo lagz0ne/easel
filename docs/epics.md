@@ -93,13 +93,13 @@ for each team.
 
 ## E4: Comment and get a change
 
-| ID   | Journey                             | Actor     | Design                                                                                       | Review |
-| ---- | ----------------------------------- | --------- | -------------------------------------------------------------------------------------------- | ------ |
-| E4.1 | Ask for a change                    | viewer    | [queue](../SPEC-queue.md#a-viewer-adds-a-comment), [viewer](../SPEC-viewer.md#pin-a-comment) | ready  |
-| E4.2 | Do the change and reply             | agent     | [queue](../SPEC-queue.md#an-agent-works-the-queue)                                           | ready  |
-| E4.3 | A request no agent finishes         | agent     | [queue](../SPEC-queue.md#a-comment-no-agent-finishes)                                        | ready  |
-| E4.4 | Follow the requests                 | viewer    | [viewer](../SPEC-viewer.md#follow-the-queue)                                                 | ready  |
-| E4.5 | Work reaches the agents of the team | team lead | [queue](../SPEC-queue.md#an-agent-works-the-queue); the ways: to do                          | to do  |
+| ID   | Journey                             | Actor     | Design                                                                                                                         | Review |
+| ---- | ----------------------------------- | --------- | ------------------------------------------------------------------------------------------------------------------------------ | ------ |
+| E4.1 | Ask for a change                    | viewer    | [queue](../SPEC-queue.md#a-viewer-adds-a-comment), [viewer](../SPEC-viewer.md#pin-a-comment)                                   | ready  |
+| E4.2 | Do the change and reply             | agent     | [queue](../SPEC-queue.md#an-agent-works-the-queue)                                                                             | ready  |
+| E4.3 | A request no agent finishes         | agent     | [queue](../SPEC-queue.md#a-comment-no-agent-finishes)                                                                          | ready  |
+| E4.4 | Follow the requests                 | viewer    | [viewer](../SPEC-viewer.md#follow-the-queue)                                                                                   | ready  |
+| E4.5 | Work reaches the agents of the team | team lead | [queue](../SPEC-queue.md#the-dispatcher-gets-a-request-to-the-agents), [queue](../SPEC-queue.md#a-team-lead-sets-the-channels) | to do  |
 
 The design of each state that a viewer sees is on the Doop canvas
 [easel — design](https://doop.vibea.dev/c/zPdfXgdRrQ): one sheet for each journey (E4.1 to
@@ -296,6 +296,9 @@ Decided:
 | D6, D7 | Agents get work only when they ask. There is no other way, and no choice. | SPEC-queue |
 | D9     | Nothing records how a request got to an agent.                            | SPEC-queue |
 | D10    | Easel does not put requests on GitHub.                                    | SPEC-queue |
+
+SPEC-queue closes D6, D7, D9 and D10 with the dispatcher and the channels, and the statechart
+[queue-dispatch](statecharts/queue-dispatch.md) (2026-11-20).
 
 ### E4 walk of the slice
 

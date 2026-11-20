@@ -27,30 +27,31 @@ Each chart's page has the chart, its rules in plain words, and what the model le
 
 ## Charts
 
-| Chart                                               | Module | What it shows                                                                             |
-| --------------------------------------------------- | ------ | ----------------------------------------------------------------------------------------- |
-| [access-login](access-login.md)                     | access | Logging in: the setup code, a login code, approve, deny, revoke                           |
-| [frames-writes](frames-writes.md)                   | frames | Two writers on one frame: the first write on a version wins, the other gets `stale`       |
-| [frames-writes-two-step](frames-writes-two-step.md) | frames | Why a save is one write: a check then a write saves on an old version                     |
-| [frames-pictures](frames-pictures.md)               | frames | A frame's picture: rendered, current, old, and gone with its frame                        |
-| [frames-share](frames-share.md)                     | frames | A share link: shared, password set or changed, passes, unshared                           |
-| [frames-share-open](frames-share-open.md)           | frames | The first slice: a share link with no password, that nothing ends yet                     |
-| [queue-lease](queue-lease.md)                       | queue  | A request in the queue: waiting, in work, released, an outcome, needs a person            |
-| [queue-two-step](queue-two-step.md)                 | queue  | Why a claim is one write: a find then a write gives one request to two agents             |
-| [request-life](request-life.md)                     | queue  | One request: question, result, accept, open again, edit, close, needs a person            |
-| [ops-issues](ops-issues.md)                         | ops    | An error group: open, resolved, regressed, evicted                                        |
-| [ops-issues-person](ops-issues-person.md)           | ops    | An error group that an owner resolves or hands off by hand, with no claim                 |
-| [fixer-claim-issue](fixer-claim-issue.md)           | fixer  | A fixer claims a group and opens one issue for it                                         |
-| [fixer-claim-fix](fixer-claim-fix.md)               | fixer  | A fixer ships a fix, notes it, and gives up after two                                     |
-| [fixer-probe](fixer-probe.md)                       | fixer  | The probe: it sees whether the fixer still ticks                                          |
-| [fixer-claim-unsafe](fixer-claim-unsafe.md)         | fixer  | Why the fixer needs a guard: with neither, an orphaned `ship.sh` pushes without the claim |
-| [viewer-gate](viewer-gate.md)                       | viewer | Opening a link: the password, the pass, an ended link                                     |
-| [viewer-gate-open](viewer-gate-open.md)             | viewer | The first slice: the name gate, a link with no password, an unknown link                  |
-| [viewer-gate-password](viewer-gate-password.md)     | viewer | The shipped gate: passwords, the wait, unshare; the canvas with no requests yet           |
-| [viewer-canvas](viewer-canvas.md)                   | viewer | The canvas: live frames, pan and zoom, reconnecting                                       |
-| [viewer-pin-post](viewer-pin-post.md)               | viewer | Sending a request: typed, sent, saved, or a fault                                         |
-| [viewer-pin-link](viewer-pin-link.md)               | viewer | A request when its link ends or its frame goes: the typed text stays                      |
-| [viewer-queue](viewer-queue.md)                     | viewer | The Requests panel: each state, the count for a viewer, the Changed mark                  |
+| Chart                                               | Module | What it shows                                                                              |
+| --------------------------------------------------- | ------ | ------------------------------------------------------------------------------------------ |
+| [access-login](access-login.md)                     | access | Logging in: the setup code, a login code, approve, deny, revoke                            |
+| [frames-writes](frames-writes.md)                   | frames | Two writers on one frame: the first write on a version wins, the other gets `stale`        |
+| [frames-writes-two-step](frames-writes-two-step.md) | frames | Why a save is one write: a check then a write saves on an old version                      |
+| [frames-pictures](frames-pictures.md)               | frames | A frame's picture: rendered, current, old, and gone with its frame                         |
+| [frames-share](frames-share.md)                     | frames | A share link: shared, password set or changed, passes, unshared                            |
+| [frames-share-open](frames-share-open.md)           | frames | The first slice: a share link with no password, that nothing ends yet                      |
+| [queue-lease](queue-lease.md)                       | queue  | A request in the queue: waiting, in work, released, an outcome, needs a person             |
+| [queue-two-step](queue-two-step.md)                 | queue  | Why a claim is one write: a find then a write gives one request to two agents              |
+| [request-life](request-life.md)                     | queue  | One request: question, result, accept, open again, edit, close, needs a person             |
+| [queue-dispatch](queue-dispatch.md)                 | queue  | The dispatcher: one delivery for each waiting period, GitHub and pull both on, one outcome |
+| [ops-issues](ops-issues.md)                         | ops    | An error group: open, resolved, regressed, evicted                                         |
+| [ops-issues-person](ops-issues-person.md)           | ops    | An error group that an owner resolves or hands off by hand, with no claim                  |
+| [fixer-claim-issue](fixer-claim-issue.md)           | fixer  | A fixer claims a group and opens one issue for it                                          |
+| [fixer-claim-fix](fixer-claim-fix.md)               | fixer  | A fixer ships a fix, notes it, and gives up after two                                      |
+| [fixer-probe](fixer-probe.md)                       | fixer  | The probe: it sees whether the fixer still ticks                                           |
+| [fixer-claim-unsafe](fixer-claim-unsafe.md)         | fixer  | Why the fixer needs a guard: with neither, an orphaned `ship.sh` pushes without the claim  |
+| [viewer-gate](viewer-gate.md)                       | viewer | Opening a link: the password, the pass, an ended link                                      |
+| [viewer-gate-open](viewer-gate-open.md)             | viewer | The first slice: the name gate, a link with no password, an unknown link                   |
+| [viewer-gate-password](viewer-gate-password.md)     | viewer | The shipped gate: passwords, the wait, unshare; the canvas with no requests yet            |
+| [viewer-canvas](viewer-canvas.md)                   | viewer | The canvas: live frames, pan and zoom, reconnecting                                        |
+| [viewer-pin-post](viewer-pin-post.md)               | viewer | Sending a request: typed, sent, saved, or a fault                                          |
+| [viewer-pin-link](viewer-pin-link.md)               | viewer | A request when its link ends or its frame goes: the typed text stays                       |
+| [viewer-queue](viewer-queue.md)                     | viewer | The Requests panel: each state, the count for a viewer, the Changed mark                   |
 
 `queue-two-step`, `frames-writes-two-step` and `fixer-claim-unsafe` break on purpose. Each shows
 the bug that a design prevents: one write for a claim or a save, and the fixer's two guards (the
@@ -61,8 +62,8 @@ process-group stop and the check again before the push). Its row in `charts.tsv`
 - `<chart>.md`: the chart's page.
 - `models/<module>/`: each model's `<Name>.tla`, its configs (`<Name>.cfg`, or one per chart, such
   as `QueueTwoStep.cfg`) and its view module, the words on the chart. A view module's name varies:
-  `view.mjs` (access, queue), `view-two-step.mjs` (queue-two-step), or `<Name>.view.mjs` (the
-  others). Two charts may share one model and one view, with their own configs.
+  `view.mjs` (access, queue-lease), `view-two-step.mjs` (queue-two-step), or `<Name>.view.mjs`
+  (the others). Two charts may share one model and one view, with their own configs.
 - `charts.tsv`: one row per chart: `chart`, `tla`, `cfg`, `view`, `expect` (`holds` or `breaks`).
   Paths are relative to this folder. It is the source of each chart's files: the table above lists
   every row of it, and changes with it in the same ship.

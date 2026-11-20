@@ -22,3 +22,4 @@ frames-share-open	models/frames/Share.tla	models/frames/ShareOpen.cfg	models/fra
 viewer-gate-open	models/viewer/ViewerGate.tla	models/viewer/ViewerGateOpen.cfg	models/viewer/ViewerGate.view.mjs	holds
 viewer-gate-password	models/viewer/ViewerGate.tla	models/viewer/ViewerGatePassword.cfg	models/viewer/ViewerGate.view.mjs	holds
 request-life	models/request/Request.tla	models/request/Request.cfg	models/request/Request.view.mjs	holds
+queue-dispatch	models/queue/Dispatch.tla	models/queue/Dispatch.cfg	models/queue/Dispatch.view.mjs	holds
