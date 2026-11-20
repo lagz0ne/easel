@@ -141,3 +141,11 @@ Date: 2026-11-20. Status: accepted; on the canvas.
     top edge of the picture, not on a row of
     its own, as the preview switches in Figma
     and Vercel do.
+  - A request thread opens next to its pin,
+    and it does not cover the part that the
+    request is about. The list stays open in
+    the sidebar. This is how comment threads
+    open in Figma and Liveblocks. The user
+    picked it (Variation A). The other
+    variation opened the thread in the
+    sidebar, in place of the list.
