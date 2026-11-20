@@ -14,17 +14,17 @@ it with the skill `writing-requirements`.
 ## Story map
 
 The main story is E1, E2, E3, then E4. E5 gives the same actions through MCP. E6 and E7 keep the
-server healthy. Round 1 (below) holds E1, E2, E3, E4 and E6. E5 and E7 are deferred.
+easel of each team healthy. Round 1 (below) holds E1, E2, E3, E4 and E6. E5 and E7 are deferred.
 
-| ID  | Epic                      | Outcome                                                        | Actors             | Journeys                                                                                                                              | Status                     | Review |
-| --- | ------------------------- | -------------------------------------------------------------- | ------------------ | ------------------------------------------------------------------------------------------------------------------------------------- | -------------------------- | ------ |
-| E1  | Get in                    | A person or an agent gets a token when an owner approves it.   | owner, agent       | [access](../SPEC-access.md#journeys), [cli](../SPEC-cli.md#journeys)                                                                  | Built                      | to do  |
-| E2  | Make frames               | An agent puts HTML frames on a canvas and changes them safely. | agent              | [frames](../SPEC-frames.md#make-a-canvas): make a canvas, make and change frames                                                      | Built, except `frame.move` | to do  |
-| E3  | Share and look            | A person opens a link and sees the frames change at once.      | agent, viewer      | [frames](../SPEC-frames.md#share-a-canvas): share, open; [viewer](../SPEC-viewer.md#journeys) 7; [design](../SPEC-design.md#journeys) | Built                      | to do  |
-| E4  | Comment and get a change  | A viewer asks for a change. An agent makes it and replies.     | viewer, agent      | [queue](../SPEC-queue.md#journeys) 3; [viewer](../SPEC-viewer.md#pin-a-comment): pin a comment, follow the queue                      | Not built                  | active |
-| E5  | Work through MCP          | An agent with no shell does all of E2, E3 and E4.              | agent              | [mcp](../SPEC-mcp.md#journeys) 3                                                                                                      | Not built                  | active |
-| E6  | Watch production          | An owner and an agent see errors, health and backups.          | owner, server      | [ops](../SPEC-ops.md#journeys) 5                                                                                                      | Built, except backups      | to do  |
-| E7  | Fix errors with no person | An agent fixes a production error and proves the fix.          | fixer, tick, probe | [fixer](../SPEC-fixer.md#journeys) 5                                                                                                  | Not built                  | to do  |
+| ID  | Epic                      | Outcome                                                               | Actors                  | Journeys                                                                                                                              | Status                     | Review |
+| --- | ------------------------- | --------------------------------------------------------------------- | ----------------------- | ------------------------------------------------------------------------------------------------------------------------------------- | -------------------------- | ------ |
+| E1  | Get in                    | A person or an agent gets a token when an owner approves it.          | team lead, owner, agent | [access](../SPEC-access.md#journeys), [cli](../SPEC-cli.md#journeys)                                                                  | Built                      | ready  |
+| E2  | Make frames               | An agent puts HTML frames on a canvas and changes them safely.        | agent                   | [frames](../SPEC-frames.md#make-a-canvas): make a canvas, make and change frames                                                      | Built, except `frame.move` | ready  |
+| E3  | Share and look            | A person opens a link and sees the frames change at once.             | agent, viewer           | [frames](../SPEC-frames.md#share-a-canvas): share, open; [viewer](../SPEC-viewer.md#journeys) 7; [design](../SPEC-design.md#journeys) | Built                      | ready  |
+| E4  | Comment and get a change  | A viewer asks for a change. An agent makes it and replies.            | viewer, agent           | [queue](../SPEC-queue.md#journeys) 3; [viewer](../SPEC-viewer.md#pin-a-comment): pin a comment, follow the queue                      | Not built                  | active |
+| E5  | Work through MCP          | An agent with no shell does all of E2, E3 and E4.                     | agent                   | [mcp](../SPEC-mcp.md#journeys) 3                                                                                                      | Not built                  | active |
+| E6  | Watch production          | The company sees the health, the errors and the copies of each easel. | company                 | [ops](../SPEC-ops.md#journeys) 5                                                                                                      | Built, except backups      | ready  |
+| E7  | Fix errors with no person | An agent fixes a production error and proves the fix.                 | fixer, tick, probe      | [fixer](../SPEC-fixer.md#journeys) 5                                                                                                  | Not built                  | to do  |
 
 ## Round 1: Get started
 
@@ -76,11 +76,27 @@ Decided:
 - Deferred: one server for many teams. Add it when the cost of one easel for each team is too high.
 - Deferred: an export of the work of a team. Add it when a team asks to leave with its work.
 
+To make the round ready:" list:
+
 To make the round ready:
 
-- E1, E2, E3 and E6 have the review "to do". Do steps 3 and 4 for their journeys.
-- E4.1 to E4.4 have no "Failure end" line, so they are not ready. Add the line to each.
-- E4.5 is new: SPEC-queue must close its design gaps.
+- Each journey of E1 to E4 and E6 has its five lines and no open question (2026-11-20).
+- Close the design gaps below, and those of E1 (A8) and E6.
+
+#### Design changes that Round 1 needs
+
+| Req. | Gap in the design now                                                            | Spec or file          |
+| ---- | -------------------------------------------------------------------------------- | --------------------- |
+| R2   | A team cannot get the easel command line. Only a build from the source makes it. | SPEC-cli              |
+| R2   | There are no written start steps.                                                | docs/start.md         |
+| R5   | The copy off the host is the fixer's (E7, deferred), one time a day (H10).       | SPEC-ops              |
+| R7   | There are no terms and no privacy text.                                          | docs/legal            |
+| R8   | Nothing deletes an easel with its copies (H14).                                  | SPEC-ops, the runbook |
+
+The specs close R2 (`c79d841`: the install script; `6a5a0ec`: [the start steps](start.md)), R5 and
+R8 (`8d452f6`). R7 has a draft ([terms](legal/terms.md), [privacy](legal/privacy.md), `6a5a0ec`):
+the company fills its blanks, and a lawyer checks it. The delete of an easel itself goes in the
+runbook, with H4 and H13.
 
 ### Round 1 walk of the slice
 
@@ -91,6 +107,166 @@ for each team, watch it, keep backups, update it, answer, send the invoice, lear
 added R1 to R9. It found that each user of a server sees each canvas, so the company runs one easel
 for each team.
 
+## E1: Get in
+
+| ID   | Journey                     | Actor     | Design                                                                           | Review |
+| ---- | --------------------------- | --------- | -------------------------------------------------------------------------------- | ------ |
+| E1.1 | Take charge of a new easel  | team lead | [access](../SPEC-access.md#become-the-first-owner)                               | ready  |
+| E1.2 | Let an agent or a person in | agent     | [access](../SPEC-access.md#join-a-server), [cli](../SPEC-cli.md#sign-in-and-out) | ready  |
+| E1.3 | Stop the access of a user   | owner     | [access](../SPEC-access.md#revoke-a-user), [access](../SPEC-access.md#sign-out)  | ready  |
+
+### E1.1 Take charge of a new easel
+
+- **Actor:** team lead.
+- **Need:** become the first owner of the new easel of the team, so that no other person can.
+- **Trigger:** the team lead gets the address of the easel and its setup code from the company
+  (R1).
+- **Success end:** the team lead is an owner, and can let the agents and the people of the team in.
+- **Failure end:** the code was used, or is old. Nothing changes on the easel. The team lead gets a
+  new code from the company (R4).
+
+| ID  | Requirement                                                  | Fit criterion                                                                   |
+| --- | ------------------------------------------------------------ | ------------------------------------------------------------------------------- |
+| A1  | Only the person with the setup code becomes the first owner. | The code works one time. A second use is refused, and changes nothing.          |
+| A2  | A team lead whose code does not work can still take charge.  | The company gives a new code within 1 working day, and the easel loses no work. |
+
+### E1.2 Let an agent or a person in
+
+- **Actor:** agent, or a person of the team who uses the command line. An owner decides.
+- **Need:** get access to the easel of the team, but only when an owner agrees.
+- **Trigger:** the agent asks for access with a name.
+- **Success end:** the agent has access with its name, and keeps it from one run to the next.
+- **Failure end:** the owner says no, or no owner answers in time. The agent has no access, knows
+  why, and can ask again.
+
+| ID  | Requirement                                                                                            | Fit criterion                                                                                              |
+| --- | ------------------------------------------------------------------------------------------------------ | ---------------------------------------------------------------------------------------------------------- |
+| A3  | The owner knows who asks before agreeing.                                                              | The owner sees the name, when it asked, and a short code that the agent also shows.                        |
+| A4  | The agent need not stay connected while it waits for the owner.                                        | An agent that stops and asks again later has access at once if the owner agreed meanwhile.                 |
+| A5  | A request for access that no owner answers does not stay open.                                         | After 10 minutes, it ends, and the agent is told.                                                          |
+| A6  | Each name is one user of the easel.                                                                    | A name in use is refused at once, and the agent is told to choose another.                                 |
+| A7  | An owner can make another owner.                                                                       | The new owner can let users in and stop them.                                                              |
+| A8  | An agent that starts new on each run, such as a run on GitHub (E4.5), gets in with no owner each time. | The team lead sets it up one time. Each later run has access with no person, until an owner stops it (A9). |
+
+### E1.3 Stop the access of a user
+
+- **Actor:** owner. A user can also stop their own access.
+- **Need:** stop a user or an agent that must not work on the easel any more: it left the team, or
+  its access was lost.
+- **Trigger:** the owner decides, or the user signs out.
+- **Success end:** the user can do nothing on the easel. Its name is free again.
+- **Failure end:** the user is the last owner. Nothing changes, so the easel always has an owner.
+
+| ID  | Requirement                                   | Fit criterion                                                                     |
+| --- | --------------------------------------------- | --------------------------------------------------------------------------------- |
+| A9  | A stopped user can do nothing from that time. | Its next action is refused, and it is told to ask for access again.               |
+| A10 | The easel always has an owner.                | Stopping or signing out the last owner is refused, and nothing changes.           |
+| A11 | A user can sign out.                          | After sign out, the computer of the user keeps no access. The name is free again. |
+
+Decided:
+
+- A viewer needs no access. A viewer uses a share link (E3).
+- There are two roles: owner and user. Deferred: more roles. Add them when a team asks that some
+  users cannot delete a canvas.
+
+#### Design changes that E1 needs
+
+| Req. | Gap in the design now                                                                       | Spec                 |
+| ---- | ------------------------------------------------------------------------------------------- | -------------------- |
+| A8   | The command line reads its access only from its own file. A run on GitHub has no such file. | SPEC-cli, SPEC-queue |
+
+SPEC-cli closes A8 with `login --print-token` and `EASEL_TOKEN` (`c79d841`).
+
+## E2: Make frames
+
+| ID   | Journey                | Actor | Design                                             | Review |
+| ---- | ---------------------- | ----- | -------------------------------------------------- | ------ |
+| E2.1 | Make a canvas          | agent | [frames](../SPEC-frames.md#make-a-canvas)          | ready  |
+| E2.2 | Make and change frames | agent | [frames](../SPEC-frames.md#make-and-change-frames) | ready  |
+
+### E2.1 Make a canvas
+
+- **Actor:** agent.
+- **Need:** a place for the frames of one piece of work, with a name that people know.
+- **Trigger:** the agent starts a new piece of work.
+- **Success end:** the canvas is in the list of the easel, with its name and a short key.
+- **Failure end:** the name is in use, or has no letter or digit. Nothing is made, and the agent
+  knows why.
+
+| ID  | Requirement                                                                | Fit criterion                                                                    |
+| --- | -------------------------------------------------------------------------- | -------------------------------------------------------------------------------- |
+| B1  | The agent names a canvas, and refers to it with a short key from its name. | A person reads the key as the name: "Checkout flow" has the key `checkout-flow`. |
+| B2  | The agent sees all canvases of the easel.                                  | One list shows each canvas with its name, its date, and if it is shared.         |
+| B3  | The agent can delete a canvas with all that it holds.                      | After the delete, the canvas, its frames, its requests and its link are gone.    |
+
+### E2.2 Make and change frames
+
+- **Actor:** agent.
+- **Need:** put HTML pages on a canvas and change them, and lose no change of another agent.
+- **Trigger:** the agent has a page to show, or a change to make.
+- **Success end:** each person who looks sees the new page.
+- **Failure end:** another agent changed the frame first. Nothing is written. The agent gets the
+  newest page, and makes its change on it.
+
+| ID  | Requirement                                                             | Fit criterion                                                                                         |
+| --- | ----------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------- |
+| B4  | The agent adds a frame of a size that it chooses, next to the others.   | A new frame shows next to the other frames, not on them.                                              |
+| B5  | The agent gets the page of a frame, to change it.                       | The agent gets the same page that the people see.                                                     |
+| B6  | A change made on an old page does not remove a newer change.            | When two agents change one frame at the same time, the second is refused and told. No change is lost. |
+| B7  | A page that is the same as the stored page makes no new version.        | The version stays the same.                                                                           |
+| B8  | The agent sees a frame as a person sees it, with no browser of its own. | A picture of the frame looks as it does in a browser, at the scale that the agent asks for.           |
+| B9  | The agent can delete a frame. Its requests stay.                        | After the delete, each request of the frame is still there, marked "may be outdated" (N8).            |
+
+Decided:
+
+- Deferred: moving a frame (Round 1). Add it when a team asks for it.
+
+## E3: Share and look
+
+| ID   | Journey            | Actor  | Design                                                                                                                    | Review |
+| ---- | ------------------ | ------ | ------------------------------------------------------------------------------------------------------------------------- | ------ |
+| E3.1 | Share a canvas     | user   | [frames](../SPEC-frames.md#share-a-canvas)                                                                                | ready  |
+| E3.2 | Look at the frames | viewer | [frames](../SPEC-frames.md#open-a-share-link), [viewer](../SPEC-viewer.md#journeys), [design](../SPEC-design.md#journeys) | ready  |
+
+### E3.1 Share a canvas
+
+- **Actor:** user (an agent or a person of the team).
+- **Need:** show a canvas to people who have no access to the easel, and stop it when necessary.
+- **Trigger:** the work is ready to show.
+- **Success end:** the user has a link. Each person with the link can look, and ask for changes
+  (E4).
+- **Failure end:** the canvas is not there. No link is made, and the user knows why.
+
+| ID  | Requirement                                                    | Fit criterion                                                                      |
+| --- | -------------------------------------------------------------- | ---------------------------------------------------------------------------------- |
+| S1  | A link opens the canvas with no access to the easel.           | A person with the link sees the canvas in a browser, with no sign-in.              |
+| S2  | The user can protect the link with a password.                 | With a password, the link shows nothing of the canvas until the password is given. |
+| S3  | Nobody can find the password by many tries.                    | After 5 wrong tries in 1 minute, the link takes no password for 1 minute.          |
+| S4  | A new password stops at once each person who has the old one.  | Within 1 second, each open tab asks for the new password.                          |
+| S5  | The user can stop the link at once.                            | Within 1 second, each open tab shows that the link has ended, and nothing more.    |
+| S6  | A new link or a new password keeps the requests of the canvas. | After the change, each request is still there.                                     |
+
+### E3.2 Look at the frames
+
+- **Actor:** viewer.
+- **Need:** see the frames as they are now, and see them change, with no reload.
+- **Trigger:** the viewer opens the link.
+- **Success end:** the viewer sees each frame as a browser shows it, and sees each change at once.
+- **Failure end:** the link ended, or is wrong. The viewer sees a page that says so, and nothing of
+  the canvas. If the connection is lost, the viewer sees that the page may be behind. When it is
+  back, the page shows what changed.
+
+| ID  | Requirement                                                                                        | Fit criterion                                                                                                                                                                                      |
+| --- | -------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| S7  | The viewer gives a name one time.                                                                  | The same browser does not ask again.                                                                                                                                                               |
+| S8  | Each frame looks as the page does in a browser.                                                    | The viewer never sees an empty white box where a frame is.                                                                                                                                         |
+| S9  | A change by an agent shows at once.                                                                | Within 1 second, with no reload and no white flash.                                                                                                                                                |
+| S10 | The viewer pans and zooms as in other design tools.                                                | Drag, scroll, pinch, the zoom buttons and "fit" work as in Figma.                                                                                                                                  |
+| S11 | A large canvas stays fast.                                                                         | With 200 frames, pan and zoom do not stop or jump.                                                                                                                                                 |
+| S12 | The viewer knows when the page may be behind.                                                      | A mark shows while the connection is lost. It goes only when the page shows the changes again.                                                                                                     |
+| S13 | A viewer cannot change a frame.                                                                    | The page has no control that changes a frame.                                                                                                                                                      |
+| S14 | Each person can use the page: in a light or dark theme, with only a keyboard, or with less motion. | Each control can be reached with the keyboard, and shows where the focus is. Text has WCAG AA contrast in both themes. A person who asks for less motion sees no movement that they did not start. |
+
 ## E4: Comment and get a change
 
 | ID   | Journey                             | Actor     | Design                                                                                                                         | Review |
@@ -99,7 +275,7 @@ for each team.
 | E4.2 | Do the change and reply             | agent     | [queue](../SPEC-queue.md#an-agent-works-the-queue)                                                                             | ready  |
 | E4.3 | A request no agent finishes         | agent     | [queue](../SPEC-queue.md#a-comment-no-agent-finishes)                                                                          | ready  |
 | E4.4 | Follow the requests                 | viewer    | [viewer](../SPEC-viewer.md#follow-the-queue)                                                                                   | ready  |
-| E4.5 | Work reaches the agents of the team | team lead | [queue](../SPEC-queue.md#the-dispatcher-gets-a-request-to-the-agents), [queue](../SPEC-queue.md#a-team-lead-sets-the-channels) | to do  |
+| E4.5 | Work reaches the agents of the team | team lead | [queue](../SPEC-queue.md#the-dispatcher-gets-a-request-to-the-agents), [queue](../SPEC-queue.md#a-team-lead-sets-the-channels) | ready  |
 
 The design of each state that a viewer sees is on the Doop canvas
 [easel — design](https://doop.vibea.dev/c/zPdfXgdRrQ): one sheet for each journey (E4.1 to
@@ -198,6 +374,8 @@ All rows below are closed in the specs (`224aa9e`, `c02b9e3`, `08a5056`).
   person sees it and decides.
 - **Trigger:** a try on the request ends with no change.
 - **Success end:** a person makes the request clear and sends it back to the agents, or closes it.
+- **Failure end:** no person acts. The request stays with the people, no agent takes it again, and
+  people see it on the canvas (P3) until a person acts.
 
 A retry helps only when the cause is outside the request. The same request usually fails for the
 same reason, so the answer to a failure is a clear outcome, not one more try.
@@ -240,6 +418,8 @@ All rows below are closed in the specs (`224aa9e`, `c02b9e3`, `08a5056`).
   viewer.
 - **Trigger:** the viewer opens the canvas, or comes back to it.
 - **Success end:** the viewer knows the state of each request, and acts on the ones that wait.
+- **Failure end:** the connection is lost. The viewer sees that the states may be behind. When the
+  connection is back, each state is correct again, and the marks of F6 show what changed.
 
 | ID  | Requirement                                                                                                                                                                                                                   | Fit criterion                                                                |
 | --- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------- |
@@ -388,3 +568,87 @@ Decided:
 
 - On 2026-11-20, D1 and D2 moved to E4.5. An agent that asks through MCP is one of the ways of
   E4.5. Easel runs no agent of its own.
+
+## E6: Watch production
+
+In Round 1, the company runs one easel for each team (R1). So the actor of E6 is the company: a
+person of the company, or an agent of the company. The team lead is not an actor here.
+
+| ID   | Journey                    | Actor   | Design                                                                                                    | Review |
+| ---- | -------------------------- | ------- | --------------------------------------------------------------------------------------------------------- | ------ |
+| E6.1 | See that each easel works  | company | [ops](../SPEC-ops.md#an-agent-checks-the-server), [ops](../SPEC-ops.md#a-person-sees-the-state)           | ready  |
+| E6.2 | See the errors of a team   | company | [ops](../SPEC-ops.md#an-error-is-recorded), [ops](../SPEC-ops.md#an-error-group-moves-through-its-states) | ready  |
+| E6.3 | Keep the work of each team | company | [ops](../SPEC-ops.md#the-data-is-safe)                                                                    | ready  |
+
+### E6.1 See that each easel works
+
+- **Actor:** company.
+- **Need:** know that the easel of each team works, before a team says that it does not.
+- **Trigger:** a check at fixed times, or a team asks for help (R4).
+- **Success end:** the company sees, for each easel, that it works, its build, and its errors.
+- **Failure end:** an easel does not answer. A person of the company is told, and starts the
+  written steps for a failure.
+
+| ID  | Requirement                                                          | Fit criterion                                                                                          |
+| --- | -------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------ |
+| H1  | The company sees if an easel can serve, and what fails if it cannot. | One check with no access answers "ready", or names each part that fails.                               |
+| H2  | The company sees the build of each easel.                            | One look shows the build, so the company sees that an update is on each easel (R6).                    |
+| H3  | The company learns of a stopped easel before the team does.          | Within 5 minutes after an easel stops, a person of the company is told, with no team telling it.       |
+| H4  | Each failure has written steps.                                      | For each part that a check names, the steps say what to do. A person of the company did them one time. |
+
+### E6.2 See the errors of a team
+
+- **Actor:** company.
+- **Need:** see each error that a team meets, so that the company fixes it before the team asks
+  for help.
+- **Trigger:** an error occurs on the easel, or in the browser of a viewer.
+- **Success end:** the company sees the error one time for each kind, with how often it occurs and
+  on which build.
+- **Failure end:** too many new kinds of error occur. The easel keeps working, and the company sees
+  how many kinds were not kept.
+
+| ID  | Requirement                                                            | Fit criterion                                                                        |
+| --- | ---------------------------------------------------------------------- | ------------------------------------------------------------------------------------ |
+| H5  | Errors of one kind show as one item, with a count.                     | The same error 100 times shows as one item with the count 100.                       |
+| H6  | The company marks an error as fixed only when the fix is on the easel. | A mark before the fix is on the easel is refused, and says why.                      |
+| H7  | The company sees when a fixed error comes back.                        | An error that occurs again after its fix shows as "came back", with the fix it beat. |
+| H8  | A false report from a browser does not make the company act.           | Errors that only browsers report show apart from the errors of the easel.            |
+| H9  | No secret of a team shows in an error.                                 | No error text holds an access token, a password or a key.                            |
+
+### E6.3 Keep the work of each team
+
+- **Actor:** company.
+- **Need:** the work of a team stays when its easel, its disk or its host is lost, or when an
+  update goes wrong.
+- **Trigger:** each hour, and before each update.
+- **Success end:** a copy of the work, at most 1 hour old, is on a second host, and a restore of it
+  works.
+- **Failure end:** a copy fails. A person of the company is told, and the last good copy stays.
+
+| ID  | Requirement                                              | Fit criterion                                                                                 |
+| --- | -------------------------------------------------------- | --------------------------------------------------------------------------------------------- |
+| H10 | A copy of the work, at most 1 hour old, is off the host. | After the host is lost, a restore gives back the work as it was at most 1 hour before (R5).   |
+| H11 | An update that goes wrong loses no work.                 | Before each update, a copy is made. A restore of it gives back each canvas as it was.         |
+| H12 | The company learns of a copy that fails.                 | Within 2 hours after the last good copy, a person of the company is told.                     |
+| H13 | A restore works with only the written steps.             | A person of the company did a restore with only the steps, before the first team starts (R5). |
+| H14 | The copies of a team that leaves are deleted.            | Within 7 days of the request, no copy of the work of the team is on any host (R8).            |
+
+Decided:
+
+- E7 is deferred, so a person of the company acts on what E6 shows. The fixer does not.
+- Deferred: a page that shows the state of each easel to the teams. Add it when a team asks for
+  it more than one time.
+
+#### Design changes that E6 needs
+
+| Req.     | Gap in the design now                                                                                               | Spec            |
+| -------- | ------------------------------------------------------------------------------------------------------------------- | --------------- |
+| H3       | No check from outside the host tells a person. The probe is in SPEC-fixer (E7, deferred).                           | SPEC-ops        |
+| H10, H12 | The copy off the host is the fixer's (E7, deferred), and runs one time a day. Its alarm comes after 48 hours.       | SPEC-ops        |
+| H4, H13  | SPEC-ops names `docs/runbook.md`, but the file does not exist. No restore was done.                                 | docs/runbook.md |
+| H14      | Nothing deletes the copies of one team.                                                                             | SPEC-ops        |
+| H1–H14   | The design talks of one server. The company runs one easel for each team, so each check and copy is for each easel. | SPEC-ops        |
+
+SPEC-ops closes H3, H10, H12, H14 and the row for each easel (`8d452f6`). The bucket and the check
+from outside the host wait on the hub (hq-a6w, hq-kbl). H4 and H13 stay open: the runbook needs the
+bucket first.

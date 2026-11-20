@@ -98,16 +98,26 @@ fixers run at the same time. A fixer uses an owner token. No person is in its lo
   label the issue `needs-human`.
 - Fix a `trunk-red` issue that stays open for more than 10 minutes.
 
+### Business actors
+
+These actors are in the rounds ([epics](epics.md#round-1-get-started)). The terms are in the
+[glossary](glossary.md).
+
+- **Team lead:** the person of a team who agrees the price, pays, and gets the setup code. The team
+  lead is the first owner of the easel of the team (E1.1).
+- **Company:** the business that offers easel and operates it. In Round 1, a person of the company
+  starts an easel for each team, watches it (E6), answers for help, and sends the invoices.
+
 ### System actors
 
 These actors run on a clock or on an event. They use no model.
 
-| Actor  | Runs on                      | Action                                                                               |
-| ------ | ---------------------------- | ------------------------------------------------------------------------------------ |
-| server | `easel serve`                | Send each change to open tabs. Record errors. Make a backup each hour.               |
-| tick   | a paseo schedule, each 5 min | Record that it ran. Start fixers. Close finished issues. Copy a backup off the host. |
-| probe  | GitHub Actions, each 10 min  | Read `/api/ready`. Open or close a `prod-down` issue.                                |
-| CI     | GitHub Actions, on each push | Run the gates. Deploy a green `main`. Open `trunk-red` on a red `main`.              |
+| Actor  | Runs on                      | Action                                                                                |
+| ------ | ---------------------------- | ------------------------------------------------------------------------------------- |
+| server | `easel serve`                | Send each change to open tabs. Record errors. Copy the data off the host each 30 min. |
+| tick   | a paseo schedule, each 5 min | Record that it ran. Start fixers. Close finished issues.                              |
+| probe  | GitHub Actions, each 10 min  | Read `/api/ready`. Open or close a `prod-down` issue.                                 |
+| CI     | GitHub Actions, on each push | Run the gates. Deploy a green `main`. Open `trunk-red` on a red `main`.               |
 
 ## Permissions
 
