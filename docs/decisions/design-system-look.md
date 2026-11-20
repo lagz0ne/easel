@@ -123,12 +123,20 @@ Date: 2026-11-20. Status: accepted; on the canvas.
     the selected row has a fill (`--e-hover`)
     and a 2 px ink bar on its left, as in the
     inboxes of Linear and GitHub.
+  - "Changed since your last visit" is a
+    small accent squircle on the top right
+    corner of the avatar, as the unread badge
+    on avatars in Slack and Discord. It is not
+    a dot in the row.
   - What an agent attaches to its message
     (options, the before and after pictures)
     starts on the text column of the message,
-    with a hairline rule on its left. Then a
+    and a hairline above each message after
+    the first divides the thread. Then a
     viewer sees that the options are the
-    agent's, not their own.
+    agent's, not their own. (A vertical rule
+    on the left was tried first; the user
+    asked for the line between messages.)
   - The Before and After switch sits on the
     top edge of the picture, not on a row of
     its own, as the preview switches in Figma
