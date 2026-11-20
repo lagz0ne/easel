@@ -1,6 +1,7 @@
 # The design canvases: a library canvas and a product canvas in one workspace
 
-Date: 2026-11-20. Status: accepted; in migration (the workspace `easel`, `wEwPhtO4I6`, exists). The rules are in [../design-canvas.md](../design-canvas.md).
+Date: 2026-11-20. Status: accepted; done (2026-11-20). Workspace `easel` (`wEwPhtO4I6`): library `zPdfXgdRrQ`,
+product `xFJSTXA-v5`. The rules are in [../design-canvas.md](../design-canvas.md).
 
 ## What the user said
 
@@ -63,7 +64,11 @@ Date: 2026-11-20. Status: accepted; in migration (the workspace `easel`, `wEwPht
 ## Consequences
 
 - `scripts/design-proof.ts` reads two canvases: the library pages for the mains, the product
-  canvas for the E4 frames. The E4 frame IDs change once.
+  canvas for the E4 frames. The E4 frame IDs changed once.
+- Doop does not share tokens through a library: a new canvas has none. As in create, the product
+  canvas has a copy of the library tokens. The copy can drift, so the proof checks it (S13).
+- An instance that links to the library keeps the library's component ID, so the proof's list of
+  parts is the same for both canvases.
 - A change to a part is: change the main, run the proof, publish, pull. The rule is in
   `docs/design-canvas.md`.
 - The agent key cannot make a workspace or move a canvas. The hub did it with a session of the

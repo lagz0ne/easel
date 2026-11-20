@@ -13,7 +13,9 @@ fields with a real edge, Inter, a calm neutral grey. The values and the `--e-*` 
 own. Blue (`--e-accent`) means only selected, live, or "waits for you", never "go". See
 [docs/decisions/design-system-look.md](docs/decisions/design-system-look.md).
 
-The source of the system is the Doop design canvas (`zPdfXgdRrQ`): its tokens and its components.
+The source of the system is the Doop library canvas `easel · Design system` (`zPdfXgdRrQ`): its
+tokens and its components. The screens are on `easel · Product design` (`xFJSTXA-v5`). See
+[docs/design-canvas.md](docs/design-canvas.md).
 `src/design` follows it. Status: the canvas has the look of 2026-11-20; `src/design/tokens.css`
 still has the values from before, and changes in its own ship (with Inter and the contrast test).
 
@@ -117,8 +119,9 @@ Prior art, as ideas only:
 
 - A draft frame is an exploration: it may break any rule.
 - A frame that asks for sign-off (`needs_review`, `ready_for_dev`) uses the system. So do the E4
-  frames and every frame on the Design system and Components pages. `bun run design:proof` checks
-  them (S1 to S12, T1) and finds them through the Doop MCP.
+  frames on `easel · Product design` and every frame on the pages 1 to 4 of `easel · Design system`.
+  `bun run design:proof` checks them (S1 to S13, T1) and finds them through the Doop MCP. S13: the
+  product canvas has the same tokens as the library.
 - A new need becomes a token or a component on the canvas first; then a frame uses it.
 
 ## Out of Scope (Deferred)

@@ -278,8 +278,8 @@ Decided:
 | E4.5 | Work reaches the agents of the team | team lead | [queue](../SPEC-queue.md#the-dispatcher-gets-a-request-to-the-agents), [queue](../SPEC-queue.md#a-team-lead-sets-the-channels) | ready  |
 
 The design of each state that a viewer sees is on the Doop canvas
-[easel · Design system](https://doop.vibea.dev/c/zPdfXgdRrQ): one sheet for each journey (E4.1 to
-E4.4). Each state shows the IDs below that it meets.
+[easel · Product design](https://doop.vibea.dev/c/xFJSTXA-v5), page
+`Work · E4 Comment and get a change`: one sheet for each journey (E4.1 to E4.4). Each state shows the IDs below that it meets.
 
 ### E4.1 Ask for a change
 

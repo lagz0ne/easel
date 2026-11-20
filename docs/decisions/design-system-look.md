@@ -1,6 +1,8 @@
 # The design system: the Creative tool look, easel's own values
 
-Date: 2026-11-20. Status: accepted; on the canvas.
+Date: 2026-11-20. Status: accepted; on the canvas. The pages named below (Design system,
+Components) are now the level pages of `easel · Design system`; see
+[design-canvases.md](design-canvases.md).
 `src/design/tokens.css` follows in its own ship.
 
 ## What the user said

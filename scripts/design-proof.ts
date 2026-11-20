@@ -2,11 +2,13 @@
 //
 // The design review is a loop: requirement, design, proof, review, then a
 // correction to the requirement or to the design. This script is the proof
-// step. It reads the live HTML of each frame on the Doop canvas and checks it
-// against docs/epics.md and against the canvas's components and tokens.
+// step. It reads the live HTML of each frame on the two Doop canvases and
+// checks it against docs/epics.md and against the library's components and
+// tokens. The canvases and their pages: docs/design-canvas.md.
 //
-// Scope: the E4 frames (always), each frame on a system page (always), and
-// each other frame that asks for sign-off (ready_for_dev or needs_review).
+// Scope: the E4 frames on the product canvas (always), each frame on a system
+// page of the library canvas (always), and each other frame on either canvas
+// that asks for sign-off (ready_for_dev or needs_review).
 // A draft is an exploration: it may break the rules until it asks for review.
 //
 // Usage: bun scripts/design-proof.ts
@@ -33,12 +35,16 @@
 //       hover only on a fine pointer, and a reduced-motion fallback.
 //   S11 a shadow is one of three elevations, or a ring.
 //   S12 a size is on the 4px grid.
+//   S13 the product canvas has the library's tokens, with the same values.
 //   T1 text: … not ..., curly quotes, a no-break space between a number and its unit.
 
 import { Client } from "@modelcontextprotocol/sdk/client/index.js";
 import { StreamableHTTPClientTransport } from "@modelcontextprotocol/sdk/client/streamableHttp.js";
 
-const CANVAS = "zPdfXgdRrQ";
+// easel · Design system: the tokens and the component mains (the library).
+const LIBRARY = "zPdfXgdRrQ";
+// easel · Product design: the screens and sheets of each epic.
+const PRODUCT = "xFJSTXA-v5";
 const API = "https://doop.vibea.dev/api/frames";
 const MCP = "https://doop.vibea.dev/mcp";
 
@@ -48,70 +54,70 @@ const MCP = "https://doop.vibea.dev/mcp";
 type Kind = "screen" | "sheet" | "main" | "ready";
 
 const E4: ReadonlyArray<{ id: string; kind: Kind }> = [
-  { id: "XdLqS2sMuW", kind: "screen" },
-  { id: "VEhtXVmP1c", kind: "screen" },
-  { id: "zECrJhEKRK", kind: "screen" },
-  { id: "iYUS96Dpzk", kind: "screen" },
-  { id: "K_IqwF_EM6", kind: "screen" },
-  { id: "9qxCwwYNk9", kind: "screen" },
-  { id: "renIl7fo8K", kind: "sheet" },
-  { id: "1A1h0JmwpC", kind: "sheet" },
-  { id: "cntUqBSroa", kind: "sheet" },
-  { id: "AzGdKz1J0q", kind: "sheet" },
-  { id: "4EXIn1DP7X", kind: "screen" },
-  { id: "0TNKl4ZkOe", kind: "screen" },
-  { id: "3cjvM8ulyV", kind: "screen" },
-  { id: "wZ19hxC3yn", kind: "screen" },
-  { id: "uU2lTx-yY2", kind: "screen" },
-  { id: "I_DQmBhZfW", kind: "screen" },
-  { id: "zJUO-Fi94Q", kind: "screen" },
-  { id: "UV4c5jSnDC", kind: "screen" },
-  { id: "8OL7Cfn5sB", kind: "screen" },
-  { id: "nObrohmkGb", kind: "screen" },
-  { id: "RqjTVfMtkY", kind: "screen" },
-  { id: "aCLTn4q0M6", kind: "screen" },
-  { id: "Dw-iD5zXoW", kind: "screen" },
-  { id: "iUwrzgkwNG", kind: "screen" },
-  { id: "OsIbRC47sH", kind: "screen" },
-  { id: "60ov3QGVO6", kind: "screen" },
-  { id: "L10ylPr5i3", kind: "screen" },
-  { id: "6a_7-Jg6-A", kind: "screen" },
-  { id: "aCOlwTUnni", kind: "screen" },
-  { id: "R_ftbT8GDi", kind: "screen" },
-  { id: "QUgMOvUHUE", kind: "screen" },
-  { id: "PajF2KXKAc", kind: "screen" },
-  { id: "lC5XNIDmro", kind: "screen" },
-  { id: "BPkL2Kvd0m", kind: "screen" },
-  { id: "eYML_PyLIR", kind: "screen" },
-  { id: "TXOXvwbmdB", kind: "screen" },
-  { id: "vG8kn72VDM", kind: "screen" },
-  { id: "gi2E-dkIkB", kind: "screen" },
-  { id: "1WDJo0zTPR", kind: "screen" },
-  { id: "E-z4BaBfpa", kind: "screen" },
-  { id: "-QDKJdi_9M", kind: "screen" },
-  { id: "duPGsR8GeP", kind: "screen" },
-  { id: "MFY2OHV_MG", kind: "screen" },
-  { id: "pHWEb71KqT", kind: "screen" },
-  { id: "z973IGpK5O", kind: "screen" },
-  { id: "J6jFfGYneg", kind: "screen" },
-  { id: "P8hFThio3D", kind: "screen" },
-  { id: "O6vEe-hk-A", kind: "screen" },
-  { id: "Kg7K2zV4P5", kind: "screen" },
-  { id: "NyGICtKWmp", kind: "screen" },
-  { id: "IX84NslgmB", kind: "screen" },
-  { id: "m-RceuPtE1", kind: "screen" },
-  { id: "BtbAwm_DUZ", kind: "screen" },
-  { id: "13cAlUZQId", kind: "screen" },
-  { id: "nnyaAgmpG7", kind: "screen" },
-  { id: "2fVn0HpElo", kind: "screen" },
-  { id: "ZhXp1TKTee", kind: "screen" },
-  { id: "skIhNbOAlQ", kind: "screen" },
-  { id: "fvKc6V47oG", kind: "screen" },
-  { id: "K_dmNOSyX5", kind: "screen" },
+  { id: "h4pczpz7sn", kind: "screen" },
+  { id: "A5Gv6NBxJU", kind: "screen" },
+  { id: "xZxKRBPG59", kind: "screen" },
+  { id: "xVgR-qmTi6", kind: "screen" },
+  { id: "AWhtNkav_w", kind: "screen" },
+  { id: "RHg6J4OJp3", kind: "screen" },
+  { id: "czHEZgeUB1", kind: "sheet" },
+  { id: "vfw3zMtZR4", kind: "sheet" },
+  { id: "snNDeRWYP3", kind: "sheet" },
+  { id: "nc_QkyELZE", kind: "sheet" },
+  { id: "tIYPbqSQkj", kind: "screen" },
+  { id: "7PFY_lefFv", kind: "screen" },
+  { id: "jPg3fYFw8R", kind: "screen" },
+  { id: "Y_94t0smk6", kind: "screen" },
+  { id: "tf3-PO3uCH", kind: "screen" },
+  { id: "tV-Ko4AjFL", kind: "screen" },
+  { id: "1md0B8cdTb", kind: "screen" },
+  { id: "7zyVq308w8", kind: "screen" },
+  { id: "zbNPXgvOW-", kind: "screen" },
+  { id: "OQZFSPFTui", kind: "screen" },
+  { id: "sS3Ix9Y5vs", kind: "screen" },
+  { id: "S4gcCpF73f", kind: "screen" },
+  { id: "Mzqv7HAKR8", kind: "screen" },
+  { id: "pBOtrmvs4W", kind: "screen" },
+  { id: "rTAw-XG1pV", kind: "screen" },
+  { id: "aE2GhLnZ8x", kind: "screen" },
+  { id: "0OkmCW7OTg", kind: "screen" },
+  { id: "RR-ctugYtw", kind: "screen" },
+  { id: "dFdmACrCPG", kind: "screen" },
+  { id: "TK-RtepvlT", kind: "screen" },
+  { id: "l2D2FqgLFN", kind: "screen" },
+  { id: "pAaVNuVTKy", kind: "screen" },
+  { id: "r1vkBzmXNV", kind: "screen" },
+  { id: "ySB315qncO", kind: "screen" },
+  { id: "nqNh5qABon", kind: "screen" },
+  { id: "7WI3TZNtD3", kind: "screen" },
+  { id: "HxBtW0AHEq", kind: "screen" },
+  { id: "ks9bzBk8Ut", kind: "screen" },
+  { id: "Utx1i4WktI", kind: "screen" },
+  { id: "88Ax6X-gQO", kind: "screen" },
+  { id: "NLclOIm3ni", kind: "screen" },
+  { id: "Z7AnSVnDlr", kind: "screen" },
+  { id: "WDhJwEN8xL", kind: "screen" },
+  { id: "CM3vB_SZp2", kind: "screen" },
+  { id: "dZIcF14b_K", kind: "screen" },
+  { id: "z-6nielbSo", kind: "screen" },
+  { id: "nBkSw9ApCe", kind: "screen" },
+  { id: "4_WvadZ-ZE", kind: "screen" },
+  { id: "q7tIF9WFmx", kind: "screen" },
+  { id: "TH2sKAN3Nj", kind: "screen" },
+  { id: "t20k2oDI-R", kind: "screen" },
+  { id: "JXZ7jpq-sd", kind: "screen" },
+  { id: "BLQBCn2xPM", kind: "screen" },
+  { id: "c3xVyfPx-7", kind: "screen" },
+  { id: "O0OPorV-n6", kind: "screen" },
+  { id: "Ut3zYCeY3v", kind: "screen" },
+  { id: "u9nZm8jKuD", kind: "screen" },
+  { id: "AhuGpdJlUf", kind: "screen" },
+  { id: "5TBFxBzFCB", kind: "screen" },
+  { id: "Q84YFf2dBZ", kind: "screen" },
 ];
 
-// Each frame on these pages is part of the system: always checked.
-const SYSTEM_PAGES = new Set(["Design system", "Components"]);
+// Each frame on these pages of the library is part of the system: always checked.
+const SYSTEM_PAGES = new Set(["1 · Foundations", "2 · Primitives", "3 · Patterns", "4 · Layout"]);
 
 // A frame in one of these states must use the system (S1 to S12, T1).
 const READY = new Set(["ready_for_dev", "needs_review"]);
@@ -425,7 +431,7 @@ const loadFrame = async (f: Frame, key: string): Promise<Parsed | undefined> => 
 
 // --- Which frames: E4, the system pages, and frames that ask for sign-off --
 
-type CanvasFrame = { id: string; page: string; status: string };
+type CanvasFrame = { canvas: string; id: string; page: string; status: string };
 
 const isRecord = (v: unknown): v is Record<string, unknown> => typeof v === "object" && v !== null;
 
@@ -441,45 +447,86 @@ const listOf = (v: unknown, k: string): Array<unknown> => {
   return Array.isArray(out) ? out : [];
 };
 
-// The HTTP API has no frame list for an agent key; the MCP get_canvas has.
-const callGetCanvas = async (key: string): Promise<unknown> => {
-  const client = new Client({ name: "easel-design-proof", version: "1" });
-  const transport = new StreamableHTTPClientTransport(new URL(MCP), {
-    requestInit: { headers: { Authorization: `Bearer ${key}` } },
-  });
-  await client.connect(transport);
-  try {
-    const res = await client.callTool({ name: "get_canvas", arguments: { canvas_id: CANVAS } });
-    const parts = listOf(res, "content").map((c) => field(c, "text"));
-    return JSON.parse(parts.join(""));
-  } finally {
-    await client.close();
-  }
+// A token value is a string or a number; compare both as text.
+const scalar = (v: unknown): string =>
+  typeof v === "string" || typeof v === "number" ? String(v) : "";
+
+// One token as one line: its type, its value, then its value in each theme.
+const tokenLine = (t: unknown): string => {
+  const themes = isRecord(t) ? t.themes : undefined;
+  const byTheme = isRecord(themes)
+    ? Object.entries(themes)
+        .map(([k, v]) => `${k}=${scalar(v)}`)
+        .sort()
+        .join(" ")
+    : "";
+  return `${field(t, "type")} ${isRecord(t) ? scalar(t.value) : ""} ${byTheme}`.trim();
 };
 
-const readCanvas = async (key: string): Promise<Array<CanvasFrame>> => {
-  const body = await callGetCanvas(key);
+type Doop = {
+  frames: Array<CanvasFrame>;
+  tokens: { library: Map<string, string>; product: Map<string, string> };
+};
+
+const callTool = async (
+  client: Client,
+  name: string,
+  args: Record<string, string>,
+): Promise<unknown> => {
+  const res = await client.callTool({ name, arguments: args });
+  const parts = listOf(res, "content").map((c) => field(c, "text"));
+  return JSON.parse(parts.join(""));
+};
+
+const framesOf = async (client: Client, canvas: string): Promise<Array<CanvasFrame>> => {
+  const body = await callTool(client, "get_canvas", { canvas_id: canvas });
   const pages = new Map(listOf(body, "pages").map((p) => [field(p, "id"), field(p, "name")]));
   return listOf(body, "frames").map((f) => ({
+    canvas,
     id: field(f, "id"),
     page: pages.get(field(f, "pageId")) ?? "",
     status: field(f, "approvalStatus"),
   }));
 };
 
+const tokensOf = async (client: Client, canvas: string): Promise<Map<string, string>> => {
+  const body = await callTool(client, "get_tokens", { canvas_id: canvas, format: "json" });
+  return new Map(listOf(body, "tokens").map((t) => [field(t, "name"), tokenLine(t)]));
+};
+
+// The HTTP API has no frame list for an agent key; the MCP get_canvas has.
+const readDoop = async (key: string): Promise<Doop> => {
+  const client = new Client({ name: "easel-design-proof", version: "1" });
+  const transport = new StreamableHTTPClientTransport(new URL(MCP), {
+    requestInit: { headers: { Authorization: `Bearer ${key}` } },
+  });
+  await client.connect(transport);
+
+  try {
+    const frames = [...(await framesOf(client, LIBRARY)), ...(await framesOf(client, PRODUCT))];
+    const tokens = {
+      library: await tokensOf(client, LIBRARY),
+      product: await tokensOf(client, PRODUCT),
+    };
+    return { frames, tokens };
+  } finally {
+    await client.close();
+  }
+};
+
 type Scope = { frames: Array<Frame>; ready: number; drafts: number };
 
 const kindOf = (f: CanvasFrame): Kind | undefined => {
-  if (SYSTEM_PAGES.has(f.page)) return "main";
+  if (f.canvas === LIBRARY && SYSTEM_PAGES.has(f.page)) return "main";
   return READY.has(f.status) ? "ready" : undefined;
 };
 
 const chooseFrames = (canvas: Array<CanvasFrame>): Scope => {
   const scope: Scope = { frames: [], ready: 0, drafts: 0 };
-  const onCanvas = new Set(canvas.map((f) => f.id));
+  const onProduct = new Set(canvas.filter((f) => f.canvas === PRODUCT).map((f) => f.id));
   for (const f of E4) {
-    if (onCanvas.has(f.id)) scope.frames.push(f);
-    else report(f.id, "IO", "an E4 frame is not on the canvas");
+    if (onProduct.has(f.id)) scope.frames.push(f);
+    else report(f.id, "IO", "an E4 frame is not on the product canvas");
   }
 
   const e4 = new Set(E4.map((f) => f.id));
@@ -490,6 +537,19 @@ const chooseFrames = (canvas: Array<CanvasFrame>): Scope => {
     else scope.frames.push({ id: f.id, kind });
   }
   return scope;
+};
+
+// S13: the product canvas has a copy of the library tokens (Doop does not
+// share tokens through a library). A change goes to the library first.
+const checkTokens = (tokens: Doop["tokens"]): void => {
+  for (const [name, line] of tokens.library) {
+    const copy = tokens.product.get(name);
+    if (copy === undefined) report(PRODUCT, "S13", `${name} is not on the product canvas`);
+    else if (copy !== line) report(PRODUCT, "S13", `${name} is ${copy}, the library has ${line}`);
+  }
+  for (const name of tokens.product.keys()) {
+    if (!tokens.library.has(name)) report(PRODUCT, "S13", `${name} is not in the library`);
+  }
 };
 
 const printScope = (scope: Scope): void => {
@@ -863,8 +923,8 @@ const checkTrace = (proof: Proof): void => {
   for (const id of proof.epic) {
     const shown = proof.shown.has(id);
     const elsewhere = NOT_SHOWN[id] !== undefined;
-    if (!shown && !elsewhere) report(CANVAS, "R1", `${id} shows on no state`);
-    if (shown && elsewhere) report(CANVAS, "R1", `${id} is in NOT_SHOWN but a state shows it`);
+    if (!shown && !elsewhere) report(PRODUCT, "R1", `${id} shows on no state`);
+    if (shown && elsewhere) report(PRODUCT, "R1", `${id} is in NOT_SHOWN but a state shows it`);
   }
 };
 
@@ -881,11 +941,11 @@ const stateLook = (css: string, state: string): string =>
 const checkF1 = (proof: Proof): void => {
   const looks = new Map<string, string>();
   for (const s of F1_STATES) {
-    if (!proof.badgeStates.has(s)) report(CANVAS, "R3", `F1 state ${s} shows on no frame`);
+    if (!proof.badgeStates.has(s)) report(PRODUCT, "R3", `F1 state ${s} shows on no frame`);
 
     const look = stateLook(proof.badgeCss, s);
     const same = [...looks.entries()].find(([, v]) => v === look);
-    if (same !== undefined) report(CANVAS, "R3", `F1 states ${same[0]} and ${s} look the same`);
+    if (same !== undefined) report(PRODUCT, "R3", `F1 states ${same[0]} and ${s} look the same`);
     looks.set(s, look);
   }
 };
@@ -893,7 +953,7 @@ const checkF1 = (proof: Proof): void => {
 const checkRevs = (proof: Proof): void => {
   for (const [name, byRev] of proof.revs) {
     if (byRev.size > 1) {
-      report(CANVAS, "S5", `${name} is at revisions ${[...byRev.keys()].join(", ")}`);
+      report(PRODUCT, "S5", `${name} is at revisions ${[...byRev.keys()].join(", ")}`);
     }
   }
 };
@@ -931,8 +991,10 @@ const main = async (): Promise<number> => {
     badgeCss: "",
   };
 
-  const scope = chooseFrames(await readCanvas(key));
+  const doop = await readDoop(key);
+  const scope = chooseFrames(doop.frames);
   printScope(scope);
+  checkTokens(doop.tokens);
 
   // Fetch in parallel, check in order, so the report has one order.
   const frames = await Promise.all(

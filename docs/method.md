@@ -189,8 +189,11 @@ The loop: requirement → design → proof → review → change the requirement
 | System | Each frame uses only the components and the tokens of the canvas. Nothing is redrawn.                                              |
 | Detail | Spacing, line height, motion, shadow, grid and copy follow the rules of the design system.                                         |
 
-- The design is on the Doop canvas [easel · Design system](https://doop.vibea.dev/c/zPdfXgdRrQ). Its
-  rules are in the style guide `easel-system` and in the frame "Foundations".
+- The design is on the Doop canvas [easel · Product design](https://doop.vibea.dev/c/xFJSTXA-v5),
+  one page for each epic (`Work · E<n> <epic title>`). Its parts and tokens are on the library
+  canvas [easel · Design system](https://doop.vibea.dev/c/zPdfXgdRrQ). The rules are in the style
+  guide `easel-system` and in the frame "Foundations". How to use the canvases:
+  [design-canvas.md](design-canvas.md).
 - The check is `bun run design:proof` (`scripts/design-proof.ts`). The design is done only when it
   prints `design proof: OK`. Each finding is one line: `<frame> <rule id> <what is there>`.
 - When a new epic gets a design, add its frames and its IDs to the proof in the same ship.

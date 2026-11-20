@@ -4,8 +4,7 @@ How easel keeps its design material on Doop: which canvas holds what, how the pa
 how a part or a screen moves from draft to done. The reason for this structure is in
 [decisions/design-canvases.md](decisions/design-canvases.md).
 
-Status: **in migration** (2026-11-20). Step 0 is done; steps 1 to 6 are not. Until they are done,
-the E4 design is on `easel · Design system` (`zPdfXgdRrQ`), as `docs/method.md` says.
+Status: **in use** (2026-11-20). The migration is done; its record is at the end.
 
 ## One workspace, two canvases, one archive
 
@@ -15,7 +14,7 @@ and one product canvas. Each has its own reader and its own lifecycle.
 | Canvas                                         | Holds                                                   | Who changes it                 |
 | ---------------------------------------------- | ------------------------------------------------------- | ------------------------------ |
 | **easel · Design system** (`zPdfXgdRrQ`)       | The tokens, the component mains, Foundations, the guide | Only a change to the system    |
-| **easel · Product design**                     | The screens and state sheets of each epic               | Each design of an epic         |
+| **easel · Product design** (`xFJSTXA-v5`)      | The screens and state sheets of each epic               | Each design of an epic         |
 | **easel · Archive · viewer v0** (`3Io4CqJYjF`) | The first viewer design (old parts, old screens)        | Nobody. Read it for reference. |
 
 - The Design system canvas is the **workspace library**. The Product design canvas uses its parts
@@ -23,6 +22,10 @@ and one product canvas. Each has its own reader and its own lifecycle.
 - A screen does not change while a part is in review. A part goes to the screens only when it is
   published and the Product design canvas pulls it.
 - Do not start a new canvas for a round or for an epic. An epic gets a page.
+- **Tokens are copied.** Doop does not share tokens through a library. The Product design canvas
+  has a copy of the library tokens. A token changes on the library first, then on the copy. The
+  proof (S13) finds a token that is not the same on the two canvases.
+- Each canvas has the guide `easel-system`, with the same text. Change it on both.
 
 ## The pages
 
@@ -73,7 +76,7 @@ Example: `Work · E4 Comment and get a change`.
 1. Change the main on **easel · Design system** (`update_component`). A new part goes on the page
    of its level, with a description that says when to use it and when to use another part.
 2. A new value is a token first (`create_tokens`, light and dark, contrast checked), then the part
-   uses it.
+   uses it. Copy the token to **easel · Product design** too (S13).
 3. Run `bun run design:proof`. It checks the mains on the library pages.
 4. Publish the library (`publish_library`). Then pull it into the Product design canvas
    (`sync_component`). Each screen that uses the part follows.
@@ -91,26 +94,26 @@ Example: `Work · E4 Comment and get a change`.
 5. Add the frames and the IDs to `scripts/design-proof.ts` in the same ship.
 6. Prove the design round by round with `epic-flow`, until each ID is proven.
 
-## Migration
+## Migration (done, 2026-11-20)
 
-Step 1 and the later steps wait until the E4 fix pass on `zPdfXgdRrQ` ends, because another agent
-is editing that canvas now.
+The E4 fix pass on `zPdfXgdRrQ` ended first (easel-5f, after `0a7e313`).
 
-0. **Done** (2026-11-20, by the hub). The workspace `easel` (`wEwPhtO4I6`) exists. Its owner is the
-   Doop agent account, as for `create`. `zPdfXgdRrQ` and `3Io4CqJYjF` are in it, with the names
-   `easel · Design system` and `easel · Archive · viewer v0`. The agent key cannot make a
-   workspace or move a canvas (those routes need a session). For such a change again, ask the hub
+0. The hub made the workspace `easel` (`wEwPhtO4I6`), with the Doop agent account as owner, as
+   for `create`, and moved and renamed the two canvases. The agent key cannot make a workspace or
+   move a canvas (those routes need a session). For such a change again, ask the hub
    (`hubq send`).
-1. On `zPdfXgdRrQ`: make the library pages, move each main to the page of its level, and put
-   Foundations on `1 · Foundations`. Put the level at the start of each description. Add the
-   `0 · Read me` frame.
-2. Publish the library.
-3. Make `easel · Product design` in the workspace (`create_canvas`, `workspace_id=wEwPhtO4I6`), with `0 · Read me` and
-   `Work · E4 Comment and get a change`. Copy the E4 frames to it. Their `<doop-use>` links to the
-   library by name. Map the old frame IDs to the new ones, also in the prototype links.
-4. Check each copy with a screenshot against its original. Then delete the E4 frames and the
-   `E4 viewer` page on the library canvas.
-5. Ship the change to `scripts/design-proof.ts` (two canvases, the new system pages, the new E4
-   IDs), `docs/method.md`, `docs/epics.md` and `SPEC-design.md` together. The proof must print
-   `design proof: OK`.
-6. Copy the guide `easel-system` to the Product design canvas. Add the canvas map to it.
+1. On `zPdfXgdRrQ`: the pages `0 · Read me` to `4 · Layout` and `Archive`; each main on the page
+   of its level; Foundations on `1 · Foundations`; the level at the start of each description; a
+   `0 · Read me` frame. The component IDs did not change.
+2. The library is published to the workspace (30 parts).
+3. `easel · Product design` (`xFJSTXA-v5`) is in the workspace, with a copy of the 52 tokens
+   (light and dark), `0 · Read me` and `Work · E4 Comment and get a change`. The 60 E4 frames are
+   copied. Each instance links to the library by name and keeps the library's component ID. The
+   prototype links use the new frame IDs; the prototype starts on E4.1 Ask for a change.
+4. The rendered HTML of each copy is the same as its original, byte for byte, after the frame IDs
+   are mapped (60 of 60). Then the E4 frames and the `E4 viewer` page on the library were
+   deleted. The old HTML and the map of old to new IDs are in
+   `~/work/tmp/easel-doop/backup-e4-old/`.
+5. `scripts/design-proof.ts` reads the two canvases, the new system pages and the new E4 IDs, and
+   checks the tokens (S13). Its trace is the same as before the move.
+6. The guide `easel-system` is on both canvases, with the canvas map.
