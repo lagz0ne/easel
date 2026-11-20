@@ -114,3 +114,22 @@ Date: 2026-11-20. Status: accepted; on the canvas.
   (`border-ring ring-[3px] ring-ring/50`) and
   Vercel Geist inputs. An invalid field shows
   only its `--e-danger` edge.
+- Rows and messages, changed the same day
+  after the user's comments on the canvas:
+  - A row has no fill for its state. A fill
+    and a mark together said the same thing
+    two times. The state mark goes after the
+    time, behind a hairline separator. Only
+    the selected row has a fill (`--e-hover`)
+    and a 2 px ink bar on its left, as in the
+    inboxes of Linear and GitHub.
+  - What an agent attaches to its message
+    (options, the before and after pictures)
+    starts on the text column of the message,
+    with a hairline rule on its left. Then a
+    viewer sees that the options are the
+    agent's, not their own.
+  - The Before and After switch sits on the
+    top edge of the picture, not on a row of
+    its own, as the preview switches in Figma
+    and Vercel do.
