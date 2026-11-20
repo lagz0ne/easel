@@ -95,7 +95,7 @@ Date: 2026-11-20. Status: accepted; on the canvas.
 - Trade-off: the field edge (`--e-field`) is
   1.66:1 on white (light) and 1.85:1 (dark),
   under the 3:1 of WCAG 1.4.11. The label and
-  the 2 px ink focus ring identify a field, so
+  the focus edge (`--e-focus`, 3:1) identify a field, so
   the edge is not the only cue. If a test with
   users shows that people miss fields, darken
   `--e-field` to 3:1 (about `#949491` in
@@ -104,3 +104,13 @@ Date: 2026-11-20. Status: accepted; on the canvas.
   values. Its ship changes the values, loads
   Inter, and adds the contrast test from
   `SPEC-design.md`.
+- Focus, changed the same day after a look: a
+  solid ink ring was too harsh. `--e-focus` is
+  now a mid grey (`#858582` light, `#7a7a77`
+  dark; 3.3:1 and 3.7:1 light, 4.2:1 and 3.8:1
+  dark). A control keeps a 2 px outline. A
+  field's edge turns `--e-focus` with a 3 px
+  `--e-focus-halo`, as in shadcn/ui
+  (`border-ring ring-[3px] ring-ring/50`) and
+  Vercel Geist inputs. An invalid field shows
+  only its `--e-danger` edge.

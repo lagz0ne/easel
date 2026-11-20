@@ -35,7 +35,8 @@ Prior art, as ideas only:
 - `src/design/tokens.css` defines the custom properties, light and dark:
   - color: `--e-bg`, `--e-surface`, `--e-card`, `--e-text`, `--e-muted`, `--e-faint` (placeholder
     and disabled text only), `--e-primary` and `--e-on-primary` (the main action), `--e-accent` and
-    `--e-on-accent` (selected, live, waits), `--e-focus`, `--e-line` (hairline), `--e-divider`,
+    `--e-on-accent` (selected, live, waits), `--e-focus` (a mid grey) and `--e-focus-halo` (its
+    soft halo on a field), `--e-line` (hairline), `--e-divider`,
     `--e-field` (the edge of a field), `--e-tint`, `--e-hover`, `--e-ok`, `--e-warn`,
     `--e-danger`, `--e-danger-bg`, `--e-scrim`, `--e-shadow-low`, `--e-shadow-mid`;
   - space: `--e-0` to `--e-7` (2, 4, 8, 12, 16, 24, 32, 48 px);
@@ -93,8 +94,9 @@ Prior art, as ideas only:
 
 2. Every control, when it has focus, shows an outline of `--e-focus` at least 2 px thick, with a
    gap of `--e-bg` around it, so it shows on a panel, on the canvas and over any frame. A field
-   shows focus on its own edge: the edge turns `--e-focus` and a 1 px ring of `--e-focus` makes it
-   2 px.
+   shows focus on its own edge: the edge turns `--e-focus` (3:1 on `--e-surface`), and a 3 px
+   halo of `--e-focus-halo` goes around it. The halo is soft and is not the cue alone. This is the
+   shadcn/ui and Vercel Geist pattern; a solid ink ring was too harsh.
 3. Under `prefers-reduced-motion: reduce`, every transition and animation the page runs lasts 0 s,
    and a pan or zoom jumps to its end.
 
