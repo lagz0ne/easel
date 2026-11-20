@@ -35,7 +35,8 @@ Prior art, as ideas only:
 - `src/design/tokens.css` defines the custom properties, light and dark:
   - color: `--e-bg`, `--e-surface`, `--e-card`, `--e-text`, `--e-muted`, `--e-faint` (placeholder
     and disabled text only), `--e-primary` and `--e-on-primary` (the main action), `--e-accent` and
-    `--e-on-accent` (selected, live, waits), `--e-focus` (a mid grey) and `--e-focus-halo` (its
+    `--e-on-accent` (selected, live, waits), `--e-accent-bg` (the quiet fill of a row that waits
+    for a viewer, or of a pressed tool), `--e-focus` (a mid grey) and `--e-focus-halo` (its
     soft halo on a field), `--e-line` (hairline), `--e-divider`,
     `--e-field` (the edge of a field), `--e-tint`, `--e-hover`, `--e-ok`, `--e-warn`,
     `--e-danger`, `--e-danger-bg`, `--e-scrim`, `--e-shadow-low`, `--e-shadow-mid`;
@@ -47,7 +48,8 @@ Prior art, as ideas only:
 - The controls the viewer needs, as React components on native elements. Each one is first a
   component on the Doop canvas, with the same name: `Button` (with a pressed state), `TextField`,
   `Checkbox`, `Segmented`, `Tabs`, `Chip`, `Avatar`, `Toast`, `Dialog`, `EmptyState`, `Panel`
-  (complementary), `Toolbar`, `Status` (live region), `Alert`, `Pin`, `Card`.
+  (complementary), `Toolbar`, `Dock` (the canvas tools, docked at the bottom), `Status` (live
+  region), `Alert`, `Pin`, `Card`.
 
 ## Rules
 
@@ -85,6 +87,11 @@ Prior art, as ideas only:
    | `--e-ok`         | `--e-surface`   | a status that is well        | 4.5:1    |
    | `--e-warn`       | `--e-surface`   | a status that needs care     | 4.5:1    |
    | `--e-danger`     | `--e-danger-bg` | an error on its fill         | 4.5:1    |
+   | `--e-text`       | `--e-accent-bg` | a row that waits for you     | 4.5:1    |
+   | `--e-muted`      | `--e-accent-bg` | quiet text on that row       | 4.5:1    |
+   | `--e-accent`     | `--e-accent-bg` | a pressed tool, a mark       | 4.5:1    |
+   | `--e-text`       | `--e-danger-bg` | a row that needs a person    | 4.5:1    |
+   | `--e-muted`      | `--e-danger-bg` | quiet text on that row       | 4.5:1    |
 
    `--e-faint` is exempt: WCAG 1.4.3 does not apply to disabled controls or to a placeholder,
    and those are its only uses. A field's edge is not the only cue: its label and its focus ring
