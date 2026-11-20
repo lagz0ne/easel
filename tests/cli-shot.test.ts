@@ -6,7 +6,7 @@ import { bunSqlite } from "@tinkered/bun/sqlite";
 import { exits } from "@tinkered/cli/test";
 import { createScope } from "@tinkered/core";
 import { makeTestClock, memory, preset } from "@tinkered/core/testing";
-import { afterEach, expect, test } from "vite-plus/test";
+import { afterEach, expect, test, vi } from "vite-plus/test";
 
 import { routes } from "~/components/requests/index.server";
 
@@ -22,6 +22,10 @@ import { frames } from "@/frames";
 import { framesLoads, framesOps, mayRead } from "@/frames/ops.server";
 import { drawPage, pictureRoute, picturesServer } from "@/frames/pictures.server";
 import { framesServer } from "@/frames/store.server";
+
+// A test boots a server and runs CLI scopes over it, some two times; a busy host has pushed one past
+// the 5 s default (load 20 on 8 cores, 2026-11-20).
+vi.setConfig({ testTimeout: 30_000, hookTimeout: 30_000 });
 
 // `easel shot <canvas> <id> -o <file> [--scale] [--region]` (SPEC-frames.md § Pictures, § Journeys)
 // as the cmd runs it: `frame.shot` over the memory transport, then the picture from the route,
