@@ -1,6 +1,6 @@
 # The design canvases: a library canvas and a product canvas in one workspace
 
-Date: 2026-11-20. Status: proposed. The rules are in [../design-canvas.md](../design-canvas.md).
+Date: 2026-11-20. Status: accepted; in migration (the workspace `easel`, `wEwPhtO4I6`, exists). The rules are in [../design-canvas.md](../design-canvas.md).
 
 ## What the user said
 
@@ -66,4 +66,5 @@ Date: 2026-11-20. Status: proposed. The rules are in [../design-canvas.md](../de
   canvas for the E4 frames. The E4 frame IDs change once.
 - A change to a part is: change the main, run the proof, publish, pull. The rule is in
   `docs/design-canvas.md`.
-- The user must make the workspace and move the two canvases in the Doop app. The agent key cannot.
+- The agent key cannot make a workspace or move a canvas. The hub did it with a session of the
+  agent account (2026-11-20), so the workspace has the same owner as `create`.

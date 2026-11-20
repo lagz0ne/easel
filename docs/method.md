@@ -189,7 +189,7 @@ The loop: requirement → design → proof → review → change the requirement
 | System | Each frame uses only the components and the tokens of the canvas. Nothing is redrawn.                                              |
 | Detail | Spacing, line height, motion, shadow, grid and copy follow the rules of the design system.                                         |
 
-- The design is on the Doop canvas [easel — design](https://doop.vibea.dev/c/zPdfXgdRrQ). Its
+- The design is on the Doop canvas [easel · Design system](https://doop.vibea.dev/c/zPdfXgdRrQ). Its
   rules are in the style guide `easel-system` and in the frame "Foundations".
 - The check is `bun run design:proof` (`scripts/design-proof.ts`). The design is done only when it
   prints `design proof: OK`. Each finding is one line: `<frame> <rule id> <what is there>`.

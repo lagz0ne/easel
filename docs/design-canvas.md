@@ -4,19 +4,19 @@ How easel keeps its design material on Doop: which canvas holds what, how the pa
 how a part or a screen moves from draft to done. The reason for this structure is in
 [decisions/design-canvases.md](decisions/design-canvases.md).
 
-Status: **proposed** (2026-11-20). The migration below is not done yet. Until it is done, the design
-is on `easel — design` (`zPdfXgdRrQ`), as `docs/method.md` says.
+Status: **in migration** (2026-11-20). Step 0 is done; steps 1 to 6 are not. Until they are done,
+the E4 design is on `easel · Design system` (`zPdfXgdRrQ`), as `docs/method.md` says.
 
 ## One workspace, two canvases, one archive
 
-All easel design material is in the Doop workspace **easel**. The workspace has one library canvas
+All easel design material is in the Doop workspace **easel** (`wEwPhtO4I6`). The workspace has one library canvas
 and one product canvas. Each has its own reader and its own lifecycle.
 
-| Canvas                          | Holds                                                   | Who changes it                 |
-| ------------------------------- | ------------------------------------------------------- | ------------------------------ |
-| **easel · Design system**       | The tokens, the component mains, Foundations, the guide | Only a change to the system    |
-| **easel · Product design**      | The screens and state sheets of each epic               | Each design of an epic         |
-| **easel · Archive · viewer v0** | The first viewer design (old parts, old screens)        | Nobody. Read it for reference. |
+| Canvas                                         | Holds                                                   | Who changes it                 |
+| ---------------------------------------------- | ------------------------------------------------------- | ------------------------------ |
+| **easel · Design system** (`zPdfXgdRrQ`)       | The tokens, the component mains, Foundations, the guide | Only a change to the system    |
+| **easel · Product design**                     | The screens and state sheets of each epic               | Each design of an epic         |
+| **easel · Archive · viewer v0** (`3Io4CqJYjF`) | The first viewer design (old parts, old screens)        | Nobody. Read it for reference. |
 
 - The Design system canvas is the **workspace library**. The Product design canvas uses its parts
   by their names: `<doop-use component="RequestRow">`. A part is never drawn again on a screen.
@@ -91,20 +91,21 @@ Example: `Work · E4 Comment and get a change`.
 5. Add the frames and the IDs to `scripts/design-proof.ts` in the same ship.
 6. Prove the design round by round with `epic-flow`, until each ID is proven.
 
-## Migration (not done yet)
+## Migration
 
-Step 0 is the user's. Doop's agent key cannot make a workspace or move a canvas, so it must be done
-in the Doop app. Step 1 and the later steps wait until the E4 fix pass on `zPdfXgdRrQ` ends, because
-another agent is editing that canvas now.
+Step 1 and the later steps wait until the E4 fix pass on `zPdfXgdRrQ` ends, because another agent
+is editing that canvas now.
 
-0. **User, in the Doop app:** make the workspace `easel`. Move `easel — design` (`zPdfXgdRrQ`) and
-   `easel — viewer design` (`3Io4CqJYjF`) into it. Rename them `easel · Design system` and
-   `easel · Archive · viewer v0`.
+0. **Done** (2026-11-20, by the hub). The workspace `easel` (`wEwPhtO4I6`) exists. Its owner is the
+   Doop agent account, as for `create`. `zPdfXgdRrQ` and `3Io4CqJYjF` are in it, with the names
+   `easel · Design system` and `easel · Archive · viewer v0`. The agent key cannot make a
+   workspace or move a canvas (those routes need a session). For such a change again, ask the hub
+   (`hubq send`).
 1. On `zPdfXgdRrQ`: make the library pages, move each main to the page of its level, and put
    Foundations on `1 · Foundations`. Put the level at the start of each description. Add the
    `0 · Read me` frame.
 2. Publish the library.
-3. Make `easel · Product design` in the workspace, with `0 · Read me` and
+3. Make `easel · Product design` in the workspace (`create_canvas`, `workspace_id=wEwPhtO4I6`), with `0 · Read me` and
    `Work · E4 Comment and get a change`. Copy the E4 frames to it. Their `<doop-use>` links to the
    library by name. Map the old frame IDs to the new ones, also in the prototype links.
 4. Check each copy with a screenshot against its original. Then delete the E4 frames and the
