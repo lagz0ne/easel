@@ -5,6 +5,10 @@
 // step. It reads the live HTML of each frame on the Doop canvas and checks it
 // against docs/epics.md and against the canvas's components and tokens.
 //
+// Scope: the E4 frames (always), each frame on a system page (always), and
+// each other frame that asks for sign-off (ready_for_dev or needs_review).
+// A draft is an exploration: it may break the rules until it asks for review.
+//
 // Usage: bun scripts/design-proof.ts
 // Key: DOOP_KEY, or the file ~/.config/secrets/doop-agent-key.
 //
@@ -31,13 +35,19 @@
 //   S12 a size is on the 4px grid.
 //   T1 text: … not ..., curly quotes, a no-break space between a number and its unit.
 
+import { Client } from "@modelcontextprotocol/sdk/client/index.js";
+import { StreamableHTTPClientTransport } from "@modelcontextprotocol/sdk/client/streamableHttp.js";
+
 const CANVAS = "zPdfXgdRrQ";
 const API = "https://doop.vibea.dev/api/frames";
+const MCP = "https://doop.vibea.dev/mcp";
 
-// main: the frame that holds the main of a component (the Design system page).
-type Kind = "screen" | "sheet" | "main";
+// screen and sheet: the E4 design, checked in any status.
+// main: a frame on a system page (a component's main, or Foundations).
+// ready: any other frame that asks for sign-off. A draft is free to explore.
+type Kind = "screen" | "sheet" | "main" | "ready";
 
-const FRAMES: ReadonlyArray<{ id: string; kind: Kind }> = [
+const E4: ReadonlyArray<{ id: string; kind: Kind }> = [
   { id: "XdLqS2sMuW", kind: "screen" },
   { id: "VEhtXVmP1c", kind: "screen" },
   { id: "zECrJhEKRK", kind: "screen" },
@@ -48,25 +58,13 @@ const FRAMES: ReadonlyArray<{ id: string; kind: Kind }> = [
   { id: "1A1h0JmwpC", kind: "sheet" },
   { id: "cntUqBSroa", kind: "sheet" },
   { id: "AzGdKz1J0q", kind: "sheet" },
-  { id: "TzwdUcgEaX", kind: "main" },
-  { id: "D48PqkGGUI", kind: "main" },
-  { id: "gzLC5Ibcw-", kind: "main" },
-  { id: "rkU29f53cr", kind: "main" },
-  { id: "h4m9C4jnKu", kind: "main" },
-  { id: "Rk7zzTkrLE", kind: "main" },
-  { id: "lwA-HdEVrs", kind: "main" },
-  { id: "m9kFsNX7Se", kind: "main" },
-  { id: "0XdM1aSoUC", kind: "main" },
-  { id: "rowNLAFNJw", kind: "main" },
-  { id: "va6sy6Uh7B", kind: "main" },
-  { id: "nAH5uFT9zC", kind: "main" },
-  { id: "kyEwrYqamq", kind: "main" },
-  { id: "a3OQLvzeCe", kind: "main" },
-  { id: "YOxWpiAsR2", kind: "main" },
-  { id: "SHxXnHWKlc", kind: "main" },
-  { id: "ReBto2wCjH", kind: "main" },
-  { id: "QdFEPJTAa8", kind: "main" },
 ];
+
+// Each frame on these pages is part of the system: always checked.
+const SYSTEM_PAGES = new Set(["Design system", "Components"]);
+
+// A frame in one of these states must use the system (S1 to S12, T1).
+const READY = new Set(["ready_for_dev", "needs_review"]);
 
 const COMPONENTS: Readonly<Record<string, string>> = {
   cywze40i6e: "Button",
@@ -87,6 +85,17 @@ const COMPONENTS: Readonly<Record<string, string>> = {
   cjvyvxy96f: "Menu",
   c831u1xba4: "Compare",
   chbrui0hwl: "StateNote",
+  c1pbm9m4kc: "TextField",
+  c3r5gzysea: "Checkbox",
+  c7ohgps6yk: "SegmentedItem",
+  c6r6di27zy: "Segmented",
+  cz98spnfrz: "Tab",
+  cnmb1u4ho3: "Tabs",
+  cqzfqjd44d: "Chip",
+  c5e4pv7vgx: "Avatar",
+  clqhupjdan: "Toast",
+  cjblw4001k: "Dialog",
+  cnt8xhu7ot: "EmptyState",
 };
 
 // E4 IDs that no picture can prove. Each one is proven elsewhere.
@@ -350,6 +359,82 @@ const loadFrame = async (f: Frame, key: string): Promise<Parsed | undefined> => 
   }
 
   return parseFrame(f.id, await res.text());
+};
+
+// --- Which frames: E4, the system pages, and frames that ask for sign-off --
+
+type CanvasFrame = { id: string; page: string; status: string };
+
+const isRecord = (v: unknown): v is Record<string, unknown> => typeof v === "object" && v !== null;
+
+const field = (v: unknown, k: string): string => {
+  if (!isRecord(v)) return "";
+  const out = v[k];
+  return typeof out === "string" ? out : "";
+};
+
+const listOf = (v: unknown, k: string): Array<unknown> => {
+  if (!isRecord(v)) return [];
+  const out: unknown = v[k];
+  return Array.isArray(out) ? out : [];
+};
+
+// The HTTP API has no frame list for an agent key; the MCP get_canvas has.
+const callGetCanvas = async (key: string): Promise<unknown> => {
+  const client = new Client({ name: "easel-design-proof", version: "1" });
+  const transport = new StreamableHTTPClientTransport(new URL(MCP), {
+    requestInit: { headers: { Authorization: `Bearer ${key}` } },
+  });
+  await client.connect(transport);
+  try {
+    const res = await client.callTool({ name: "get_canvas", arguments: { canvas_id: CANVAS } });
+    const parts = listOf(res, "content").map((c) => field(c, "text"));
+    return JSON.parse(parts.join(""));
+  } finally {
+    await client.close();
+  }
+};
+
+const readCanvas = async (key: string): Promise<Array<CanvasFrame>> => {
+  const body = await callGetCanvas(key);
+  const pages = new Map(listOf(body, "pages").map((p) => [field(p, "id"), field(p, "name")]));
+  return listOf(body, "frames").map((f) => ({
+    id: field(f, "id"),
+    page: pages.get(field(f, "pageId")) ?? "",
+    status: field(f, "approvalStatus"),
+  }));
+};
+
+type Scope = { frames: Array<Frame>; ready: number; drafts: number };
+
+const kindOf = (f: CanvasFrame): Kind | undefined => {
+  if (SYSTEM_PAGES.has(f.page)) return "main";
+  return READY.has(f.status) ? "ready" : undefined;
+};
+
+const chooseFrames = (canvas: Array<CanvasFrame>): Scope => {
+  const scope: Scope = { frames: [], ready: 0, drafts: 0 };
+  const onCanvas = new Set(canvas.map((f) => f.id));
+  for (const f of E4) {
+    if (onCanvas.has(f.id)) scope.frames.push(f);
+    else report(f.id, "IO", "an E4 frame is not on the canvas");
+  }
+
+  const e4 = new Set(E4.map((f) => f.id));
+  for (const f of canvas.filter((c) => !e4.has(c.id))) {
+    const kind = kindOf(f);
+    if (kind === "ready") scope.ready += 1;
+    if (kind === undefined) scope.drafts += 1;
+    else scope.frames.push({ id: f.id, kind });
+  }
+  return scope;
+};
+
+const printScope = (scope: Scope): void => {
+  const mains = scope.frames.filter((f) => f.kind === "main").length;
+  console.log(
+    `scope: ${E4.length} E4 frames, ${mains} system frames, ${scope.ready} frames that ask for sign-off; ${scope.drafts} drafts not checked\n`,
+  );
 };
 
 // --- Design system: S1 to S4 ----------------------------------------------
@@ -784,9 +869,12 @@ const main = async (): Promise<number> => {
     badgeCss: "",
   };
 
+  const scope = chooseFrames(await readCanvas(key));
+  printScope(scope);
+
   // Fetch in parallel, check in order, so the report has one order.
   const frames = await Promise.all(
-    FRAMES.map(async (f) => ({ f, parsed: await loadFrame(f, key) })),
+    scope.frames.map(async (f) => ({ f, parsed: await loadFrame(f, key) })),
   );
   for (const { f, parsed } of frames) if (parsed !== undefined) checkFrame(proof, f, parsed);
 
