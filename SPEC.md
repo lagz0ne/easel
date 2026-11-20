@@ -262,9 +262,10 @@ export const putFrame = operation({
    model and starts an agent only when there is work. The host has the repo, `ship.sh` and `gh`
    already. The other choice, a GitHub Action, would need a model key in CI and a second way to
    land code.
-4. An off-host target for backup copies (an S3-compatible bucket, or the hub's own backup). It is
-   requested from the hub when ops lands. Recommended: whatever the hub already backs up to, so
-   there is one restore path for the machine.
+4. An off-host target for backup copies. The design is in
+   [SPEC-ops, "The data is safe"](SPEC-ops.md#the-data-is-safe): an S3-compatible bucket on a second host, with a
+   key that can only add copies. The hub has the request (hq-a6w). It stays open until the bucket
+   exists.
 5. `ship.sh --fixer` and the `BUILD` number change `scripts/ship.sh`, the Dockerfile and
    `deploy.yml`, and add a probe workflow. These are "Ask first" changes; approving this spec
    approves them. `ship.sh` is shared with the other agent on this checkout, who is told before it
