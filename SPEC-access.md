@@ -80,6 +80,9 @@ address is the socket's peer. An IPv6 address counts by its /64.
 6. A code nobody approves runs out after 10 minutes; the CLI says so and keeps nothing.
 7. A name in use answers `taken` at once, and the CLI says to pick another name.
 8. Past a rate limit, `login.start` answers `slow`, and the CLI says when to try again.
+9. `easel login --print-token` asks in the same way, but keeps nothing on the computer. When an
+   owner approves, it prints the token one time, for a secret of a run that has no file
+   ([cli](SPEC-cli.md#sign-in-with-no-file)).
 
 ### Revoke a user
 
