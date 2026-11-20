@@ -58,6 +58,9 @@ const E4: ReadonlyArray<{ id: string; kind: Kind }> = [
   { id: "1A1h0JmwpC", kind: "sheet" },
   { id: "cntUqBSroa", kind: "sheet" },
   { id: "AzGdKz1J0q", kind: "sheet" },
+  { id: "4EXIn1DP7X", kind: "screen" },
+  { id: "0TNKl4ZkOe", kind: "screen" },
+  { id: "3cjvM8ulyV", kind: "screen" },
 ];
 
 // Each frame on these pages is part of the system: always checked.
@@ -340,7 +343,9 @@ const onText = (s: ReadState, t: HTMLRewriterTypes.Text): void => {
 
   addCopy(s, open, t);
 
-  for (const o of s.stack) if (o.inst !== undefined) o.inst.text += t.text;
+  // A space ends each text node, so the text of two parts never joins ("first" "M20").
+  const text = t.lastInTextNode ? `${t.text} ` : t.text;
+  for (const o of s.stack) if (o.inst !== undefined) o.inst.text += text;
   addPropText(s, open, t.text);
 };
 
