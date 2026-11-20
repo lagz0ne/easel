@@ -14,7 +14,7 @@ it with the skill `writing-requirements`.
 ## Story map
 
 The main story is E1, E2, E3, then E4. E5 gives the same actions through MCP. E6 and E7 keep the
-server healthy.
+server healthy. Round 1 (below) holds E1, E2, E3, E4 and E6. E5 and E7 are deferred.
 
 | ID  | Epic                      | Outcome                                                        | Actors             | Journeys                                                                                                                              | Status                     | Review |
 | --- | ------------------------- | -------------------------------------------------------------- | ------------------ | ------------------------------------------------------------------------------------------------------------------------------------- | -------------------------- | ------ |
@@ -25,6 +25,68 @@ server healthy.
 | E5  | Work through MCP          | An agent with no shell does all of E2, E3 and E4.              | agent              | [mcp](../SPEC-mcp.md#journeys) 3                                                                                                      | Not built                  | active |
 | E6  | Watch production          | An owner and an agent see errors, health and backups.          | owner, server      | [ops](../SPEC-ops.md#journeys) 5                                                                                                      | Built, except backups      | to do  |
 | E7  | Fix errors with no person | An agent fixes a production error and proves the fix.          | fixer, tick, probe | [fixer](../SPEC-fixer.md#journeys) 5                                                                                                  | Not built                  | to do  |
+
+## Round 1: Get started
+
+- **Offer:** a hosted easel for one team. The agents of the team make HTML frames. The people of
+  the team see the frames change live, and comment to get a change.
+- **Customer:** a small team that designs with AI agents. The team lead pays.
+- **Base:** none.
+
+| Part  | Mark                                                                      | Epics or reason                                                                                         |
+| ----- | ------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------- |
+| Value | in the round                                                              | E1, E2, E3, E4. The team gets the value only when a comment comes back as a change, so E4 is necessary. |
+| Get   | by hand: the company talks to each new team and starts its easel (R1)     | The first teams come from the contacts of the company. The team starts with written steps (R2).         |
+| Pay   | by hand: the company sends an invoice each month (R3)                     | A payment system is not necessary for a small number of teams.                                          |
+| Help  | by hand: the company answers at one address (R4)                          | A share link from the team lets the company see what the team sees.                                     |
+| Run   | in the round: E6 with backups (R5); by hand: updates (R6)                 | The round holds the work of customers. A lost server must not lose it.                                  |
+| Trust | in the round: terms and privacy text (R7); by hand: one easel a team (R1) | Each user of a server sees each canvas on it. A team must not see the work of another team.             |
+| Learn | by hand: the company talks with each team each month (R9)                 | A talk with a small number of teams teaches more than numbers.                                          |
+
+| ID  | Requirement                                                    | Fit criterion                                                                                                                                                                                                 |
+| --- | -------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| R1  | A new team gets an easel that holds only its own work.         | Within 1 working day of the request, the team lead has the address of the easel of the team and its setup code. A person of another team cannot see its canvases, except by a share link.                     |
+| R2  | A new team gets the first value with no help from the company. | With only the written start steps, the team lead and one agent have a first frame on a shared canvas within 30 minutes after the setup code.                                                                  |
+| R3  | The team lead pays the agreed price.                           | Each month, the team lead gets an invoice for the price agreed before the start.                                                                                                                              |
+| R4  | A team gets help when easel does not do what it needs.         | The team knows one address for help. A person of the company answers within 1 working day, and can see the problem from a share link that the team sends.                                                     |
+| R5  | A team keeps its work when the server or its host is lost.     | After a restore, the team has each canvas, frame, share link and request as it was at most 1 hour before the loss. A person of the company did a restore with the written steps before the first team starts. |
+| R6  | A team gets fixes with no loss.                                | On the day of an update, each easel of each team has the update. Its canvases, share links and requests work as before.                                                                                       |
+| R7  | A team knows the terms, and how the company uses its data.     | The team lead accepts the terms and the privacy text before the company gives the setup code. The texts say who can see the work of the team, where it is kept, and how to delete it.                         |
+| R8  | A team that leaves gets its work deleted.                      | Within 7 days of the request, the easel of the team and its data, backups included, are deleted. The team lead gets a note that says so.                                                                      |
+| R9  | The company learns what the teams need.                        | Each month, there is a note for each team that says what the team needs and what stopped it.                                                                                                                  |
+
+Open questions: none.
+
+Decided:
+
+- The price is a decision of the company, agreed with each team before it starts. It does not
+  change what is built.
+- The company runs one easel for each team (R1). A shared server would show the canvases of each
+  team to the other teams.
+- Deferred: E5, work through MCP. Add it when a team has an agent that cannot run a shell.
+- Deferred: E7, fix errors with no person. Add it when the errors of all teams take a person of the
+  company more than 1 hour a day.
+- Deferred: moving a frame (E2). Add it when a team asks for it.
+- Deferred: a page that tells people the company does not know what easel is. Add it when the
+  company looks for teams outside its contacts.
+- Deferred: sign-up and payment with no person of the company. Add them when the invoices and the
+  new easels of a month take a person more than 1 day.
+- Deferred: one server for many teams. Add it when the cost of one easel for each team is too high.
+- Deferred: an export of the work of a team. Add it when a team asks to leave with its work.
+
+To make the round ready:
+
+- E1, E2, E3 and E6 have the review "to do". Do steps 3 and 4 for their journeys.
+- E4.1 to E4.4 have no "Failure end" line, so they are not ready. Add the line to each.
+
+### Round 1 walk of the slice
+
+On 2026-11-20, Round 1 was read from left to right as a team lead: hear of easel from the company,
+accept the terms, get the easel and the setup code, connect an agent, see the first frame, share
+it, comment, get the change, get help, pay, leave. Then it was read as the company: start an easel
+for each team, watch it, keep backups, update it, answer, send the invoice, learn, delete. The walk
+added R1 to R9. It found that each user of a server sees each canvas, so the company runs one easel
+for each team.
 
 ## E4: Comment and get a change
 

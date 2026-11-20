@@ -48,6 +48,15 @@ You must know these terms to read any spec.
 | error group | noun | All production errors that have the same fingerprint.                                             |
 | fixer       | noun | An agent that claims an error group, ships a fix, and proves that the fix is live.                |
 
+## Business terms
+
+| Term      | Type | Definition                                                                                   |
+| --------- | ---- | -------------------------------------------------------------------------------------------- |
+| company   | noun | The business that offers easel and operates it. It is an actor in the rounds.                |
+| team      | noun | The customer of a round: the people and the agents that use one easel.                       |
+| team lead | noun | The person of a team who agrees the price, pays, and gets the setup code.                    |
+| round     | noun | A set of requirements that must ship together, so that the company can offer and operate it. |
+
 ## Terms for each module
 
 ### Access
