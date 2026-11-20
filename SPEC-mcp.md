@@ -65,7 +65,8 @@ Prior art:
    `resolve_request` and `ask_request` take an optional HTML part, and `ask_request` takes up to
    6 options, so the viewer can see a comparison or a diagram, not only text.
 3. A `stale`, `gone`, `lost` or `wrongState` answer comes back as a tool error. Its text says what happened and
-   what to do next, for example: "The frame changed since version 3; get it again."
+   what to do next, for example: "The frame changed since version 3; get it again." A
+   `wrongState` with the state `closed` says that a viewer took the request back: stop the work.
 4. `next_request` waits at most 50 s per call, under Bun's 60 s idle timeout and common client
    timeouts ([SPEC.md](SPEC.md#rules-for-every-module)). `empty` is a success kind of
    `request.next`: a poll that finds no work is a normal answer, as SQS `ReceiveMessage` with no

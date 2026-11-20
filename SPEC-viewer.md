@@ -11,12 +11,28 @@ each request, live. It
 changes no frame. The speed it must reach is set in [canvas-speed](docs/canvas-speed.md), and the
 rules below hold it to that.
 
+The design is on the Doop canvas [easel · Product design](https://doop.vibea.dev/c/xFJSTXA-v5),
+page `Work · E4 Comment and get a change` (E4.1 to E4.4). Where this spec and a screen disagree,
+this spec wins, and the screen gets a fix.
+
 ## Journeys
+
+### The page
+
+1. A toolbar at the top shows the name of the canvas, and the status `Reconnecting` while the
+   socket is down (E4.4).
+2. A dock at the bottom centre of the canvas holds the canvas tools: the button `Request` (tooltip
+   "Ask for a change"), the button `Requests` (tooltip "Requests on this canvas"), then `Zoom out`,
+   the zoom `status`, `Zoom in` and `Fit`. The buttons show icons, and their names are their
+   accessible names. A button shows pressed while its mode or its panel is on.
+3. The panel `Requests` opens at the right edge, over the full height under the toolbar. The
+   canvas and the dock use the rest of the width.
 
 ### Open the link
 
 1. The page asks for the viewer's name once per browser (textbox `Your name`, button `Continue`),
-   before its first `share.open`, which takes the name.
+   before its first `share.open`, which takes the name. Open question: the E4.1 design asks for
+   the name at the first send, not at the gate. The E3 design decides it.
 2. The rest of the gate (password, wrong tries, an unknown link) is in
    [frames](SPEC-frames.md).
 
@@ -38,7 +54,7 @@ rules below hold it to that.
 
 1. The viewer drags on the canvas, or scrolls, and it pans.
 2. Ctrl+scroll or a pinch zooms around the pointer. Buttons `Zoom in`, `Zoom out` and `Fit` in the
-   toolbar do the same. A `status` shows the zoom, rounded down to steps of 10% (26% reads 20%).
+   dock do the same. A `status` shows the zoom, rounded down to steps of 10% (26% reads 20%).
 3. While the canvas moves, the set of live documents stays as it is. When it rests, the frames now
    in view go live, nearest first, one at a time. The one change allowed mid-move: a frame an
    agent deletes goes at once.
@@ -63,22 +79,30 @@ rules below hold it to that.
 ### Ask for a change
 
 1. A viewer presses the button `Request` (it shows pressed), and the canvas goes into request mode.
-2. They click a place on a frame, or on the canvas out of all frames, for a request about the
-   whole canvas. A textbox `Request` opens there. The page makes a client key for this request,
-   and keeps the frame version that it shows.
-3. They type and press the button `Send`. It sends `request.add` with the key and the version. A
-   pin (button `Request #<n>`) shows at that place, in every tab on the canvas within 1 s, and the
-   button `Request` turns off. While the socket is down, `Send` waits.
-4. Escape, or the button `Cancel`, closes the textbox and sends nothing.
-5. If the frame was removed meanwhile, nothing is saved. The textbox stays with the text and says
-   that the frame is gone. An agent's change to the frame leaves the textbox as it is.
+2. They click a part of a frame. The part gets an outline and a draft pin. Or they click the
+   canvas out of all frames, for a request about the whole canvas (E4.1 N2). A popover opens next
+   to the pin, with a textbox `Request` and the button `Send`. Under the textbox, the place shows:
+   "On <frame>" or "On the whole canvas". The page makes a client key for this request, and keeps
+   the frame version that it shows.
+3. They type and press `Send`, or Enter. It sends `request.add` with the key and the version.
+   While it sends, the text stays in the textbox, muted. When easel saves it, a pin (button
+   `Request #<n>`) shows at that place, in every tab on the canvas within 1 s. The popover shows
+   the new request, waiting, and the button `Request` turns off. The request shows in the list
+   (E4.1 N5).
+4. Escape, or a press on `Request`, closes the textbox and sends nothing.
+5. If the call is refused, nothing is saved. The textbox stays with the text, gets a danger edge,
+   and says why. Each text starts with "Not sent:" and says "Your text is kept":
+   - `gone`: "an agent removed the <frame> frame. Click the canvas to put the pin again." The
+     removed frame shows as a dashed area where it was. An agent's change to the frame leaves the
+     textbox as it is.
+   - `full`: "this canvas has too many open requests. Send again when some are done."
+   - `slow`: "you sent many requests in a short time. Send again in a minute."
+   - socket down: "no link to easel. Send again when Reconnecting goes." `Send` waits.
 6. If the call faults (the socket drops, or the server fails), the textbox stays with the text and
-   says it is not known yet whether it saved. It has no `Cancel` then. When the socket is back
+   says it is not known yet whether it saved. Escape does nothing then. When the socket is back
    (or, after a server fault, when the viewer presses `Send`), the page sends the request again
    with the same key. The server saves a key once, so the request is never saved twice, and its
    answer says whether it saved.
-7. If the canvas has too many open requests (`full`), or the viewer sends too fast (`slow`),
-   nothing is saved: the textbox stays with the text and says why.
 
 ### When the link ends
 
@@ -98,49 +122,113 @@ rules below hold it to that.
 
 ### Follow the requests
 
-1. The toolbar has the button `Requests`. It always shows the count of requests that wait for a
-   viewer: a question, a result to check, or "needs a person". Its name says the count, for
-   example `Requests, 2 wait for you`. When the count is 0, the button has no count.
-2. The button opens a panel (a `complementary` region named `Requests`). It has three groups, each
-   with a heading and oldest first:
-   - `For a viewer`: questions, results to check, and requests that need a person.
-   - `In the queue`: waiting, and in work (with the name of the agent).
-   - `Done`: accepted and closed. This group is collapsed when the panel opens.
-3. Each row shows the number, the author, the start of the text, and the state. Each state has its
-   own icon, color and word, so a viewer can tell the states apart without reading. A waiting
-   request can also show the mark "may be outdated" ([queue](SPEC-queue.md)).
-4. A searchbox `Find` above the groups keeps only the rows whose number, author or text matches.
-5. Each change of a request shows in every tab within 1 s, with no reload. A lease that runs out
-   shows with no write to the board: the board stores no "in work" and no "needs a person". The
-   page derives each state as the queue spec says, from the board and its estimate of the server's
-   time. The board carries the server's clock offset, and a clock capsule keeps the estimate.
-6. A click on a row moves the canvas to the place of the request and opens it. A click on a pin
-   opens its request. A request of a removed frame moves the canvas to where the frame was.
-7. An open request (a `dialog` named `Request #<n>`) shows all its messages, oldest first, each
-   with its kind, the name of its sender and its time. An HTML part shows in a sandboxed iframe,
-   as a live document does. A result shows the pictures of the frame before and after, side by
-   side. A question with options shows one button for each option, side by side.
-8. The controls of an open request follow its state. Any viewer of the link can use them, and each
-   use is a message with the name of the viewer.
+1. The button `Requests` in the dock always shows the count of requests that wait for a viewer: a
+   question, a result to check, or "needs a person" (E4.4 F2). Its name says the count, for
+   example `Requests, 2 wait for you`. When the count is 0, the button has no count. The button
+   shows no other number.
+2. The button opens and closes the panel (a `complementary` region named `Requests`). Its head
+   shows `Requests`, the same count, and a menu button that names the list on show: `Open` or
+   `Done`. The menu gives the two lists, each with its count of rows.
+3. The list `Open` has two groups, each with a heading, newest first:
+   - `Waits for you`: questions, results to check, and requests that need a person.
+   - `Other requests`: waiting, and in work.
 
-   | State          | Controls                                                  | Call                       |
-   | -------------- | --------------------------------------------------------- | -------------------------- |
-   | waiting        | `Edit` (the text), `Close`                                | `request.edit`, `close`    |
-   | in work        | none: it says which agent works on it                     |                            |
-   | question       | an option button, or textbox `Answer` and `Send`; `Close` | `request.answer`, `close`  |
-   | result         | `Accept`; `Open again`, with a textbox for the note       | `request.accept`, `reopen` |
-   | needs a person | the reason; `Edit`, `Close`                               | `request.edit`, `close`    |
-   | accepted       | `Open again`, with a textbox for the note                 | `request.reopen`           |
-   | closed         | none                                                      |                            |
+   A request that leaves `Waits for you` goes to `Other requests`, in its place by age. A canvas
+   with no requests says "No requests yet", and tells how to ask for one.
 
-9. If the request changed state since the dialog opened (`wrongState`), nothing is saved. The
-   dialog shows the new state and keeps the typed text. `full` and `slow` keep the text too and say
-   why.
-10. A request that changed since the last visit shows the mark `Changed`, and the button
-    `Requests` also shows how many changed. The browser keeps in `localStorage`, for each canvas,
-    the time of the last visit, and for each request, its `updated` time when the viewer last
-    opened it. A request shows `Changed` when its `updated` is after both. When the canvas opens,
-    the page reads the time of the last visit, then writes the time now.
+4. The list `Done` is one group, newest first: accepted, done with no answer, closed by a person,
+   and taken back (E4.4 F5). A result that no viewer answers for 3 days shows there as "Done, no
+   answer", and the count stops counting it (E4.2 M15).
+5. Each row shows the avatar and the name of the author, the age, a hairline, the state mark, and
+   `#<n>`. Under them: the start of the text (2 lines at most), and the place. A row has no fill for
+   its state. The row of the open request has a hover fill and a 2 px ink bar on its left.
+6. Each state has its own mark, named by its word (the accessible name and the tooltip), so a
+   viewer can tell the states apart without reading (E4.4 F1):
+
+   | State           | Mark                                         | Word                   |
+   | --------------- | -------------------------------------------- | ---------------------- |
+   | waiting         | a hollow circle                              | `Waiting for an agent` |
+   | in work         | a half circle, then the agent's name in text | the name of the agent  |
+   | question        | an accent bubble with "?"                    | `Question for you`     |
+   | result          | an accent circle with a tick                 | `Result to check`      |
+   | needs a person  | a danger square with "!"                     | `Needs a person`       |
+   | accepted        | a grey dot                                   | `Done`                 |
+   | done, no answer | a grey dot                                   | `Done, no answer`      |
+   | closed          | a slashed circle                             | `Closed`               |
+   | taken back      | a slashed circle                             | `Taken back`           |
+
+   A closed request is "taken back" when the viewer who closed it has the author's name. A
+   request that may be outdated ([queue](SPEC-queue.md)) keeps its state mark and adds a dotted
+   circle, named `May be outdated` and its cause: the frame changed, the frame was removed, or a
+   long wait.
+
+7. Pins show on the canvas for the requests of the list `Open`. A pin is a bubble with the
+   author's initial. It has the accent look while the request waits for a viewer, the danger look
+   while it needs a person, and a quiet look else. A done or closed request has no pin, except
+   while its popover is open. The pins of a removed frame go with it.
+8. Each change of a request shows in every tab within 1 s, with no reload (E4.4 F4). A lease that
+   runs out shows with no write to the board: the board stores no "in work" and no "needs a
+   person". The page derives each state as the queue spec says, from the board and its estimate
+   of the server's time. The board carries the server's clock offset, and a clock capsule keeps
+   the estimate.
+9. A click on a row moves the canvas to the place of the request and opens it. A click on a pin
+   opens its request (E4.4 F3). A request of a removed frame moves the canvas to where the frame
+   was: a dashed area that says the frame was removed, with the pin of the request in it.
+10. An open request is a popover next to its pin (a `dialog` named `Request #<n>`). It does not
+    cover the part that the request is about, and the list stays open. Escape or its button
+    `Close` (×) closes the popover; the request does not change.
+11. The head of the popover shows the state mark, `#<n>` and the place, then the button `More`
+    and the button `Close` (×). `More` opens a menu: `Correct the request` (off while an agent works,
+    with the hint "Agent works"), `Copy link`, and `Take back` (danger). `Take back` shows while
+    the request is waiting, in work, a question, or needs a person. Then a viewer who is not the
+    author sees `Close request` in its place.
+12. The thread shows all the messages, oldest first, with a hairline above each message after
+    the first. A message shows the avatar, the name of the sender, the time, and the text. An
+    agent has a square avatar. A step is one line: the name, what was done, and the time, for
+    example "claude-1 took it", "Mai corrected it", "Mai took it back", "Mai accepted the
+    result", "Mai opened it again", "claude-1 gave it back: <reason>", "Back in the queue, in its
+    first place", "No viewer answered in 3 days, so it is done", "3 tries with no outcome: it
+    needs a person".
+13. An HTML part shows in a sandboxed iframe, as a live document does. A result shows one picture
+    of the frame, with a switch `Before` | `After` on its top edge; it opens on `After` (E4.2
+    M11). After a decision, and while the viewer writes a note, the picture is folded: only the
+    switch shows, and a click on a side opens the picture on that side. A question with options
+    shows one button for each option, under its HTML part, and a textbox `Answer`.
+14. A request that may be outdated shows what the viewer saw: a switch `When asked` | `Now` on
+    the picture, open on `When asked` (E4.1 N8). `Now` shows the frame now, or "Frame removed".
+    A step says how many times the frame changed since the request.
+15. The controls of an open request follow its state. Any viewer of the link can use them, and
+    each use is a message with the name of the viewer (E4.2 M16).
+
+    | State           | Controls                                                                        | Call                       |
+    | --------------- | ------------------------------------------------------------------------------- | -------------------------- |
+    | waiting         | in `More`: `Correct the request` (Cancel, Save), `Take back`                    | `request.edit`, `close`    |
+    | in work         | in `More`: `Take back`; the head names the agent                                | `request.close`            |
+    | question        | an option button, or textbox `Answer` and `Send`; in `More`: `Take back`        | `request.answer`           |
+    | result          | `Accept`; `Open again`, then a textbox for the note, `Send` and `Cancel`        | `request.accept`, `reopen` |
+    | needs a person  | the reason; textbox "Make it clear, then send it back", `Send`; `Close request` | `request.edit`, `close`    |
+    | accepted        | `Open again`, then a textbox for the note                                       | `request.reopen`           |
+    | done, no answer | `Open again`, then a textbox for the note                                       | `request.reopen`           |
+    | closed          | none                                                                            |                            |
+
+    A request that may be outdated also has `Close request`. The button that closes the request
+    is always `Close request`, as GitHub's "Close issue", so it never shares the name `Close` of
+    the ×.
+
+16. If another viewer acted first (`wrongState`), nothing is saved. The popover shows the new
+    state, keeps the typed text in its textbox, and says who acted: "Not sent: Tom accepted this
+    first. Your text is kept." When the new state takes the same text in another call, the text
+    says so, and `Send` makes that call: after an accept, "Send it to open the request again"
+    (`reopen`). A correction that an agent started on first says "Not saved: claude-1 started work
+    on it first. Your text is kept.", with `Copy text` and `Take back` (E4.2 M20, E4.1 N10).
+    `full` and `slow` keep the text too and say why.
+17. A request that changed since the last visit shows the mark `Changed since your last visit`: an
+    accent squircle on the top right corner of the row's avatar (E4.4 F6). It goes when the viewer
+    opens the request. The button `Requests` shows no count of changed requests. The browser keeps
+    in `localStorage`, for each canvas, the time of the last visit, and for each request, its
+    `updated` time when the viewer last opened it. A request shows the mark when its `updated` is
+    after both. When the canvas opens, the page reads the time of the last visit, then writes the
+    time now.
 
 ## Numbers
 
@@ -162,6 +250,8 @@ width and height, added on each side of it.
 | Fit                    | a 40 px edge; never past 100%                                         |
 | Zoom status            | rounded down: steps of 10%; under 10% of 1%; under 1% of 0.1%         |
 | Label                  | kept at its screen size; rewritten after a 10% zoom drift and at rest |
+| Done, no answer        | a result that no viewer answers for 3 days (from its `updated`)       |
+| Request panel          | 340 px wide                                                           |
 
 A shell's picture is its frame's address on the board: its version and its key `k`, at scale 0.5,
 or 0.25 when 0.5 would be over 8 megapixels. Past that, and with pictures off (no `k`), the shell
@@ -210,8 +300,8 @@ camera controls.
 8. One page module adds the paint script, to the document it gives the iframe. No server module
    and no stored document carries it.
 9. The panel reads time only from the clock capsule, never from `Date.now()`.
-10. One page function derives the state of a request (queue spec, table `State`). The panel, the
-    pin, the dialog and the count all use it.
+10. One page function derives the state of a request (queue spec, table `State`), and "done, no
+    answer" and "taken back" from it. The panel, the pin, the popover and the count all use it.
 
 ### Judged rules (need reading the code)
 
@@ -225,7 +315,7 @@ camera controls.
 5. `Reconnecting` shows from the moment the socket drops until the full board read after
    reconnect has arrived.
 6. A request's client key is made once, when its textbox opens, and every send of that request
-   carries it. While it is not known whether a send saved, the textbox offers no `Cancel`.
+   carries it. While it is not known whether a send saved, Escape does not close the textbox.
 7. The ended page, and the password page after `{ locked: true }`, keep the text of a request or
    an answer being typed, and never say "not sent" of one that may have saved.
 8. The server refuses an `/rpc` upgrade whose `Origin` is present and is not `PUBLIC_ORIGIN`, so a
@@ -233,8 +323,9 @@ camera controls.
    judged rule 15).
 9. An HTML part of a message runs in the same sandbox as a live document (judged rule 4), never in
    the page.
-10. A refused viewer call (`wrongState`, `gone`, `full`, `slow`) never clears the typed text.
-11. The mark `Changed` reads and writes only `localStorage`. It sends nothing to the server.
+10. A refused viewer call (`wrongState`, `gone`, `full`, `slow`) never clears the typed text: of
+    a request, a correction, an answer or a note (E4.1 N10).
+11. The changed mark reads and writes only `localStorage`. It sends nothing to the server.
 
 ### Accepted risk
 
@@ -257,12 +348,15 @@ already gave.
   CDP's screencast on, and counts the white pixels in each frame's box in each image.
 - A test replays each statechart's steps in `docs/statecharts/viewer-*.md` and holds each of its
   rules.
-- A page test answers each state of a request on the board and finds its row in the right group,
-  with its own icon and word, the right count on `Requests`, and the controls of the table.
+- A page test answers each state of a request on the board and finds its row in the right list
+  and group, with its own mark and word, the right count on `Requests`, its pin look, and the
+  controls of the table.
+- A page test refuses each viewer call with `wrongState` and finds the typed text kept, and the
+  name of the viewer who acted first.
 - A page test with a moved clock shows a lease that runs out as waiting, or as "needs a person",
   with no board write.
-- A page test with a stored last visit shows `Changed` on each request updated after it, and the
-  mark goes when the viewer opens the request.
+- A page test with a stored last visit shows the changed mark on each request updated after it,
+  and the mark goes when the viewer opens the request.
 - The smoke has one canvas flow: open a board, frames show, pan and zoom.
 
 ## Out of Scope (Deferred)
@@ -270,3 +364,5 @@ already gave.
 - Editing anything in the browser.
 - Cursors and presence of other viewers.
 - A minimap.
+- Search in the list of requests. Add it when a canvas has more open requests than a viewer can
+  read in one list.

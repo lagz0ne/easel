@@ -1,6 +1,6 @@
 # viewer: one request in the Requests panel
 
-The chart follows one request in the panel `Requests` while agents and viewers work on it. The board stores no "in work" and no "needs a person": the page derives them from `claimedUntil`, `tries` and the server's time, read from a clock capsule (the page's clock plus the server's offset, carried by the board). So when a lease runs out, nothing is written, and the panel shows the request waiting again, or as "needs a person" after its last try. A claim, an outcome and each call of a viewer reach every connected tab at once. The count on the button `Requests` counts the request while it waits for a viewer. The mark `Changed` shows after each change, until the viewer opens the request. While the socket is down, the panel says `Reconnecting`, and the full board read when it is back brings it up to date. The model is [models/viewer/ViewerQueue.tla](models/viewer/ViewerQueue.tla) with [ViewerQueue.cfg](models/viewer/ViewerQueue.cfg). TLC checks every rule below on all 358 of its states, and each one holds.
+The chart follows one request in the panel `Requests` while agents and viewers work on it. The board stores no "in work" and no "needs a person": the page derives them from `claimedUntil`, `tries` and the server's time, read from a clock capsule (the page's clock plus the server's offset, carried by the board). So when a lease runs out, nothing is written, and the panel shows the request waiting again, or as "needs a person" after its last try. A claim, an outcome and each call of a viewer reach every connected tab at once. A viewer can take back a request while an agent works on it, and the claim ends with it. The count on the button `Requests` counts the request while it waits for a viewer. The mark `Changed` shows after each change, until the viewer opens the request. While the socket is down, the panel says `Reconnecting`, and the full board read when it is back brings it up to date. The model is [models/viewer/ViewerQueue.tla](models/viewer/ViewerQueue.tla) with [ViewerQueue.cfg](models/viewer/ViewerQueue.cfg). TLC checks every rule below on all 358 of its states, and each one holds.
 
 ```mermaid
 ---
@@ -143,11 +143,13 @@ stateDiagram-v2
   s4 --> s12: a viewer closes it
   s4 --> s19: an agent claims it (easel next)
   s15 --> s23: the agent asks a question
+  s15 --> s9: a viewer takes it back
   s15 --> s3: the agent releases it
   s15 --> s30: the agent declines it
   s15 --> s37: the agent resolves it
   s15 --> s51: the agent releases it
   s18 --> s26: the agent asks a question
+  s18 --> s12: a viewer takes it back
   s18 --> s6: the agent releases it
   s18 --> s33: the agent declines it
   s18 --> s40: the agent resolves it
@@ -190,7 +192,8 @@ stateDiagram-v2
 - Extend: it moves `claimedUntil` and changes nothing the panel shows.
 - The time of the last visit. The model keeps one flag for "the viewer opened the request after its last change". A new visit only hides the marks of changes before it, and that adds no step to check.
 - "May be outdated": a mark from the frame version and the age. It does not change the state ([queue](../../SPEC-queue.md)).
-- Many requests and their order, the groups, `Find`, the agent's name, and the messages.
+- Many requests and their order, the lists and groups, the agent's name, and the messages.
+- "Done, no answer": after 3 days with no answer, the page shows a result as done and stops counting it. The model has no time of day, so it counts a result until a viewer acts.
 - The status `Reconnecting` while the full read is in flight: [viewer-canvas](viewer-canvas.md) has it.
 
 ## Steps the chart hides

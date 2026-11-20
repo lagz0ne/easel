@@ -77,5 +77,9 @@ const outcomes = {
 export const step = (action, from, to) => {
   const name = action.replace(/\(.*$/, "");
 
-  return name === "Outcome" ? outcomes[to.status] : (steps[name] ?? name);
+  if (name === "Outcome") return outcomes[to.status];
+  // E4.1 N9: a close while an agent works on it is the viewer who takes the request back.
+  if (name === "ViewerCloses" && from.live) return "a viewer takes it back";
+
+  return steps[name] ?? name;
 };

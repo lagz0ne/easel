@@ -60,8 +60,12 @@ Prior art:
 4. If the canvas has 200 requests that are not resolved and not closed, the answer is `full`. If the
    viewer sends too fast, the answer is `slow` with `retryIn`. Nothing is saved, and the page keeps
    the text.
-5. While no agent holds the request, the viewer can edit its text or close it. An edit adds a
-   message, and the request goes to the back of the queue.
+5. While no agent holds the request, the viewer can correct its text (an edit). An edit adds a
+   message, and the request goes to the back of the queue. The viewer can take back the request
+   (a close) at any time before its result, also while an agent works on it. Then the claim ends,
+   and the next call of the agent answers `wrongState` with the state `closed`, so no result
+   comes. A change that the agent made to the frame before that stays: the frame keeps its
+   versions, and a viewer can ask for a new change.
 6. When an agent moves the frame, its requests move with it.
 
 ### An agent works the queue
@@ -142,8 +146,8 @@ Prior art:
 ### A viewer answers and decides
 
 1. A request with a question shows the question to every viewer within 1 s. Any viewer answers it
-   with text, or picks one of its options. The request is waiting again, at the back of the queue,
-   and its count of tries starts again at 0.
+   with text, or picks one of its options. The request is waiting again, in its first place in the
+   queue (E4.2 M19), and its count of tries starts again at 0.
 2. A resolved request shows its result: the text, the HTML part, and the frame before and after. Any
    viewer accepts it, or opens it again with a note. Open again makes it waiting, at the back of
    the queue, with its count of tries at 0.
@@ -282,8 +286,8 @@ clock offset of the server). Nothing stored says "in work" or "needs a person".
 | `closed`      | `status` is `closed`                                                  |
 
 The order of the queue is `queuedAt`, oldest first, then canvas and `n`. `request.add` sets
-`queuedAt` to `created`. A release, an edit, an answer and a reopen set it to the time of that
-call.
+`queuedAt` to `created`. A release, an edit and a reopen set it to the time of that call. An
+answer keeps it: the request goes back to its first place (E4.2 M19).
 
 ## Rules
 
@@ -333,9 +337,10 @@ one for each waiting period, the cap of attempts, and one outcome when two ways 
    - `answer`: `asking`. It sets `open` and `tries` to 0.
    - `accept`: `resolved` with `acceptedBy` null. It sets `acceptedBy`.
    - `reopen`: `resolved`. It sets `open`, `tries` to 0 and `acceptedBy` to null.
-   - `close`: `open` and not in work, `asking`, or `person`. It sets `closed`.
-   - In any other state, the answer is `wrongState`. A viewer never changes a request that an
-     agent holds.
+   - `close`: `open` (also in work), `asking`, or `person`. It sets `closed` and ends the lease
+     (`claimedBy` and `claimedUntil` to null).
+   - In any other state, the answer is `wrongState`. A viewer changes a request that an agent
+     holds only to take it back (`close`).
 10. Each outcome is one conditional write with its message: `resolve` sets `resolved`, `ask` sets
     `asking`, and `decline` sets `person`. Each ends the lease.
 11. `tries` counts claims. `request.next` adds one. `edit`, `answer` and `reopen` set it to 0.
@@ -386,6 +391,10 @@ one for each waiting period, the cap of attempts, and one outcome when two ways 
 - 3 tries with no outcome make a request need a person, in a test that moves the clock. Releases
   count. An edit makes it waiting again with `tries` at 0.
 - A viewer call on a request in work answers `wrongState`, in a test where an agent claims first.
+  The one exception is `close`: it closes the request, and the next `resolve` of the agent answers
+  `wrongState` with the state `closed`.
+- An answer puts the request before a request that was asked after it, in a test with two
+  requests and one agent.
 - A repeated `request.add` with one key saves one request.
 - Two ways on, in a test: a GitHub channel with a test double of GitHub, and an agent that asks.
   Each of 20 requests ends with one outcome. A run that comes late is told `empty`.

@@ -21,7 +21,7 @@ easel of each team healthy. Round 1 (below) holds E1, E2, E3, E4 and E6. E5 and 
 | E1  | Get in                    | A person or an agent gets a token when an owner approves it.          | team lead, owner, agent | [access](../SPEC-access.md#journeys), [cli](../SPEC-cli.md#journeys)                                                                  | Built                      | ready  |
 | E2  | Make frames               | An agent puts HTML frames on a canvas and changes them safely.        | agent                   | [frames](../SPEC-frames.md#make-a-canvas): make a canvas, make and change frames                                                      | Built, except `frame.move` | ready  |
 | E3  | Share and look            | A person opens a link and sees the frames change at once.             | agent, viewer           | [frames](../SPEC-frames.md#share-a-canvas): share, open; [viewer](../SPEC-viewer.md#journeys) 7; [design](../SPEC-design.md#journeys) | Built                      | ready  |
-| E4  | Comment and get a change  | A viewer asks for a change. An agent makes it and replies.            | viewer, agent           | [queue](../SPEC-queue.md#journeys) 3; [viewer](../SPEC-viewer.md#pin-a-comment): pin a comment, follow the queue                      | Not built                  | active |
+| E4  | Comment and get a change  | A viewer asks for a change. An agent makes it and replies.            | viewer, agent           | [queue](../SPEC-queue.md#journeys) 3; [viewer](../SPEC-viewer.md#ask-for-a-change): ask for a change, follow the requests             | Not built                  | active |
 | E5  | Work through MCP          | An agent with no shell does all of E2, E3 and E4.                     | agent                   | [mcp](../SPEC-mcp.md#journeys) 3                                                                                                      | Not built                  | active |
 | E6  | Watch production          | The company sees the health, the errors and the copies of each easel. | company                 | [ops](../SPEC-ops.md#journeys) 5                                                                                                      | Built, except backups      | ready  |
 | E7  | Fix errors with no person | An agent fixes a production error and proves the fix.                 | fixer, tick, probe      | [fixer](../SPEC-fixer.md#journeys) 5                                                                                                  | Not built                  | to do  |
@@ -271,10 +271,10 @@ Decided:
 
 | ID   | Journey                             | Actor     | Design                                                                                                                         | Review |
 | ---- | ----------------------------------- | --------- | ------------------------------------------------------------------------------------------------------------------------------ | ------ |
-| E4.1 | Ask for a change                    | viewer    | [queue](../SPEC-queue.md#a-viewer-adds-a-comment), [viewer](../SPEC-viewer.md#pin-a-comment)                                   | ready  |
+| E4.1 | Ask for a change                    | viewer    | [queue](../SPEC-queue.md#a-viewer-asks-for-a-change), [viewer](../SPEC-viewer.md#ask-for-a-change)                             | ready  |
 | E4.2 | Do the change and reply             | agent     | [queue](../SPEC-queue.md#an-agent-works-the-queue)                                                                             | ready  |
-| E4.3 | A request no agent finishes         | agent     | [queue](../SPEC-queue.md#a-comment-no-agent-finishes)                                                                          | ready  |
-| E4.4 | Follow the requests                 | viewer    | [viewer](../SPEC-viewer.md#follow-the-queue)                                                                                   | ready  |
+| E4.3 | A request no agent finishes         | agent     | [queue](../SPEC-queue.md#a-request-no-agent-finishes)                                                                          | ready  |
+| E4.4 | Follow the requests                 | viewer    | [viewer](../SPEC-viewer.md#follow-the-requests)                                                                                | ready  |
 | E4.5 | Work reaches the agents of the team | team lead | [queue](../SPEC-queue.md#the-dispatcher-gets-a-request-to-the-agents), [queue](../SPEC-queue.md#a-team-lead-sets-the-channels) | ready  |
 
 The design of each state that a viewer sees is on the Doop canvas
@@ -485,6 +485,9 @@ SPEC-queue closes D6, D7, D9 and D10 with the dispatcher and the channels, and t
 On 2026-11-19, E4 was read from left to right as one viewer: open the link, ask, follow, answer,
 accept. The walk changed N9 and N10, and added M19 and M20. The state sheets of the design (same
 day) added closed to F1, needs a person to F2 as SPEC-viewer has it, and removed the count from F6.
+
+All rows below are closed in the specs (2026-11-20, with the E4 design): SPEC-queue, SPEC-viewer,
+and the charts request-life and viewer-queue.
 
 | Req. | Gap in the design now                                                                                | Spec                     |
 | ---- | ---------------------------------------------------------------------------------------------------- | ------------------------ |

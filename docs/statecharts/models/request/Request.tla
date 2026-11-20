@@ -103,11 +103,13 @@ ViewerReopens ==
   /\ status = "resolved"
   /\ SendBack
 
-\* request.close
+\* request.close: also while an agent works on it (E4.1 N9: the viewer takes it back). The
+\* claim ends with it, so the agent's outcome can no longer land.
 ViewerCloses ==
-  /\ (status = "open" /\ ~live) \/ status = "asking" \/ status = "person"
+  /\ status \in {"open", "asking", "person"}
   /\ status' = "closed"
-  /\ UNCHANGED <<live, tries, accepted>>
+  /\ live' = FALSE
+  /\ UNCHANGED <<tries, accepted>>
 
 \* A closed request stays as it is.
 Closed ==
@@ -132,8 +134,11 @@ OnlyAnOpenRequestIsInWork == live => status = "open"
 \* the queue, and never needs a person by the count of tries.
 AQuestionWaitsForAViewer == status = "asking" => ~Waiting /\ ~live /\ ~NeedsPerson
 
-\* Judged rule 9: a viewer never changes a request in work.
-AViewerNeverChangesARequestInWork == [][live => ~ViewerStep]_vars
+\* Judged rule 9: a viewer changes a request in work only to take it back (close it).
+AViewerOnlyTakesBackARequestInWork == [][(live /\ ViewerStep) => status' = "closed"]_vars
+
+\* E4.1 N9: a request that the viewer takes back never shows a result.
+ATakenBackRequestNeverShowsAResult == [][status = "closed" => status' # "resolved"]_vars
 
 \* Judged rules 9 and 11: a request that comes back to the queue starts with no tries.
 ARequestComesBackWithNoTries ==

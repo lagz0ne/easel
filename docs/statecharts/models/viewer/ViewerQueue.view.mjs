@@ -65,7 +65,11 @@ const steps = {
   AViewerAnswers: () => "a viewer answers",
   AViewerAccepts: () => "a viewer accepts the result",
   AViewerReopens: () => "a viewer opens it again",
-  AViewerCloses: () => "a viewer closes it",
+  // In work (a live lease), a close is the viewer who takes the request back (E4.1 N9).
+  AViewerCloses: (from) =>
+    from.status === "open" && from.until === "set" && !from.expired
+      ? "a viewer takes it back"
+      : "a viewer closes it",
   YouOpenIt: () => "you open it",
   TheSocketDrops: () => "the socket drops",
   TheSocketReconnects: () => "the socket is back, the board is read",

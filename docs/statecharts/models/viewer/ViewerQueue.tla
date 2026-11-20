@@ -90,10 +90,11 @@ AViewerAccepts ==
   /\ UNCHANGED <<until, tries, expired>>
   /\ Push
 
+\* close; in work it is the viewer who takes the request back (E4.1 N9), and the claim ends.
 AViewerCloses ==
-  /\ Truth \in {"waiting", "needsPerson", "person", "asking"}
-  /\ status' = "closed"
-  /\ UNCHANGED <<until, tries, expired>>
+  /\ Truth \in {"waiting", "inWork", "needsPerson", "person", "asking"}
+  /\ status' = "closed" /\ until' = "none"
+  /\ UNCHANGED <<tries, expired>>
   /\ Push
 
 \* The viewer opens the request in this browser: its "changed" mark goes.

@@ -4,8 +4,9 @@ The chart shows the states of one request, and who moves it. A viewer asks. An a
 Each try ends with one outcome: a result to check, a question for a viewer, or a decline to a
 person. A release or a lease that runs out ends a try with no outcome. After 2 such tries (3 in the
 spec), the request needs a person. A viewer answers a question, accepts or opens a result again,
-and edits or closes a request that waits or needs a person. A user can edit and close from the
-CLI. Each return to the queue starts the count of tries again at 0.
+and edits or closes a request that waits or needs a person. A viewer can also take back a request
+while an agent works on it: the close ends the claim, so no result comes. A user can edit and close
+from the CLI. Each return to the queue starts the count of tries again at 0.
 
 The model is [models/request/Request.tla](models/request/Request.tla) with
 [Request.cfg](models/request/Request.cfg). It has one agent, and a lease that is live or not.
@@ -47,6 +48,7 @@ stateDiagram-v2
   s1 --> s2: a viewer or a user closes it
   s1 --> s3: an agent claims it
   s3 --> s4: the agent asks a question
+  s3 --> s2: a viewer takes it back
   s3 --> s5: the agent releases it, with a reason or the lease runs out
   s3 --> s6: the agent declines, with a reason
   s3 --> s7: the agent resolves it, with a result
@@ -60,6 +62,7 @@ stateDiagram-v2
   s7 --> s1: a viewer opens it again, with a note
   s7 --> s9: a viewer accepts
   s8 --> s4: the agent asks a question
+  s8 --> s2: a viewer takes it back
   s8 --> s10: the agent releases it, with a reason or the lease runs out
   s8 --> s6: the agent declines, with a reason
   s8 --> s7: the agent resolves it, with a result
@@ -87,7 +90,8 @@ stateDiagram-v2
 | `OnlyAnOpenRequestIsInWork`                 | Only an `open` request can be in work.                                                                      | SPEC-queue.md § Contract (the states)                                   |
 | `AQuestionWaitsForAViewer`                  | A request with a question is not in the queue, and never needs a person by the count of tries.              | SPEC-queue.md § A viewer answers and decides, step 1; E4.2 M14          |
 | `NoDeadlock`                                | There is always a next step. A closed request stays as it is.                                               | (model)                                                                 |
-| `AViewerNeverChangesARequestInWork`         | No viewer or user edits, answers, accepts, reopens or closes a request that an agent holds.                 | SPEC-queue.md § A viewer asks for a change, step 5; judged rule 9       |
+| `AViewerOnlyTakesBackARequestInWork`        | A viewer or user changes a request that an agent holds only to close it (take it back).                     | SPEC-queue.md § A viewer asks for a change, step 5; judged rule 9       |
+| `ATakenBackRequestNeverShowsAResult`        | A request that is closed, also one taken back from an agent, never becomes a result.                        | SPEC-queue.md § A viewer asks for a change, step 5; E4.1 N9             |
 | `ARequestComesBackWithNoTries`              | An edit, an answer or a reopen sends the request back with its count of tries at 0.                         | SPEC-queue.md § A request no agent finishes, step 3; judged rules 9, 11 |
 | `AResultStaysResolvedUntilReopened`         | A result stays resolved, accepted or not, until a viewer opens it again.                                    | SPEC-queue.md § A viewer answers and decides, steps 2, 3; E4.2 M15      |
 | `OnlyAPersonActsOnARequestThatNeedsAPerson` | Only an edit or a close takes a request away from "needs a person".                                         | SPEC-queue.md § A request no agent finishes, step 3; E4.3 P4            |
@@ -97,7 +101,8 @@ stateDiagram-v2
 
 A check of the rules: a release that gives its try back breaks `ARequestEndsWithAnOutcomeOrAPerson`.
 An answer that keeps the tries breaks `ARequestComesBackWithNoTries`. An edit of a request in work
-breaks `AViewerNeverChangesARequestInWork`.
+breaks `AViewerOnlyTakesBackARequestInWork`. A take back that leaves the lease live breaks
+`ATakenBackRequestNeverShowsAResult`: the agent could still resolve.
 
 ## What the model leaves out
 
