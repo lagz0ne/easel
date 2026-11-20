@@ -45,19 +45,44 @@ starts with its level: `Primitive.`, `Pattern.` or `Layout.`
 
 ### easel · Product design
 
-| Page                                      | What is on it                                                        |
-| ----------------------------------------- | -------------------------------------------------------------------- |
-| `0 · Read me`                             | What this canvas is, the pages, how to start a design.               |
-| `Work · E<n> <epic title>`                | One page for each epic in design. Screens on row 1, sheets on row 2. |
-| `Archive · E<n> <epic title> (concluded)` | The concluded design of an epic. Explorations are deleted.           |
+| Page                                      | What is on it                                                 |
+| ----------------------------------------- | ------------------------------------------------------------- |
+| `0 · Read me`                             | What this canvas is, the pages, how to start a design.        |
+| `Work · E<n> <epic title>`                | One page for each epic in design. See "An epic page" below.   |
+| `Work · E<n> · click-path copies`         | Copies of a screen that only the prototype needs (see below). |
+| `Archive · E<n> <epic title> (concluded)` | The concluded design of an epic. Explorations are deleted.    |
 
 Example: `Work · E4 Comment and get a change`.
+
+### An epic page
+
+A person reads the page from the top left, without help. This follows the create canvas
+(`create · Product design`: a sheet first, one page for each epic) and Figma practice (one page
+for one kind of material, a section for each flow).
+
+1. **The sheet** `E<n>.00 Requirements and review`, at x 0, y 0. It is the traceability matrix:
+   each requirement ID of the epic, its need and fit criterion, the frames that prove it (links),
+   and the last review verdict. Its status box says how to read the page and names the prior art.
+2. **One band for each journey**, top to bottom, at the right of the sheet. A band is:
+   - a **banner** `E<n>.<m> · <journey title>` (640 × 800): actor, need, trigger, the two ends,
+     the lines of the band, and a link that opens the prototype at the start of the journey;
+   - the journey's **state sheet**;
+   - the **screens in click order**, left to right. A journey with more than one path has one
+     line for each path, under the first. The banner names each line.
+3. **Click-path copies** go to `Work · E<n> · click-path copies`. A Doop link always opens a frame
+   at its top, so a screen with a tab (Before or After) needs one copy for each tab. People read
+   the screen on the epic page; only the prototype needs the copies. A prototype link works across
+   pages. Change a copy when you change its screen.
+
+Do not put all states of a screen into one tall frame (create does this). A link to a state in
+such a frame opens at its top, and the prototype needs each state as a frame.
 
 ## Frame names
 
 - A screen: `E<n>.<m> <what the person sees> (<IDs it proves>)`. Example:
   `E4.1 Ask for a change (N1 N2)`.
 - A state sheet: `E<n>.<m> states: <what> (<IDs>)`. One sheet for each journey.
+- The epic sheet: `E<n>.00 Requirements and review`. A journey banner: `E<n>.<m> · <title>`.
 - An exploration: `E<n>.W<nn> <what>`. It stays `draft`. The index counts for each epic. Do not use
   an index again.
 - A component main has the name of the component. Its frame is on the page of its level.
@@ -91,7 +116,8 @@ Example: `Work · E4 Comment and get a change`.
 3. Make the page `Work · E<n> <epic title>` on **easel · Product design**.
 4. Compose each screen from the library: layout parts first, then patterns, then primitives. Write
    new CSS only for the page grid. A missing part is made on the library first (see above).
-5. Add the frames and the IDs to `scripts/design-proof.ts` in the same ship.
+5. Add the sheet `E<n>.00`, a banner for each journey, and put the frames in bands (see "An epic
+   page"). Add the frames and the IDs to `scripts/design-proof.ts` in the same ship.
 6. Prove the design round by round with `epic-flow`, until each ID is proven.
 
 ## Migration (done, 2026-11-20)
