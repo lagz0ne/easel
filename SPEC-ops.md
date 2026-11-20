@@ -9,7 +9,11 @@ errors is the [fixer](SPEC-fixer.md) module, built last.
 easel is run and fixed by agents. Every failure becomes a fact that an agent can read, reproduce
 and fix, then prove fixed, with no person in the loop. A person sees the state, and is called only
 when the agents give up or the fix is not a code change. ops holds the facts: the error groups,
-their status, the build each one was fixed in, readiness and local backups. The fixer acts on them.
+their status, the build each one was fixed in, readiness and backups. The fixer acts on them.
+
+In Round 1 ([epics](docs/epics.md#round-1-get-started)), the company runs one easel for each team,
+and the fixer (E7) is deferred. So a person of the company acts on what ops shows (E6). Each check,
+copy and alarm below is for one easel, and the company has one of each for each team.
 
 Prior art:
 
@@ -17,6 +21,12 @@ Prior art:
   marked "regressed" when it comes back in a later release.
 - Kubernetes probes: liveness says the process should restart; readiness says it can take traffic.
 - The Google SRE book: alert on symptoms, give each alert a runbook, and watch the watcher.
+- Litestream: it streams each change of a SQLite database to S3 within seconds. It is a second
+  process, and it takes control of the checkpoints of the database. A copy each 30 minutes, made
+  with the `VACUUM INTO` that ops has, meets R5 (at most 1 hour lost) with no second process. Add
+  Litestream when a team needs to lose less than 30 minutes.
+- Backups that the source cannot delete: restic's append-only mode, and an S3 key that can only put
+  objects. A lifecycle rule of the bucket, not the server, deletes old copies.
 
 ## Built on Tinker
 
@@ -121,13 +131,29 @@ so a larger number is a later build that contains every earlier one. `/api/versi
 
 ### The data is safe
 
-1. Every hour, easel writes a copy of its database to `/data/backups` (`VACUUM INTO`). It keeps 24
-   hourly and 7 daily copies, and stops making copies when they would take more than a quarter of
-   the free disk.
+1. Every 30 minutes, easel writes a copy of its database to `/data/backups` (`VACUUM INTO`). It
+   keeps the copies of the last 24 hours and one copy for each of the last 7 days. It stops making
+   copies when they would take more than a quarter of the free disk.
 2. Before a migration runs at start, it writes one more copy.
-3. `docs/runbook.md` says what an agent does for each readiness check and each kind of failure,
-   including how to restore from a backup. The copy that goes off the host is the
-   [fixer](SPEC-fixer.md)'s.
+3. After each copy, easel sends it off the host: gzip, then one put to an S3-compatible bucket on a
+   second host, with Bun's `S3Client` (no new package). The object key is
+   `<EASEL_NAME>/<UTC time>-<build>.db.gz`. `EASEL_NAME` is the name of the easel of the team. A
+   put that fails is tried again after 1 and 5 minutes. After that, the next copy tries again.
+4. The access key (`BACKUP_S3_*`) can only put objects under the prefix of its own easel. It cannot
+   read, list or delete. A server that an attacker controls cannot delete its copies, and cannot
+   read the copies of another team.
+5. The bucket deletes each object 5 days after its put (a lifecycle rule). When a team leaves and
+   its easel is deleted, no copy of its work is left after 7 days (R8), with no step for a person.
+6. `/api/ready` carries `backupAt`, the time of the last good put, and `backupLate`. `backupLate`
+   is true when more than 2 hours have passed since `backupAt`, or since the start when there is no
+   `backupAt`. As `fixerSilent`, it does not make the server unready. With no `BACKUP_S3_*`, easel
+   makes no put, so `backupLate` becomes true: an easel with no copy off the host is seen.
+7. A check outside the host reads `/api/ready` of each easel each minute. It tells a person of the
+   company when an easel answers 503, or does not answer for 5 minutes (H3), and when `backupLate`
+   is true (H12). The hub runs it ([SPEC.md](SPEC.md#open-questions), question 4).
+8. `docs/runbook.md` tells a person what to do for each readiness check and for `backupLate`, and
+   how to restore an easel from a copy off the host. A person of the company does a restore with
+   only these steps before the first team starts (R5, H13).
 
 ## Contract
 
@@ -138,8 +164,10 @@ one answer.
 // routes, no sign-in
 "GET /api/health":  tinker.health                          // exists
 "GET /api/version": { commit: string; build: number }
-"GET /api/ready":   200 { failing: []; fixerSeen: number | null; fixerSilent: boolean }
-                  | 503 { failing: string[]; fixerSeen: number | null; fixerSilent: boolean }
+"GET /api/ready":   200 { failing: []; fixerSeen: number | null; fixerSilent: boolean;
+                          backupAt: number | null; backupLate: boolean }
+                  | 503 { failing: string[]; fixerSeen: number | null; fixerSilent: boolean;
+                          backupAt: number | null; backupLate: boolean }
 // rpc, a user
 "ops.status":       { commit; build; uptime; checks: Check[]; counters: Record<string, number>;
                       errors: { hour; day; open; unconfirmed; dropped };
@@ -204,6 +232,10 @@ CLI: `easel status`, `easel errors ls`, `easel errors show`, `easel errors resol
 8. Shutdown drains: on SIGTERM, the server stops taking work, finishes the writes in flight, then
    exits.
 9. If the store itself fails, the panic still reaches stderr.
+10. A copy is whole: `VACUUM INTO` writes it, and a put sends a finished file only. A restore of any
+    copy opens with no repair.
+11. The backup key gives only a put under the prefix of its easel. No log, sample or status shows
+    it.
 
 ## Statecharts
 
@@ -224,10 +256,17 @@ the same group when an owner resolves it or hands it off, with no claim.
 - `/api/ready` shows `fixerSilent` 30 minutes after the last `easel errors tick`, and not before,
   also when the server restarted in between. A server with no tick ever counts from its start.
 - Restoring from the newest backup is tested, and the runbook's steps work.
+- A copy reaches the bucket within 1 minute of its `VACUUM INTO`. A restore from the bucket gives
+  each canvas, frame, share link and request as it was at the copy.
+- With the bucket down for 2 hours, `/api/ready` shows `backupLate`, and the outside check tells a
+  person. The next good put clears it.
+- The backup key cannot read, list or delete an object, and cannot put under another prefix.
 
 ## Out of Scope (Deferred)
 
-- Paging a person (phone, chat): the fixer's issues are enough for V1.
+- Paging a person by phone. The outside check tells a person in the way that the hub has (step 7
+  of "The data is safe").
+- Litestream, and a loss of less than 30 minutes. Add it when a team needs it.
 - Prometheus `/metrics`: counters are in `ops.status`; traces and logs go to Victoria.
 - Grouping errors with AI, as Sentry does: the fingerprint is plain and stable.
 - Mapping minified stacks back to source: the sourcemap is built, but not used for grouping.

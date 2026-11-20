@@ -31,7 +31,7 @@ Prior art:
 | ops: `ops.handOff`, `ops.fixerTick`                           | `fixer.giveUp` and the tick call them                          |
 | `scripts/ship.sh` gates and lands a tree on main              | `ship.sh --fixer <claim>`: the claim check, rules, the trailer |
 | The `trunk-red` issue stops the line                          | The fixer takes `trunk-red` when it is open past 10 minutes    |
-| CI's deploy workflow                                          | A probe workflow and an off-host backup copy                   |
+| CI's deploy workflow                                          | A probe workflow                                               |
 
 The fixer's calls are Tinker operations in `src/fixer/`. They call ops' operations; ops never
 calls them. The tick and the wrapper are shell scripts with no model.
@@ -137,10 +137,9 @@ calls them. The tick and the wrapper are shell scripts with no model.
 
 ### The data leaves the host
 
-1. Once a day, the tick copies the newest local backup ([ops](SPEC-ops.md)) off the host, to the
-   target the hub provides (see SPEC.md, open questions). It does this from the host, so the
-   server holds no credential for the target.
-2. When no copy has worked for 48 hours, the tick opens one `needs-human` issue titled
+1. ops sends each copy off the host, with a key that can only put ([ops](SPEC-ops.md#the-data-is-safe)).
+   Round 1 needs it, and the fixer is deferred, so the copy is not the fixer's.
+2. When `/api/ready` shows `backupLate`, the tick opens one `needs-human` issue titled
    `backup: off-host copy failing`, unless one is open, and closes it after the next good copy.
 
 ## Contract
