@@ -107,7 +107,7 @@ const NOT_SHOWN: Readonly<Record<string, string>> = {
   M1: "order of the queue: SPEC-queue, queue-lease chart",
   M3: "what an agent gets: SPEC-queue, SPEC-mcp",
   M4: "lease ends: SPEC-queue, queue-lease chart",
-  M6: "an agent gives back: SPEC-queue; the viewer sees it as P2",
+  M6: "a release: SPEC-queue; the viewer sees the request waiting again",
   M7: "agent wait time: SPEC-queue",
   M8: "scope of a change: SPEC-queue, SPEC-mcp",
   N7: "a pin moves with its frame: SPEC-viewer",
