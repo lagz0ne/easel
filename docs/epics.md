@@ -33,15 +33,15 @@ server healthy. Round 1 (below) holds E1, E2, E3, E4 and E6. E5 and E7 are defer
 - **Customer:** a small team that designs with AI agents. The team lead pays.
 - **Base:** none.
 
-| Part  | Mark                                                                      | Epics or reason                                                                                         |
-| ----- | ------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------- |
-| Value | in the round                                                              | E1, E2, E3, E4. The team gets the value only when a comment comes back as a change, so E4 is necessary. |
-| Get   | by hand: the company talks to each new team and starts its easel (R1)     | The first teams come from the contacts of the company. The team starts with written steps (R2).         |
-| Pay   | by hand: the company sends an invoice each month (R3)                     | A payment system is not necessary for a small number of teams.                                          |
-| Help  | by hand: the company answers at one address (R4)                          | A share link from the team lets the company see what the team sees.                                     |
-| Run   | in the round: E6 with backups (R5); by hand: updates (R6)                 | The round holds the work of customers. A lost server must not lose it.                                  |
-| Trust | in the round: terms and privacy text (R7); by hand: one easel a team (R1) | Each user of a server sees each canvas on it. A team must not see the work of another team.             |
-| Learn | by hand: the company talks with each team each month (R9)                 | A talk with a small number of teams teaches more than numbers.                                          |
+| Part  | Mark                                                                      | Epics or reason                                                                                                     |
+| ----- | ------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------- |
+| Value | in the round                                                              | E1, E2, E3, E4 (with E4.5). The team gets the value only when a comment comes back as a change, so E4 is necessary. |
+| Get   | by hand: the company talks to each new team and starts its easel (R1)     | The first teams come from the contacts of the company. The team starts with written steps (R2).                     |
+| Pay   | by hand: the company sends an invoice each month (R3)                     | A payment system is not necessary for a small number of teams.                                                      |
+| Help  | by hand: the company answers at one address (R4)                          | A share link from the team lets the company see what the team sees.                                                 |
+| Run   | in the round: E6 with backups (R5); by hand: updates (R6)                 | The round holds the work of customers. A lost server must not lose it.                                              |
+| Trust | in the round: terms and privacy text (R7); by hand: one easel a team (R1) | Each user of a server sees each canvas on it. A team must not see the work of another team.                         |
+| Learn | by hand: the company talks with each team each month (R9)                 | A talk with a small number of teams teaches more than numbers.                                                      |
 
 | ID  | Requirement                                                    | Fit criterion                                                                                                                                                                                                 |
 | --- | -------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
@@ -63,6 +63,8 @@ Decided:
   change what is built.
 - The company runs one easel for each team (R1). A shared server would show the canvases of each
   team to the other teams.
+- Requests get to the agents of a team in two ways: an agent that asks for work, and GitHub
+  (E4.5). The team lead chooses one or both.
 - Deferred: E5, work through MCP. Add it when a team has an agent that cannot run a shell.
 - Deferred: E7, fix errors with no person. Add it when the errors of all teams take a person of the
   company more than 1 hour a day.
@@ -78,6 +80,7 @@ To make the round ready:
 
 - E1, E2, E3 and E6 have the review "to do". Do steps 3 and 4 for their journeys.
 - E4.1 to E4.4 have no "Failure end" line, so they are not ready. Add the line to each.
+- E4.5 is new: SPEC-queue must close its design gaps.
 
 ### Round 1 walk of the slice
 
@@ -90,12 +93,13 @@ for each team.
 
 ## E4: Comment and get a change
 
-| ID   | Journey                     | Actor  | Design                                                                                       | Review |
-| ---- | --------------------------- | ------ | -------------------------------------------------------------------------------------------- | ------ |
-| E4.1 | Ask for a change            | viewer | [queue](../SPEC-queue.md#a-viewer-adds-a-comment), [viewer](../SPEC-viewer.md#pin-a-comment) | ready  |
-| E4.2 | Do the change and reply     | agent  | [queue](../SPEC-queue.md#an-agent-works-the-queue)                                           | ready  |
-| E4.3 | A request no agent finishes | agent  | [queue](../SPEC-queue.md#a-comment-no-agent-finishes)                                        | ready  |
-| E4.4 | Follow the requests         | viewer | [viewer](../SPEC-viewer.md#follow-the-queue)                                                 | ready  |
+| ID   | Journey                             | Actor     | Design                                                                                       | Review |
+| ---- | ----------------------------------- | --------- | -------------------------------------------------------------------------------------------- | ------ |
+| E4.1 | Ask for a change                    | viewer    | [queue](../SPEC-queue.md#a-viewer-adds-a-comment), [viewer](../SPEC-viewer.md#pin-a-comment) | ready  |
+| E4.2 | Do the change and reply             | agent     | [queue](../SPEC-queue.md#an-agent-works-the-queue)                                           | ready  |
+| E4.3 | A request no agent finishes         | agent     | [queue](../SPEC-queue.md#a-comment-no-agent-finishes)                                        | ready  |
+| E4.4 | Follow the requests                 | viewer    | [viewer](../SPEC-viewer.md#follow-the-queue)                                                 | ready  |
+| E4.5 | Work reaches the agents of the team | team lead | [queue](../SPEC-queue.md#an-agent-works-the-queue); the ways: to do                          | to do  |
 
 The design of each state that a viewer sees is on the Doop canvas
 [easel — design](https://doop.vibea.dev/c/zPdfXgdRrQ): one sheet for each journey (E4.1 to
@@ -252,6 +256,47 @@ Decided:
   blocks while a viewer is away. F6 covers the return.
 - A viewer sees the requests of one canvas only. An owner who needs all canvases uses the CLI.
 
+### E4.5 Work reaches the agents of the team
+
+- **Actor:** team lead. The agents of the team get the work.
+- **Need:** each request gets to an agent of the team in the way that the team works: an agent
+  that asks for work, an agent that is not running yet, or an agent that works from the GitHub of
+  the team. If not, requests wait until a person starts an agent.
+- **Trigger:** a request is waiting.
+- **Success end:** an agent of the team has the request.
+- **Failure end:** no way gets the request to an agent. The request waits in the queue, people see
+  that it waits (F1), and the team lead sees why (D9).
+
+| ID  | Requirement                                                                                               | Fit criterion                                                                                                                            |
+| --- | --------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------- |
+| D1  | All requests wait in one queue until an agent takes them.                                                 | A request made when no agent is connected waits, and an agent that comes later gets it in the order of M1.                               |
+| D2  | An agent that asks for work gets it.                                                                      | M7 is true.                                                                                                                              |
+| D6  | A request gets to an agent that is not running, with no person to start it.                               | With no agent running and no person acting, an agent has a new request within 2 minutes.                                                 |
+| D7  | The team lead chooses the ways that requests get to the agents of the team: one way, or more at one time. | The team lead changes the ways, and the next request goes the new ways, with no new version of easel.                                    |
+| D8  | Each request is done one time only, also when it goes more than one way.                                  | With two ways on, each of 20 requests ends with one outcome, not two.                                                                    |
+| D9  | The team lead sees how each request got to an agent, and why one did not.                                 | On each request, a person sees the way that it went and when. When a way fails, the cause shows within 1 minute.                         |
+| D10 | A team whose agents work from GitHub gets each request there, and sees there when it ends.                | Within 1 minute of a new request, it shows in the GitHub repository that the team chose. When it ends in easel, it shows as ended there. |
+
+Decided:
+
+- There is one queue. A way only takes a request to an agent. The order (M1) and "one time only"
+  (D8) are the same for each way.
+- Round 1 has two ways: an agent that asks for work (built, D2), and GitHub (D10). GitHub meets D6
+  with no service of the team: an agent that starts from a GitHub issue does the work.
+- Easel runs no agent of its own. The agents and their model costs stay with the team.
+- Deferred: a call to a service of the team when a request waits. Add it when a team has its own
+  service that starts agents.
+- Deferred: an agent in a chat or with no shell (E5). Add it with E5.
+- Deferred: a different way for each canvas. Add it when a team asks for it.
+
+#### Design changes that E4.5 needs
+
+| Req.   | Gap in the design now                                                     | Spec       |
+| ------ | ------------------------------------------------------------------------- | ---------- |
+| D6, D7 | Agents get work only when they ask. There is no other way, and no choice. | SPEC-queue |
+| D9     | Nothing records how a request got to an agent.                            | SPEC-queue |
+| D10    | Easel does not put requests on GitHub.                                    | SPEC-queue |
+
 ### E4 walk of the slice
 
 On 2026-11-19, E4 was read from left to right as one viewer: open the link, ask, follow, answer,
@@ -268,11 +313,11 @@ day) added closed to F1, needs a person to F2 as SPEC-viewer has it, and removed
 
 ## E5: Work through MCP
 
-| ID   | Journey               | Actor | Design                                                                                          | Review |
-| ---- | --------------------- | ----- | ----------------------------------------------------------------------------------------------- | ------ |
-| E5.1 | Connect an agent      | user  | [mcp](../SPEC-mcp.md#a-local-agent-adds-easel), [mcp](../SPEC-mcp.md#a-remote-agent-adds-easel) | ready  |
-| E5.2 | Work with no shell    | agent | [mcp](../SPEC-mcp.md#an-agent-works-through-mcp)                                                | ready  |
-| E5.3 | Work reaches an agent | agent | [queue](../SPEC-queue.md#an-agent-works-the-queue)                                              | ready  |
+| ID   | Journey            | Actor | Design                                                                                          | Review |
+| ---- | ------------------ | ----- | ----------------------------------------------------------------------------------------------- | ------ |
+| E5.1 | Connect an agent   | user  | [mcp](../SPEC-mcp.md#a-local-agent-adds-easel), [mcp](../SPEC-mcp.md#a-remote-agent-adds-easel) | ready  |
+| E5.2 | Work with no shell | agent | [mcp](../SPEC-mcp.md#an-agent-works-through-mcp)                                                | ready  |
+| E5.3 | Work from a chat   | agent | [queue](../SPEC-queue.md#an-agent-works-the-queue)                                              | ready  |
 
 Decided:
 
@@ -321,25 +366,22 @@ Decided:
 - Deferred: easel notices agent work that looks wrong and acts first. Add it when a real case
   comes.
 
-### E5.3 Work reaches an agent
+### E5.3 Work from a chat
 
-- **Actor:** agent. A person starts the work when the agent runs in a chat.
-- **Need:** a request reaches an agent that can do it, also an agent that does not wait for work.
-- **Trigger:** a request is waiting.
-- **Success end:** an agent has the request.
-- **Failure end:** no agent can take the request. It waits in the queue, and people see that it
-  waits (F1).
+- **Actor:** agent. A person starts the work in a chat.
+- **Need:** a person who works with an agent in a chat, also from a phone, gets the open requests
+  done.
+- **Trigger:** a person tells the agent to do the open requests.
+- **Success end:** each open request on the canvas ends with an outcome.
+- **Failure end:** the agent cannot connect. The requests wait in the queue, and people see that
+  they wait (F1).
 
-| ID  | Requirement                                                                            | Fit criterion                                                                                                 |
-| --- | -------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------- |
-| D1  | All requests wait in one queue until an agent connects and takes them.                 | A request made when no agent is connected waits, and an agent that connects later gets it in the order of M1. |
-| D2  | An agent that asks for work gets it (pull).                                            | M7 is true for an agent with no shell.                                                                        |
-| D4  | When a person tells it to, an agent in a chat does all requests that wait on a canvas. | A person says "do the open requests on canvas X", and each of them ends with an outcome.                      |
-| D5  | A person starts work on the requests from a phone.                                     | From a phone only, a person gets the open requests on a canvas done.                                          |
+| ID  | Requirement                                                                            | Fit criterion                                                                            |
+| --- | -------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------- |
+| D4  | When a person tells it to, an agent in a chat does all requests that wait on a canvas. | A person says "do the open requests on canvas X", and each of them ends with an outcome. |
+| D5  | A person starts work on the requests from a phone.                                     | From a phone only, a person gets the open requests on a canvas done.                     |
 
 Decided:
 
-- For now, agents get work only by pull, through MCP. Easel runs no agent of its own. Requests
-  wait in the queue until an agent connects.
-- Deferred: easel gives a request to an agent that does not ask for work, also one that is not
-  running (push).
+- On 2026-11-20, D1 and D2 moved to E4.5. An agent that asks through MCP is one of the ways of
+  E4.5. Easel runs no agent of its own.
