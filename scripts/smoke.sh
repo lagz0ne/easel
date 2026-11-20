@@ -40,7 +40,8 @@ cleanup() {
 }
 trap cleanup EXIT
 
-for _ in $(seq 100); do curl -fsS "$base/api/health" >/dev/null 2>&1 && break; sleep 0.1; done
+# Up to 30 s: on a busy host (load 20 on 8 cores) the boot has taken over 10 s.
+for _ in $(seq 300); do curl -fsS "$base/api/health" >/dev/null 2>&1 && break; sleep 0.1; done
 curl -fsS "$base/api/health" >/dev/null || { echo "smoke: FAILED boot: no /api/health (log: $out/server.log)"; exit 1; }
 
 flow=""
