@@ -6,7 +6,7 @@ import { bunSqlite } from "@tinkered/bun/sqlite";
 import { exits } from "@tinkered/cli/test";
 import { createScope, operation } from "@tinkered/core";
 import { makeTestClock, memory } from "@tinkered/core/testing";
-import { afterEach, expect, test } from "vite-plus/test";
+import { afterEach, expect, test, vi } from "vite-plus/test";
 import { z } from "zod";
 
 import { access } from "@/access";
@@ -23,6 +23,10 @@ import { relinkAfter } from "@/cli/login";
 // The `easel` CLI's capsule over the memory transport, against the access-login chart's CLI-only
 // arrows (docs/statecharts/access-login.md): each test names its arrow by the chart's label. The
 // server and every CLI share one test clock; each CLI has its own hosts file and address.
+
+// Each test runs several CLI scopes over the transport; a busy host has pushed three of them past
+// the 5 s default.
+vi.setConfig({ testTimeout: 30_000, hookTimeout: 30_000 });
 
 const closers: Array<() => unknown> = [];
 
