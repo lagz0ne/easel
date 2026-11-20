@@ -61,6 +61,8 @@ const E4: ReadonlyArray<{ id: string; kind: Kind }> = [
   { id: "4EXIn1DP7X", kind: "screen" },
   { id: "0TNKl4ZkOe", kind: "screen" },
   { id: "3cjvM8ulyV", kind: "screen" },
+  { id: "wZ19hxC3yn", kind: "screen" },
+  { id: "uU2lTx-yY2", kind: "screen" },
 ];
 
 // Each frame on these pages is part of the system: always checked.
