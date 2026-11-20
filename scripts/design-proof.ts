@@ -96,6 +96,7 @@ const COMPONENTS: Readonly<Record<string, string>> = {
   clqhupjdan: "Toast",
   cjblw4001k: "Dialog",
   cnt8xhu7ot: "EmptyState",
+  clbzalz58t: "Dock",
 };
 
 // E4 IDs that no picture can prove. Each one is proven elsewhere.
