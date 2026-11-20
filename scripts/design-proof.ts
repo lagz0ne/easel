@@ -109,6 +109,14 @@ const NOT_SHOWN: Readonly<Record<string, string>> = {
   M8: "scope of a change: SPEC-queue, SPEC-mcp",
   N7: "a pin moves with its frame: SPEC-viewer",
   F4: "time to show: SPEC-viewer live board",
+  // E4.5: the dispatcher has no screen. The team lead uses the CLI and GitHub.
+  D1: "one queue: SPEC-queue, queue-lease chart",
+  D2: "an agent that asks gets work: SPEC-queue (M7)",
+  D6: "a delivery starts an agent: SPEC-queue, queue-dispatch chart",
+  D7: "the team lead sets channels: SPEC-queue, easel channel set",
+  D8: "one outcome for each request: queue-dispatch chart",
+  D9: "the way and its cause: SPEC-queue, easel deliveries",
+  D10: "GitHub issues follow requests: SPEC-queue, queue-dispatch chart",
 };
 
 // F1 states and the StateBadge state that shows each.
@@ -792,7 +800,7 @@ const checkFrame = (proof: Proof, f: Frame, parsed: Parsed): void => {
 const readEpicIds = async (): Promise<Set<string>> => {
   const text = await Bun.file("docs/epics.md").text();
   const e4 = text.slice(text.indexOf("## E4:"), text.indexOf("## E5:"));
-  const ids = [...e4.matchAll(/^\| ([NMPF]\d+)\s+\|/gm)].flatMap((m) =>
+  const ids = [...e4.matchAll(/^\| ([NMPFD]\d+)\s+\|/gm)].flatMap((m) =>
     m[1] === undefined ? [] : [m[1]],
   );
   return new Set(ids);
