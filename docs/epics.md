@@ -7,6 +7,57 @@ one source. The words come from [glossary.md](glossary.md). The actors are in
 
 ## Method
 
+### Goal: a minimum viable business
+
+The requirements of a round must be complete enough to start building, so that the work goes fast.
+"Complete" is for the business, not only for the product. A round is a minimum viable business
+(MVB): the smallest set of requirements that lets the company behind easel offer easel and operate
+it. A round is not a minimum viable product (MVP). An MVP is an experiment: it gets the most
+learning for the least effort (Ries, "The Lean Startup", 2011). An MVB is an offer that a customer
+can get, use and pay for, and that the company can run and support.
+
+| Source                                                     | What this method takes from it                                                                                                         |
+| ---------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------- |
+| Levitt (1980); Moore, "Crossing the Chasm" (1991)          | The whole product: all the products and services that a customer needs to get the reason to buy. The core product alone is not enough. |
+| Shalloway, Minimum Business Increment (Disciplined Agile)  | An increment holds all the parts that are necessary to get the value and to keep it.                                                   |
+| Aulet, "Disciplined Entrepreneurship" (2013), step 22 MVBP | The customer gets value, the buyer pays, and a feedback loop starts.                                                                   |
+| Denne and Cleland-Huang, "Software by Numbers" (2003), MMF | The smallest unit that has value when it ships alone.                                                                                  |
+| Patton, "User Story Mapping" (2014)                        | A release slice goes across the full backbone. "Viable" means that it can live on its own.                                             |
+
+### Rounds
+
+A round is a set of requirements that must ship together. If one of them is missing, the company
+cannot offer the round, so there is no value in building the others.
+
+- Round 1, "Get started", has no base. It makes the first MVB.
+- Each round after it is a layer on the base. It adds an offer, or it makes an offer good for more
+  customers. It is an MVB too: when it ships, the company can offer it and operate it.
+- A requirement that the offer of the round does not need goes to a later round. Write it under
+  "Decided" in its epic, as "Deferred:", with the case that brings it back.
+- Gaps and edges are permitted. A gap in the goal of the round is not permitted. When the round
+  can start, stop adding to it.
+
+### The parts of an offer
+
+For each round, examine each part below. Mark it as "in the round", "by hand" or "deferred", with
+the reason. Do not defer a part that the offer of the round needs.
+
+| Part  | The need                                                                                          |
+| ----- | ------------------------------------------------------------------------------------------------- |
+| Value | A customer gets the outcome of the offer from the start to the end.                               |
+| Get   | A new customer learns what the offer is, gets in, and gets the first value.                       |
+| Pay   | The buyer can pay. Or the round says why the offer is free.                                       |
+| Help  | A customer can get help. The company can see what the customer sees.                              |
+| Run   | The company keeps the offer running: health, errors, backups and updates.                         |
+| Trust | The customer can trust the company with its data and its access. The terms and privacy are known. |
+| Learn | The company sees how customers use the offer, and hears what they need.                           |
+
+A person of the company can do a part by hand while the number of customers is small (Graham, "Do
+Things That Don't Scale", 2013). Write that step as a requirement on the company, with a fit
+criterion, as for each other actor.
+
+### Requirements
+
 An epic file holds requirements. A module spec holds the design that meets them. Keep the two
 apart.
 
@@ -17,17 +68,19 @@ apart.
 - Write examples in the words of the actor, not in UI steps or internals (Cucumber, declarative
   style).
 
-| Step              | Source                                    | Action                                                                               |
-| ----------------- | ----------------------------------------- | ------------------------------------------------------------------------------------ |
-| 1. Write          | Patton, story mapping (2008)              | Give the epic one outcome sentence and its actors. List its journeys.                |
-| 2. Check form     | Cockburn, use cases (2000); INVEST (2003) | Each journey has one actor, one need, a trigger, a success end and its failure ends. |
-| 3. Map needs      | Wynne, Example Mapping (2015)             | For each journey, list the requirements, their fit criteria, and the open questions. |
-| 4. Walk the slice | Patton                                    | Read the epic from left to right as one actor. Find the missing step.                |
-| 5. Check design   | ISO/IEC/IEEE 29148, traceability          | Compare the module spec with the requirements. List each gap as a design change.     |
-| 6. Prove          | SPEC.md, Success Criteria 1 and 8         | Each fit criterion becomes a test. Each rule with state becomes a statechart rule.   |
+| Step               | Source                                    | Action                                                                                         |
+| ------------------ | ----------------------------------------- | ---------------------------------------------------------------------------------------------- |
+| 1. Scope the round | Moore, whole product; Shalloway, MBI      | Name the offer of the round and its customer. Mark each part of the offer.                     |
+| 2. Write           | Patton, story mapping (2008)              | Give each epic one outcome sentence and its actors. List its journeys.                         |
+| 3. Check form      | Cockburn, use cases (2000); INVEST (2003) | Each journey has one actor, one need, a trigger, a success end and its failure ends.           |
+| 4. Map needs       | Wynne, Example Mapping (2015)             | For each journey, list the requirements, their fit criteria, and the open questions.           |
+| 5. Walk the slice  | Patton                                    | Read the round from left to right as the customer, then as the company. Find the missing step. |
+| 6. Check design    | ISO/IEC/IEEE 29148, traceability          | Compare the module spec with the requirements. List each gap as a design change.               |
+| 7. Prove           | SPEC.md, Success Criteria 1 and 8         | Each fit criterion becomes a test. Each rule with state becomes a statechart rule.             |
 
-A journey is ready when it has no open question. A journey with many requirements is too large:
-split it. Write in ASD-STE100, with the terms of the glossary only.
+A journey is ready when it has no open question. A round is ready to build when each of its
+journeys is ready and the walk finds no missing part. A journey with many requirements is too
+large: split it. Write in ASD-STE100, with the terms of the glossary only.
 
 ## Story map
 
