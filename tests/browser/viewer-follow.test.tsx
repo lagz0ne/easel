@@ -564,6 +564,42 @@ test("a press on a row moves the canvas to the place of the request and opens it
   await expect.element(dialog).toBeVisible();
 });
 
+const day = 24 * 60 * minute;
+
+test("a result that no viewer answers for 3 days moves to Done as Done, no answer, with no write, and Requests stops counting it (Follow the requests 4, E4.2 M15)", async () => {
+  const server = await boot(() => {
+    stored(1, "Make the Team plan stand out.", {
+      status: "resolved",
+      claimedBy: "claude-1",
+      updated: serverNow - 3 * day + 2 * minute,
+    });
+    stored(2, "Make the price bigger.", { status: "resolved", claimedBy: "claude-1" });
+  });
+  const board = server.resolve(requests.where({ canvas: "home" }));
+  const stop = board.watch(() => undefined);
+  onTestFinished(() => stop());
+  const before = JSON.stringify(board.get());
+  const t = await tab(server);
+  await requestsButton().click();
+  await expect.poll(() => markOf(1)).toBe("Result to check");
+  await expect.element(requestsButton()).toHaveAccessibleName("Requests, 2 wait for you");
+  expect(rowsIn(group("Waits for you").query())).toEqual([1, 2]);
+
+  await advance(t, minute);
+  expect(markOf(1)).toBe("Result to check");
+  await advance(t, minute);
+  await expect.element(requestsButton()).toHaveAccessibleName("Requests, 1 wait for you");
+  expect(rowsIn(group("Waits for you").query())).toEqual([2]);
+  expect(pin(1).elements()).toHaveLength(0);
+
+  await panel().getByRole("button", { name: "Open" }).click();
+  await panel().getByRole("menuitemradio", { name: /Done/ }).click();
+  expect(rowsIn(panel().query())).toEqual([1]);
+  expect(markOf(1)).toBe("Done, no answer");
+  // Nothing was written: the board is as it was.
+  expect(JSON.stringify(board.get())).toBe(before);
+});
+
 test("while the socket is down the list may be behind and says Reconnecting; when it is back, the board read brings each change (s16 to s19, s19 to s16, PanelShowsLatest)", async () => {
   const server = await boot(() => stored(1, "Make the logo bigger."));
   const t = await tab(server);

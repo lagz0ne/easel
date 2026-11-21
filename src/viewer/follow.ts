@@ -25,6 +25,7 @@ export const shownStates = [
   "result",
   "person",
   "accepted",
+  "doneNoAnswer",
   "closed",
   "takenBack",
 ] as const;
@@ -35,7 +36,10 @@ export type Shown = (typeof shownStates)[number];
 export const forAViewer: readonly Shown[] = ["question", "result", "person"];
 
 /** The states of the list `Done`. */
-export const doneStates: readonly Shown[] = ["accepted", "closed", "takenBack"];
+export const doneStates: readonly Shown[] = ["accepted", "doneNoAnswer", "closed", "takenBack"];
+
+/** A result that no viewer answers for this long is done, with no answer (E4.2 M15). */
+export const noAnswerMs = 3 * 24 * 60 * 60_000;
 
 /**
  * A line of a request's thread (§ Follow the requests 12): a message, with its avatar, name, time
@@ -225,8 +229,9 @@ export const clockTicker = resource({
 });
 
 /**
- * The state a viewer sees (fact rule 10): the queue's `stateOf` at the server's time, and "taken
- * back" for a request closed by its author. The panel, the pin, the popover and the count use it.
+ * The state a viewer sees (fact rule 10): the queue's `stateOf` at the server's time; "done, no
+ * answer" for a result that no viewer answered for 3 days; and "taken back" for a request closed
+ * by its author. The panel, the pin, the popover and the count use it.
  */
 export const shownState = operation({
   label: "viewer.shownState",
@@ -234,6 +239,8 @@ export const shownState = operation({
   depends: { stateOf },
   run: ({ stateOf }, { input: { request, closer, now } }): Shown => {
     const state = stateOf.run({ input: { request, now } });
+    if (state === "result" && now - request.updated >= noAnswerMs) return "doneNoAnswer";
+
     return state === "closed" && closer === request.author ? "takenBack" : state;
   },
 });
@@ -429,7 +436,13 @@ const triesLine = operation({
   },
 });
 
-/** The last line, that no message says: the agent took it, or tries ran out to a person. */
+/** What a result done with no answer says, at the end of its 3 days (E4.2 M15). */
+const noAnswer = "No viewer answered in 3 days, so it is done";
+
+/**
+ * The last line, that no message says: the agent took it, tries ran out to a person, or no
+ * viewer answered the result.
+ */
 const stateLine = operation({
   label: "viewer.stateLine",
   input: z.object({ r: request, shown: z.enum(shownStates), last: message.nullable() }),
@@ -437,6 +450,9 @@ const stateLine = operation({
   run: ({ triesLine }, { input: { r, shown, last } }): Line[] => {
     if (shown === "inWork") {
       return [{ key: "took", kind: "step", who: r.claimedBy, what: "took it", at: r.updated }];
+    }
+    if (shown === "doneNoAnswer") {
+      return [{ key: "done", kind: "step", who: null, what: noAnswer, at: r.updated + noAnswerMs }];
     }
 
     return shown === "person" ? triesLine.run({ input: { r, last } }) : [];

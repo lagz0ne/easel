@@ -731,6 +731,36 @@ test("a picture with no key is the plain card; a result on the whole canvas has 
   expect(dialog(2).getByRole("radiogroup").elements()).toHaveLength(0);
 });
 
+test("a result done with no answer: the step says it, only Open again shows, and its note opens the request again (Follow the requests 12, 15, E4.2 M15)", async () => {
+  const server = await boot(() => {
+    const r = stored(1, "Make the Team plan stand out.", {
+      status: "resolved",
+      claimedBy: "claude-1",
+      updated: serverNow - 4 * 24 * 60 * minute,
+    });
+    said(r, { kind: "result", from: "claude-1", text: "Done." }, r.updated);
+  });
+  await tab(server);
+  // A done request has no pin: the list Done opens it.
+  await page.getByRole("button", { name: /^Requests/ }).click();
+  const panel = page.getByRole("complementary", { name: "Requests" });
+  await panel.getByRole("button", { name: "Open" }).click();
+  await panel.getByRole("menuitemradio", { name: /Done/ }).click();
+  await panel.getByRole("button", { name: /#1(?!\d)/ }).click();
+  await expect.element(dialog(1)).toBeVisible();
+
+  expect(mark(1)).toBe("Done, no answer");
+  expect(lines(1).at(-1)).toBe("No viewer answered in 3 days, so it is done · Yesterday");
+  expect(dialog(1).getByRole("button", { name: "Accept" }).elements()).toHaveLength(0);
+  await dialog(1).getByRole("button", { name: "Open again" }).click();
+  await dialog(1).getByRole("textbox", { name: "Note" }).fill("Make it grey.");
+  await dialog(1).getByRole("button", { name: "Send" }).click();
+  await expect.poll(() => mark(1)).toBe("Waiting for an agent");
+  expect(calls()).toEqual([
+    { call: "request.reopen", input: { canvas: "home", n: 1, text: "Make it grey." } },
+  ]);
+});
+
 test("needs a person: the reason shows; the textbox sends it back made clear, or Close request closes it (s29 to s3, s29 to s9, A request no agent finishes 3)", async () => {
   const server = await boot(() => {
     for (const n of [1, 2]) {

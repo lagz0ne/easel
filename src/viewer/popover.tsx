@@ -398,12 +398,15 @@ function Decide({ v, here }: { v: RequestView; here: Acts }) {
   );
 }
 
+/** The states whose controls are `Open again`, and `Accept` for a result (step 15). */
+const decided: readonly Shown[] = ["result", "accepted", "doneNoAnswer"];
+
 /** The controls of the request's state (step 15), or the textbox the viewer opened. */
 function Controls({ v, here }: { v: RequestView; here: Acts }) {
   if (here.box) return <BoxForm v={v} box={here.box} here={here} />;
   if (v.shown === "question") return <BoxForm v={v} box="answer" here={here} />;
   if (v.shown === "person") return <BoxForm v={v} box="clear" here={here} />;
-  if (v.shown === "result" || v.shown === "accepted") return <Decide v={v} here={here} />;
+  if (decided.includes(v.shown)) return <Decide v={v} here={here} />;
 
   return <Notice v={v} here={here} />;
 }

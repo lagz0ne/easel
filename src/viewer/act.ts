@@ -42,7 +42,7 @@ export const boxCalls = {
 export const boxFits: Record<z.infer<typeof actBox>, readonly string[]> = {
   correct: ["waiting"],
   answer: ["question"],
-  note: ["result", "accepted"],
+  note: ["result", "accepted", "doneNoAnswer"],
   clear: ["person"],
 };
 

@@ -238,6 +238,7 @@ const pinLooks: Record<Shown, "waits" | "person" | "quiet"> = {
   result: "waits",
   person: "person",
   accepted: "quiet",
+  doneNoAnswer: "quiet",
   closed: "quiet",
   takenBack: "quiet",
 };

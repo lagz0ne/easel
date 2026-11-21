@@ -852,7 +852,8 @@
   content: "!";
 }
 
-.e-sb[data-state="accepted"] .e-sb-mark {
+.e-sb[data-state="accepted"] .e-sb-mark,
+.e-sb[data-state="doneNoAnswer"] .e-sb-mark {
   background-color: currentcolor;
 }
 

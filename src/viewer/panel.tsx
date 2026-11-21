@@ -29,6 +29,7 @@ export const stateWords: Record<Exclude<Shown, "inWork">, string> = {
   result: "Result to check",
   person: "Needs a person",
   accepted: "Done",
+  doneNoAnswer: "Done, no answer",
   closed: "Closed",
   takenBack: "Taken back",
 };
