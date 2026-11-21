@@ -74,3 +74,19 @@ export const shareApi = rpc({
 
 /** SPEC.md rule 1: `share.open`'s success kinds. */
 export const shareSuccessKinds = { "share.open": ["open"] } as const;
+
+/**
+ * The calls of a tab that holds a pass: `mayName` runs first. `share.name` sets the viewer's name
+ * on the pass the tab holds, at the first request (SPEC-viewer § Open the link). The pass is the
+ * proof, so the page does not ask the password again. A pass takes a name once: the answer is the
+ * name the pass holds, which is the first one it took.
+ */
+export const passApi = rpc({
+  "share.name": {
+    input: z.strictObject({ canvas: z.string(), name: viewerName }),
+    output: z.object({ kind: z.literal("named"), name: z.string() }),
+  },
+});
+
+/** SPEC.md rule 1: `share.name`'s success kinds. */
+export const passSuccessKinds = { "share.name": ["named"] } as const;

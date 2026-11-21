@@ -11,6 +11,7 @@ import { telemetry } from "~/components/telemetry";
 import { frames } from "@/frames";
 import { greet } from "@/greet";
 import { issues } from "@/issues";
+import { queue } from "@/queue";
 import { routeTree } from "@/routes";
 import { todo } from "@/todo";
 import { tabMeta } from "@/viewer/gate";
@@ -31,9 +32,12 @@ const app = createScope({
     // The issue board: the team's parts over the socket, and its calls.
     issues.board({ read: ws.client }),
     issues.api({ remote: ws.client }),
-    // A share link: its canvas over the socket, and `share.open`.
+    // A share link: its canvas over the socket, `share.open`, the name at the first request
+    // (`share.name`), and the requests the viewer sends (`request.add`).
     frames.board({ read: ws.client }),
     frames.viewer({ remote: ws.client }),
+    frames.pass({ remote: ws.client }),
+    queue.viewer({ remote: ws.client }),
   ],
 });
 

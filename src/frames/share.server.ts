@@ -1,5 +1,5 @@
 import { bunSqlite } from "@tinkered/bun/sqlite";
-import { capsule, operation } from "@tinkered/core";
+import { capsule, operation, tag, transport } from "@tinkered/core";
 import { z } from "zod";
 
 import { clientAddress, digestOf } from "@/access/guards.server";
@@ -8,7 +8,16 @@ import { secretBytes } from "@/access/store.server";
 
 import { framesApi, framesBoard } from "./contract";
 import { hashPassword, passwordMatches, wrongTries } from "./password.server";
-import { shareApi, sharePassword, sharePrefix, typedPassword } from "./share";
+import {
+  endedRefusal,
+  lockedRefusal,
+  passApi,
+  passMeta,
+  shareApi,
+  sharePassword,
+  sharePrefix,
+  typedPassword,
+} from "./share";
 import { bumpKeys, canvases } from "./store.server";
 
 // Share links and passwords (SPEC-frames.md § Share a canvas, § Open a share link; the
@@ -489,6 +498,61 @@ export const passCanvas = operation({
   },
 });
 
+/** The pass a call carries, as `mayName` found it live: its digest. */
+export const heldPass = tag<{ readonly digest: string }>({ label: "frames.heldPass" });
+
+/** The canvas that a call names, if its input has one. */
+const namedCanvas = z.object({ canvas: z.string() });
+
+/**
+ * Every call of a tab that holds a pass: the pass alone judges it, as `mayRead` judges a read. No
+ * pass (a user has none to name), or one that is not live for the canvas that the call names, is
+ * refused `{ ended: true }`; one that a password set or changed ended is refused `{ locked: true }`.
+ * A live one binds its digest.
+ */
+export const mayName = operation({
+  label: "frames.mayName",
+  input: transport.hook.start,
+  depends: { passCanvas, digestOf },
+  run: async ({ passCanvas, digestOf }, { input }) => {
+    const sent = passMeta.safeParse(input.meta);
+    if (!sent.success) return input.refuse(endedRefusal);
+
+    const held = await passCanvas.run({ input: sent.data.pass });
+    if (held === null || namedCanvas.safeParse(input.input).data?.canvas !== held.canvas) {
+      return input.refuse(endedRefusal);
+    }
+    switch (held.state) {
+      case "locked":
+        return input.refuse(lockedRefusal);
+      case "live":
+        return { tags: [heldPass({ digest: digestOf.run({ input: sent.data.pass }) })] };
+    }
+  },
+});
+
+const nameRow = z.object({ name: z.string() }).nullable();
+
+/**
+ * `share.name`: the pass takes the name, trimmed, if it has none, in one statement; the answer is
+ * the name the pass holds. A pass that ended between the guard and the write keeps nothing: the
+ * answer is the name sent, and the next call with the pass is refused.
+ */
+export const namePass = operation({
+  label: "share.name.do",
+  input: passApi["share.name"].input,
+  depends: { connection: bunSqlite.connection, held: heldPass.required },
+  run: async ({ connection, held }, { input }) => {
+    const row = nameRow.parse(
+      connection.db.$client
+        .query("UPDATE frames_passes SET name = COALESCE(name, ?) WHERE digest = ? RETURNING name")
+        .get(input.name, held.digest),
+    );
+
+    return { kind: "named" as const, name: row?.name ?? input.name };
+  },
+});
+
 /** At start: make the tables, and mark each canvas with a live link `shared`. */
 const loadShares = operation({
   label: "frames.loadShares",
@@ -529,3 +593,6 @@ export const shareServer = capsule({
 
 /** The viewer's side of the server: `frames.viewer({ implement: shareOps })`, with no guard. */
 export const shareOps = { "share.open": openShare } as const;
+
+/** A pass's side of the server: `frames.pass({ implement: passOps, onStart: [mayName] })`. */
+export const passOps = { "share.name": namePass } as const;

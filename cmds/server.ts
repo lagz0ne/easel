@@ -17,7 +17,7 @@ import { frames } from "@/frames";
 import { socketMaxPayload } from "@/frames/contract";
 import { framesLoads, framesOps, mayRead } from "@/frames/ops.server";
 import { pictureRoute, picturesServer } from "@/frames/pictures.server";
-import { shareOps, shareServer } from "@/frames/share.server";
+import { mayName, passOps, shareOps, shareServer } from "@/frames/share.server";
 import { framesServer } from "@/frames/store.server";
 import { greet } from "@/greet";
 import { greetOps } from "@/greet/greet.server";
@@ -108,6 +108,7 @@ export default defineMain(async ({ env, args, signal, stdout, stderr, exit }) =>
       frames.api,
       frames.board,
       frames.viewer,
+      frames.pass,
       queue.api,
       queue.viewer,
     ],
@@ -163,6 +164,8 @@ export default defineMain(async ({ env, args, signal, stdout, stderr, exit }) =>
       // Share links and passes, in EASEL_DB; `share.open` needs nothing but the link (fact rule 1).
       shareServer(),
       frames.viewer({ implement: shareOps }),
+      // The viewer's name on the pass the tab holds, at the first request: the pass is the proof.
+      frames.pass({ implement: passOps, onStart: [mayName] }),
       // Requests and their messages, in EASEL_DB, after frames (SPEC-queue): an agent's calls
       // need a user; a viewer's, a live pass for the canvas or a user (fact rules 1, 3).
       queueServer({ stdout }),
