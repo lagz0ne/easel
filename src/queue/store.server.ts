@@ -3,7 +3,7 @@ import { capsule, operation, resource, tag } from "@tinkered/core";
 import { z } from "zod";
 
 import { message, messages, request, requests } from "./cells";
-import { maxOpen } from "./contract";
+import { maxOpen, maxTries, stateOf } from "./contract";
 
 // The queue's state: requests and their messages in the app's one SQLite file, so they survive a
 // restart. Each write is one SQLite transaction with no `await` in it: its conditional write is
@@ -98,6 +98,24 @@ const messageRow = message.extend({
     .transform((kept) => (kept === null ? null : z.array(z.string()).parse(JSON.parse(kept)))),
 });
 
+/** A request, waiting at `$now`, in the scope `$canvas` and `$n` (each `null`: any). */
+const waitingIn = `status = 'open' AND (claimed_until IS NULL OR claimed_until <= $now)
+  AND tries < $max AND ($canvas IS NULL OR canvas = $canvas) AND ($n IS NULL OR n = $n)`;
+
+/**
+ * The claim, one statement (judged rule 6, SQS's visibility timeout; a job queue's
+ * `UPDATE … WHERE id = (SELECT …) RETURNING`): it finds the first waiting request in queue order
+ * and writes its claim. SQLite runs one statement alone, so nothing comes between the find and
+ * the write. `tries` goes up by one (judged rule 11); `claim_version` is the frame's version now.
+ */
+export const claimSql = `UPDATE queue_requests SET claimed_by = $me, claimed_until = $until,
+  claim_digest = $digest, tries = tries + 1, updated = $now,
+  claim_version = (SELECT f.version FROM frames_frames f
+    WHERE f.canvas = queue_requests.canvas AND f.id = queue_requests.frame_id)
+WHERE id = (SELECT id FROM queue_requests WHERE ${waitingIn}
+  ORDER BY queued_at, canvas, n LIMIT 1)
+RETURNING ${requestColumns}, claim_version AS claimVersion`;
+
 /** The time of the store's writes, and its log of rows it skipped at start. */
 const stdout = tag<{ write(chunk: string): unknown } | null>({
   label: "queue.stdout",
@@ -129,6 +147,14 @@ export const waitingBell = resource({
       },
     };
   },
+});
+
+/** The state of a row now, for a `wrongState` answer. */
+const rowState = operation({
+  label: "queue.rowState",
+  input: z.object({ row: request, now: z.number() }),
+  depends: { stateOf },
+  run: ({ stateOf }, { input }) => stateOf.run({ input: { request: input.row, now: input.now } }),
 });
 
 /** `request.add`'s first look (the viewer-pin-post chart): the `n` of a key seen on the canvas. */
@@ -259,6 +285,313 @@ export const saveRequest = operation({
       case "full":
         return answer;
     }
+  },
+});
+
+/** A claim's write: who, the digest of its handle, its lease, and the scope it takes from. */
+const claimWrite = z.object({
+  canvas: z.string().nullable(),
+  n: z.number().nullable(),
+  me: z.string(),
+  digest: z.string(),
+  until: z.number(),
+  now: z.number(),
+});
+
+/** The claimed row, with the frame version at the claim. */
+const claimedRow = request.extend({ claimVersion: z.number().nullable() });
+
+/**
+ * The store write of a claim: `claimSql`, one statement. Null when no request in the scope is
+ * waiting. Nothing awaits inside it: a test double of it may await before it runs, to force the
+ * race of two claims (the success criteria).
+ */
+export const claimRow = operation({
+  label: "queue.claimRow",
+  input: claimWrite,
+  depends: { connection: bunSqlite.connection },
+  run: async ({ connection }, { input }) => {
+    const row = connection.db.$client.query(claimSql).get({
+      $me: input.me,
+      $digest: input.digest,
+      $until: input.until,
+      $now: input.now,
+      $canvas: input.canvas,
+      $n: input.n,
+      $max: maxTries,
+    });
+    return row === null ? null : claimedRow.parse(row);
+  },
+});
+
+/** `request.next`'s claim: the one-statement write, then the cell, from the row it returned. */
+export const claimRequest = operation({
+  label: "queue.claimRequest",
+  input: claimWrite,
+  depends: { claimRow, cells: requests.atScope.controller },
+  run: async ({ claimRow, cells }, { input }) => {
+    const claimed = await claimRow.run({ input });
+    if (!claimed) return null;
+
+    const { claimVersion, ...row } = claimed;
+    cells.set(row);
+    return { row, claimVersion };
+  },
+});
+
+/**
+ * The earliest `claimedUntil` ahead of `now` of a request in the scope that is waiting once it
+ * passes (not at 3 tries): when a `request.next` that waits must look again (judged rule 12).
+ */
+export const soonestEnd = operation({
+  label: "queue.soonestEnd",
+  input: z.object({ canvas: z.string().nullable(), n: z.number().nullable(), now: z.number() }),
+  depends: { connection: bunSqlite.connection },
+  run: async ({ connection }, { input }) =>
+    z.object({ until: z.number().nullable() }).parse(
+      connection.db.$client
+        .query(
+          `SELECT MIN(claimed_until) AS until FROM queue_requests
+             WHERE status = 'open' AND claimed_until > $now AND tries < $max
+               AND ($canvas IS NULL OR canvas = $canvas) AND ($n IS NULL OR n = $n)`,
+        )
+        .get({ $now: input.now, $max: maxTries, $canvas: input.canvas, $n: input.n }),
+    ).until,
+});
+
+/** What the holder of a claim does: one of the calls of an agent after `request.next`. */
+const tryWrite = z.object({
+  id: z.string(),
+  digest: z.string(),
+  from: z.string(),
+  message: z.string(),
+  now: z.number(),
+});
+
+const endWrite = z.discriminatedUnion("kind", [
+  tryWrite.extend({ kind: z.literal("extend"), until: z.number() }),
+  tryWrite.extend({ kind: z.literal("release"), reason: z.string() }),
+  tryWrite.extend({ kind: z.literal("decline"), reason: z.string() }),
+  tryWrite.extend({
+    kind: z.literal("ask"),
+    text: z.string(),
+    html: z.string().nullable(),
+    options: z.array(z.string()).nullable(),
+  }),
+  tryWrite.extend({ kind: z.literal("resolve"), text: z.string(), html: z.string().nullable() }),
+]);
+
+/** The lease ends: no holder, no time, no handle. */
+const endLease = "claimed_by = NULL, claimed_until = NULL, claim_digest = NULL";
+
+/** What each call of the holder sets (judged rules 10, 11): `tries` stays as it is. */
+const endSql = {
+  extend: "claimed_until = $until",
+  // Waiting again at once, at the back of the queue. The try counts.
+  release: `${endLease}, queued_at = $now`,
+  decline: `status = 'person', ${endLease}`,
+  ask: `status = 'asking', ${endLease}`,
+  resolve: `status = 'resolved', ${endLease}`,
+} as const;
+
+/**
+ * Why a call of a holder changed no row, in the order of judged rule 8: no request is `gone`; a
+ * `status` that is not `open` is `wrongState` with the state now; else `lost` (another handle, or
+ * a lease that ran out, also when no agent took the request since).
+ */
+const missedTry = operation({
+  label: "queue.missedTry",
+  input: z.object({ row: request.nullable(), now: z.number() }),
+  depends: { rowState },
+  run: ({ rowState }, { input: { row, now } }) => {
+    if (row === null) return { kind: "gone" as const };
+    if (row.status === "open") return { kind: "lost" as const };
+    return { kind: "wrongState" as const, state: rowState.run({ input: { row, now } }) };
+  },
+});
+
+/** The message of a call of the holder; null for an extend, which adds none. */
+const tryMessage = operation({
+  label: "queue.tryMessage",
+  input: z.object({
+    write: endWrite,
+    claimVersion: z.number().nullable(),
+    current: z.number().nullable(),
+  }),
+  run: (_, { input: { write, claimVersion, current } }) => {
+    const none = { html: null, options: null, before: null, after: null };
+    switch (write.kind) {
+      case "extend":
+        return null;
+      case "release":
+      case "decline":
+        return { kind: write.kind, ...none, text: write.reason };
+      case "ask":
+        return {
+          ...none,
+          kind: "question" as const,
+          text: write.text,
+          html: write.html,
+          options: write.options,
+        };
+      case "resolve":
+        return {
+          ...none,
+          kind: "result" as const,
+          text: write.text,
+          html: write.html,
+          before: claimVersion,
+          after: current,
+        };
+    }
+  },
+});
+
+/** The row of a call of the holder, with the version at the claim and the frame's version now. */
+const heldRow = request.extend({
+  claimVersion: z.number().nullable(),
+  current: z.number().nullable(),
+});
+
+/**
+ * Each call of the holder of a claim, as one conditional write with its message (judged rules 8,
+ * 10): the request must be `open`, hold this handle, and have a live lease. When it changes no
+ * row, the same transaction reads the row and answers `gone`, `wrongState` or `lost`
+ * (`missedTry`); a refusal writes nothing. A result's `before` is the version at the claim; its
+ * `after` is the frame's version now.
+ */
+export const endTry = operation({
+  label: "queue.endTry",
+  input: endWrite,
+  depends: {
+    connection: bunSqlite.connection,
+    requestCells: requests.atScope.controller,
+    messageCells: messages.atScope.controller,
+    missedTry,
+    tryMessage,
+    bell: waitingBell,
+  },
+  run: async (
+    { connection, requestCells, messageCells, missedTry, tryMessage, bell },
+    { input },
+  ) => {
+    const db = connection.db.$client;
+
+    const answer = db.transaction(() => {
+      const changed = db
+        .query(
+          `UPDATE queue_requests SET ${endSql[input.kind]}, updated = $now
+           WHERE id = $id AND status = 'open' AND claim_digest = $digest AND claimed_until > $now
+           RETURNING ${requestColumns}, claim_version AS claimVersion,
+             (SELECT f.version FROM frames_frames f
+               WHERE f.canvas = queue_requests.canvas AND f.id = queue_requests.frame_id) AS current`,
+        )
+        .get({
+          $id: input.id,
+          $digest: input.digest,
+          $now: input.now,
+          $until: input.kind === "extend" ? input.until : null,
+        });
+      if (changed === null) {
+        const now = db
+          .query(`SELECT ${requestColumns} FROM queue_requests WHERE id = $id`)
+          .get({ $id: input.id });
+        return missedTry.run({ input: { row: request.nullable().parse(now), now: input.now } });
+      }
+
+      const { claimVersion, current, ...row } = heldRow.parse(changed);
+      const fields = tryMessage.run({ input: { write: input, claimVersion, current } });
+      const note =
+        fields &&
+        messageRow.parse(
+          db
+            .query(
+              `INSERT INTO queue_messages (id, canvas, request, kind, sender, text, html, options,
+                 before_v, after_v, created)
+               VALUES ($id, $canvas, $request, $kind, $from, $text, $html, $options, $before, $after, $now)
+               RETURNING ${messageColumns}`,
+            )
+            .get({
+              $id: input.message,
+              $canvas: row.canvas,
+              $request: row.id,
+              $kind: fields.kind,
+              $from: input.from,
+              $text: fields.text,
+              $html: fields.html,
+              $options: fields.options && JSON.stringify(fields.options),
+              $before: fields.before,
+              $after: fields.after,
+              $now: input.now,
+            }),
+        );
+      return { kind: "done" as const, row, note };
+    })();
+    if (answer.kind !== "done") return answer;
+
+    requestCells.set(answer.row);
+    if (answer.note) messageCells.set(answer.note);
+    if (input.kind === "release") bell.ring();
+    return { kind: "done" as const, row: answer.row };
+  },
+});
+
+/** What `request.next` gives with a claim: the thread, the frame now, and what the viewer saw. */
+export const readClaimed = operation({
+  label: "queue.readClaimed",
+  input: z.object({ row: request, claimVersion: z.number().nullable() }),
+  depends: { connection: bunSqlite.connection },
+  run: async ({ connection }, { input: { row } }) => {
+    const db = connection.db.$client;
+    const thread = db
+      .query(
+        `SELECT ${messageColumns} FROM queue_messages WHERE request = $id ORDER BY created, rowid`,
+      )
+      .all({ $id: row.id })
+      .map((m) => messageRow.parse(m));
+    const box = z.object({
+      id: z.string(),
+      name: z.string(),
+      x: z.number(),
+      y: z.number(),
+      w: z.number(),
+      h: z.number(),
+      version: z.number(),
+    });
+
+    if (row.frameId === null) {
+      const frames = db
+        .query(
+          "SELECT id, name, x, y, w, h, version FROM frames_frames WHERE canvas = $canvas ORDER BY made, rowid",
+        )
+        .all({ $canvas: row.canvas })
+        .map((f) => box.parse(f));
+      return { messages: thread, frame: null, saw: null, frames };
+    }
+
+    const frame = box
+      .extend({ html: z.string() })
+      .nullable()
+      .parse(
+        db
+          .query(
+            "SELECT id, name, x, y, w, h, version, html FROM frames_frames WHERE canvas = $canvas AND id = $id",
+          )
+          .get({ $canvas: row.canvas, $id: row.frameId }),
+      );
+    const kept = z
+      .object({ html: z.string() })
+      .nullable()
+      .parse(
+        db
+          .query(
+            "SELECT html FROM frames_kept WHERE canvas = $canvas AND id = $id AND version = $version",
+          )
+          .get({ $canvas: row.canvas, $id: row.frameId, $version: row.version }),
+      );
+    const doc = frame && frame.version === row.version ? frame.html : (kept?.html ?? null);
+    const saw = row.version !== null && doc !== null ? { version: row.version, doc } : null;
+    return { messages: thread, frame, saw, frames: null };
   },
 });
 
