@@ -16,13 +16,14 @@ person of the company did them on a clean machine, in 30 minutes or less.
 
 ## 1. Get the command line
 
-Not built ([cli](../SPEC-cli.md#get-the-command-line)).
-
 ```sh
 curl -fsSL https://acme.easel.example/install.sh | sh
 ```
 
-This installs `easel` in `~/.local/bin`. It works on macOS (Apple chip) and Linux.
+This installs `easel` in `~/.local/bin` ([cli](../SPEC-cli.md#get-the-command-line)). To put it in a
+different folder, set `EASEL_BIN_DIR`. It works on macOS (Apple chip) and on Linux (x64 and arm64).
+The script checks the SHA-256 of the download before it installs it. If the script says that
+`~/.local/bin` is not in your `PATH`, run the line that it shows. The last line shows the next step.
 
 ## 2. Take charge of your easel
 
@@ -90,9 +91,6 @@ your team. The issue starts a run of your agent, and the run takes the request
 [claude-code-action](https://github.com/anthropics/claude-code-action): a GitHub workflow that an
 issue or a comment starts.
 
-Steps 1, 2 and 5 work now. Steps 3 and 4 are not built: a run cannot get the command line or
-sign in to easel yet.
-
 1. Make a fine-grained personal access token of a real GitHub user, for example a bot account of
    your team. Give it "Issues: Read and write" on the repository only. Do not use the
    `GITHUB_TOKEN` of a workflow: GitHub starts no workflow for an issue or a comment that it
@@ -105,17 +103,26 @@ sign in to easel yet.
    rm token.txt
    ```
 
-3. Not built ([cli](../SPEC-cli.md#sign-in-with-no-file)). Get a token for the runs, and keep it
-   in the repository as secrets:
+3. Get a token for the runs, and keep it in the repository as secrets
+   ([cli](../SPEC-cli.md#sign-in-with-no-file)). This shows a code. Approve it in a second shell
+   (`easel users approve <code>`). Then the token shows one time, as the only line on stdout:
 
    ```sh
    easel login https://acme.easel.example --name github --print-token
    ```
 
-   In the repository, add the secrets `EASEL_SERVER` (the address of your easel) and
-   `EASEL_TOKEN` (the token), and the key of your model, for example `ANTHROPIC_API_KEY`.
+   With the GitHub CLI, the token can go into the secret directly, and the screen does not show
+   it:
 
-4. Not built ([cli](../SPEC-cli.md#get-the-command-line)). Add the workflow
+   ```sh
+   easel login https://acme.easel.example --name github --print-token | gh secret set EASEL_TOKEN --repo acme/design
+   ```
+
+   In the repository, add the secrets `EASEL_SERVER` (the address of your easel) and
+   `EASEL_TOKEN` (the token), and the key of your model, for example `ANTHROPIC_API_KEY`. To stop
+   the runs, run `easel users revoke github`.
+
+4. Add the workflow
    `.github/workflows/easel.yml`. A new issue with the label starts it, and a
    comment that starts with the trigger (`@claude`) starts it again. A new issue with a label
    also sends `labeled`, so `opened` is not necessary.
@@ -140,7 +147,9 @@ sign in to easel yet.
          EASEL_SERVER: ${{ secrets.EASEL_SERVER }}
          EASEL_TOKEN: ${{ secrets.EASEL_TOKEN }}
        steps:
-         - run: curl -fsSL "$EASEL_SERVER/install.sh" | sh
+         - run: |
+             curl -fsSL "$EASEL_SERVER/install.sh" | sh
+             echo "$HOME/.local/bin" >> "$GITHUB_PATH"
          - uses: anthropics/claude-code-action@v1
            with:
              anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
