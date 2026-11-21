@@ -1,14 +1,12 @@
-import { operation } from "@tinkered/core";
 import { useData, useRun } from "@tinkered/react";
-import { z } from "zod";
 
 import type { FrameInfo } from "@/frames/contract";
 import { viewerName } from "@/frames/share";
 import type { Request } from "@/queue/cells";
 
+import { copyText } from "./act";
 import {
   drafts,
-  escape,
   openedRequest,
   openRequest,
   requestMode,
@@ -18,9 +16,10 @@ import {
   typeText,
 } from "./draft";
 import type { Draft, Place as DraftPlace } from "./draft";
-import { doneStates, requestViews, seenWhileOpen } from "./follow";
-import type { RequestView, Shown } from "./follow";
-import { Initial, Place, StateMark } from "./panel";
+import { doneStates, requestViews } from "./follow";
+import type { Shown } from "./follow";
+import { Initial } from "./panel";
+import { Opened } from "./popover";
 import { partBox } from "./stage";
 
 // The page side of a request (SPEC-viewer.md § Ask for a change; the E4.1 and E3.2 designs): the
@@ -166,40 +165,6 @@ function Composer({ d, lost }: { d: Draft; lost: boolean }) {
         </div>
       ) : null}
     </form>
-  );
-}
-
-/**
- * The popover of a saved request (step 10): a dialog by its pin, with its state mark, number and
- * place, who asked and the text. While it is open, its changed mark goes (step 17).
- */
-function Opened({ v, list }: { v: RequestView; list: readonly FrameInfo[] }) {
-  const close = useRun(escape);
-  const { r } = v;
-  useData(seenWhileOpen({ canvas: r.canvas, id: r.id, updated: r.updated }));
-
-  return (
-    <section className="e-pop" role="dialog" aria-label={`Request #${r.n}`}>
-      <header className="e-head">
-        <StateMark shown={v.shown} agent={r.claimedBy} />
-        <span className="e-head-ref">
-          {`#${r.n} · `}
-          <Place r={r} list={list} />
-        </span>
-        <button type="button" className="e-close" aria-label="Close" onClick={() => close.run()}>
-          ×
-        </button>
-      </header>
-      <div className="e-row">
-        <span className="e-avatar" aria-hidden="true">
-          <Initial name={r.author} />
-        </span>
-        <div className="e-field">
-          <p className="e-who">{r.author}</p>
-          <p>{v.text}</p>
-        </div>
-      </div>
-    </section>
   );
 }
 
@@ -371,13 +336,6 @@ function OpenedAt({ canvas, n, list }: { canvas: string; n: number; list: readon
     </AtRequest>
   );
 }
-
-/** Copies the kept text to the clipboard. */
-const copyText = operation({
-  label: "viewer.copyText",
-  input: z.string(),
-  run: (_, { input }) => navigator.clipboard.writeText(input),
-});
 
 /**
  * The text of a request being typed when the tab left the canvas (the ended page, the password

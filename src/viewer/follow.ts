@@ -4,7 +4,7 @@ import { z } from "zod";
 import { frames } from "@/frames";
 import { message, request } from "@/queue/cells";
 import type { Message, Request } from "@/queue/cells";
-import { stateOf } from "@/queue/contract";
+import { maxTries, stateOf } from "@/queue/contract";
 
 // A viewer follows the requests of a canvas (SPEC-viewer.md § Follow the requests; the
 // viewer-queue chart). The board stores no "in work" and no "needs a person": the page derives
@@ -37,6 +37,28 @@ export const forAViewer: readonly Shown[] = ["question", "result", "person"];
 /** The states of the list `Done`. */
 export const doneStates: readonly Shown[] = ["accepted", "closed", "takenBack"];
 
+/**
+ * A line of a request's thread (§ Follow the requests 12): a message, with its avatar, name, time
+ * and text; or a step, one line with the name, what was done, and the time.
+ */
+export type Line =
+  | {
+      key: string;
+      kind: "message";
+      from: string;
+      /** An agent sent it: its avatar is square. */
+      agent: boolean;
+      at: number;
+      text: string | null;
+      html: string | null;
+      options: readonly string[] | null;
+      /** The option that the answer to this question picked, if one did. */
+      picked: number | null;
+      /** This question waits for its answer: its options are buttons. */
+      live: boolean;
+    }
+  | { key: string; kind: "step"; who: string | null; what: string; at: number | null };
+
 /** A request as the panel, its pin and its popover show it. */
 export type RequestView = {
   r: Request;
@@ -45,6 +67,10 @@ export type RequestView = {
   text: string;
   /** Its messages, oldest first. */
   thread: readonly Message[];
+  /** Its thread as the popover shows it, oldest first. */
+  lines: readonly Line[];
+  /** Who acted last, and what they did: "Tom accepted this". */
+  lastAct: string;
   /** It changed since the last visit, and since this browser last opened it. */
   changed: boolean;
 };
@@ -212,6 +238,236 @@ const threads = operation({
   },
 });
 
+/** The kinds of message that an agent sends. */
+const agentKinds: readonly Message["kind"][] = ["question", "result", "release", "decline"];
+
+/** The kinds of message that start the request again: tries and a decline count from here. */
+const fresh: readonly Message["kind"][] = ["ask", "edit", "answer", "reopen"];
+
+/** What the thread knows up to a message: what a later message shows depends on it. */
+const sofar = z.object({
+  /** The text of the request: its ask, or its last correction. */
+  head: z.string(),
+  /** Since the request last started again: an agent declined it, and how many released it. */
+  declined: z.boolean(),
+  releases: z.number(),
+  /** The edits that sent the request back from "needs a person". */
+  sentBack: z.array(z.string()),
+  /** The last question, and the option that each question's answer picked. */
+  question: z.string().nullable(),
+  picked: z.record(z.string(), z.number().nullable()),
+});
+
+type Sofar = z.infer<typeof sofar>;
+
+/** The text of the request, and the edits that sent it back, after one message more. */
+const headStep = operation({
+  label: "viewer.headStep",
+  input: z.object({ was: sofar, m: message }),
+  run: (_, { input: { was, m } }) => {
+    const toPerson = m.kind === "edit" && (was.declined || was.releases >= maxTries);
+    const corrects = !toPerson && (m.kind === "ask" || m.kind === "edit");
+
+    return {
+      head: corrects ? (m.text ?? was.head) : was.head,
+      sentBack: toPerson ? [...was.sentBack, m.id] : was.sentBack,
+    };
+  },
+});
+
+/** A decline and the releases since the request last started again, after one message more. */
+const triesStep = operation({
+  label: "viewer.triesStep",
+  input: z.object({ was: sofar, m: message }),
+  run: (_, { input: { was, m } }) => {
+    const again = fresh.includes(m.kind);
+
+    return {
+      declined: !again && (was.declined || m.kind === "decline"),
+      releases: again ? 0 : was.releases + Number(m.kind === "release"),
+    };
+  },
+});
+
+/** The last question, and the option that its answer picked, after one message more. */
+const questionStep = operation({
+  label: "viewer.questionStep",
+  input: z.object({ was: sofar, m: message }),
+  run: (_, { input: { was, m } }) => {
+    const asked = was.question;
+    const picked = m.kind === "answer" && asked !== null ? { [asked]: m.option } : {};
+
+    return {
+      question: m.kind === "question" ? m.id : asked,
+      picked: { ...was.picked, ...picked },
+    };
+  },
+});
+
+/** One message more for `sofar`. */
+const sofarStep = operation({
+  label: "viewer.sofarStep",
+  input: z.object({ was: sofar, m: message }),
+  depends: { headStep, triesStep, questionStep },
+  run: ({ headStep, triesStep, questionStep }, { input }): Sofar => ({
+    ...headStep.run({ input }),
+    ...triesStep.run({ input }),
+    ...questionStep.run({ input }),
+  }),
+});
+
+/** The words of the steps that say only what was done. */
+const doneWords: Partial<Record<Message["kind"], string>> = {
+  accept: "accepted the result",
+  reopen: "opened it again",
+  release: "stopped with no outcome",
+  decline: "gave it back",
+};
+
+/** The steps that give their reason after the words. */
+const withReason: readonly Message["kind"][] = ["release", "decline"];
+
+/** The steps that show the message's text after them: a note to open it again, or to close it. */
+const noteAfter: readonly Message["kind"][] = ["reopen", "close"];
+
+/** The words of a step for a message, after the name; null for a message with no step. */
+const stepWords = operation({
+  label: "viewer.stepWords",
+  input: z.object({ m: message, author: z.string(), sentBack: z.boolean() }),
+  run: (_, { input: { m, author, sentBack } }) => {
+    if (m.kind === "close") return m.from === author ? "took it back" : "closed it";
+    if (m.kind === "edit") return sentBack ? "sent it back" : "corrected it";
+    const words = doneWords[m.kind];
+    if (words === undefined) return null;
+
+    return m.text && withReason.includes(m.kind) ? `${words}: ${m.text}` : words;
+  },
+});
+
+/** A message as the thread shows it. The ask shows the text of the request now. */
+const messageLine = operation({
+  label: "viewer.messageLine",
+  input: z.object({ m: message, known: sofar, live: z.boolean() }),
+  run: (_, { input: { m, known, live } }): Extract<Line, { kind: "message" }> => ({
+    key: m.id,
+    kind: "message",
+    from: m.from,
+    agent: agentKinds.includes(m.kind),
+    at: m.created,
+    text: m.kind === "ask" ? known.head : m.text,
+    html: m.html,
+    options: m.options,
+    picked: known.picked[m.id] ?? null,
+    live,
+  }),
+});
+
+/** What an answer brings: the request is back in the queue, in its first place (E4.2 M19). */
+const backInQueue = "Back in the queue, in its first place";
+
+/** The lines of one message: the message, its step, or both, in the order the thread shows them. */
+const linesOfMessage = operation({
+  label: "viewer.linesOfMessage",
+  input: z.object({ m: message, author: z.string(), known: sofar, live: z.boolean() }),
+  depends: { stepWords, messageLine },
+  run: ({ stepWords, messageLine }, { input: { m, author, known, live } }): Line[] => {
+    const sentBack = known.sentBack.includes(m.id);
+    const said = messageLine.run({ input: { m, known, live } });
+    const what = stepWords.run({ input: { m, author, sentBack } });
+    if (m.kind === "answer") {
+      return [said, { key: `${m.id}.queue`, kind: "step", who: null, what: backInQueue, at: null }];
+    }
+    if (what === null) return [said];
+
+    const step: Line = { key: `${m.id}.step`, kind: "step", who: m.from, what, at: m.created };
+    if (sentBack) return [said, step];
+    return m.text && noteAfter.includes(m.kind) ? [step, said] : [step];
+  },
+});
+
+/** The step when tries ran out: the request needs a person, and no agent said why. */
+const triesLine = operation({
+  label: "viewer.triesLine",
+  input: z.object({ r: request, last: message.nullable() }),
+  run: (_, { input: { r, last } }): Line[] => {
+    if (last !== null && last.kind === "decline") return [];
+
+    const what = `${maxTries} tries with no outcome: it needs a person`;
+    return [{ key: "tries", kind: "step", who: null, what, at: r.claimedUntil ?? r.updated }];
+  },
+});
+
+/** The last line, that no message says: the agent took it, or tries ran out to a person. */
+const stateLine = operation({
+  label: "viewer.stateLine",
+  input: z.object({ r: request, shown: z.enum(shownStates), last: message.nullable() }),
+  depends: { triesLine },
+  run: ({ triesLine }, { input: { r, shown, last } }): Line[] => {
+    if (shown === "inWork") {
+      return [{ key: "took", kind: "step", who: r.claimedBy, what: "took it", at: r.updated }];
+    }
+
+    return shown === "person" ? triesLine.run({ input: { r, last } }) : [];
+  },
+});
+
+/** What a message did, after its sender's name, when it came first (§ Follow the requests 16). */
+const firstWords: Record<Message["kind"], string> = {
+  ask: "asked it",
+  edit: "corrected it",
+  question: "asked a question",
+  answer: "answered",
+  result: "sent a result",
+  accept: "accepted this",
+  reopen: "opened it again",
+  release: "gave it back",
+  decline: "gave it back",
+  close: "closed it",
+};
+
+/**
+ * Who acted last on a request, and what they did: "Tom accepted this", or "claude-1 started
+ * work on it". A text sent for a state the request left says it.
+ */
+const lastActOf = operation({
+  label: "viewer.lastActOf",
+  input: z.object({ r: request, shown: z.enum(shownStates), thread: z.array(message) }),
+  run: (_, { input: { r, shown, thread } }) => {
+    const last = thread.at(-1);
+    if (shown === "inWork") return `${r.claimedBy ?? "An agent"} started work on it`;
+    if (last === undefined) return "Someone acted";
+    if (shown === "takenBack") return `${last.from} took it back`;
+
+    return `${last.from} ${firstWords[last.kind]}`;
+  },
+});
+
+const start: Sofar = {
+  head: "",
+  declined: false,
+  releases: 0,
+  sentBack: [],
+  question: null,
+  picked: {},
+};
+
+/** A request's thread as the popover shows it (§ Follow the requests 12), oldest first. */
+const linesOf = operation({
+  label: "viewer.linesOf",
+  input: z.object({ r: request, thread: z.array(message), shown: z.enum(shownStates) }),
+  depends: { sofarStep, linesOfMessage, stateLine },
+  run: ({ sofarStep, linesOfMessage, stateLine }, { input: { r, thread, shown } }) => {
+    const known = thread.reduce((was, m) => sofarStep.run({ input: { was, m } }), start);
+    const lines = thread.flatMap((m) => {
+      const live = shown === "question" && known.question === m.id;
+      return linesOfMessage.run({ input: { m, author: r.author, known, live } });
+    });
+    const last = thread.at(-1) ?? null;
+
+    return [...lines, ...stateLine.run({ input: { r, shown, last } })];
+  },
+});
+
 /** One request as a viewer sees it, from its row, its thread, the time and the visits. */
 const viewOf = operation({
   label: "viewer.viewOf",
@@ -222,14 +478,17 @@ const viewOf = operation({
     since: z.number().nullable(),
     opened: z.number().nullable(),
   }),
-  depends: { shownState },
-  run: ({ shownState }, { input: { r, thread, now, since, opened } }): RequestView => {
+  depends: { shownState, linesOf, lastActOf },
+  run: (deps, { input: { r, thread, now, since, opened } }): RequestView => {
+    const { shownState, linesOf, lastActOf } = deps;
     const closer = thread.findLast((m) => m.kind === "close")?.from ?? null;
     const shown = shownState.run({ input: { request: r, closer, now: now ?? r.updated } });
     const text = thread.findLast((m) => m.kind === "ask" || m.kind === "edit")?.text ?? "";
     const seen = Math.max(since ?? Infinity, opened ?? -Infinity);
+    const lines = linesOf.run({ input: { r, thread, shown } });
+    const lastAct = lastActOf.run({ input: { r, shown, thread } });
 
-    return { r, shown, text, thread, changed: r.updated > seen };
+    return { r, shown, text, thread, lines, lastAct, changed: r.updated > seen };
   },
 });
 

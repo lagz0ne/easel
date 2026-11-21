@@ -4,6 +4,7 @@ import { z } from "zod";
 import { frames } from "@/frames";
 import { queue } from "@/queue";
 
+import type { Shown } from "./follow";
 import { keepName, keptName } from "./gate";
 
 // A viewer asks for a change (SPEC-viewer.md § Ask for a change, § When the link ends, § When a
@@ -68,8 +69,51 @@ export const openedRequest = data<{ canvas: string; n: number } | null>({
   initial: null,
 });
 
+/** The textbox of an open request (§ Follow the requests 15): what the viewer types in it. */
+export const actBox = z.enum(["correct", "answer", "note", "clear"]);
+
+export type ActBox = z.infer<typeof actBox>;
+
+/**
+ * A viewer acts on an open request (§ Follow the requests 15, 16): `box` is the open textbox, if
+ * any, and `saw` the state the popover showed when the viewer started. `step`: `typing`;
+ * `naming` (this browser kept no name, so the popover asks it); `sending`; `notSent` (nothing
+ * saved, and `why` says why: `first` another viewer or an agent acted first, `started` an agent
+ * started work first, `gone`, `full`, `slow`, `link` or `failed`).
+ */
+export type Acting = {
+  canvas: string;
+  n: number;
+  box: ActBox | null;
+  text: string;
+  saw: Shown;
+  step: "typing" | "naming" | "sending" | "notSent";
+  why: "none" | "first" | "started" | "gone" | "full" | "slow" | "link" | "failed";
+};
+
+/** What the viewer does on the open request, if anything. */
+export const acting = data<Acting | null>({ label: "viewer.acting", initial: null });
+
+/** The menu `More` of the open request is open. */
+export const moreMenu = data({ label: "viewer.moreMenu", initial: false });
+
 /** A textbox that may hold a saved request: Escape and `Request` leave it as it is. */
 const heldDraft = z.object({ step: z.enum(["sending", "unknown"]) });
+
+/** The popover of a saved request closes, and what the viewer typed in it goes. */
+const closeRequest = operation({
+  label: "viewer.closeRequest",
+  depends: {
+    opened: openedRequest.controller,
+    acts: acting.controller,
+    more: moreMenu.controller,
+  },
+  run: ({ opened, acts, more }) => {
+    opened.set(null);
+    acts.set(null);
+    more.set(false);
+  },
+});
 
 /**
  * You press `Request`: request mode on, or off. Off closes the textbox and sends nothing; a
@@ -80,15 +124,15 @@ export const toggleRequest = operation({
   depends: {
     drafts: drafts.controller,
     mode: requestMode.controller,
-    opened: openedRequest.controller,
+    closeRequest,
   },
-  run: ({ drafts, mode, opened }) => {
+  run: ({ drafts, mode, closeRequest }) => {
     if (heldDraft.safeParse(drafts.get()).success) return;
     if (mode.get()) {
       drafts.set(null);
       return mode.set(false);
     }
-    opened.set(null);
+    closeRequest.run();
     mode.set(true);
   },
 });
@@ -103,9 +147,10 @@ export const escape = operation({
     drafts: drafts.controller,
     mode: requestMode.controller,
     opened: openedRequest.controller,
+    closeRequest,
   },
-  run: ({ drafts, mode, opened }) => {
-    if (opened.get()) return opened.set(null);
+  run: ({ drafts, mode, opened, closeRequest }) => {
+    if (opened.get()) return closeRequest.run();
     if (heldDraft.safeParse(drafts.get()).success) return;
     drafts.set(null);
     mode.set(false);
@@ -120,9 +165,9 @@ export const escape = operation({
 export const pickPlace = operation({
   label: "viewer.pickPlace",
   input: z.object({ canvas: z.string(), place }),
-  depends: { drafts: drafts.controller, mode: requestMode, opened: openedRequest.controller },
-  run: ({ drafts, mode, opened }, { input, random }) => {
-    opened.set(null);
+  depends: { drafts: drafts.controller, mode: requestMode, closeRequest },
+  run: ({ drafts, mode, closeRequest }, { input, random }) => {
+    closeRequest.run();
     const now = drafts.get();
     if (!mode || heldDraft.safeParse(now).success) return;
 
@@ -156,18 +201,24 @@ export const typeText = operation({
 export const openRequest = operation({
   label: "viewer.openRequest",
   input: z.object({ canvas: z.string(), n: z.number() }),
-  depends: { opened: openedRequest.controller },
-  run: ({ opened }, { input }) => opened.set(input),
+  depends: { opened: openedRequest.controller, closeRequest },
+  run: ({ opened, closeRequest }, { input }) => {
+    const now = opened.get();
+    if (now?.canvas === input.canvas && now.n === input.n) return;
+
+    closeRequest.run();
+    opened.set(input);
+  },
 });
 
 /** A refusal that asks the name: the pass has none. */
-const nameFault = z.object({
+export const nameFault = z.object({
   fault: z.literal("refused"),
   payload: z.object({ name: z.literal(true) }),
 });
 
 /** A call that the socket dropped. */
-const linkFault = z.object({ fault: z.literal("link") });
+export const linkFault = z.object({ fault: z.literal("link") });
 
 /** `request.add`'s input for a draft: on its frame, with the version the page showed; or on the canvas. */
 const addInputOf = operation({
@@ -183,7 +234,7 @@ const addInputOf = operation({
 });
 
 /** `share.name`: the pass this tab holds takes the name, and this browser keeps what it holds. */
-const namePass = operation({
+export const namePass = operation({
   label: "viewer.namePass",
   input: z.object({ canvas: z.string(), name: z.string() }),
   depends: { keepName, nameIt: frames.pass["share.name"] },

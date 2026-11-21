@@ -198,19 +198,29 @@ this spec wins, and the screen gets a fix.
     and the button `Close` (×). `More` opens a menu: `Correct the request` (off while an agent works,
     with the hint "Agent works"), `Copy link`, and `Take back` (danger). `Take back` shows while
     the request is waiting, in work, a question, or needs a person. Then a viewer who is not the
-    author sees `Close request` in its place.
+    author sees `Close request` in its place. `Copy link` copies the link of the page with
+    `#request-<n>` after it. When the canvas opens at such a link, the panel and the popover of
+    request `<n>` open.
 12. The thread shows all the messages, oldest first, with a hairline above each message after
     the first. A message shows the avatar, the name of the sender, the time, and the text. An
     agent has a square avatar. A step is one line: the name, what was done, and the time, for
-    example "claude-1 took it", "Mai corrected it", "Mai took it back", "Mai accepted the
-    result", "Mai opened it again", "claude-1 gave it back: <reason>", "Back in the queue, in its
-    first place", "No viewer answered in 3 days, so it is done", "3 tries with no outcome: it
-    needs a person".
+    example "claude-1 took it", "Mai corrected it", "Mai took it back", "Mai closed it", "Mai
+    accepted the result", "Mai opened it again", "claude-1 stopped with no outcome: <reason>" (a
+    release), "claude-1 gave it back: <reason>" (a decline), "Back in the queue, in its first
+    place", "No viewer answered in 3 days, so it is done", "3 tries with no outcome: it needs a
+    person". The board has no message for a claim: "claude-1 took it" shows while the request is
+    in work, at its last change. A correction of a request that needs a person shows as a message,
+    then "Mai sent it back". The first message shows the text of the request now: its ask, or
+    its last correction.
 13. An HTML part shows in a sandboxed iframe, as a live document does. A result shows one picture
     of the frame, with a switch `Before` | `After` on its top edge; it opens on `After` (E4.2
     M11). After a decision, and while the viewer writes a note, the picture is folded: only the
     switch shows, and a click on a side opens the picture on that side. A question with options
-    shows one button for each option, under its HTML part, and a textbox `Answer`.
+    shows one button for each option, under its HTML part, and a textbox `Answer`. After the
+    answer, the options show as text, and the option that the answer picked has an accent
+    outline. (The picture `Before` | `After` is not built yet: the picture route serves only the
+    current version of a frame, so a picture of an older version needs the frames side first.
+    Until then, a result shows its text and its HTML part.)
 14. A request that may be outdated shows what the viewer saw: a switch `When asked` | `Now` on
     the picture, open on `When asked` (E4.1 N8). `Now` shows the frame now, or "Frame removed".
     A step says how many times the frame changed since the request.
@@ -238,7 +248,16 @@ this spec wins, and the screen gets a fix.
     says so, and `Send` makes that call: after an accept, "Send it to open the request again"
     (`reopen`). A correction that an agent started on first says "Not saved: claude-1 started work
     on it first. Your text is kept.", with `Copy text` and `Take back` (E4.2 M20, E4.1 N10).
-    `full` and `slow` keep the text too and say why.
+    `full` and `slow` keep the text too and say why. The page checks first: a text typed for a
+    state that the request left is not sent, and the popover says who acted, as above. Its
+    `Send` is off when no call of the new state takes the text. The copy for the other answers:
+    "Not sent: this request is not on the canvas any more. Your text is kept." (`gone`), "Not sent: this canvas
+    has too many open requests. Your text is kept. Send again when some are done." (`full`),
+    "Not sent: you sent many changes in a short time. Your text is kept. Send again in a
+    minute." (`slow`), "Not sent: no link to easel. Your text is kept. Send again when
+    Reconnecting goes." (no socket), and "Not sent: easel had a problem. Your text is kept. Send
+    again." (a fault). A browser that kept no name asks it at the first act, as at the first
+    `Send` of a request (`Your name`); then the same button acts.
 17. A request that changed since the last visit shows the mark `Changed since your last visit`: an
     accent squircle on the top right corner of the row's avatar (E4.4 F6). It goes when the viewer
     opens the request. The button `Requests` shows no count of changed requests. The browser keeps

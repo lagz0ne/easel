@@ -8,6 +8,7 @@ import { maxPicturePixels, picturePrefix } from "@/frames/contract";
 import type { FrameInfo } from "@/frames/contract";
 
 import "./canvas.css";
+import { openFromLink } from "./act";
 import { escapeKey, openRequest, pickPlace, requestMode, resendOnBack } from "./draft";
 import { clockTicker, panelOpen } from "./follow";
 import type { RequestView } from "./follow";
@@ -303,6 +304,7 @@ export function Canvas({ canvas, opening }: { canvas: string; opening: React.Rea
   const asking = useData(requestMode);
   const panel = useData(panelOpen);
   useData(clockTicker({ canvas }));
+  useData(openFromLink({ canvas }));
   if (state?.status === "fault" && ended.safeParse(state.fault.payload).success) return opening;
 
   return (

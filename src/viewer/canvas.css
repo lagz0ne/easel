@@ -879,3 +879,159 @@
 .e-head .e-sb {
   margin-right: var(--e-2);
 }
+
+/* The popover of a saved request: its thread and the controls of its state (E4.2, E4.3). */
+.e-req {
+  /* The place of the request comes to 40% of the height: the popover fits under it, over the dock. */
+  max-height: calc(60vh - 96px);
+}
+
+/* The head and the controls stay; the thread scrolls. The menu More is not cut. */
+.e-req .e-thread {
+  min-height: 0;
+  overflow-y: auto;
+}
+
+.e-head .e-menu {
+  min-width: 240px;
+  white-space: nowrap;
+}
+
+.e-head .e-menu-at {
+  margin-left: 0;
+}
+
+.e-thread {
+  display: flex;
+  flex-direction: column;
+  gap: var(--e-2);
+  padding: 0;
+  margin: 0;
+  list-style: none;
+}
+
+.e-msg {
+  display: flex;
+  gap: var(--e-2);
+  align-items: flex-start;
+}
+
+/* A hairline above each message after the first. */
+.e-msg ~ .e-msg {
+  padding-top: var(--e-2);
+  border-top: 1px solid var(--e-divider, var(--e-bg));
+}
+
+.e-avatar[data-agent="true"] {
+  color: var(--e-surface);
+  background-color: var(--e-text);
+  border-radius: var(--e-1);
+}
+
+.e-msg .e-who {
+  display: flex;
+  gap: var(--e-2);
+  align-items: baseline;
+}
+
+.e-when {
+  font-size: var(--e-size-1);
+  font-weight: 400;
+  color: var(--e-muted);
+}
+
+.e-text {
+  overflow-wrap: anywhere;
+  white-space: pre-wrap;
+}
+
+.e-step {
+  display: flex;
+  gap: var(--e-2);
+  align-items: baseline;
+  font-size: var(--e-size-1);
+  color: var(--e-muted);
+}
+
+.e-step strong {
+  font-weight: 600;
+  color: var(--e-text);
+}
+
+.e-step-dot {
+  flex: none;
+  width: 6px;
+  height: 6px;
+  margin: 0 calc((var(--e-5) - 6px) / 2);
+  background-color: var(--e-muted);
+  border-radius: 50%;
+  opacity: 0.5;
+}
+
+/* An HTML part, as a live document: a sandboxed frame. */
+.e-part {
+  width: 100%;
+  height: 160px;
+  background-color: var(--e-surface);
+  border: 1px solid var(--e-line, var(--e-card));
+  border-radius: var(--e-radius);
+}
+
+.e-opts {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--e-2);
+}
+
+.e-opt {
+  padding: var(--e-1) var(--e-3);
+  font-family: inherit;
+  font-size: var(--e-size-2);
+  color: var(--e-text);
+  background-color: var(--e-surface);
+  border: 1px solid var(--e-line, var(--e-card));
+  border-radius: var(--e-radius);
+}
+
+button.e-opt {
+  cursor: pointer;
+}
+
+.e-opt[data-picked="true"] {
+  border-color: var(--e-accent);
+  box-shadow: inset 0 0 0 1px var(--e-accent);
+}
+
+span.e-opt[data-picked="false"] {
+  color: var(--e-muted);
+}
+
+.e-reply {
+  display: flex;
+  flex-direction: column;
+  gap: var(--e-2);
+}
+
+.e-acts {
+  gap: var(--e-2);
+}
+
+.e-acts .e-ghost {
+  color: var(--e-text);
+  border: 1px solid var(--e-line, var(--e-card));
+}
+
+.e-acts .e-danger {
+  color: var(--e-danger);
+}
+
+.e-primary:disabled {
+  background-color: var(--e-muted);
+  cursor: default;
+}
+
+.e-opt:focus-visible,
+.e-pop .e-ghost:focus-visible {
+  outline: 2px solid var(--e-focus);
+  outline-offset: 2px;
+}
