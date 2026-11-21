@@ -1,4 +1,4 @@
-import { useData, useRun } from "@tinkered/react";
+import { useData, useResource, useRun } from "@tinkered/react";
 
 import type { FrameInfo } from "@/frames/contract";
 
@@ -23,6 +23,7 @@ import type { ActBox as Box, Acting as Acts } from "./draft";
 import { seenWhileOpen } from "./follow";
 import type { Line, RequestView, Shown } from "./follow";
 import { Age, Initial, OutdatedMark, Place, StateMark } from "./panel";
+import { stage } from "./stage";
 
 // The popover of a saved request (SPEC-viewer.md § Follow the requests 10 to 16; the E4.1, E4.2
 // and E4.3 designs): its head with `More` and `Close`, its thread, and the controls of its state.
@@ -484,6 +485,7 @@ function More({ v }: { v: RequestView }) {
 export function Opened({ v, list }: { v: RequestView; list: readonly FrameInfo[] }) {
   const close = useRun(escape);
   const acts = useData(acting);
+  const at = useResource(stage);
   const { r } = v;
   const mine = acts !== null && acts.canvas === r.canvas && acts.n === r.n;
   const blank: Acts = {
@@ -499,7 +501,7 @@ export function Opened({ v, list }: { v: RequestView; list: readonly FrameInfo[]
   useData(seenWhileOpen({ canvas: r.canvas, id: r.id, updated: r.updated }));
 
   return (
-    <section className="e-pop e-req" role="dialog" aria-label={`Request #${r.n}`}>
+    <section ref={at.pop} className="e-pop e-req" role="dialog" aria-label={`Request #${r.n}`}>
       <header className="e-head">
         <StateMark shown={v.shown} agent={r.claimedBy} />
         {v.outdated ? <OutdatedMark cause={v.outdated.cause} /> : null}

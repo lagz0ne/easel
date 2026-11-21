@@ -7,7 +7,7 @@ import { frames } from "@/frames";
 import type { FrameInfo } from "@/frames/contract";
 
 import "./canvas.css";
-import { openFromLink } from "./act";
+import { aimFromLink, openFromLink } from "./act";
 import { escapeKey, openRequest, pickPlace, requestMode, resendOnBack } from "./draft";
 import { clockTicker, panelOpen, requestPlaces } from "./follow";
 import type { RequestView } from "./follow";
@@ -251,6 +251,7 @@ export function Canvas({ canvas, opening }: { canvas: string; opening: React.Rea
   const panel = useData(panelOpen);
   useData(clockTicker({ canvas }));
   useData(openFromLink({ canvas }));
+  useData(aimFromLink({ canvas }));
   if (state?.status === "fault" && ended.safeParse(state.fault.payload).success) return opening;
 
   return (

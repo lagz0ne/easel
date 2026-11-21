@@ -1135,10 +1135,11 @@ test("a viewer whose browser kept no name: the first act asks the name, then act
   await tick();
 });
 
-test("the link that Copy link gives opens the panel and the request when the canvas opens (Follow the requests 11)", async () => {
+test("the link that Copy link gives opens the panel and the request when the canvas opens, and moves the canvas to the request, as a press on its row does (Follow the requests 9, 11)", async () => {
   const server = await boot(() => {
+    store.side = true;
     stored(1, "Add a short FAQ here.");
-    stored(2, "Shorter banner.", { author: "Tom" });
+    stored(2, "Shorter banner.", { author: "Tom", frameId: "5ide5ide5ide", x: 20, y: 30 });
   });
   location.hash = "#request-2";
   onTestFinished(() => {
@@ -1149,4 +1150,11 @@ test("the link that Copy link gives opens the panel and the request when the can
   await expect.element(dialog(2)).toBeVisible();
   await expect.element(page.getByRole("complementary", { name: "Requests" })).toBeVisible();
   expect(dialog(1).elements()).toHaveLength(0);
+  // The place is at 40% of the canvas's width and height, at the zoom of the first Fit.
+  const view = page.getByRole("region", { name: "Frames" }).element().getBoundingClientRect();
+  await expect
+    .poll(() => Math.abs(pin(2).element().getBoundingClientRect().left - view.width * 0.4))
+    .toBeLessThan(3);
+  const at = pin(2).element().getBoundingClientRect();
+  expect(Math.abs(at.bottom - (view.top + view.height * 0.4))).toBeLessThan(3);
 });

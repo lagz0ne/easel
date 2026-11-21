@@ -7,8 +7,9 @@ import { state } from "@/queue/contract";
 
 import type { Acting } from "./draft";
 import { actBox, acting, linkFault, moreMenu, nameFault, namePass, openRequest } from "./draft";
-import { panelOpen, shownStates } from "./follow";
+import { panelOpen, requestPlaces, shownStates } from "./follow";
 import { keptName } from "./gate";
+import { stage } from "./stage";
 
 // A viewer acts on an open request (SPEC-viewer.md § Follow the requests 11, 15, 16; SPEC-queue.md
 // § A viewer answers and decides). Each act is one of a viewer's calls: `request.edit`, `answer`,
@@ -156,6 +157,36 @@ export const openFromLink = resource({
     queueMicrotask(() => {
       panel.set(true);
       openRequest.run({ input: { canvas: ctx.config.canvas, n: Number(n) } });
+    });
+    return true;
+  },
+});
+
+/** The link to a request that the canvas already moved to: its canvas, then its number. */
+export const linkAimed = data<string | null>({ label: "viewer.linkAimed", initial: null });
+
+/**
+ * A link to a request also moves the canvas to the request (step 9), as a press on its row does,
+ * once the board has its place and the first Fit placed the camera. It moves the canvas once.
+ */
+export const aimFromLink = resource({
+  label: "viewer.aimFromLink",
+  config: { canvas: linkCanvas.required },
+  depends: (c) => ({
+    places: requestPlaces({ canvas: c.canvas }),
+    aimed: linkAimed.controller,
+    at: stage,
+  }),
+  factory: ({ places, aimed, at }, ctx) => {
+    const n = requestHash.exec(location.hash)?.[1];
+    const key = `${ctx.config.canvas}#${n}`;
+    const place = places.get().get(Number(n));
+    if (n === undefined || !place || aimed.get() === key) return false;
+
+    // A build that a reader starts writes no cell: the mark goes after it.
+    queueMicrotask(() => {
+      aimed.set(key);
+      at.aim(place.x, place.y);
     });
     return true;
   },

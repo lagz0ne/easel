@@ -1,4 +1,4 @@
-import { useData, useRun } from "@tinkered/react";
+import { useData, useResource, useRun } from "@tinkered/react";
 
 import { frames } from "@/frames";
 import type { FrameInfo } from "@/frames/contract";
@@ -21,7 +21,7 @@ import { doneStates, requestViews } from "./follow";
 import type { RequestView, Shown } from "./follow";
 import { Initial } from "./panel";
 import { Opened } from "./popover";
-import { partBox } from "./stage";
+import { partBox, stage } from "./stage";
 
 // The page side of a request (SPEC-viewer.md § Ask for a change; the E4.1 and E3.2 designs): the
 // button `Request`, the pins, the textbox's popover, and the text a gate page keeps. The pins and
@@ -101,9 +101,11 @@ function Composer({ d, lost }: { d: Draft; lost: boolean }) {
   const busy = d.step === "sending";
   const refused = d.step === "notSent" && !(d.why === "link" && !lost);
   const naming = d.step === "naming";
+  const at = useResource(stage);
 
   return (
     <form
+      ref={at.pop}
       className="e-pop"
       aria-label="New request"
       onSubmit={(event) => {

@@ -193,16 +193,22 @@ outdated: the frame was removed`, or `May be outdated: a long wait`. Only a wait
    the frame was: a dashed area that says "<frame> was removed", with the pin of the request in
    it. The board's cell `removed` gives the name and the last box of the frame. The area goes
    when the popover closes.
-10. An open request is a popover next to its pin (a `dialog` named `Request #<n>`). It does not
-    cover the part that the request is about, and the list stays open. Escape or its button
-    `Close` (×) closes the popover; the request does not change.
+10. An open request is a popover next to its pin (a `dialog` named `Request #<n>`), and the list
+    stays open. It opens below its pin. With no room below, it goes above the pin, then to its
+    right, then to its left, as Floating UI's `flip`. It moves along that side to stay in the
+    canvas, as Floating UI's `shift`. It keeps 8 px from the edges of the canvas, and out of the
+    band of the dock (64 px at the bottom). It never covers its pin. It is placed again when its
+    size changes and when the canvas stops moving. The textbox of a new request is placed the
+    same way. Escape or its button `Close` (×) closes the popover; the request does not change.
 11. The head of the popover shows the state mark, `#<n>` and the place, then the button `More`
     and the button `Close` (×). `More` opens a menu: `Correct the request` (off while an agent works,
     with the hint "Agent works"), `Copy link`, and `Take back` (danger). `Take back` shows while
     the request is waiting, in work, a question, or needs a person. Then a viewer who is not the
     author sees `Close request` in its place. `Copy link` copies the link of the page with
     `#request-<n>` after it. When the canvas opens at such a link, the panel and the popover of
-    request `<n>` open.
+    request `<n>` open, and the canvas moves to the request as a click on its row does (step 9),
+    after the first Fit. Until the viewer pans or zooms, the place stays at 40% when the canvas
+    changes size.
 12. The thread shows all the messages, oldest first, with a hairline above each message after
     the first. A message shows the avatar, the name of the sender, the time, and the text. An
     agent has a square avatar. A step is one line: the name, what was done, and the time, for

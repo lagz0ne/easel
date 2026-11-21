@@ -694,6 +694,47 @@ test("a press on the row of a request of a removed frame moves the canvas to whe
   expect(pin(1).elements()).toHaveLength(0);
 });
 
+/** Request `n` with a long thread: its popover is as tall as it may be. */
+function longThread(n: number, x: number, y: number) {
+  const r = stored(n, "Make the logo bigger.", { x, y });
+  for (let i = 1; i <= 12; i++) {
+    store.messages.push(said(r, "edit", "Mai", `Make the logo bigger, take ${i}.`, r.created + i));
+  }
+}
+
+test("the popover opens below its pin; with no room below it flips above, and with no room above or below it goes beside; it stays in the view, over the dock, and never covers its pin (Follow the requests 10)", async () => {
+  // Fit shows Home at 100%, its top left at (400, 250) of the 1200 x 800 view.
+  const server = await boot(() => {
+    longThread(1, 40, 10);
+    longThread(2, 40, 290);
+    longThread(3, 200, 150);
+  });
+  await tab(server);
+  const view = page.getByRole("region", { name: "Frames" }).element().getBoundingClientRect();
+  const dock = page.getByRole("toolbar", { name: "Canvas" }).element().getBoundingClientRect();
+
+  const sides: string[] = [];
+  for (const n of [1, 2, 3]) {
+    await pin(n).click();
+    const dialog = page.getByRole("dialog", { name: `Request #${n}` });
+    await expect.element(dialog).toBeVisible();
+    await tick(50);
+    const pop = dialog.element().getBoundingClientRect();
+    const at = pin(n).element().getBoundingClientRect();
+    sides.push(dialog.element().getAttribute("data-side") ?? "");
+
+    expect(pop.left).toBeGreaterThanOrEqual(view.left);
+    expect(pop.right).toBeLessThanOrEqual(view.right);
+    expect(pop.top).toBeGreaterThanOrEqual(view.top);
+    expect(pop.bottom).toBeLessThanOrEqual(dock.top);
+    const overPin =
+      pop.left < at.right && pop.right > at.left && pop.top < at.bottom && pop.bottom > at.top;
+    expect(overPin).toBe(false);
+    await userEvent.keyboard("{Escape}");
+  }
+  expect(sides).toEqual(["below", "above", "right"]);
+});
+
 test("while the socket is down the list may be behind and says Reconnecting; when it is back, the board read brings each change (s16 to s19, s19 to s16, PanelShowsLatest)", async () => {
   const server = await boot(() => stored(1, "Make the logo bigger."));
   const t = await tab(server);

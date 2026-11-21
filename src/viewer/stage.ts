@@ -1,4 +1,4 @@
-import { data, resource } from "@tinkered/core";
+import { data, operation, resource } from "@tinkered/core";
 import { z } from "zod";
 
 // The canvas's stage (SPEC-viewer.md § Pan and zoom, § Numbers; the viewer-canvas chart): the
@@ -34,6 +34,42 @@ export const fitEdge = 40;
 export const labelDrift = 0.1;
 /** A press that moves less than this, in screen pixels, is a click, not a drag. */
 export const clickSlop = 4;
+/** A popover keeps this far from its pin and from the view's edges, in screen pixels. */
+export const popGap = 8;
+/** The dock's band at the bottom of the view: no popover covers it. */
+export const dockBand = 64;
+/** A pin's size on the screen (`--e-5`): its bottom left is the place. */
+const pinSize = 24;
+
+/** A box on the screen. */
+const rect = z.object({ left: z.number(), top: z.number(), right: z.number(), bottom: z.number() });
+
+type Rect = z.infer<typeof rect>;
+
+/**
+ * Where a popover of size `w` x `h` goes by pin `pin`, in `room` (screen pixels): the first side
+ * where it fits all in `room`, as Floating UI's flip; below when it fits on no side. On each side
+ * it moves along the side into `room`, as Floating UI's shift.
+ */
+export const popPlace = operation({
+  label: "viewer.popPlace",
+  input: z.object({ pin: rect, w: z.number(), h: z.number(), room: rect }),
+  run: (_, { input: { pin: p, w, h, room: b } }) => {
+    const across = Math.min(Math.max(p.left + 2 * popGap, b.left), b.right - w);
+    const down = Math.min(Math.max(p.top, b.top), b.bottom - h);
+    const below = { side: "below" as const, left: across, top: p.bottom + popGap };
+    const spots = [
+      below,
+      { side: "above" as const, left: across, top: p.top - popGap - h },
+      { side: "right" as const, left: p.right + popGap, top: down },
+      { side: "left" as const, left: p.left - popGap - w, top: down },
+    ];
+    const fits = (s: { left: number; top: number }) =>
+      s.left >= b.left && s.top >= b.top && s.left + w <= b.right && s.top + h <= b.bottom;
+
+    return spots.find(fits) ?? below;
+  },
+});
 
 /**
  * An element that takes its own pointer: a pin, or the popover of a request. A press on it does
@@ -121,8 +157,9 @@ export const stage = resource({
     paints: painted.controller,
     zoom: zoomShown.controller,
     part: partBox.controller,
+    popPlace,
   },
-  factory: ({ live, paints, zoom, part }, ctx) => {
+  factory: ({ live, paints, zoom, part, popPlace }, ctx) => {
     let cam = { x: 0, y: 0, z: 1 };
     let view = { w: 0, h: 0, left: 0, top: 0 };
     let vp: HTMLElement | null = null;
@@ -138,6 +175,11 @@ export const stage = resource({
     let closed = false;
     const shells = new Map<string, Shell>();
     const docs = new Map<string, HTMLIFrameElement>();
+    const pops = new Set<HTMLElement>();
+    /** A place that `aim` asked for before the first Fit: it comes into view after it. */
+    let aimAt: { x: number; y: number } | null = null;
+    /** The place that `aim` showed, until the viewer pans or zooms: a new size shows it again. */
+    let held: { x: number; y: number } | null = null;
     const pointers = new Map<number, { x: number; y: number }>();
 
     const at = {
@@ -257,6 +299,52 @@ export const stage = resource({
         at.cull(hideAtRestMargin);
         at.writeLabels();
         at.settleLive();
+
+        for (const el of pops) at.placePop(el);
+      },
+
+      /** The view less its edge and the dock's band, on the screen; null with no canvas. */
+      popRoom: (): Rect | null => {
+        const r = vp?.getBoundingClientRect();
+        if (!r) return null;
+
+        const bottom = r.bottom - dockBand;
+        return { left: r.left + popGap, top: r.top + popGap, right: r.right - popGap, bottom };
+      },
+
+      /**
+       * A popover goes below its pin; with no room there, above it; then to its right, then to its
+       * left, as Floating UI's flip, shifted along its side into the view (its shift). It keeps out
+       * of the dock's band and off its pin. With room on no side, it goes below.
+       */
+      placePop: (el: HTMLElement) => {
+        // The popover's parent is the place: the pin there has its bottom left on it.
+        const place = el.parentElement?.getBoundingClientRect();
+        const b = at.popRoom();
+        if (!place || !b) return;
+
+        const { left, bottom } = place;
+        const pin = { left, top: bottom - pinSize, right: left + pinSize, bottom };
+        const now = el.getBoundingClientRect();
+        const spot = popPlace.run({ input: { pin, w: now.width, h: now.height, room: b } });
+        // The pin's place undoes the zoom, so a CSS pixel of the popover is a screen pixel.
+        el.style.left = `${el.offsetLeft + spot.left - now.left}px`;
+        el.style.top = `${el.offsetTop + spot.top - now.top}px`;
+        el.dataset.side = spot.side;
+      },
+
+      /** A popover at a pin: placed now, again when its size changes, and when the camera rests. */
+      pop: (el: HTMLElement | null) => {
+        if (!el) return;
+        pops.add(el);
+        const sizes = new ResizeObserver(() => at.placePop(el));
+        sizes.observe(el);
+        at.placePop(el);
+
+        return () => {
+          sizes.disconnect();
+          pops.delete(el);
+        };
       },
 
       /** The camera moved: the live set holds until it rests, 120 ms after the last move. */
@@ -280,12 +368,14 @@ export const stage = resource({
       },
 
       pan: (dx: number, dy: number) => {
+        held = null;
         cam = { ...cam, x: cam.x + dx, y: cam.y + dy };
         at.move();
       },
 
       /** Zoom by `by` around a point of the viewport: the canvas point under it stays under it. */
       zoomAt: (px: number, py: number, by: number) => {
+        held = null;
         const z = Math.min(maxZoom, Math.max(minZoom, cam.z * by));
         cam = { x: px - ((px - cam.x) * z) / cam.z, y: py - ((py - cam.y) * z) / cam.z, z };
         at.move();
@@ -309,6 +399,10 @@ export const stage = resource({
           z,
         };
         placed = true;
+        held = aimAt;
+        aimAt = null;
+        if (held) return at.show(held.x, held.y);
+
         at.move();
       },
 
@@ -471,6 +565,7 @@ export const stage = resource({
         view = { ...view, w: entry.contentRect.width, h: entry.contentRect.height };
         at.measure();
         if (!placed) return at.fit();
+        if (held) return at.show(held.x, held.y);
 
         at.cull();
         if (!moving) at.settleLive();
@@ -485,6 +580,8 @@ export const stage = resource({
         cam = { x: 0, y: 0, z: 1 };
         view = { w: 0, h: 0, left: 0, top: 0 };
         placed = false;
+        aimAt = null;
+        held = null;
 
         moving = false;
         labelZoom = 0;
@@ -600,6 +697,19 @@ export const stage = resource({
         at.measure();
         cam = { ...cam, x: view.w * 0.4 - x * cam.z, y: view.h * 0.4 - y * cam.z };
         at.move();
+      },
+
+      /**
+       * A place comes into view as `show` brings it, once the first Fit placed the camera: a link
+       * to a request opens before its frames are drawn.
+       */
+      aim: (x: number, y: number) => {
+        if (!placed) {
+          aimAt = { x, y };
+          return;
+        }
+        held = { x, y };
+        at.show(x, y);
       },
 
       zoomIn: () => at.zoomAt(view.w / 2, view.h / 2, zoomFactor),
