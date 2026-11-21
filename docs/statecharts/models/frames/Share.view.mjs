@@ -70,8 +70,8 @@ const steps = {
   ViewerTypesAWrongPassword: typed,
   // Hidden: another address's tries change nothing the viewer sees; that is the rule.
   OtherAddressGuessesWrong: () => null,
-  // Hidden: a minute passing stays in one chart state.
-  AMinutePasses: () => null,
+  // Hidden: an address's minute ending stays in one chart state.
+  ItsMinuteEnds: () => null,
   // Hidden from the password pages: closing there leads where closing the canvas leads.
   ViewerClosesTheTab: (from) =>
     from.tab === "open" || from.tab === "ended" ? "the viewer closes the tab" : null,

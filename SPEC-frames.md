@@ -78,7 +78,7 @@ that a manifest refers to and removes the rest.
 2. If the link has a password, the page shows textbox `Password` and button `Open`. A wrong one
    gives an `alert`. After 5 wrong tries in a minute from one address, the `alert` says to wait,
    and the page takes no password, not even the right one, until a minute has passed since the
-   first of them. Wrong tries from another address, or on another link, do not count.
+   5th of them. Wrong tries from another address, or on another link, do not count.
 3. The canvas shows ([viewer](SPEC-viewer.md)). The page has no control that changes a frame.
 4. An ended or unknown link shows a page that says so, and nothing else.
 
@@ -169,9 +169,11 @@ Inputs:
   `share.open` once more. It shows the ended page only if the link is gone or the new pass is
   refused too.
 - A try is a `share.open` with a password. Tries count per client address and link, in the minute
-  from the first wrong one. Wrong tries 1 to 5 in that minute answer `wrong`. Any try after 5 wrong
-  ones in that minute answers `slow` with `retryIn`, even with the right password. Apart from the
-  flood limit, `slow` answers only a try.
+  from the first wrong one. Wrong tries 1 to 5 in that minute answer `wrong`. The 5th wrong try
+  starts a lock of 1 minute from the 5th try (OWASP's lockout guidance; GitHub and GOV.UK do the
+  same). In the lock, every try answers `slow` with `retryIn`, the time left to the lock's end,
+  even with the right password. A try in the lock is not counted. After the lock, the count
+  starts again. Apart from the flood limit, `slow` answers only a try.
 
 `pass` is what the tab sends from then on. It is a separate 128-bit random value, not the link.
 The server keeps it only as its SHA-256 digest, with the link it was given on and the viewer's
@@ -292,9 +294,10 @@ number or section.
 14. Wrong passwords count per client address and link. The address is the one Traefik adds to
     `X-Forwarded-For`, never one the client sent. The server reads `X-Forwarded-For` only from
     the proxies in `EASEL_TRUSTED_PROXIES`; without it, every viewer behind Traefik is one
-    address. In the minute from the first wrong try, wrong tries 1 to 5 answer `wrong`, and any
-    try after 5 wrong ones answers `slow` with `retryIn`, even with the right password. Another
-    address, or another link, is not slowed by them.
+    address. In the minute from the first wrong try, wrong tries 1 to 5 answer `wrong`. The 5th
+    starts a lock of 1 minute from the 5th try: in it, every try answers `slow` with `retryIn`,
+    the time left to the lock's end, even with the right password. After the lock, the count
+    starts again. Another address, or another link, is not slowed by them.
     An open with no password answers `locked`, is not a try, and is never locked out. Past the
     flood limit (30 a minute per address, any link) it answers `slow` with `retryIn`. The page
     stays on Opening and calls again after `retryIn` plus up to 1 s. It never shows the wait

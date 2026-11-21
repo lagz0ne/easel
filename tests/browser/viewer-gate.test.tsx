@@ -27,7 +27,9 @@ import { gates, keepName, nameKey, openLink, tabMeta } from "@/viewer/gate";
 // - `flooded` answers `slow` twice (the flood limit), then opens;
 // - `stuck` answers `slow`, then opens with a pass the guard turns away;
 // - `guarded` asks a password: none answers `locked`, `rightPw` opens with a new pass each time,
-//   `waitPw` answers `slow` for a minute (as after 5 wrong tries), any other is `wrong`. The test
+//   `waitPw` starts a lock of a minute on the stub's clock (as the 5th wrong try does) and answers
+//   `slow`; in the lock every try answers `slow` with the time left, even `rightPw`; any other
+//   password is `wrong`. The test
 //   locks its passes (a password set or changed) or ends it (unshare) and pushes the refusal, as
 //   share.server.ts does.
 
@@ -42,8 +44,15 @@ const badPass = "d".repeat(32);
 const rightPw = "correct horse";
 const waitPw = "after five wrong";
 
-/** The `guarded` link's server side: its passes, which of them a password change locked, and whether it ended. */
-const guard = { passes: new Set<string>(), locked: new Set<string>(), ended: false };
+/**
+ * The `guarded` link's server side: its passes, which of them a password change locked, whether
+ * it ended, and the end of its lock (none: no lock), on `stubClock`.
+ */
+const guard: { passes: Set<string>; locked: Set<string>; ended: boolean; lockEnds: number | null } =
+  { passes: new Set(), locked: new Set(), ended: false, lockEnds: null };
+
+/** The stub server's clock: a test moves it with the tab's. */
+let stubClock = makeTestClock();
 
 /** `share.open` calls the stub answered, by link. */
 const calls = new Map<string, number>();
@@ -76,7 +85,11 @@ const answers = new Map<string, (n: number) => Answer>([
 const guardedAnswer = (n: number, password?: string): Answer => {
   if (guard.ended) return gone;
   if (password === undefined) return { kind: "locked" };
-  if (password === waitPw) return { kind: "slow", retryIn: 60_000 };
+  const now = stubClock.currentTimeMillis();
+  if (password === waitPw) guard.lockEnds = now + 60_000;
+  if (guard.lockEnds !== null && now < guard.lockEnds) {
+    return { kind: "slow", retryIn: guard.lockEnds - now };
+  }
   if (password !== rightPw) return { kind: "wrong" };
 
   const given = n.toString(16).padStart(32, "2");
@@ -148,7 +161,10 @@ async function boot() {
   guard.passes.clear();
   guard.locked.clear();
   guard.ended = false;
+  guard.lockEnds = null;
+  stubClock = makeTestClock();
   const server = await createScope({
+    clock: stubClock,
     capsules: [
       exits({ store: localStorage }),
       frames.board({ serve: true, onStart: [passOnly] }),
@@ -448,28 +464,40 @@ test("with the name kept, the open and the password try send it (s0 to s2); the 
   await server.close();
 });
 
-test("past 5 wrong tries the page says to wait; even the right password does not open; a minute later the alert is gone and it opens (s2 to s5, s5 to s2, WaitMeansWait)", async () => {
+test("past 5 wrong tries the page says to wait; the right password 20 s later does not open, and says to wait the 40 s left of the minute from the 5th; then the alert is gone and it opens (s2 to s5, s5 to s2, WaitMeansWait, TheLockLastsAMinute)", async () => {
   vi.spyOn(Math, "random").mockReturnValue(0.5);
   onTestFinished(() => void vi.restoreAllMocks());
   const server = await boot();
   const shown = await tab(server, `/s/${guarded}`);
   await expect.element(passwordHeading()).toBeVisible();
+  const advance = (ms: number) => {
+    stubClock.advance(ms);
+    shown.clock.advance(ms);
+  };
+  const waitText =
+    "Too many wrong passwords. Wait 1 minute, then try again. Until then, no password opens the link.";
 
   await enter(waitPw);
-  await expect
-    .element(page.getByRole("alert"))
-    .toHaveTextContent(
-      "Too many wrong passwords. Wait 1 minute, then try again. Until then, no password opens the link.",
-    );
+  await expect.element(page.getByRole("alert")).toHaveTextContent(waitText);
   expect(frameList().elements()).toHaveLength(0);
   await expect
     .poll(() => shown.scope.run(gateOf, { input: guarded }))
     .toEqual({ link: guarded, page: "password", alert: "wait" });
 
-  shown.clock.advance(60_499);
+  // 20 s into the lock, the right password: the server answers slow with the 40 s left.
+  advance(20_000);
+  const before = callsTo(guarded);
+  await enter(rightPw);
+  await expect.poll(() => callsTo(guarded)).toBe(before + 1);
+  await tick();
+  await expect.element(page.getByRole("alert")).toHaveTextContent(waitText);
+  expect(frameList().elements()).toHaveLength(0);
+
+  // The page waits the 40 s and up to 1 s more (here 0.5 s).
+  advance(40_499);
   await tick();
   expect(page.getByRole("alert").elements()).toHaveLength(1);
-  shown.clock.advance(1);
+  advance(1);
   await expect.poll(() => page.getByRole("alert").elements().length).toBe(0);
   await expect.element(passwordHeading()).toBeVisible();
   await enter(rightPw);

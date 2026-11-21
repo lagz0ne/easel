@@ -1,6 +1,6 @@
 # frames: a share link on one canvas, and a viewer's tab
 
-The chart shows a share link on one canvas, next to one viewer's tab on it. Sharing a shared canvas keeps its link: setting or changing the password ends every pass, and an open tab goes back to the password page at once; removing it ends none. Unshare ends the link, and an open tab shows at once that it has ended. Sharing after that makes a new link, and the old one stays ended. Opening a password link with no password always shows the password page. Password tries count per address and link: within a minute, tries 1 to 5 that are wrong answer `wrong`, and any try after 5 wrong ones answers `slow`, even the right password. Tries from another address do not count. The model is [models/frames/Share.tla](models/frames/Share.tla) with [Share.cfg](models/frames/Share.cfg). TLC checks every rule below on all 429 of its states, and each one holds.
+The chart shows a share link on one canvas, next to one viewer's tab on it. Sharing a shared canvas keeps its link: setting or changing the password ends every pass, and an open tab goes back to the password page at once; removing it ends none. Unshare ends the link, and an open tab shows at once that it has ended. Sharing after that makes a new link, and the old one stays ended. Opening a password link with no password always shows the password page. Password tries count per address and link: within a minute from the first wrong try, tries 1 to 5 that are wrong answer `wrong`. The 5th starts a lock of a minute from the 5th try: in it, any try answers `slow`, even the right password. After the lock, the count starts again. Tries from another address do not count. The model is [models/frames/Share.tla](models/frames/Share.tla) with [Share.cfg](models/frames/Share.cfg). TLC checks every rule below on all 429 of its states, and each one holds.
 
 ```mermaid
 ---
@@ -81,7 +81,7 @@ stateDiagram-v2
 
 ## What the model leaves out
 
-- Time, except as "a minute passes": the limit is 2 wrong tries in the model, 5 in the spec.
+- Time, except as "its minute ends": the end of one address's count (a minute from its first wrong try) or of its lock (a minute from its 5th). The limit is 2 wrong tries in the model, 5 in the spec. How long the lock lasts is checked in [viewer-gate](viewer-gate.md) (`TheLockLastsAMinute`), which counts time in ticks.
 - `SlowEvenWithTheRightPassword` and `AnotherAddressCannotLockTheViewerOut` hold by construction: the model checks the slowed count before the password, and counts per address. No variant of the model breaks them, so the code is judged against them.
 - The name: the page sends it only if the browser kept one, and it changes nothing here.
 - How a password, a link and a pass are kept and compared, and what is never logged.
@@ -93,7 +93,7 @@ stateDiagram-v2
 ## Steps the chart hides
 
 - "another address guesses wrong 5 times": it changes nothing the viewer sees, which is the rule.
-- "a minute passes": it stays in one chart state.
+- "its minute ends", for an address: it stays in one chart state.
 - "the viewer closes the tab" from a password page: it leads where closing the canvas leads.
 - "the model stops", after the last link the model makes. It is the bound, not the product.
 - Steps that stay in one chart state are not drawn: sharing again with the same password or none, and a wrong try 1 to 5 in a minute (it answers `wrong`; the `alert` shows on "Password page").

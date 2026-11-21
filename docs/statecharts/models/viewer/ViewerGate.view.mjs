@@ -51,7 +51,11 @@ const steps = {
   YouEnterTheRightPassword: (from, to) => pressOpen[to.page] ?? "you enter the right password",
   YouEnterAWrongPassword: (from, to) =>
     pressOpen[to.page] ?? "you enter a wrong password (alert: wrong)",
-  AMinutePasses: () => "a minute passes",
+  // Shown only where the page changes: the lock ends, a minute from the 5th wrong try.
+  TimePasses: (from, to) =>
+    from.page === "wait" && to.page === "password"
+      ? "a minute passes from the 5th wrong try"
+      : null,
   APasswordIsSet: () => "a user sets or changes the password (passes end)",
   TheLinkEnds: () => "a user unshares the canvas",
   // Hidden: it changes nothing the tab shows until its read starts again (on a reconnect).

@@ -11,7 +11,7 @@ import { whoMeta } from "@/issues/sign-in";
 // request asks for it, and keeps it). The pass is kept only in this tab's memory, so a reload
 // opens the link again. A link with a password answers `locked`, and the page asks it: a wrong
 // one says so, and after 5 wrong ones in a minute the page says to wait, and takes no password
-// until that minute has passed. A password set or
+// until a minute from the 5th has passed (the server's `retryIn`). A password set or
 // changed ends this tab's pass: its read is refused `{ locked: true }`, and the page asks the
 // password again. A link keeps its 1000 newest passes, so a live link can end this tab's pass:
 // its read is then refused `{ ended: true }`, and the tab opens the link once more before it says

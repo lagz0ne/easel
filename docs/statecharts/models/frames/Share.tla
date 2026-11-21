@@ -6,13 +6,17 @@
 \* Sharing a shared canvas keeps its link and sets, changes or removes the password; setting
 \* or changing it ends every pass. Unshare ends the link. Either one closes the live watches of
 \* the passes it ends, before it answers (S3). Wrong tries count per (address, link) (S5, D7):
-\* within one minute, tries 1-5 that are wrong answer `wrong`; any try after 5 wrong ones
-\* answers `slow`, even the right password. share.open with no password always answers `locked`
-\* (the password page) on a password link, even while the address is slowed for wrong tries.
+\* within one minute from the first wrong try, tries 1-5 that are wrong answer `wrong`; the 5th
+\* starts a lock of a minute from the 5th try, and in it any try answers `slow`, even the right
+\* password. After the lock, the count starts again. share.open with no password always answers
+\* `locked` (the password page) on a password link, even while the address is slowed for wrong
+\* tries.
 \* Left out: the flood limit (any open past 30 a minute per address answers `slow`, and the
 \* page calls again after `retryIn`) and the cap of 1000 passes per link (an open past it ends
 \* the link's oldest pass). Neither changes what a tab is shown in the end.
-\* Time is coarse: "a minute passes" clears the wrong tries.
+\* Time is coarse: "its minute ends" clears one address's wrong tries. It is the count's minute
+\* (from its first wrong try) or the lock's minute (from its 5th). How long each lasts is checked
+\* in models/viewer/ViewerGate.tla (TheLockLastsAMinute), which counts time in ticks.
 EXTENDS Naturals
 
 CONSTANTS MaxWrong,  \* spec: 5 wrong tries in a minute (2 here, to keep the model small)
@@ -28,7 +32,7 @@ VARIABLES
   gen,      \* the newest link made (0: never shared)
   live,     \* the newest link is live (shared, not unshared)
   pw,       \* the newest link's password, or "none"
-  wrong,    \* wrong[a]: wrong tries from address a on the newest link this minute
+  wrong,    \* wrong[a]: wrong tries from address a on the newest link in its count, or its lock
   tab,      \* the viewer's tab: "none" | "password" | "wrong" | "wait" | "open" | "ended"
   tabLink,  \* the link the tab opened (0: none)
   tabPw,    \* the password the tab's pass was given under ("none" if none was asked)
@@ -39,7 +43,7 @@ vars == <<gen, live, pw, wrong, tab, tabLink, tabPw, slowedRight, openedWhileSlo
 History == <<slowedRight, openedWhileSlow>>
 
 LinkLive(l) == l = gen /\ live /\ l > 0
-Slowed(a) == wrong[a] >= MaxWrong
+Slowed(a) == wrong[a] >= MaxWrong  \* the 5th wrong try started a lock, and its minute runs
 NoWrong == [a \in Addresses |-> 0]
 
 TypeOK ==
@@ -106,7 +110,8 @@ ViewerTypesTheRightPassword ==
   /\ slowedRight' = (slowedRight \/ (tab' = "wait" /\ wrong["viewer"] < MaxWrong))
   /\ UNCHANGED <<gen, live, pw, wrong, tabLink>>
 
-\* tries 1-5 that are wrong in a minute answer `wrong`; any try after 5 wrong ones answers `slow`
+\* tries 1-5 that are wrong in a minute answer `wrong`, and the 5th starts the lock; in the lock
+\* any try answers `slow`, and is not counted
 ViewerTypesAWrongPassword ==
   /\ OnPasswordPage
   /\ CASE ~LinkLive(tabLink) -> tab' = "ended" /\ UNCHANGED wrong
@@ -124,9 +129,11 @@ OtherAddressGuessesWrong ==
   /\ wrong' = [wrong EXCEPT !["other"] = MaxWrong]
   /\ UNCHANGED <<gen, live, pw, tab, tabLink, tabPw, History>>
 
-AMinutePasses ==
-  /\ wrong # NoWrong
-  /\ wrong' = NoWrong
+\* Address a's minute ends: a minute from its first wrong try ends its count, or, in its lock, a
+\* minute from its 5th wrong try ends the lock. Either way its count starts again.
+ItsMinuteEnds(a) ==
+  /\ wrong[a] > 0
+  /\ wrong' = [wrong EXCEPT ![a] = 0]
   /\ UNCHANGED <<gen, live, pw, tab, tabLink, tabPw, History>>
 
 ViewerClosesTheTab ==
@@ -143,7 +150,8 @@ Next ==
   \/ \E p \in Passwords : ShareNew(p) \/ ShareAgain(p)
   \/ Unshare \/ ViewerOpensTheLink \/ ViewerOpensAnEndedLink
   \/ ViewerTypesTheRightPassword \/ ViewerTypesAWrongPassword
-  \/ OtherAddressGuessesWrong \/ AMinutePasses \/ ViewerClosesTheTab
+  \/ OtherAddressGuessesWrong \/ \E a \in Addresses : ItsMinuteEnds(a)
+  \/ ViewerClosesTheTab
   \/ TheModelStops
 
 Spec == Init /\ [][Next]_vars
@@ -169,7 +177,7 @@ AnEndedLinkStaysEnded ==
   [][\A l \in 1..gen : ~LinkLive(l) => ~(l = gen' /\ live')]_vars
 
 \* SPEC-frames.md § Journeys, Open a share link, step 2, and judged rule 14: after 5 wrong tries in
-\* a minute, every try answers slow, even the right one.
+\* a minute, every try answers slow until the lock ends, even the right one.
 SlowEvenWithTheRightPassword == ~openedWhileSlow
 NoMoreThan5WrongTriesAMinute == \A a \in Addresses : wrong[a] <= MaxWrong
 

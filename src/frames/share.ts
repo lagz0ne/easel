@@ -63,8 +63,8 @@ export const shareApi = rpc({
       /** A wrong password, one of the first 5 in a minute from this address on this link. */
       z.object({ kind: z.literal("wrong") }),
       /**
-       * Past the flood limit, or a try after 5 wrong ones in a minute: `retryIn` ms until this
-       * address may open again, or try again.
+       * Past the flood limit, or a try in the lock after 5 wrong ones in a minute: `retryIn` ms
+       * until this address may open again, or until the lock ends, a minute from the 5th.
        */
       z.object({ kind: z.literal("slow"), retryIn: z.number() }),
       z.object({ kind: z.literal("gone") }),

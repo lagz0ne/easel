@@ -305,8 +305,9 @@ const openLinkRow = operation({
 /**
  * The password half of `share.open`: null when the open may go on (the link has no password, or
  * this is the right one, and no wait is on); else its answer. No password on a password link
- * answers `locked`: it is no try, and is never slowed. After 5 wrong tries in the minute from
- * this address on this link, any try answers `slow`, even the right one; a wrong one `wrong`.
+ * answers `locked`: it is no try, and is never slowed. A wrong one answers `wrong`. The 5th wrong
+ * try in the minute from this address on this link starts a lock of a minute from the 5th: in it,
+ * any try answers `slow` with the time left, even the right one.
  */
 const passwordGate = operation({
   label: "frames.passwordGate",
@@ -329,7 +330,8 @@ const passwordGate = operation({
       const wait = tries.wrong(key, now);
       return wait === null ? { kind: "wrong" as const } : { kind: "slow" as const, retryIn: wait };
     }
-    // Wrong tries made while this one was checked count too: after 5, even this one waits.
+    // Wrong tries made while this one was checked count too: once they start a lock, even this
+    // one waits.
     const since = tries.slowed(key, now);
     return since === null ? null : { kind: "slow" as const, retryIn: since };
   },

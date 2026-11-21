@@ -307,10 +307,11 @@ test("a password typed on a link with none opens it: only a password link asks o
   expect((await tab.open(link)).kind).toBe("open");
 });
 
-// ---- Wrong tries (judged rule 14: NoMoreThan5WrongTriesAMinute, SlowEvenWithTheRightPassword)
+// ---- Wrong tries (judged rule 14: NoMoreThan5WrongTriesAMinute, SlowEvenWithTheRightPassword,
+// TheLockLastsAMinute)
 
 test(
-  "tries 1 to 5 that are wrong answer wrong; any try after 5 wrong ones answers slow, even the right password, until a minute from the first wrong one (NoMoreThan5WrongTriesAMinute, SlowEvenWithTheRightPassword)",
+  "tries 1 to 5 that are wrong answer wrong; any try after 5 wrong ones answers slow, even the right password, until a minute from the 5th wrong one (NoMoreThan5WrongTriesAMinute, SlowEvenWithTheRightPassword)",
   { timeout: 30_000 },
   async () => {
     const srv = await boot();
@@ -320,19 +321,68 @@ test(
     expect(await tab.open(link, wrongPw)).toEqual({ kind: "wrong" });
     srv.clock.advance(10_000);
     for (let i = 2; i <= 5; i++) expect(await tab.open(link, wrongPw)).toEqual({ kind: "wrong" });
-    // The minute runs from the first wrong try: 50 s are left.
-    expect(await tab.open(link, pw1)).toEqual({ kind: "slow", retryIn: 50_000 });
-    expect(await tab.open(link, wrongPw)).toEqual({ kind: "slow", retryIn: 50_000 });
+    // The lock runs a minute from the 5th wrong try, not from the 1st: 60 s are left.
+    expect(await tab.open(link, pw1)).toEqual({ kind: "slow", retryIn: 60_000 });
+    expect(await tab.open(link, wrongPw)).toEqual({ kind: "slow", retryIn: 60_000 });
     // An open with no password is no try: locked, never slow.
     expect(await tab.open(link)).toEqual({ kind: "locked" });
 
-    srv.clock.advance(49_999);
+    srv.clock.advance(59_999);
     expect(await tab.open(link, pw1)).toEqual({ kind: "slow", retryIn: 1 });
     srv.clock.advance(1);
     expect((await tab.open(link, pw1)).kind).toBe("open");
-    // A new minute: 5 more wrong ones answer wrong.
+    // After the lock the count starts again: 5 more wrong ones answer wrong.
     for (let i = 1; i <= 5; i++) expect(await tab.open(link, wrongPw)).toEqual({ kind: "wrong" });
     expect((await tab.open(link, wrongPw)).kind).toBe("slow");
+  },
+);
+
+test(
+  "5 wrong tries spread over 50 s lock the link for a minute from the 5th: the right password 20 s later is slow, with 40 s left; after the lock the count starts again (TheLockLastsAMinute)",
+  { timeout: 30_000 },
+  async () => {
+    const srv = await boot();
+    const { link } = await sharedFlow(srv, pw1);
+    const tab = await client(srv.server);
+
+    expect(await tab.open(link, wrongPw)).toEqual({ kind: "wrong" });
+    for (let i = 2; i <= 5; i++) {
+      srv.clock.advance(12_500);
+      expect(await tab.open(link, wrongPw)).toEqual({ kind: "wrong" });
+    }
+    // The 5th wrong try was 50 s after the 1st. The lock lasts a minute from the 5th, not from
+    // the 1st: 20 s later, 40 s are left.
+    srv.clock.advance(20_000);
+    expect(await tab.open(link, pw1)).toEqual({ kind: "slow", retryIn: 40_000 });
+    // A wrong try in the lock is not counted, and does not make the lock longer.
+    srv.clock.advance(10_000);
+    expect(await tab.open(link, wrongPw)).toEqual({ kind: "slow", retryIn: 30_000 });
+
+    srv.clock.advance(29_999);
+    expect(await tab.open(link, pw1)).toEqual({ kind: "slow", retryIn: 1 });
+    srv.clock.advance(1);
+    expect((await tab.open(link, pw1)).kind).toBe("open");
+    // After the lock the count starts again: 4 wrong tries do not lock, the 5th does, after it.
+    for (let i = 1; i <= 4; i++) expect(await tab.open(link, wrongPw)).toEqual({ kind: "wrong" });
+    expect((await tab.open(link, pw1)).kind).toBe("open");
+    expect(await tab.open(link, wrongPw)).toEqual({ kind: "wrong" });
+    expect(await tab.open(link, pw1)).toEqual({ kind: "slow", retryIn: 60_000 });
+  },
+);
+
+test(
+  "5 wrong tries over more than a minute do not lock: the count runs a minute from the first wrong try",
+  { timeout: 30_000 },
+  async () => {
+    const srv = await boot();
+    const { link } = await sharedFlow(srv, pw1);
+    const tab = await client(srv.server);
+
+    for (let i = 1; i <= 4; i++) expect(await tab.open(link, wrongPw)).toEqual({ kind: "wrong" });
+    srv.clock.advance(60_000);
+    // A new minute: this wrong try is the 1st of a new count.
+    expect(await tab.open(link, wrongPw)).toEqual({ kind: "wrong" });
+    expect((await tab.open(link, pw1)).kind).toBe("open");
   },
 );
 
@@ -374,7 +424,7 @@ test(
 );
 
 test(
-  "a lockout that starts mid-minute still holds after the next sweep of old tries: the minute runs from its own first wrong try",
+  "a lockout that starts mid-minute still holds after the next sweep of old tries: the lock runs a minute from its own 5th wrong try",
   { timeout: 30_000 },
   async () => {
     const srv = await boot();
@@ -386,7 +436,7 @@ test(
     expect(await other.open(link, wrongPw)).toEqual({ kind: "wrong" });
     srv.clock.advance(30_000);
     for (let i = 1; i <= 5; i++) expect(await tab.open(link, wrongPw)).toEqual({ kind: "wrong" });
-    // The sweep runs on this try, a minute after the last: the viewer's window is 30 s old.
+    // The sweep runs on this try, a minute after the last: the viewer's lock is 30 s old.
     srv.clock.advance(30_000);
     expect(await tab.open(link, pw1)).toEqual({ kind: "slow", retryIn: 30_000 });
     srv.clock.advance(30_000);
