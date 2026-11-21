@@ -211,7 +211,9 @@ outdated: the frame was removed`, or `May be outdated: a long wait`. Only a wait
     release), "claude-1 gave it back: <reason>" (a decline), "Back in the queue, in its first
     place", "No viewer answered in 3 days, so it is done", "3 tries with no outcome: it needs a
     person". The board has no message for a claim: "claude-1 took it" shows while the request is
-    in work, at its last change. A correction of a request that needs a person shows as a message,
+    in work, at the time of the claim (`claimedAt`). A waiting request whose last lease ran out
+    shows "claude-1 took it", then "claude-1 ran out of time with no outcome" at `claimedUntil`.
+    Only the last lease shows: the board keeps no earlier claim. A correction of a request that needs a person shows as a message,
     then "Mai sent it back". The first message shows the text of the request now: its ask, or
     its last correction.
 13. An HTML part shows in a sandboxed iframe, as a live document does. A result shows one picture

@@ -42,6 +42,7 @@ CREATE TABLE IF NOT EXISTS queue_requests (
   status TEXT NOT NULL,
   claimed_by TEXT,
   claimed_until INTEGER,
+  claimed_at INTEGER,
   claim_digest TEXT,
   claim_version INTEGER,
   tries INTEGER NOT NULL,
@@ -83,7 +84,8 @@ END;`;
 
 /** A request's columns, as the board names them. */
 const requestColumns = `canvas, id, n, frame_id AS frameId, version, x, y, author, key, status,
-  claimed_by AS claimedBy, claimed_until AS claimedUntil, tries, queued_at AS queuedAt,
+  claimed_by AS claimedBy, claimed_until AS claimedUntil, claimed_at AS claimedAt, tries,
+  queued_at AS queuedAt,
   accepted_by AS acceptedBy, created, updated`;
 
 /** A message's columns, as the board names them. */
@@ -109,7 +111,7 @@ const waitingIn = `status = 'open' AND (claimed_until IS NULL OR claimed_until <
  * the write. `tries` goes up by one (judged rule 11); `claim_version` is the frame's version now.
  */
 export const claimSql = `UPDATE queue_requests SET claimed_by = $me, claimed_until = $until,
-  claim_digest = $digest, tries = tries + 1, updated = $now,
+  claimed_at = $now, claim_digest = $digest, tries = tries + 1, updated = $now,
   claim_version = (SELECT f.version FROM frames_frames f
     WHERE f.canvas = queue_requests.canvas AND f.id = queue_requests.frame_id)
 WHERE id = (SELECT id FROM queue_requests WHERE ${waitingIn}
@@ -308,7 +310,7 @@ const viewerSql = {
   // Waiting, or needs a person: open, no tries, at the back of the queue.
   edit: {
     set: `status = 'open', tries = 0, queued_at = $now, claimed_by = NULL, claimed_until = NULL,
-      claim_digest = NULL`,
+      claimed_at = NULL, claim_digest = NULL`,
     where: `(status = 'open' AND (claimed_until IS NULL OR claimed_until <= $now)) OR status = 'person'`,
   },
   // A question: open, no tries, in its first place (E4.2 M19).
@@ -321,7 +323,8 @@ const viewerSql = {
   },
   // Also in work: the close ends the lease, so the holder's next call answers wrongState.
   close: {
-    set: "status = 'closed', claimed_by = NULL, claimed_until = NULL, claim_digest = NULL",
+    set: `status = 'closed', claimed_by = NULL, claimed_until = NULL, claimed_at = NULL,
+      claim_digest = NULL`,
     where: "status IN ('open', 'asking', 'person')",
   },
 } as const;
@@ -525,8 +528,8 @@ const endWrite = z.discriminatedUnion("kind", [
   tryWrite.extend({ kind: z.literal("resolve"), text: z.string(), html: z.string().nullable() }),
 ]);
 
-/** The lease ends: no holder, no time, no handle. */
-const endLease = "claimed_by = NULL, claimed_until = NULL, claim_digest = NULL";
+/** The lease ends: no holder, no times, no handle. */
+const endLease = "claimed_by = NULL, claimed_until = NULL, claimed_at = NULL, claim_digest = NULL";
 
 /** What each call of the holder sets (judged rules 10, 11): `tries` stays as it is. */
 const endSql = {
@@ -751,6 +754,11 @@ const load = operation({
   run: async ({ connection, requestCells, messageCells, out }) => {
     const db = connection.db.$client;
     db.exec(schema);
+    // A store made before `claimed_at` gets the column, null in each row.
+    const columns = db.query("PRAGMA table_info(queue_requests)").all();
+    if (!columns.some((c) => z.object({ name: z.literal("claimed_at") }).safeParse(c).success)) {
+      db.exec("ALTER TABLE queue_requests ADD COLUMN claimed_at INTEGER");
+    }
 
     const requestRows = db.query(`SELECT ${requestColumns} FROM queue_requests`).all();
     const messageRows = db

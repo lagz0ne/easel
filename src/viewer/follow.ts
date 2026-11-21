@@ -500,22 +500,47 @@ const triesLine = operation({
 const noAnswer = "No viewer answered in 3 days, so it is done";
 
 /**
- * The last line, that no message says: the agent took it, tries ran out to a person, or no
- * viewer answered the result.
+ * The steps of the last claim, that no message says: "claude-1 took it" at `claimedAt`, and, for
+ * a lease that ran out, that its time ran out at `claimedUntil`. Each end of a lease but its run
+ * out sets `claimedBy` and `claimedUntil` to null, so a waiting request that has both had a lease
+ * that ran out. The board keeps no earlier claim.
+ */
+const claimLines = operation({
+  label: "viewer.claimLines",
+  input: z.object({ r: request, shown: z.enum(shownStates) }),
+  run: (_, { input: { r, shown } }): Line[] => {
+    const { claimedBy: who, claimedUntil: until } = r;
+    const took: Line = {
+      key: "took",
+      kind: "step",
+      who,
+      what: "took it",
+      at: r.claimedAt ?? r.updated,
+    };
+    if (shown === "inWork") return [took];
+    if (shown !== "waiting" || who === null || until === null) return [];
+
+    const what = "ran out of time with no outcome";
+    return [took, { key: "ranOut", kind: "step", who, what, at: until }];
+  },
+});
+
+/**
+ * The last lines, that no message says: the last claim, tries ran out to a person, or no viewer
+ * answered the result.
  */
 const stateLine = operation({
   label: "viewer.stateLine",
   input: z.object({ r: request, shown: z.enum(shownStates), last: message.nullable() }),
-  depends: { triesLine },
-  run: ({ triesLine }, { input: { r, shown, last } }): Line[] => {
-    if (shown === "inWork") {
-      return [{ key: "took", kind: "step", who: r.claimedBy, what: "took it", at: r.updated }];
-    }
+  depends: { triesLine, claimLines },
+  run: ({ triesLine, claimLines }, { input: { r, shown, last } }): Line[] => {
     if (shown === "doneNoAnswer") {
       return [{ key: "done", kind: "step", who: null, what: noAnswer, at: r.updated + noAnswerMs }];
     }
 
-    return shown === "person" ? triesLine.run({ input: { r, last } }) : [];
+    return shown === "person"
+      ? triesLine.run({ input: { r, last } })
+      : claimLines.run({ input: { r, shown } });
   },
 });
 

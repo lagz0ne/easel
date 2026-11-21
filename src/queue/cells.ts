@@ -28,6 +28,11 @@ export const request = z.object({
   claimedBy: z.string().nullable(),
   /** In work while this is ahead of the time of the server. Past it, the lease ran out. */
   claimedUntil: z.number().nullable(),
+  /**
+   * The time of the claim that `claimedBy` holds, or held last. The claim writes it; each end of
+   * the lease but its run out sets it to null with `claimedBy`.
+   */
+  claimedAt: z.number().nullable(),
   tries: z.number(),
   queuedAt: z.number(),
   acceptedBy: z.string().nullable(),

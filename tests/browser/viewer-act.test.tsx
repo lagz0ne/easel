@@ -128,6 +128,7 @@ function stored(n: number, text: string, patch: Partial<Request> = {}) {
     status: "open",
     claimedBy: null,
     claimedUntil: null,
+    claimedAt: null,
     tries: 0,
     queuedAt: at,
     acceptedBy: null,
@@ -814,6 +815,36 @@ test("a waiting request of a removed frame: Now says Frame removed, and the step
   expect(dialog(1).element().querySelector(".e-cmpr-pic")?.textContent).toBe("Frame removed");
   expect(lines(1).at(-1)).toBe("The Home frame was removed · 1 min");
   expect(dialog(1).getByRole("button", { name: "Close request" }).elements()).toHaveLength(1);
+});
+
+test("the step claude-1 took it shows at the time of the claim; a last lease that ran out shows took it, then ran out of time with no outcome; the board has no message for either (Follow the requests 12)", async () => {
+  const server = await boot(() => {
+    stored(1, "Add a short FAQ here.", {
+      claimedBy: "claude-1",
+      claimedAt: serverNow - 3 * minute,
+      claimedUntil: serverNow + 2 * minute,
+      tries: 1,
+    });
+    stored(2, "Make the logo bigger.", {
+      claimedBy: "claude-2",
+      claimedAt: serverNow - 8 * minute,
+      claimedUntil: serverNow - 3 * minute,
+      tries: 1,
+    });
+  });
+  await tab(server);
+
+  await openIt(1);
+  expect(mark(1)).toBe("claude-1");
+  expect(lines(1).slice(1)).toEqual(["claude-1 took it · 3 min"]);
+  await userEvent.keyboard("{Escape}");
+  await openIt(2);
+  expect(mark(2)).toBe("Waiting for an agent");
+  expect(lines(2).slice(1)).toEqual([
+    "claude-2 took it · 8 min",
+    "claude-2 ran out of time with no outcome · 3 min",
+  ]);
+  expect(store.messages).toHaveLength(2);
 });
 
 test("needs a person: the reason shows; the textbox sends it back made clear, or Close request closes it (s29 to s3, s29 to s9, A request no agent finishes 3)", async () => {

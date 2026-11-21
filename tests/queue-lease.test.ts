@@ -558,6 +558,71 @@ test("a waiting next does not wake for a lease that runs out on the last try: th
   expect(await stateIn(a, srv, 1)).toBe("person");
 });
 
+test("the claim writes claimedAt, the time of the claim, in its one write; extend keeps it; an outcome, a release, an edit and a close set it to null with the lease; a lease that runs out writes nothing, so it stays (judged rule 7)", async () => {
+  const srv = await boot();
+  const { a, bo } = await queued(srv, 4);
+  const tab = watchQueue(bo);
+  const row = (n: number) => tab.requests().find((r) => r.n === n);
+  const at = srv.clock.currentTimeMillis();
+
+  const first = await a.next();
+  if (first.kind !== "claimed") throw new Error(first.kind);
+  expect(first.request.claimedAt).toBe(at);
+  await until(() => row(1)?.claimedAt === at);
+  srv.clock.advance(1_000);
+  expect((await a.extend(claimOf(first))).kind).toBe("extended");
+  await tick();
+  expect(row(1)?.claimedAt).toBe(at);
+  expect(await a.resolve(claimOf(first))).toEqual({ kind: "resolved" });
+  await until(() => row(1)?.claimedAt === null);
+
+  expect((await a.release(claimOf(await a.next()))).kind).toBe("released");
+  await until(() => row(2)?.claimedAt === null);
+
+  // A lease that runs out writes nothing: claimedBy and claimedAt stay, and say the last claim.
+  const ranOut = srv.clock.currentTimeMillis();
+  claimOf(await a.next({ n: 3, canvas: "flow" }));
+  srv.clock.advance(leaseMs);
+  expect(await stateIn(a, srv, 3)).toBe("waiting");
+  expect(row(3)).toMatchObject({ claimedBy: "ann", claimedAt: ranOut });
+  expect((await bo.edit("flow", 3)).kind).toBe("edited");
+  await until(() => row(3)?.claimedAt === null);
+
+  claimOf(await a.next({ n: 4, canvas: "flow" }));
+  await until(() => row(4)?.claimedAt !== null);
+  expect((await bo.close("flow", 4)).kind).toBe("closed");
+  await until(() => row(4)?.claimedAt === null);
+  expect(row(4)).toMatchObject({ claimedBy: null, claimedUntil: null });
+});
+
+test(
+  "a store made before claimedAt gets the column at start: its requests load with claimedAt null, and a claim writes it",
+  { timeout: 30_000 },
+  async () => {
+    const dir = mkdtempSync(join(tmpdir(), "easel-queue-"));
+    closers.push(() => rmSync(dir, { recursive: true, force: true }));
+    const file = join(dir, "easel.db");
+    const old = new Database(file, { create: true });
+    old.exec(`CREATE TABLE queue_requests (id TEXT PRIMARY KEY NOT NULL, canvas TEXT NOT NULL,
+    n INTEGER NOT NULL, frame_id TEXT, version INTEGER, x REAL NOT NULL, y REAL NOT NULL,
+    author TEXT NOT NULL, key TEXT NOT NULL, status TEXT NOT NULL, claimed_by TEXT,
+    claimed_until INTEGER, claim_digest TEXT, claim_version INTEGER, tries INTEGER NOT NULL,
+    queued_at INTEGER NOT NULL, accepted_by TEXT, created INTEGER NOT NULL,
+    updated INTEGER NOT NULL, UNIQUE (canvas, n), UNIQUE (canvas, key))`);
+    old.exec(`INSERT INTO queue_requests VALUES ('aaaaaaaaaaaa', 'flow', 9, NULL, NULL, 1, 2, 'Bo',
+    'key-old-0000000', 'closed', NULL, NULL, NULL, NULL, 0, 1, NULL, 1, 1)`);
+    old.close();
+
+    const srv = await boot(file);
+    const { a, bo } = await queued(srv);
+    const tab = watchQueue(bo);
+    await until(() => tab.requests().length === 2);
+    expect(tab.requests().find((r) => r.n === 9)).toMatchObject({ claimedAt: null });
+    const got = await a.next();
+    expect(got.kind === "claimed" && got.request.claimedAt).toBe(srv.clock.currentTimeMillis());
+  },
+);
+
 test("the request on the board is the one the store wrote: queue.api and the board agree on tries and claimedBy", async () => {
   const srv = await boot();
   const { a, bo } = await queued(srv);

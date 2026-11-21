@@ -254,8 +254,8 @@ so the one `mayRead` guard and the refusal that a link sends when it ends cover 
 the tab keeps the difference to its own time as the clock offset.
 
 A request on the board (cell `requests`, keyed by canvas):
-`{ canvas, id, n, frameId, version, x, y, author, key, status, claimedBy, claimedUntil, tries,
-queuedAt, acceptedBy, created, updated }`.
+`{ canvas, id, n, frameId, version, x, y, author, key, status, claimedBy, claimedUntil, claimedAt,
+tries, queuedAt, acceptedBy, created, updated }`.
 
 - `status` is `open`, `asking`, `resolved`, `person` or `closed`.
 - `frameId` is `null` for a request on the canvas. Then `x` and `y` are on the canvas. Else they
@@ -263,6 +263,11 @@ queuedAt, acceptedBy, created, updated }`.
 - `version` is the frame version that the viewer saw, or `null` for a request on the canvas.
 - `claimedBy` is the name of the user. Only the agent that claimed holds the claim handle. The
   server keeps its digest.
+- `claimedAt` is the time of the claim. The claim writes it in its one write; `extend` keeps it.
+  Each outcome, a release, an edit and a close set it to null with `claimedBy` and
+  `claimedUntil`. A lease that runs out writes nothing, so a waiting request that still has
+  `claimedBy` had a lease that ran out, from `claimedAt` to `claimedUntil`. No message says a
+  claim (rule 7).
 - `updated` is the time of the last change to the request or its messages.
 
 A channel (table `channels`, not on the board): `{ name, kind, repo, label, trigger, token,
@@ -365,7 +370,7 @@ one for each waiting period, the cap of attempts, and one outcome when two ways 
    - `accept`: `resolved` with `acceptedBy` null. It sets `acceptedBy`.
    - `reopen`: `resolved`. It sets `open`, `tries` to 0 and `acceptedBy` to null.
    - `close`: `open` (also in work), `asking`, or `person`. It sets `closed` and ends the lease
-     (`claimedBy` and `claimedUntil` to null).
+     (`claimedBy`, `claimedUntil` and `claimedAt` to null).
    - In any other state, the answer is `wrongState`. A viewer changes a request that an agent
      holds only to take it back (`close`).
 10. Each outcome is one conditional write with its message: `resolve` sets `resolved`, `ask` sets

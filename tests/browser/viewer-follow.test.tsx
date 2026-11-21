@@ -82,6 +82,7 @@ function stored(n: number, text: string, patch: Partial<Request> = {}) {
     status: "open",
     claimedBy: null,
     claimedUntil: null,
+    claimedAt: null,
     tries: 0,
     queuedAt: at,
     acceptedBy: null,
