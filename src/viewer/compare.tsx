@@ -4,6 +4,7 @@ import { z } from "zod";
 
 import { frames } from "@/frames";
 
+import type { Pane } from "./follow";
 import { FramePicture } from "./picture";
 
 // Two pictures of one frame in a request's popover (SPEC-viewer.md § Follow the requests 13, 14;
@@ -13,9 +14,6 @@ import { FramePicture } from "./picture";
 
 /** A side of the switch. */
 export type Side = "left" | "right";
-
-/** One side: its word, and the version of the frame it shows (null: the frame was removed). */
-export type Pane = { label: string; version: number | null };
 
 /**
  * The side that the viewer picked on each switch, by its key. The key holds what folds or opens
@@ -61,6 +59,7 @@ function PanePicture({
       version={pane.version}
       k={k}
       alt={`${pane.label}: ${box.name}`}
+      card={16 / 10}
     />
   );
 }

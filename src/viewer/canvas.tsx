@@ -9,7 +9,7 @@ import type { FrameInfo } from "@/frames/contract";
 import "./canvas.css";
 import { openFromLink } from "./act";
 import { escapeKey, openRequest, pickPlace, requestMode, resendOnBack } from "./draft";
-import { clockTicker, panelOpen } from "./follow";
+import { clockTicker, panelOpen, requestPlaces } from "./follow";
 import type { RequestView } from "./follow";
 import { Panel, RequestsButton } from "./panel";
 import { FramePicture } from "./picture";
@@ -209,17 +209,17 @@ function Dock({ at, canvas }: { at: Stage; canvas: string }) {
 
 /**
  * The panel `Requests`, while it is open. A press on a row moves the canvas to the place of the
- * request and opens it (step 9). A request whose frame is gone opens where it is.
+ * request and opens it (step 9): on its frame, or where its frame was before it was removed.
  */
 function PanelAt({ at, canvas, list }: { at: Stage; canvas: string; list: readonly FrameInfo[] }) {
   const open = useData(panelOpen);
+  const places = useData(requestPlaces({ canvas }));
   const opening = useRun(openRequest);
   if (!open) return null;
 
   const onOpen = ({ r }: RequestView) => {
-    const frame = list.find((f) => f.id === r.frameId);
-    if (r.frameId === null) at.show(r.x, r.y);
-    else if (frame) at.show(frame.x + r.x, frame.y + r.y);
+    const place = places.get(r.n);
+    if (place) at.show(place.x, place.y);
     opening.run({ input: { canvas, n: r.n } });
   };
 

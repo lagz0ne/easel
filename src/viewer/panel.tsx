@@ -1,5 +1,6 @@
 import { useData, useRun } from "@tinkered/react";
 
+import { frames } from "@/frames";
 import type { FrameInfo } from "@/frames/contract";
 
 import { openedRequest } from "./draft";
@@ -15,7 +16,7 @@ import {
   toggleListMenu,
   togglePanel,
 } from "./follow";
-import type { RequestView, Shown } from "./follow";
+import type { Outdated, RequestView, Shown } from "./follow";
 
 // The panel `Requests` and the button that opens it (SPEC-viewer.md § Follow the requests 1 to
 // 9, 17; the E4.4 design: the library's Sidebar, RequestRow, StateBadge and Count). The panel
@@ -46,6 +47,24 @@ export function StateMark({ shown, agent }: { shown: Shown; agent: string | null
   );
 }
 
+/** The word of each cause of "may be outdated" (step 6). */
+const outdatedWords: Record<Outdated["cause"], string> = {
+  changed: "May be outdated: the frame changed",
+  removed: "May be outdated: the frame was removed",
+  old: "May be outdated: a long wait",
+};
+
+/** The mark of a request that may be outdated: a dotted circle, named by its cause (step 6). */
+export function OutdatedMark({ cause }: { cause: Outdated["cause"] }) {
+  const word = outdatedWords[cause];
+
+  return (
+    <span className="e-sb" data-state="outdated" role="img" aria-label={word} title={word}>
+      <i className="e-sb-mark" />
+    </span>
+  );
+}
+
 /** The first letter of a name, for a pin or an avatar. */
 export function Initial({ name }: { name: string | null }) {
   return <>{(name?.trim().charAt(0) ?? "").toUpperCase() || "?"}</>;
@@ -64,12 +83,13 @@ export function Age({ from }: { from: number }) {
   return <>{days < 2 ? "Yesterday" : `${days}\u00a0days`}</>;
 }
 
-/** Where a request is: "On <frame>", or "On the whole canvas". */
+/** Where a request is: "On <frame>", also of a removed frame, or "On the whole canvas". */
 export function Place({ r, list }: { r: RequestView["r"]; list: readonly FrameInfo[] }) {
+  const gone = useData(frames.board.removed.of({ canvas: r.canvas, id: r.frameId ?? "" }));
   if (r.frameId === null) return <>On the whole canvas</>;
-  const frame = list.find((f) => f.id === r.frameId);
+  const name = list.find((f) => f.id === r.frameId)?.name ?? gone?.name;
 
-  return <>{frame ? `On ${frame.name}` : ""}</>;
+  return <>{name ? `On ${name}` : ""}</>;
 }
 
 /** A count, as the library's Count: an accent pill. Its parent says it in words. */
@@ -150,6 +170,7 @@ function Row({
             </span>
             <span className="e-rr-sep" aria-hidden="true" />
             <StateMark shown={v.shown} agent={v.r.claimedBy} />
+            {v.outdated ? <OutdatedMark cause={v.outdated.cause} /> : null}
             <span className="e-rr-ref">{`#${v.r.n}`}</span>
           </span>
           <span className="e-rr-text">{v.text}</span>

@@ -65,16 +65,41 @@ export type Line =
     }
   | { key: string; kind: "step"; who: string | null; what: string; at: number | null };
 
-/** A result's pictures (§ Follow the requests 13): its frame, the versions, and if it opens. */
+/** One side of a switch: its word, and the version of the frame (null: the frame was removed). */
+const pane = z.object({ label: z.string(), version: z.number().nullable() });
+
+export type Pane = z.infer<typeof pane>;
+
+/**
+ * Two pictures of a request's frame (§ Follow the requests 13, 14): `Before` | `After` on a
+ * result, `When asked` | `Now` on the ask of a request that may be outdated. `show` is the side
+ * it opens on, and `opens` whether it opens.
+ */
 const proof = z.object({
   id: z.string(),
-  before: z.number(),
-  after: z.number(),
-  /** It opens on `After`: the last result, while the request waits for a decision. */
+  left: pane,
+  right: pane,
+  show: z.enum(["left", "right"]),
   opens: z.boolean(),
 });
 
 export type Proof = z.infer<typeof proof>;
+
+/** Why a waiting request may be outdated (SPEC-queue.md § A request becomes outdated). */
+const outdated = z.object({
+  cause: z.enum(["changed", "removed", "old"]),
+  /** The frame's name; null for a request on the canvas. */
+  frame: z.string().nullable(),
+  /** The frame's version now; null once it was removed. */
+  now: z.number().nullable(),
+  /** When the frame was removed. */
+  removed: z.number().nullable(),
+});
+
+export type Outdated = z.infer<typeof outdated>;
+
+/** A request made more than this long ago may be outdated. */
+export const oldMs = 7 * 24 * 60 * 60_000;
 
 /** A request as the panel, its pin and its popover show it. */
 export type RequestView = {
@@ -90,6 +115,8 @@ export type RequestView = {
   lastAct: string;
   /** It changed since the last visit, and since this browser last opened it. */
   changed: boolean;
+  /** It waits, and may be outdated: why. A mark, not a state. */
+  outdated: Outdated | null;
 };
 
 /** The tab's estimate of the server's time, in ms; null until the board's clock is read. */
@@ -384,15 +411,48 @@ const messageLine = operation({
 });
 
 /** A result's pictures, for a result on a frame with both its versions; else null. */
-const proofOf = operation({
-  label: "viewer.proofOf",
+const resultProof = operation({
+  label: "viewer.resultProof",
   input: z.object({ m: message, frameId: z.string().nullable(), opens: z.boolean() }),
   run: (_, { input: { m, frameId, opens } }): Proof | null => {
     if (m.kind !== "result" || frameId === null) return null;
     if (m.before === null || m.after === null) return null;
 
-    return { id: frameId, before: m.before, after: m.after, opens };
+    const left = { label: "Before", version: m.before };
+    return { id: frameId, left, right: { label: "After", version: m.after }, show: "right", opens };
   },
+});
+
+/**
+ * The pictures of the ask of a request whose frame changed or was removed (step 14): what the
+ * viewer saw, and the frame now. It opens on `When asked`.
+ */
+const askProof = operation({
+  label: "viewer.askProof",
+  input: z.object({ m: message, r: request, outdated: outdated.nullable() }),
+  run: (_, { input: { m, r, outdated: o } }): Proof | null => {
+    if (m.kind !== "ask" || o === null || o.cause === "old") return null;
+    if (r.frameId === null || r.version === null) return null;
+
+    const left = { label: "When asked", version: r.version };
+    return {
+      id: r.frameId,
+      left,
+      right: { label: "Now", version: o.now },
+      show: "left",
+      opens: true,
+    };
+  },
+});
+
+/** The pictures of a message: a result's, or the ask's of a request that may be outdated. */
+const proofOf = operation({
+  label: "viewer.proofOf",
+  input: z.object({ m: message, r: request, opens: z.boolean(), outdated: outdated.nullable() }),
+  depends: { resultProof, askProof },
+  run: ({ resultProof, askProof }, { input: { m, r, opens, outdated } }) =>
+    resultProof.run({ input: { m, frameId: r.frameId, opens } }) ??
+    askProof.run({ input: { m, r, outdated } }),
 });
 
 /** What an answer brings: the request is back in the queue, in its first place (E4.2 M19). */
@@ -459,6 +519,28 @@ const stateLine = operation({
   },
 });
 
+/**
+ * The step of a request that may be outdated (step 14): how many times its frame changed since
+ * the author asked, or when the frame was removed. None for a long wait.
+ */
+const outdatedLine = operation({
+  label: "viewer.outdatedLine",
+  input: z.object({ r: request, outdated: outdated.nullable() }),
+  run: (_, { input: { r, outdated: o } }): Line[] => {
+    if (o === null || o.cause === "old") return [];
+    const frame = `The ${o.frame ?? ""} frame`;
+    if (o.cause === "removed") {
+      return [
+        { key: "outdated", kind: "step", who: null, what: `${frame} was removed`, at: o.removed },
+      ];
+    }
+    const n = (o.now ?? 0) - (r.version ?? 0);
+    const what = `${frame} changed ${n} time${n === 1 ? "" : "s"} since ${r.author} asked`;
+
+    return [{ key: "outdated", kind: "step", who: null, what, at: null }];
+  },
+});
+
 /** What a message did, after its sender's name, when it came first (§ Follow the requests 16). */
 const firstWords: Record<Message["kind"], string> = {
   ask: "asked it",
@@ -502,21 +584,73 @@ const start: Sofar = {
 /** A request's thread as the popover shows it (§ Follow the requests 12), oldest first. */
 const linesOf = operation({
   label: "viewer.linesOf",
-  input: z.object({ r: request, thread: z.array(message), shown: z.enum(shownStates) }),
-  depends: { sofarStep, linesOfMessage, stateLine, proofOf },
-  run: (deps, { input: { r, thread, shown } }) => {
-    const { sofarStep, linesOfMessage, stateLine, proofOf } = deps;
+  input: z.object({
+    r: request,
+    thread: z.array(message),
+    shown: z.enum(shownStates),
+    outdated: outdated.nullable(),
+  }),
+  depends: { sofarStep, linesOfMessage, stateLine, proofOf, outdatedLine },
+  run: (deps, { input: { r, thread, shown, outdated } }) => {
+    const { sofarStep, linesOfMessage, stateLine, proofOf, outdatedLine } = deps;
     const known = thread.reduce((was, m) => sofarStep.run({ input: { was, m } }), start);
     const lastResult = thread.findLast((m) => m.kind === "result")?.id;
     const lines = thread.flatMap((m) => {
       const live = shown === "question" && known.question === m.id;
       const opens = shown === "result" && m.id === lastResult;
-      const proof = proofOf.run({ input: { m, frameId: r.frameId, opens } });
+      const proof = proofOf.run({ input: { m, r, opens, outdated } });
       return linesOfMessage.run({ input: { m, author: r.author, known, live, proof } });
     });
     const last = thread.at(-1) ?? null;
 
-    return [...lines, ...stateLine.run({ input: { r, shown, last } })];
+    return [
+      ...lines,
+      ...stateLine.run({ input: { r, shown, last } }),
+      ...outdatedLine.run({ input: { r, outdated } }),
+    ];
+  },
+});
+
+/** The frame of a request as the board has it now: its name and version, or when it was removed. */
+const frameNow = z.object({
+  name: z.string(),
+  version: z.number().nullable(),
+  removed: z.number().nullable(),
+});
+
+/** A frame's change: it has a newer version than the one the viewer saw, or it was removed. */
+const frameCause = operation({
+  label: "viewer.frameCause",
+  input: z.object({ r: request, frame: frameNow.nullable() }),
+  run: (_, { input: { r, frame } }): Outdated | null => {
+    if (frame === null || r.version === null) return null;
+    const base = { frame: frame.name, now: frame.version, removed: frame.removed };
+    if (frame.version === null) return { ...base, cause: "removed" };
+
+    return frame.version > r.version ? { ...base, cause: "changed" } : null;
+  },
+});
+
+/**
+ * Why a waiting request may be outdated, in this order: its frame was removed, its frame
+ * changed, or it was made more than 7 days ago (SPEC-queue.md § A request becomes outdated).
+ * Null for a request in any other state.
+ */
+const outdatedOf = operation({
+  label: "viewer.outdatedOf",
+  input: z.object({
+    r: request,
+    shown: z.enum(shownStates),
+    now: z.number(),
+    frame: frameNow.nullable(),
+  }),
+  depends: { frameCause },
+  run: ({ frameCause }, { input: { r, shown, now, frame } }): Outdated | null => {
+    if (shown !== "waiting") return null;
+    const cause = frameCause.run({ input: { r, frame } });
+    if (cause !== null || now - r.created <= oldMs) return cause;
+
+    return { cause: "old", frame: frame?.name ?? null, now: frame?.version ?? null, removed: null };
   },
 });
 
@@ -529,18 +663,21 @@ const viewOf = operation({
     now: z.number().nullable(),
     since: z.number().nullable(),
     opened: z.number().nullable(),
+    frame: frameNow.nullable(),
   }),
-  depends: { shownState, linesOf, lastActOf },
-  run: (deps, { input: { r, thread, now, since, opened } }): RequestView => {
-    const { shownState, linesOf, lastActOf } = deps;
+  depends: { shownState, linesOf, lastActOf, outdatedOf },
+  run: (deps, { input: { r, thread, now, since, opened, frame } }): RequestView => {
+    const { shownState, linesOf, lastActOf, outdatedOf } = deps;
+    const at = now ?? r.updated;
     const closer = thread.findLast((m) => m.kind === "close")?.from ?? null;
-    const shown = shownState.run({ input: { request: r, closer, now: now ?? r.updated } });
+    const shown = shownState.run({ input: { request: r, closer, now: at } });
     const text = thread.findLast((m) => m.kind === "ask" || m.kind === "edit")?.text ?? "";
     const seen = Math.max(since ?? Infinity, opened ?? -Infinity);
-    const lines = linesOf.run({ input: { r, thread, shown } });
+    const outdated = outdatedOf.run({ input: { r, shown, now: at, frame } });
+    const lines = linesOf.run({ input: { r, thread, shown, outdated } });
     const lastAct = lastActOf.run({ input: { r, shown, thread } });
 
-    return { r, shown, text, thread, lines, lastAct, changed: r.updated > seen };
+    return { r, shown, text, thread, lines, lastAct, changed: r.updated > seen, outdated };
   },
 });
 
@@ -554,14 +691,22 @@ export const requestViews = resource({
   depends: (c) => ({
     rows: frames.board.requests.where({ canvas: c.canvas }),
     all: frames.board.messages.where({ canvas: c.canvas }),
+    boxes: frames.board.frames.where({ canvas: c.canvas }),
+    gone: frames.board.removed.where({ canvas: c.canvas }),
     time: serverTime,
     seen: visits,
     threads,
     viewOf,
   }),
-  factory: ({ rows, all, time, seen, threads, viewOf }, ctx): RequestView[] => {
+  factory: (deps, ctx): RequestView[] => {
+    const { rows, all, boxes, gone, time, seen, threads, viewOf } = deps;
     const by = threads.run({ input: [...all.get()] });
     const visit = seen?.canvas === ctx.config.canvas ? seen : null;
+    // Each frame of the canvas now, and each removed one, by its id.
+    const byId = new Map<string | null, z.infer<typeof frameNow>>([
+      ...gone.get().map((f) => [f.id, { ...f, version: null }] as const),
+      ...boxes.get().map((f) => [f.id, { ...f, removed: null }] as const),
+    ]);
 
     return rows
       .get()
@@ -574,9 +719,34 @@ export const requestViews = resource({
             now: time,
             since: visit?.since ?? null,
             opened: visit?.opened[r.id] ?? null,
+            frame: byId.get(r.frameId) ?? null,
           },
         }),
       );
+  },
+});
+
+/**
+ * Where each request of a canvas is on the canvas, by its number: on its frame, where its frame
+ * was before it was removed, or on the canvas. Null while its frame is not on the board.
+ */
+export const requestPlaces = resource({
+  label: "viewer.requestPlaces",
+  config: { canvas: canvasOf.required },
+  depends: (c) => ({
+    rows: frames.board.requests.where({ canvas: c.canvas }),
+    boxes: frames.board.frames.where({ canvas: c.canvas }),
+    gone: frames.board.removed.where({ canvas: c.canvas }),
+  }),
+  factory: ({ rows, boxes, gone }) => {
+    const all = new Map([...gone.get(), ...boxes.get()].map((f) => [f.id, f]));
+
+    return new Map(
+      rows.get().map((r) => {
+        const box = r.frameId === null ? { x: 0, y: 0 } : all.get(r.frameId);
+        return [r.n, box ? { x: box.x + r.x, y: box.y + r.y } : null];
+      }),
+    );
   },
 });
 

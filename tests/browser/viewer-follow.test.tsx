@@ -10,7 +10,7 @@ import { page, userEvent } from "vite-plus/test/browser/context";
 import { z } from "zod";
 
 import { frames } from "@/frames";
-import { frames as frameCells } from "@/frames/contract";
+import { frames as frameCells, removed } from "@/frames/contract";
 import { passMeta, shareApi } from "@/frames/share";
 import { queue } from "@/queue";
 import { messageKind, messages, request, requests, serverClock } from "@/queue/cells";
@@ -41,6 +41,10 @@ const store = {
   messages: [] as Message[],
   /** Frame Far is on the board. */
   far: false,
+  /** Frame Far was removed: the board has it in `removed`. */
+  farGone: false,
+  /** Frame Home's version. */
+  homeVersion: 1,
 };
 
 /** The server the tab's `peer` points at now. */
@@ -114,12 +118,19 @@ const seed = operation({
   label: "test.followSeed",
   depends: {
     cells: frameCells.controller,
+    gone: removed.controller,
     rows: requests.controller,
     thread: messages.controller,
     clocks: serverClock.controller,
   },
-  run: ({ cells, rows, thread, clocks }) => {
-    cells.set({ canvas: "home", id: home, name: "Home", x: 0, y: 0, w: 400, h: 300, version: 1 });
+  run: ({ cells, gone, rows, thread, clocks }) => {
+    const version = store.homeVersion;
+    cells.set({ canvas: "home", id: home, name: "Home", x: 0, y: 0, w: 400, h: 300, version });
+
+    if (store.farGone) {
+      const box = { name: "Far", x: 3000, y: 2000, w: 400, h: 300 };
+      gone.set({ canvas: "home", id: far, ...box, removed: serverNow - 5 * minute });
+    }
     if (store.far) {
       cells.set({
         canvas: "home",
@@ -202,6 +213,8 @@ async function boot(fill?: () => void) {
   store.requests.length = 0;
   store.messages.length = 0;
   store.far = false;
+  store.farGone = false;
+  store.homeVersion = 1;
   fill?.();
 
   return serve();
@@ -598,6 +611,86 @@ test("a result that no viewer answers for 3 days moves to Done as Done, no answe
   expect(markOf(1)).toBe("Done, no answer");
   // Nothing was written: the board is as it was.
   expect(JSON.stringify(board.get())).toBe(before);
+});
+
+/** The outdated mark of request `n`'s row: its word, or null. */
+const outdatedOf = (n: number) =>
+  [...document.querySelectorAll(".e-rr")]
+    .find((r) => r.querySelector(".e-rr-ref")?.textContent === `#${n}`)
+    ?.querySelector('.e-sb[data-state="outdated"]')
+    ?.getAttribute("aria-label") ?? null;
+
+test("a waiting request may be outdated: its frame has a newer version, the frame was removed, or it was made more than 7 days ago; a dotted mark names the cause, with no write (Follow the requests 6, A request becomes outdated)", async () => {
+  const server = await boot(() => {
+    store.homeVersion = 4;
+    store.farGone = true;
+    stored(1, "Make the logo bigger.");
+    stored(2, "Shorter banner.", { frameId: far });
+
+    stored(3, "Add a frame for the order page.", {
+      frameId: null,
+      version: null,
+      created: serverNow - 7 * day + minute,
+    });
+    stored(4, "Add a short FAQ here.", {
+      claimedBy: "claude-1",
+      claimedUntil: serverNow + 5 * minute,
+    });
+    stored(5, "Use our brand blue.", { version: 4 });
+  });
+  const board = server.resolve(requests.where({ canvas: "home" }));
+  const stop = board.watch(() => undefined);
+  onTestFinished(() => stop());
+  const before = JSON.stringify(board.get());
+  const t = await tab(server);
+  await requestsButton().click();
+  await expect.poll(() => outdatedOf(1)).toBe("May be outdated: the frame changed");
+
+  expect(markOf(1)).toBe("Waiting for an agent");
+  expect(outdatedOf(2)).toBe("May be outdated: the frame was removed");
+  expect(row(2).element().textContent).toContain("On Far");
+  expect(outdatedOf(3)).toBeNull();
+  expect(outdatedOf(4)).toBeNull();
+  expect(outdatedOf(5)).toBeNull();
+  // The pins of a removed frame go with it.
+  expect(pin(2).elements()).toHaveLength(0);
+
+  // More than 7 days: a long wait.
+  await advance(t, minute);
+  expect(outdatedOf(3)).toBeNull();
+  await advance(t, minute);
+  await expect.poll(() => outdatedOf(3)).toBe("May be outdated: a long wait");
+  // It is a mark, not a state: the count and the groups do not change.
+  await expect.element(requestsButton()).toHaveAccessibleName("Requests");
+  expect(rowsIn(group("Other requests").query())).toEqual([1, 2, 4, 5, 3]);
+  expect(JSON.stringify(board.get())).toBe(before);
+});
+
+test("a press on the row of a request of a removed frame moves the canvas to where the frame was: a dashed area that says it was removed, with the pin in it, and the popover (Follow the requests 9)", async () => {
+  const server = await boot(() => {
+    store.farGone = true;
+    stored(1, "Shorter banner.", { frameId: far, x: 20, y: 30 });
+  });
+  await tab(server);
+  await requestsButton().click();
+
+  await row(1).click();
+  await expect.element(page.getByRole("dialog", { name: "Request #1" })).toBeVisible();
+  const area = page.getByRole("group", { name: "Far was removed" });
+  await expect.element(area).toBeVisible();
+  expect(area.element().textContent).toContain("Far was removed");
+  // The place is at 40% of the canvas's width and height, in the area.
+  const view = page.getByRole("region", { name: "Frames" }).element().getBoundingClientRect();
+  const at = pin(1).element().getBoundingClientRect();
+  expect(Math.abs(at.left - (view.left + view.width * 0.4))).toBeLessThan(3);
+  expect(Math.abs(at.bottom - (view.top + view.height * 0.4))).toBeLessThan(3);
+  const box = area.element().getBoundingClientRect();
+  expect(at.left).toBeGreaterThan(box.left);
+  expect(at.bottom).toBeLessThan(box.bottom);
+
+  await userEvent.keyboard("{Escape}");
+  await expect.poll(() => area.elements().length).toBe(0);
+  expect(pin(1).elements()).toHaveLength(0);
 });
 
 test("while the socket is down the list may be behind and says Reconnecting; when it is back, the board read brings each change (s16 to s19, s19 to s16, PanelShowsLatest)", async () => {

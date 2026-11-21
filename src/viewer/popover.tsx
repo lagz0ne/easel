@@ -22,7 +22,7 @@ import { acting, escape, moreMenu } from "./draft";
 import type { ActBox as Box, Acting as Acts } from "./draft";
 import { seenWhileOpen } from "./follow";
 import type { Line, RequestView, Shown } from "./follow";
-import { Age, Initial, Place, StateMark } from "./panel";
+import { Age, Initial, OutdatedMark, Place, StateMark } from "./panel";
 
 // The popover of a saved request (SPEC-viewer.md § Follow the requests 10 to 16; the E4.1, E4.2
 // and E4.3 designs): its head with `More` and `Close`, its thread, and the controls of its state.
@@ -97,9 +97,10 @@ function Options({ line, v }: { line: Extract<Line, { kind: "message" }>; v: Req
 }
 
 /**
- * A result's picture, with the switch `Before` | `After` on its top edge (step 13). It opens on
- * `After` while the request waits for a decision and no textbox is open; else only the switch
- * shows. A change of the request, or a textbox, folds it again.
+ * A message's pictures, with the switch on their top edge: `Before` | `After` on a result (step
+ * 13), `When asked` | `Now` on the ask of a request that may be outdated (step 14). It opens while
+ * no textbox is open; else only the switch shows. A change of the request, or a textbox, folds it
+ * again.
  */
 function Proof({ v, line, box }: { v: RequestView; line: Message; box: Box | null }) {
   const { proof } = line;
@@ -109,9 +110,9 @@ function Proof({ v, line, box }: { v: RequestView; line: Message; box: Box | nul
     <Compare
       canvas={v.r.canvas}
       id={proof.id}
-      left={{ label: "Before", version: proof.before }}
-      right={{ label: "After", version: proof.after }}
-      show="right"
+      left={proof.left}
+      right={proof.right}
+      show={proof.show}
       open={proof.opens && box === null}
       pickKey={`${line.key}@${v.r.updated}@${box ?? ""}`}
     />
@@ -407,8 +408,21 @@ function Controls({ v, here }: { v: RequestView; here: Acts }) {
   if (v.shown === "question") return <BoxForm v={v} box="answer" here={here} />;
   if (v.shown === "person") return <BoxForm v={v} box="clear" here={here} />;
   if (decided.includes(v.shown)) return <Decide v={v} here={here} />;
+  if (v.outdated) return <OutdatedActs v={v} here={here} />;
 
   return <Notice v={v} here={here} />;
+}
+
+/** A request that may be outdated has `Close request` (step 15): a viewer may keep it, or close it. */
+function OutdatedActs({ v, here }: { v: RequestView; here: Acts }) {
+  return (
+    <>
+      <Notice v={v} here={here} />
+      <div className="e-acts">
+        <CloseButton v={v} menu={false} always />
+      </div>
+    </>
+  );
 }
 
 /** The menu `More` (step 11): Correct the request, Copy link, and Take back or Close request. */
@@ -488,6 +502,7 @@ export function Opened({ v, list }: { v: RequestView; list: readonly FrameInfo[]
     <section className="e-pop e-req" role="dialog" aria-label={`Request #${r.n}`}>
       <header className="e-head">
         <StateMark shown={v.shown} agent={r.claimedBy} />
+        {v.outdated ? <OutdatedMark cause={v.outdated.cause} /> : null}
         <span className="e-head-ref">
           {`#${r.n} · `}
           <Place r={r} list={list} />

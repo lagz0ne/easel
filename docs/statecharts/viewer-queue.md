@@ -191,7 +191,7 @@ stateDiagram-v2
 - The number of tries before a request needs a person: 2 in the model, 3 in the queue's spec.
 - Extend: it moves `claimedUntil` and changes nothing the panel shows.
 - The time of the last visit. The model keeps one flag for "the viewer opened the request after its last change". A new visit only hides the marks of changes before it, and that adds no step to check.
-- "May be outdated": a mark from the frame version and the age. It does not change the state ([queue](../../SPEC-queue.md)).
+- "May be outdated": a mark from the frame version, a removed frame and the age. It does not change the state ([queue](../../SPEC-queue.md)).
 - Many requests and their order, the lists and groups, the agent's name, and the messages.
 - "Done, no answer": after 3 days with no answer, the page shows a result as done and stops counting it. The model has no time of day, so it counts a result until a viewer acts.
 - The status `Reconnecting` while the full read is in flight: [viewer-canvas](viewer-canvas.md) has it.

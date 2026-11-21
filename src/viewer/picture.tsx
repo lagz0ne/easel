@@ -38,13 +38,17 @@ const picRetry = resource({
   },
 });
 
-/** A picture. An img decodes off the main thread, and the card's colour shows until it has. */
-function Picture({ src, alt }: { src: string; alt: string }) {
+/**
+ * A picture. An img decodes off the main thread, and the card's colour shows until it has.
+ * `wide`: the frame is wider than its card, so the card shows all of its width.
+ */
+function Picture({ src, alt, wide }: { src: string; alt: string; wide: boolean }) {
   const retry = useResource(picRetry);
 
   return (
     <img
       className="e-pic"
+      data-wide={wide}
       src={src}
       alt={alt}
       decoding="async"
@@ -65,12 +69,15 @@ export function FramePicture({
   version,
   k,
   alt,
+  card = 0,
 }: {
   canvas: string;
   frame: { id: string; name: string; w: number; h: number };
   version: number;
   k: string | undefined;
   alt?: string;
+  /** The width over the height of the card it shows on; 0: the card has the frame's own size. */
+  card?: number;
 }) {
   const area = frame.w * frame.h;
   const scale = area / 4 <= maxPicturePixels ? 0.5 : area / 16 <= maxPicturePixels ? 0.25 : null;
@@ -80,6 +87,7 @@ export function FramePicture({
     <Picture
       src={`${picturePrefix}${canvas}/${frame.id}/${version}?s=${scale}&k=${k}`}
       alt={alt ?? frame.name}
+      wide={card > 0 && frame.w / frame.h > card}
     />
   );
 }

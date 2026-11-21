@@ -173,8 +173,10 @@ this spec wins, and the screen gets a fix.
 
    A closed request is "taken back" when the viewer who closed it has the author's name. A
    request that may be outdated ([queue](SPEC-queue.md)) keeps its state mark and adds a dotted
-   circle, named `May be outdated` and its cause: the frame changed, the frame was removed, or a
-   long wait.
+   circle, named `May be outdated` and its cause: `May be outdated: the frame changed`, `May be
+outdated: the frame was removed`, or `May be outdated: a long wait`. Only a waiting request
+   has it. When more than one cause is true, the first in that order names it. The page derives
+   it from the board and its estimate of the server's time, with no write.
 
 7. Pins show on the canvas for the requests of the list `Open`. A pin is a bubble with the
    author's initial. It has the accent look while the request waits for a viewer, the danger look
@@ -188,9 +190,9 @@ this spec wins, and the screen gets a fix.
 9. A click on a row moves the canvas to the place of the request and opens it. A click on a pin
    opens its request (E4.4 F3). The place comes to 40% of the canvas's width and height, at the
    zoom as it is, so the popover has room. A request of a removed frame moves the canvas to where
-   the frame was: a dashed area that says the frame was removed, with the pin of the request in
-   it. (The dashed area is not built yet: it comes with "may be outdated". Until then, the row of
-   such a request shows the request as open, and no popover shows.)
+   the frame was: a dashed area that says "<frame> was removed", with the pin of the request in
+   it. The board's cell `removed` gives the name and the last box of the frame. The area goes
+   when the popover closes.
 10. An open request is a popover next to its pin (a `dialog` named `Request #<n>`). It does not
     cover the part that the request is about, and the list stays open. Escape or its button
     `Close` (×) closes the popover; the request does not change.
@@ -225,8 +227,10 @@ this spec wins, and the screen gets a fix.
     viewer picks stays until the request changes; a side picked while a textbox is open stays
     only while the textbox is open.
 14. A request that may be outdated shows what the viewer saw: a switch `When asked` | `Now` on
-    the picture, open on `When asked` (E4.1 N8). `Now` shows the frame now, or "Frame removed".
-    A step says how many times the frame changed since the request.
+    the picture under its first message, open on `When asked` (E4.1 N8). `Now` shows the frame
+    now, or "Frame removed". The last step says what changed: "The Sign-up frame changed 3 times
+    since Tom asked", or "The Sign-up frame was removed", with its time. A request that is only
+    old has no switch and no such step.
 15. The controls of an open request follow its state. Any viewer of the link can use them, and
     each use is a message with the name of the viewer (E4.2 M16).
 

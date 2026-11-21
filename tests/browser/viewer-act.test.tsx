@@ -69,6 +69,8 @@ const store = {
   home: { version: 1, k: "kh1" } as { version: number; k: string } | null,
   /** The kept versions of Home, each with the key of its picture. */
   kept: [] as Array<{ version: number; k?: string }>,
+  /** Frame Side is on the board, far from Home. */
+  side: false,
 };
 
 /** Frame Home's box. */
@@ -183,6 +185,11 @@ const seed = operation({
   run: ({ cells, versions, gone, rows, thread, clocks }) => {
     if (store.home) cells.set({ canvas: "home", id: home, ...homeBox, ...store.home });
     else gone.set({ canvas: "home", id: home, ...homeBox, removed: serverNow - minute });
+
+    if (store.side) {
+      const box = { name: "Side", x: 3000, y: 0, w: 400, h: 300, version: 1 };
+      cells.set({ canvas: "home", id: "5ide5ide5ide", ...box });
+    }
     for (const v of store.kept) versions.set({ canvas: "home", id: home, ...v });
     clocks.set({ canvas: "home", now: serverNow });
     for (const row of store.requests) rows.set(row);
@@ -401,6 +408,7 @@ async function boot(fill: () => void, name: string | null = "Mai") {
   store.plan.length = 0;
   store.home = { version: 1, k: "kh1" };
   store.kept.length = 0;
+  store.side = false;
   fill();
 
   return serve();
@@ -759,6 +767,53 @@ test("a result done with no answer: the step says it, only Open again shows, and
   expect(calls()).toEqual([
     { call: "request.reopen", input: { canvas: "home", n: 1, text: "Make it grey." } },
   ]);
+});
+
+test("a waiting request that may be outdated: the dotted mark, the switch When asked | Now open on When asked, the step with the count of changes, and Close request (Follow the requests 6, 14, 15, E4.1 N8)", async () => {
+  const server = await boot(() => {
+    store.home = { version: 3, k: "kh3" };
+    store.kept.push({ version: 1, k: "kh1" });
+    stored(1, "Make the logo bigger.");
+  });
+  await tab(server);
+  await openIt(1);
+
+  const outdated = dialog(1).element().querySelector('.e-sb[data-state="outdated"]');
+  expect(outdated?.getAttribute("aria-label")).toBe("May be outdated: the frame changed");
+  const { side, pictures } = compare(1);
+  expect(side("When asked").element()).toHaveAttribute("aria-checked", "true");
+  expect(pictures()).toEqual([{ alt: "When asked: Home", src: homePicture(1, "kh1") }]);
+  await side("Now").click();
+  expect(pictures()).toEqual([{ alt: "Now: Home", src: homePicture(3, "kh3") }]);
+  expect(lines(1).at(-1)).toBe("The Home frame changed 2 times since Mai asked");
+
+  await dialog(1).getByRole("button", { name: "Close request" }).click();
+  await expect.poll(() => mark(1)).toBe("Taken back");
+  expect(calls()).toEqual([{ call: "request.close", input: { canvas: "home", n: 1 } }]);
+});
+
+test("a waiting request of a removed frame: Now says Frame removed, and the step says when the frame was removed (Follow the requests 9, 14)", async () => {
+  const server = await boot(() => {
+    store.home = null;
+    store.side = true;
+    store.kept.push({ version: 1, k: "kh1" });
+    stored(1, "Make the logo bigger.");
+  });
+  await tab(server);
+  await page.getByRole("button", { name: /^Requests/ }).click();
+  const panel = page.getByRole("complementary", { name: "Requests" });
+  await panel.getByRole("button", { name: /#1(?!\d)/ }).click();
+  await expect.element(dialog(1)).toBeVisible();
+
+  const outdated = dialog(1).element().querySelector('.e-sb[data-state="outdated"]');
+  expect(outdated?.getAttribute("aria-label")).toBe("May be outdated: the frame was removed");
+  const { side, pictures } = compare(1);
+  expect(pictures()).toEqual([{ alt: "When asked: Home", src: homePicture(1, "kh1") }]);
+  await side("Now").click();
+  expect(pictures()).toEqual([]);
+  expect(dialog(1).element().querySelector(".e-cmpr-pic")?.textContent).toBe("Frame removed");
+  expect(lines(1).at(-1)).toBe("The Home frame was removed · 1 min");
+  expect(dialog(1).getByRole("button", { name: "Close request" }).elements()).toHaveLength(1);
 });
 
 test("needs a person: the reason shows; the textbox sends it back made clear, or Close request closes it (s29 to s3, s29 to s9, A request no agent finishes 3)", async () => {

@@ -261,6 +261,22 @@
   pointer-events: none;
 }
 
+/* A removed frame, where it was, while its request is open (Follow the requests 9): a hairline
+   dashed area with a small note at its top left. */
+.e-gone-frame {
+  box-sizing: border-box;
+  border-width: 1px;
+}
+
+.e-gone-text {
+  position: absolute;
+  top: var(--e-2);
+  left: var(--e-3);
+  font-size: calc(var(--e-size-1) * var(--e-unzoom, 1));
+  color: var(--e-muted);
+  transform-origin: top left;
+}
+
 .e-pop {
   position: absolute;
   top: var(--e-2);
@@ -852,6 +868,11 @@
   content: "!";
 }
 
+.e-sb[data-state="outdated"] .e-sb-mark {
+  border-style: dotted;
+  border-width: 2px;
+}
+
 .e-sb[data-state="accepted"] .e-sb-mark,
 .e-sb[data-state="doneNoAnswer"] .e-sb-mark {
   background-color: currentcolor;
@@ -1067,11 +1088,16 @@ span.e-opt[data-picked="false"] {
   border-radius: var(--e-radius);
 }
 
+/* The top of a tall frame fills the card; a frame wider than the card shows all its width. */
 .e-cmpr-pic .e-pic {
   width: 100%;
   height: 100%;
   object-fit: cover;
   object-position: top;
+}
+
+.e-cmpr-pic .e-pic[data-wide="true"] {
+  object-fit: contain;
 }
 
 .e-cmpr-none {

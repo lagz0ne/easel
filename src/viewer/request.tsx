@@ -1,5 +1,6 @@
 import { useData, useRun } from "@tinkered/react";
 
+import { frames } from "@/frames";
 import type { FrameInfo } from "@/frames/contract";
 import { viewerName } from "@/frames/share";
 import type { Request } from "@/queue/cells";
@@ -17,7 +18,7 @@ import {
 } from "./draft";
 import type { Draft, Place as DraftPlace } from "./draft";
 import { doneStates, requestViews } from "./follow";
-import type { Shown } from "./follow";
+import type { RequestView, Shown } from "./follow";
 import { Initial } from "./panel";
 import { Opened } from "./popover";
 import { partBox } from "./stage";
@@ -330,11 +331,50 @@ function Outline({ place, at }: { place: DraftPlace; at: { x: number; y: number 
 function OpenedAt({ canvas, n, list }: { canvas: string; n: number; list: readonly FrameInfo[] }) {
   const v = useData(requestViews({ canvas })).find((one) => one.r.n === n);
   if (!v) return null;
+  if (v.r.frameId !== null && !list.some((f) => f.id === v.r.frameId)) {
+    return <GoneAt v={v} id={v.r.frameId} list={list} />;
+  }
 
   return (
     <AtRequest r={v.r} list={list}>
       <Opened v={v} list={list} />
     </AtRequest>
+  );
+}
+
+/**
+ * The open request of a removed frame (step 9): a dashed area where the frame was, that says it
+ * was removed, with the request's pin and popover in it. Nothing while the board has no box for
+ * the frame.
+ */
+function GoneAt({ v, id, list }: { v: RequestView; id: string; list: readonly FrameInfo[] }) {
+  const gone = useData(frames.board.removed.of({ canvas: v.r.canvas, id }));
+  if (!gone) return null;
+  const said = `${gone.name} was removed`;
+
+  return (
+    <>
+      <div
+        className="e-gone e-gone-frame"
+        role="group"
+        aria-label={said}
+        style={{ left: gone.x, top: gone.y, width: gone.w, height: gone.h }}
+      >
+        <span className="e-gone-text">{said}</span>
+      </div>
+      <At x={gone.x + v.r.x} y={gone.y + v.r.y}>
+        <button
+          type="button"
+          className="e-pin"
+          data-look={pinLooks[v.shown]}
+          aria-label={`Request #${v.r.n}`}
+          aria-pressed="true"
+        >
+          <Initial name={v.r.author} />
+        </button>
+        <Opened v={v} list={list} />
+      </At>
+    </>
   );
 }
 
