@@ -84,8 +84,73 @@ once.
 
 ## 7. Requests from GitHub (if you want)
 
-Not built ([queue](../SPEC-queue.md)). If your agents work from GitHub, easel can open an issue for
-each request in a private repository of your team. Ask the company for these steps.
+If your agents work from GitHub, easel opens an issue for each request in a private repository of
+your team. The issue starts a run of your agent, and the run takes the request
+([queue](../SPEC-queue.md#the-dispatcher-gets-a-request-to-the-agents)). This is the way of
+[claude-code-action](https://github.com/anthropics/claude-code-action): a GitHub workflow that an
+issue or a comment starts.
+
+Steps 1, 2 and 5 work now. Steps 3 and 4 are not built: a run cannot get the command line or
+sign in to easel yet.
+
+1. Make a fine-grained personal access token of a real GitHub user, for example a bot account of
+   your team. Give it "Issues: Read and write" on the repository only. Do not use the
+   `GITHUB_TOKEN` of a workflow: GitHub starts no workflow for an issue or a comment that it
+   makes.
+2. Put the token in a file, then connect the repository. Easel checks that the repository is
+   private, and makes the label:
+
+   ```sh
+   easel channel set gh github --repo acme/design --label easel --token-file token.txt
+   rm token.txt
+   ```
+
+3. Not built ([cli](../SPEC-cli.md#sign-in-with-no-file)). Get a token for the runs, and keep it
+   in the repository as secrets:
+
+   ```sh
+   easel login https://acme.easel.example --name github --print-token
+   ```
+
+   In the repository, add the secrets `EASEL_SERVER` (the address of your easel) and
+   `EASEL_TOKEN` (the token), and the key of your model, for example `ANTHROPIC_API_KEY`.
+
+4. Not built ([cli](../SPEC-cli.md#get-the-command-line)). Add the workflow
+   `.github/workflows/easel.yml`. A new issue with the label starts it, and a
+   comment that starts with the trigger (`@claude`) starts it again. A new issue with a label
+   also sends `labeled`, so `opened` is not necessary.
+
+   ```yaml
+   on:
+     issues:
+       types: [labeled]
+     issue_comment:
+       types: [created]
+   permissions:
+     contents: read
+     issues: write
+     id-token: write
+   jobs:
+     work:
+       if: >-
+         (github.event_name == 'issues' && github.event.label.name == 'easel') ||
+         (github.event_name == 'issue_comment' && startsWith(github.event.comment.body, '@claude'))
+       runs-on: ubuntu-latest
+       env:
+         EASEL_SERVER: ${{ secrets.EASEL_SERVER }}
+         EASEL_TOKEN: ${{ secrets.EASEL_TOKEN }}
+       steps:
+         - run: curl -fsSL "$EASEL_SERVER/install.sh" | sh
+         - uses: anthropics/claude-code-action@v1
+           with:
+             anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
+             prompt: >-
+               Run the easel next command in this issue. If it answers empty, stop. Else do the
+               request, then end it with easel resolve, ask or decline.
+   ```
+
+5. Ask for a change on a shared canvas. Within 1 minute, the issue shows in the repository, and
+   the run starts. `easel deliveries <canvas> <n>` shows each delivery and its cause.
 
 ## Help
 
