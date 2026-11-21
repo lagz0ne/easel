@@ -8,12 +8,13 @@ import type { Gate } from "./gate";
 // its own: the gate cell says which page the tab is on, and the canvas reads the live board. The
 // canvas's only controls are Zoom in, Zoom out and Fit (the chart's CanvasControls).
 
-/** The page that says the link has ended, and nothing else (judged rule 13). */
+/** The page for a link that has ended or is wrong, and nothing else (judged rule 13). One page for both, so it
+ * says nothing of which links exist. */
 function Ended() {
   return (
     <main>
-      <h1>This link has ended</h1>
-      <p>Ask whoever shared it for a new one.</p>
+      <h1>This link does not work</h1>
+      <p>It has ended, or it is wrong. Ask the person who shared it for a new link.</p>
     </main>
   );
 }
@@ -21,7 +22,7 @@ function Ended() {
 /** What the password page's `alert` says. */
 const alerts = {
   wrong: "That password is wrong.",
-  wait: "Too many wrong passwords. Wait a minute, then try again.",
+  wait: "Too many wrong passwords. Wait 1 minute, then try again. Until then, no password opens the link.",
 } as const;
 
 /** The password gate: textbox Password, button Open, and an alert after a wrong one. */
@@ -35,7 +36,8 @@ function PasswordGate({
   const enter = useRun(enterPassword);
   return (
     <main>
-      <h1>This link asks a password</h1>
+      <h1>This link needs a password</h1>
+      <p>Ask the person who shared it for the password.</p>
       <form
         onSubmit={(event) => {
           event.preventDefault();
@@ -57,7 +59,7 @@ function PasswordGate({
 
 /** The link is still opening: the first call, or a call again after a flood `slow`. */
 export function Opening() {
-  return <p role="status">Opening.</p>;
+  return <p role="status">Opening the link</p>;
 }
 
 /** The link's page: opening, the password gate, the canvas, or ended. It asks no name. */

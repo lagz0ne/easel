@@ -236,7 +236,7 @@ function expectCanvasControlsOnly() {
 
 const frameList = () => page.getByRole("region", { name: "Frames" });
 const reconnecting = () => page.getByRole("status").filter({ hasText: "Reconnecting" });
-const endedHeading = () => page.getByRole("heading", { name: "This link has ended" });
+const endedHeading = () => page.getByRole("heading", { name: "This link does not work" });
 
 test("the link opens with no name asked and none kept, then the canvas shows its frames live, names as text, with only the camera's controls (s0 to s1, NameNotAtTheGate)", async () => {
   const server = await boot();
@@ -347,7 +347,7 @@ test("past the flood limit the page stays on Opening, with no wait page, and cal
   const shown = await tab(server, `/s/${flooded}`);
 
   // The slow comes while the route loads: the page says Opening there.
-  await expect.element(page.getByRole("status")).toHaveTextContent("Opening.");
+  await expect.element(page.getByRole("status")).toHaveTextContent("Opening the link");
   expect(callsTo(flooded)).toBe(1);
   expectNoControl();
   expect(page.getByRole("heading").elements()).toHaveLength(0);
@@ -359,7 +359,7 @@ test("past the flood limit the page stays on Opening, with no wait page, and cal
   expect(callsTo(flooded)).toBe(1);
   shown.clock.advance(1);
   await expect.poll(() => callsTo(flooded)).toBe(2);
-  await expect.element(page.getByRole("status")).toHaveTextContent("Opening.");
+  await expect.element(page.getByRole("status")).toHaveTextContent("Opening the link");
   shown.clock.advance(6_000);
   await expect.element(frameList().getByText("Home")).toBeVisible();
   expect(callsTo(flooded)).toBe(3);
@@ -371,7 +371,7 @@ test("past the flood limit the page stays on Opening, with no wait page, and cal
 test("leaving a link mid-retry stops its loop, and a late answer for another link never takes the shown link's pass", async () => {
   const server = await boot();
   const shown = await tab(server, `/s/${stuck}`);
-  await expect.element(page.getByRole("status")).toHaveTextContent("Opening.");
+  await expect.element(page.getByRole("status")).toHaveTextContent("Opening the link");
   expect(callsTo(stuck)).toBe(1);
 
   // The tab goes to another link while `stuck` waits out its retryIn: that loader is aborted.
@@ -400,7 +400,7 @@ test("leaving a link mid-retry stops its loop, and a late answer for another lin
 
 const passwordBox = () => page.getByLabelText("Password");
 const openButton = () => page.getByRole("button", { name: "Open" });
-const passwordHeading = () => page.getByRole("heading", { name: "This link asks a password" });
+const passwordHeading = () => page.getByRole("heading", { name: "This link needs a password" });
 
 /** Types `password` on the password page and presses Open. */
 async function enter(password: string) {
@@ -458,7 +458,9 @@ test("past 5 wrong tries the page says to wait; even the right password does not
   await enter(waitPw);
   await expect
     .element(page.getByRole("alert"))
-    .toHaveTextContent("Too many wrong passwords. Wait a minute, then try again.");
+    .toHaveTextContent(
+      "Too many wrong passwords. Wait 1 minute, then try again. Until then, no password opens the link.",
+    );
   expect(frameList().elements()).toHaveLength(0);
   await expect
     .poll(() => shown.scope.run(gateOf, { input: guarded }))

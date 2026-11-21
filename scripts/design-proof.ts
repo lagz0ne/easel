@@ -36,6 +36,7 @@
 //   S11 a shadow is one of three elevations, or a ring.
 //   S12 a size is on the 4px grid.
 //   S13 the product canvas has the library's tokens, with the same values.
+//   S14 each text colour has WCAG AA contrast (4.5:1) on each surface, in light and dark (E3 S14).
 //   T1 text: … not ..., curly quotes, a no-break space between a number and its unit.
 
 import { Client } from "@modelcontextprotocol/sdk/client/index.js";
@@ -124,11 +125,13 @@ const E3: ReadonlyArray<{ id: string; kind: Kind }> = [
   { id: "Iy-yjtexBr", kind: "page" },
   { id: "sCPZfGyx4f", kind: "page" },
   { id: "bGzmRU6QGr", kind: "page" },
+  { id: "MF5lt4IJuW", kind: "page" },
   { id: "Bt6ELgTB-h", kind: "screen" },
   { id: "C37B_BYpYM", kind: "screen" },
   { id: "UEKzhvtyYt", kind: "page" },
   { id: "sPQSIcxr6o", kind: "screen" },
   { id: "L3QURfp8mv", kind: "page" },
+  { id: "sHgPqffmWn", kind: "screen" },
   { id: "6_MTPksuJG", kind: "sheet" },
   { id: "xpeMsam50t", kind: "page" },
   { id: "U-GpX2Ahvg", kind: "screen" },
@@ -581,6 +584,58 @@ const chooseFrames = (canvas: Array<CanvasFrame>): Scope => {
 
 // S13: the product canvas has a copy of the library tokens (Doop does not
 // share tokens through a library). A change goes to the library first.
+// S14 (E3): text on a surface, in each theme. --e-faint is left out: it is for disabled text only.
+const CONTRAST_PAIRS: ReadonlyArray<readonly [string, string]> = [
+  ["--e-text", "--e-bg"],
+  ["--e-text", "--e-surface"],
+  ["--e-text", "--e-tint"],
+  ["--e-muted", "--e-bg"],
+  ["--e-muted", "--e-surface"],
+  ["--e-muted", "--e-tint"],
+  ["--e-accent", "--e-surface"],
+  ["--e-accent", "--e-accent-bg"],
+  ["--e-danger", "--e-surface"],
+  ["--e-warn", "--e-surface"],
+  ["--e-ok", "--e-surface"],
+  ["--e-on-accent", "--e-accent"],
+  ["--e-on-primary", "--e-primary"],
+];
+
+// A token line is `color <light> dark=<dark>`; a theme with no value of its own keeps the light one.
+const colourIn = (line: string | undefined, theme: string): string | undefined => {
+  if (line === undefined) return undefined;
+  const parts = line.split(" ");
+  const own = parts.find((p) => p.startsWith(`${theme}=`));
+  return own === undefined ? parts[1] : own.slice(theme.length + 1);
+};
+
+const luminance = (hex: string): number | undefined => {
+  const m = /^#([0-9a-f]{2})([0-9a-f]{2})([0-9a-f]{2})$/i.exec(hex);
+  if (m === null) return undefined;
+  const lin = (c: string | undefined): number => {
+    const v = Number.parseInt(c ?? "0", 16) / 255;
+    return v <= 0.03928 ? v / 12.92 : ((v + 0.055) / 1.055) ** 2.4;
+  };
+  return 0.2126 * lin(m[1]) + 0.7152 * lin(m[2]) + 0.0722 * lin(m[3]);
+};
+
+const checkContrast = (tokens: Map<string, string>): void => {
+  for (const theme of ["light", "dark"]) {
+    for (const [fg, bg] of CONTRAST_PAIRS) {
+      const a = luminance(colourIn(tokens.get(fg), theme) ?? "");
+      const b = luminance(colourIn(tokens.get(bg), theme) ?? "");
+      if (a === undefined || b === undefined) {
+        report(LIBRARY, "S14", `${fg} on ${bg} (${theme}) is not a #rrggbb colour`);
+        continue;
+      }
+      const ratio = (Math.max(a, b) + 0.05) / (Math.min(a, b) + 0.05);
+      if (ratio < 4.5) {
+        report(LIBRARY, "S14", `${fg} on ${bg} (${theme}) is ${ratio.toFixed(2)}:1, under 4.5:1`);
+      }
+    }
+  }
+};
+
 const checkTokens = (tokens: Doop["tokens"]): void => {
   for (const [name, line] of tokens.library) {
     const copy = tokens.product.get(name);
@@ -1052,6 +1107,7 @@ const main = async (): Promise<number> => {
   const scope = chooseFrames(doop.frames);
   printScope(scope);
   checkTokens(doop.tokens);
+  checkContrast(doop.tokens.library);
 
   // Fetch in parallel, check in order, so the report has one order.
   const frames = await Promise.all(
