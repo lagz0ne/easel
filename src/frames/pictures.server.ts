@@ -24,7 +24,8 @@ import { readPicture, readStill } from "./store.server";
 // <id>/<version>?s=&k=&r=` needs no user and no pass: its key is the right to it (fact rule 4).
 // The route takes the version and its document in one read, draws them through the one
 // `pictures.render` (fact rule 3), and checks the frame and the key again before it sends (judged
-// rule 7). A Chromium from `EASEL_CHROMIUM` draws, through puppeteer-core; with none, pictures
+// rule 7). The version is the current one, or a kept one: an old version that a request refers
+// to, also of a removed frame, drawn at the frame's last box. A Chromium from `EASEL_CHROMIUM` draws, through puppeteer-core; with none, pictures
 // are off: the board carries no keys, every picture is 404, and `frame.shot` answers `off`.
 
 /** At most 2 draws at once; a request waits at most 5 s for a slot, and a draw runs at most 20 s. */
@@ -578,9 +579,10 @@ const pictureBox = operation({
 });
 
 /**
- * The frame a picture address names, when its key and version are good: 404 with pictures off,
- * a malformed or future version, a missing frame or a wrong key; 307 to the current version's
- * address for an older one.
+ * The version a picture address names, when its key is good and the version is the current one
+ * or a kept one: its document and the box to draw it in. Else 404 with pictures off, a malformed
+ * or future version, a missing frame or a wrong key, or a removed frame's version that is not
+ * kept; 307 to the current version's address for an older one that is not kept.
  */
 const findPicture = operation({
   label: "pictures.find",
@@ -595,34 +597,37 @@ const findPicture = operation({
     }
 
     const asked = Number(input.version);
-    const row = await readPicture.run({ input: { canvas: input.canvas, id: input.id } });
-    if (!row) return refusal.run({ input: 404 });
+    const row = await readPicture.run({
+      input: { canvas: input.canvas, id: input.id, version: asked },
+    });
 
     const at = { canvas: input.canvas, id: input.id, gen: row.gen };
     const want = pictureKey.run({ input: { ...at, version: asked } });
-    if (!keyMatches.run({ input: { sent: input.k ?? "", want } }) || asked > row.version) {
+    if (!keyMatches.run({ input: { sent: input.k ?? "", want } })) {
       return refusal.run({ input: 404 });
     }
 
-    if (asked < row.version) {
-      const k = pictureKey.run({ input: { ...at, version: row.version } });
-      const location = pictureAddress.run({ input: { ...input, version: row.version, k } });
-      return new Response(null, { status: 307, headers: { ...noStore, Location: location } });
-    }
+    const { current, doc, gen } = row;
+    if (doc) return { ...doc, gen, version: asked };
+    if (current === null || asked > current) return refusal.run({ input: 404 });
 
-    return row;
+    const k = pictureKey.run({ input: { ...at, version: current } });
+    const location = pictureAddress.run({ input: { ...input, version: current, k } });
+    return new Response(null, { status: 307, headers: { ...noStore, Location: location } });
   },
 });
 
 /**
  * Draws the box of the frame: 400 off the frame or past the limits; 503 with no slot or past
- * 20 s; 404 when the frame was deleted or its keys changed during the draw; else the picture.
+ * 20 s; 404 when the version is not there any more (its frame was deleted and it is not kept) or
+ * its keys changed during the draw; else the picture.
  */
 const drawPicture = operation({
   label: "pictures.draw",
   input: z.object({
     canvas: z.string(),
     id: z.string(),
+    version: z.number(),
     html: z.string(),
     w: z.number(),
     h: z.number(),
@@ -646,7 +651,9 @@ const drawPicture = operation({
         break;
     }
 
-    const still = await readStill.run({ input: { canvas: input.canvas, id: input.id } });
+    const still = await readStill.run({
+      input: { canvas: input.canvas, id: input.id, version: input.version },
+    });
     if (!still.live || still.gen !== input.gen) return refusal.run({ input: 404 });
     return new Response(drawn.webp, {
       status: 200,
@@ -659,7 +666,8 @@ const drawPicture = operation({
  * `GET /api/pictures/{canvas}/{id}/{version}`: the picture (SPEC-frames § Pictures). A scale
  * outside the four, a malformed region, or a region off the frame or past 8 MP or 16000 px a
  * side is 400. With pictures off, a wrong key, a missing frame, or a version not yet made, 404.
- * An older version: 307 to the current one, with its key. No slot in 5 s, or a draw past 20 s:
+ * A kept version is drawn as the current one is. Another older version: 307 to the current one,
+ * with its key; of a removed frame, 404. No slot in 5 s, or a draw past 20 s:
  * 503 with `Retry-After: 1`. A frame deleted or a link ended during the draw: 404.
  */
 export const pictureRoute = operation({

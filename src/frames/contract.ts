@@ -131,10 +131,52 @@ export const docs = data({
 });
 
 /**
+ * Each kept version (SPEC-frames § Pictures, judged rule 16): an old version of a frame that a
+ * request or a message refers to, with the key of its picture. No `k`: pictures are off. The
+ * current version of a frame is not here: its key is on the frame.
+ */
+export const kept = data({
+  label: "frames.kept",
+  mode: "keyed",
+  parse: z.object({
+    canvas: z.string(),
+    id: z.string(),
+    version: z.number(),
+    k: z.string().optional(),
+  }),
+  key: (v) => ({ canvas: v.canvas, id: v.id, version: v.version }),
+});
+
+/**
+ * Each removed frame: its name and the box it had, and when it was removed. The page shows a
+ * request of a removed frame where the frame was, and draws its kept versions at that size.
+ */
+const removedFrame = frameInfo
+  .omit({ version: true })
+  .extend({ canvas: z.string(), removed: z.number() });
+
+export type Removed = z.infer<typeof removedFrame>;
+
+export const removed = data({
+  label: "frames.removed",
+  mode: "keyed",
+  parse: removedFrame,
+  key: (f) => ({ canvas: f.canvas, id: f.id }),
+});
+
+/**
  * `easel.board`: what a live tab watches. The queue's cells ride it (SPEC-viewer.md § Contract),
  * so `mayRead` guards them, and a link that ends refuses them, as it does the frames.
  */
-export const framesBoard = remoteData({ frames, docs, requests, messages, serverClock });
+export const framesBoard = remoteData({
+  frames,
+  docs,
+  kept,
+  removed,
+  requests,
+  messages,
+  serverClock,
+});
 
 const gone = z.object({ kind: z.literal("gone") });
 

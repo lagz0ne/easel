@@ -9,14 +9,20 @@
 \* version, then the document in a second read, and an agent's write can land between them, so
 \* it draws the newer document for the older address (APictureShowsTheVersionItsAddressNames
 \* and AnOldAddressIsRedirectedNotDrawn break). Pictures.cfg has OneRead = TRUE.
-\* An old version's address redirects to the current one.
+\* An old version's address redirects to the current one, unless a request refers to that version:
+\* then the server keeps it (judged rule 16), also after the frame is deleted, and draws it.
 \* The answer is `Cache-Control: private, immutable`: only the browser that asked keeps it.
 \* One frame, one viewer's tab, one request at a time; an agent writes, deletes, or ends the link.
 EXTENDS Naturals
 
 MaxVersion == 2
 
-CONSTANT OneRead
+CONSTANT OneRead, KeptFirst
+
+\* KeptFirst: a viewer asked for a change on version 1 (or an agent claimed on it), so a request
+\* refers to it and the server keeps its document, also after a write or a delete (judged rule
+\* 16). Pictures.cfg has no request (FALSE); PicturesKept.cfg has one (TRUE).
+held(v) == KeptFirst /\ v = 1
 
 VARIABLES
   version,  \* the frame's current version
@@ -37,6 +43,9 @@ Init ==
   /\ req = "idle" /\ asked = 0 /\ drawn = 0
   /\ kept = [v \in 1..MaxVersion |-> 0] /\ shown = 0
 
+\* The server has the document of version v: the frame's current one, or a kept one.
+Stored(v) == (live /\ v = version) \/ held(v)
+
 \* The tab's keys all come from before the link ended: its board is refused after that.
 KeyOk == ~ended
 
@@ -47,25 +56,29 @@ BoardCatchesUp ==
   /\ board' = IF live THEN version ELSE 0
   /\ UNCHANGED <<version, live, ended, endedAt, req, asked, drawn, kept, shown>>
 
-\* the tab asks for the address its board holds; this browser's own copy answers if it has one
+\* the tab asks for an address its board holds: the frame's, or a kept version's (on a request);
+\* this browser's own copy answers if it has one
 Ask ==
-  /\ req = "idle" /\ board # 0
-  /\ IF kept[board] # 0
-       THEN /\ shown' = IF kept[board] > shown THEN kept[board] ELSE shown
-            /\ UNCHANGED <<req, asked>>
-       ELSE /\ req' = "asked" /\ asked' = board
-            /\ UNCHANGED shown
+  /\ req = "idle"
+  /\ \E v \in 1..MaxVersion :
+       /\ v = board \/ held(v)
+       /\ IF kept[v] # 0
+            THEN /\ shown' = IF kept[v] > shown THEN kept[v] ELSE shown
+                 /\ UNCHANGED <<req, asked>>
+            ELSE /\ req' = "asked" /\ asked' = v
+                 /\ UNCHANGED shown
   /\ UNCHANGED <<version, live, ended, endedAt, board, drawn, kept>>
 
-\* the server reads the frame: 404 for a wrong key or a gone frame, a redirect for an old
-\* version, else it takes the current document to draw: in the same read (OneRead), or in a
-\* second read (ReadTheDocument)
+\* the server reads the frame: 404 for a wrong key; with one read (OneRead), the document of the
+\* version asked when it has it (current or kept); else 404 for a gone frame, and a redirect for
+\* an old version; without OneRead, a second read (ReadTheDocument) takes the document
 LookUp ==
   /\ req = "asked"
-  /\ CASE ~KeyOk \/ ~live    -> req' = "idle" /\ UNCHANGED <<asked, drawn>>
-       [] asked < version    -> req' = "redirected" /\ asked' = version /\ UNCHANGED drawn
-       [] OneRead            -> req' = "drawing" /\ drawn' = version /\ UNCHANGED asked
-       [] OTHER              -> req' = "reading" /\ UNCHANGED <<asked, drawn>>
+  /\ CASE ~KeyOk                   -> req' = "idle" /\ UNCHANGED <<asked, drawn>>
+       [] OneRead /\ Stored(asked) -> req' = "drawing" /\ drawn' = asked /\ UNCHANGED asked
+       [] ~live                    -> req' = "idle" /\ UNCHANGED <<asked, drawn>>
+       [] asked < version          -> req' = "redirected" /\ asked' = version /\ UNCHANGED drawn
+       [] OTHER                    -> req' = "reading" /\ UNCHANGED <<asked, drawn>>
   /\ UNCHANGED <<version, live, ended, endedAt, board, kept, shown>>
 
 \* without OneRead: the second read takes the frame's document as it is now
@@ -84,10 +97,11 @@ FollowRedirect ==
        ELSE /\ req' = "asked" /\ UNCHANGED shown
   /\ UNCHANGED <<version, live, ended, endedAt, board, asked, drawn, kept>>
 
-\* the draw ends; the server checks the frame and the key again, then answers
+\* the draw ends; the server checks again that the frame or that kept version is there, and the
+\* key, then answers
 Answer ==
   /\ req = "drawing"
-  /\ IF live /\ KeyOk
+  /\ IF (live \/ held(asked)) /\ KeyOk
        THEN /\ req' = "sent" /\ kept' = [kept EXCEPT ![asked] = drawn]
        ELSE /\ req' = "idle" /\ UNCHANGED kept
   /\ drawn' = 0
@@ -144,13 +158,19 @@ APictureShowsTheVersionItsAddressNames == req = "sent" => kept[asked] = asked
 \* version its address names.
 AKeptPictureShowsTheVersionItsAddressNames == \A v \in 1..MaxVersion : kept[v] \in {0, v}
 
-\* SPEC-frames.md § Contract, Pictures (an older version), judged rule 7: an old version's address
-\* is redirected, never drawn.
+\* SPEC-frames.md § Contract, Pictures (an older version), judged rule 7: the server draws only the
+\* version the address names; an old version that is not kept is redirected, never drawn.
 AnOldAddressIsRedirectedNotDrawn == req = "drawing" => drawn = asked
 
-\* SPEC-frames.md § Contract, Pictures (a deleted frame), judged rules 7-8: a deleted frame's
-\* picture is never sent: the server answers 404, also when the delete lands during the draw.
-ADeletedFramesPictureIsNeverSent == [][(req # "sent" /\ req' = "sent") => live]_vars
+\* SPEC-frames.md § Contract, Pictures (a kept version), judged rule 16: a version that a request
+\* refers to is drawn, never redirected.
+AKeptVersionIsDrawnNotRedirected == [][(req = "asked" /\ req' = "redirected") => ~held(asked)]_vars
+
+\* SPEC-frames.md § Contract, Pictures (a deleted frame), judged rules 7-8, 16: a deleted frame's
+\* picture is sent only for a kept version: else the server answers 404, also when the delete
+\* lands during the draw.
+ADeletedFramesPictureIsSentOnlyIfKept ==
+  [][(req # "sent" /\ req' = "sent") => live \/ held(asked)]_vars
 
 \* SPEC-frames.md § Contract, Pictures (the key generation), judged rule 7: after the link ends, the
 \* viewer sees no version newer than the one it could see then.

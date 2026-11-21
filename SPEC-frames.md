@@ -197,9 +197,13 @@ has ended), `{ locked: true }` (the pass ended because the password was set or c
 shows the password page). When a pass ends, the server sends its refusal at once to each live
 watch that holds it.
 
-The board (`easel.board`, read by the viewer) has the cells `frames` and `docs`, keyed by canvas.
-A frame on the board carries its picture key `k`. Every board read runs the `mayRead` guard: a
-user, or a live pass for that canvas.
+The board (`easel.board`, read by the viewer) has the cells `frames`, `docs`, `kept` and `removed`, keyed by
+canvas.
+A frame on the board carries its picture key `k`. The cell `kept` carries the key of each kept
+version (§ Pictures). The cell `removed` keeps each removed frame: `{ canvas, id, name, x, y, w, h,
+removed }`, its name and its last box, and when it was removed, so the viewer shows the requests
+of a removed frame where it was ([viewer](SPEC-viewer.md)). Every board read runs the `mayRead`
+guard: a user, or a live pass for that canvas.
 
 No call here waits on the server: each answers at once, except a draw, which stops after 20 s
 (under the 50 s cap on any wait, SPEC.md).
@@ -218,8 +222,10 @@ a region.
 - For the current version, it answers a WebP of that version with
   `Cache-Control: private, max-age=31536000, immutable`.
 - For an older version that a request refers to (a kept version), it answers a WebP of that
-  version, as for the current version. The board carries a key for each kept version, on the
-  request or the message that refers to it.
+  version, as for the current version, also after its frame was removed. It draws it at the
+  frame's box, or at the last box of a removed frame. The board carries a key for each kept
+  version in the cell `kept`: `{ canvas, id, version, k }`. The current version is not there:
+  its key is on the frame.
 - For another older version, it answers `307` to the current version's address, with its key and
   `Cache-Control: no-store`.
 - A wrong key, a version not yet made, or a deleted frame with no kept version at that address
@@ -248,7 +254,8 @@ a region.
 ## Rules
 
 The statecharts [frames-writes](docs/statecharts/frames-writes.md),
-[frames-pictures](docs/statecharts/frames-pictures.md) and
+[frames-pictures](docs/statecharts/frames-pictures.md) (with a kept version:
+[frames-pictures-kept](docs/statecharts/frames-pictures-kept.md)) and
 [frames-share](docs/statecharts/frames-share.md) check these rules, and name each by its rule
 number or section.
 

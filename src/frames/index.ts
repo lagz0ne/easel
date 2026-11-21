@@ -10,7 +10,7 @@ import { passApi, shareApi } from "./share";
  *   `frame.put`, `frame.list`, `frame.get`, `frame.delete`).
  * - `viewer`: a viewer's call, `share.open`. No guard runs before it.
  * - `pass`: a call of a tab that holds a pass, `share.name`, after `mayName`.
- * - `board`: `easel.board`, the cells `frames` and `docs`, keyed by canvas, that a live tab reads.
+ * - `board`: `easel.board`, the cells `frames`, `docs`, `kept` and `removed`, keyed by canvas, that a live tab reads.
  */
 export const frames = capsule({
   label: "frames",

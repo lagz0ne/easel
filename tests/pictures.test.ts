@@ -15,7 +15,7 @@ import { z } from "zod";
 import { routes } from "~/components/requests/index.server";
 
 import { frames } from "@/frames";
-import { frames as frameCells, picturePath } from "@/frames/contract";
+import { frames as frameCells, kept, picturePath, removed } from "@/frames/contract";
 import { secretName, keyMatches, pictureKey } from "@/frames/keys.server";
 import { createCanvas, deleteFrame, framesLoads, putFrame } from "@/frames/ops.server";
 import {
@@ -38,6 +38,7 @@ import {
   slotWaitMs,
 } from "@/frames/pictures.server";
 import { bumpKeys, framesServer } from "@/frames/store.server";
+import { queueServer, saveRequest } from "@/queue/store.server";
 
 import { localChromium } from "./support/chromium";
 
@@ -129,6 +130,22 @@ const boardMember = operation({
   run: ({ cells }, { input }) => cells.of(input).get(),
 });
 
+/** The board's kept versions and removed frames of a canvas, on the server. */
+const boardKept = operation({
+  label: "test.boardKept",
+  input: z.object({ canvas: z.string() }),
+  depends: { versions: kept.atScope.controller, gone: removed.atScope.controller },
+  run: ({ versions, gone }, { input }) => ({
+    kept: versions
+      .where(input)
+      .get()
+      .toSorted((a, b) => a.version - b.version),
+    removed: gone.where(input).get(),
+  }),
+});
+
+let requestKeys = 0;
+
 type Boot = {
   /** EASEL_CHROMIUM; by default a file that runs, with the test's draws. */
   chromium?: string | null;
@@ -162,6 +179,7 @@ async function boot(options: Boot = {}) {
         database: file,
       }),
       framesServer({ stdout }),
+      queueServer({ stdout }),
       frames.board({ serve: true, load: framesLoads }),
       memory.server({ services: [frames.board] }),
       routes({
@@ -206,6 +224,36 @@ async function boot(options: Boot = {}) {
     },
     keyFor: (canvas: string, id: string, version: number, gen: number) =>
       server.run(pictureKey, { input: { canvas, id, version, gen } }),
+    /** A viewer asks for a change on version `version` of the frame: the queue refers to it. */
+    refer: async (canvas: string, id: string, version: number) => {
+      const n = ++requestKeys;
+      const now = clock.currentTimeMillis();
+      const added = await server.run(saveRequest, {
+        input: {
+          canvas,
+          id: `req${String(n).padStart(9, "0")}`,
+          frameId: id,
+          version,
+          x: 1,
+          y: 2,
+          text: "Change it.",
+          key: `pictures-key-${String(n).padStart(8, "0")}`,
+          author: "Mai",
+          message: `msg${String(n).padStart(9, "0")}`,
+          now,
+        },
+      });
+      expect(added.kind).toBe("added");
+    },
+    /** The kept versions and removed frames that the board carries for a canvas. */
+    kept: (canvas: string) => server.run(boardKept, { input: { canvas } }),
+    /** The address of a kept version, from the board's key for it. */
+    keptAddress: (canvas: string, id: string, version: number, query = "s=0.5") => {
+      const got = server
+        .run(boardKept, { input: { canvas } })
+        .kept.find((v) => v.id === id && v.version === version);
+      return `/api/pictures/${canvas}/${id}/${version}?${query}&k=${got?.k}`;
+    },
   };
 }
 
@@ -360,7 +408,7 @@ test("a write that lands during the draw: the picture sent is still the version 
   expect(await text(answer)).toBe("drawn:<p>1</p>");
 });
 
-// ---- ADeletedFramesPictureIsNeverSent
+// ---- ADeletedFramesPictureIsSentOnlyIfKept
 
 test("an agent deletes the frame; the tab asks for its address; the server answers 404", async () => {
   const srv = await withFrame();
@@ -388,6 +436,117 @@ test("an old address of a deleted frame answers 404, not a redirect", async () =
   await srv.write("flow", srv.id, 1, "<p>2</p>");
   await srv.rm("flow", srv.id);
   await refused(await srv.get(old), 404);
+});
+
+// ---- Kept versions (AKeptVersionIsDrawnNotRedirected, judged rule 16)
+
+test("a request refers to an old version; the tab asks for its kept address; the server takes that version's document, private and immutable, and redirects nothing (AKeptVersionIsDrawnNotRedirected)", async () => {
+  const srv = await withFrame();
+  await srv.refer("flow", srv.id, 1);
+  // Before the put, version 1 is current: the board has no kept key for it yet.
+  expect(srv.kept("flow").kept).toEqual([]);
+  await srv.write("flow", srv.id, 1, "<p>2</p>");
+
+  // The put kept version 1, and the board carries its key.
+  expect(srv.kept("flow").kept).toEqual([
+    { canvas: "flow", id: srv.id, version: 1, k: srv.keyFor("flow", srv.id, 1, 0) },
+  ]);
+  const answer = await srv.get(srv.keptAddress("flow", srv.id, 1));
+  expect(answer.status).toBe(200);
+  expect(answer.headers.get("cache-control")).toBe(pictureCache);
+  expect(await text(answer)).toBe("drawn:<p>1</p>");
+  expect(srv.draws.seen.map((d) => [d.input.w, d.input.h])).toEqual([[400, 300]]);
+
+  // A version no request refers to is not kept: its address still redirects.
+  await srv.write("flow", srv.id, 2, "<p>3</p>");
+  const two = `/api/pictures/flow/${srv.id}/2?s=0.5&k=${srv.keyFor("flow", srv.id, 2, 0)}`;
+  expect((await srv.get(two)).status).toBe(307);
+  expect(srv.kept("flow").kept.map((v) => v.version)).toEqual([1]);
+});
+
+test("an agent deletes the frame: its kept versions are still drawn, at the box it had; its other versions answer 404; the board says where it was (ADeletedFramesPictureIsSentOnlyIfKept)", async () => {
+  const srv = await withFrame();
+  await srv.refer("flow", srv.id, 1);
+  await srv.write("flow", srv.id, 1, "<p>2</p>");
+  await srv.refer("flow", srv.id, 2);
+  await srv.write("flow", srv.id, 2, "<p>3</p>");
+  const three = await srv.address("flow", srv.id);
+  srv.clock.advance(60_000);
+  await srv.rm("flow", srv.id);
+
+  const board = srv.kept("flow");
+  expect(board.kept.map((v) => v.version)).toEqual([1, 2]);
+  expect(board.removed).toEqual([
+    {
+      canvas: "flow",
+      id: srv.id,
+      name: "untitled",
+      x: 0,
+      y: 0,
+      w: 400,
+      h: 300,
+      removed: 1_800_000_060_000,
+    },
+  ]);
+  const one = await srv.get(srv.keptAddress("flow", srv.id, 2, "s=1"));
+  expect(one.status).toBe(200);
+  expect(await text(one)).toBe("drawn:<p>2</p>");
+  expect(srv.draws.seen.map((d) => [d.input.w, d.input.h])).toEqual([[400, 300]]);
+  // Version 3 was current at the delete, and no request refers to it.
+  await refused(await srv.get(three), 404);
+});
+
+test("a delete that lands during the draw of a kept version: the picture still goes out", async () => {
+  const srv = await withFrame();
+  await srv.refer("flow", srv.id, 1);
+  await srv.write("flow", srv.id, 1, "<p>2</p>");
+  srv.draws.hold();
+  const asked = srv.get(srv.keptAddress("flow", srv.id, 1));
+  await until(() => srv.draws.seen.length === 1);
+
+  await srv.rm("flow", srv.id);
+  srv.draws.seen[0]?.go();
+
+  const answer = await asked;
+  expect(answer.status).toBe(200);
+  expect(await text(answer)).toBe("drawn:<p>1</p>");
+});
+
+test("the link ends: each kept version gets its key again, and a key from before answers 404", async () => {
+  const srv = await withFrame();
+  await srv.refer("flow", srv.id, 1);
+  await srv.write("flow", srv.id, 1, "<p>2</p>");
+  const before = srv.keptAddress("flow", srv.id, 1);
+  await srv.bump("flow");
+
+  expect(srv.kept("flow").kept).toEqual([
+    { canvas: "flow", id: srv.id, version: 1, k: srv.keyFor("flow", srv.id, 1, 1) },
+  ]);
+  await refused(await srv.get(before), 404);
+  expect((await srv.get(srv.keptAddress("flow", srv.id, 1))).status).toBe(200);
+});
+
+test("the kept versions and the removed frames are on the board again after a restart", async () => {
+  const dir = mkdtempSync(join(tmpdir(), "easel-pictures-"));
+  closers.push(() => rmSync(dir, { recursive: true, force: true }));
+  const file = join(dir, "data", "easel.db");
+
+  const first = await withFrame({ file });
+  await first.refer("flow", first.id, 1);
+  await first.write("flow", first.id, 1, "<p>2</p>");
+  await first.rm("flow", first.id);
+  const before = first.kept("flow");
+  await first.server.close();
+
+  const again = await boot({ file });
+  expect(again.kept("flow")).toEqual(before);
+}, 30_000);
+
+test("with pictures off, a kept version is on the board with no key", async () => {
+  const srv = await withFrame({ chromium: null });
+  await srv.refer("flow", srv.id, 1);
+  await srv.write("flow", srv.id, 1, "<p>2</p>");
+  expect(srv.kept("flow").kept).toEqual([{ canvas: "flow", id: srv.id, version: 1 }]);
 });
 
 // ---- The bump (AnEndedViewerSeesNoNewerPicture)

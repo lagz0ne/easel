@@ -297,7 +297,7 @@ and 4 s; after the third try the card shows.
 
 ## Contract
 
-The page reads `easel.board` (cells `frames`, `docs`, `requests` and `messages`, keyed by canvas,
+The page reads `easel.board` (cells `frames`, `docs`, `kept`, `removed`, `requests` and `messages`, keyed by canvas,
 and the server's clock offset). Its calls are:
 
 - `share.open { link, password?, name? }` ([frames](SPEC-frames.md)), once at the gate. `name` is

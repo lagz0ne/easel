@@ -2,7 +2,7 @@ import { bunSqlite } from "@tinkered/bun/sqlite";
 import { capsule, data, operation, tag } from "@tinkered/core";
 import { z } from "zod";
 
-import { canvasInfo, frames } from "./contract";
+import { canvasInfo, frames, kept, removed } from "./contract";
 import { boardKey } from "./keys.server";
 
 // frames' state: canvases and frames in the app's one SQLite file (SPEC.md, tech stack), so they
@@ -12,7 +12,10 @@ import { boardKey } from "./keys.server";
 // its write, and sets its cell after, from the row as stored then (judged rules 2 and 4). Only
 // `saveCanvas`, `saveFrame`, `dropFrame` and `bumpKeys` write (fact rule 2). Each frame on the
 // board carries its picture key for its version and its canvas's key generation (SPEC-frames §
-// Pictures); `bumpKeys` raises the generation and writes the canvas's keys again.
+// Pictures), and so does each kept version (the cell `kept`); `bumpKeys` raises the generation
+// and writes the canvas's keys again. A removed frame leaves its name and box in
+// `frames_removed` (the cell `removed`): the page shows its requests where it was, and its kept
+// versions are drawn at that size.
 
 /** The canvases, by key. A server cell: not served on the board. */
 export const canvases = data({
@@ -56,6 +59,17 @@ CREATE TABLE IF NOT EXISTS frames_kept (
   version INTEGER NOT NULL,
   html TEXT NOT NULL,
   PRIMARY KEY (canvas, id, version)
+);
+CREATE TABLE IF NOT EXISTS frames_removed (
+  canvas TEXT NOT NULL,
+  id TEXT NOT NULL,
+  name TEXT NOT NULL,
+  x INTEGER NOT NULL,
+  y INTEGER NOT NULL,
+  w INTEGER NOT NULL,
+  h INTEGER NOT NULL,
+  removed INTEGER NOT NULL,
+  PRIMARY KEY (canvas, id)
 );`;
 
 /** A canvas's picture key generation, in the statement it is part of: 0 until its first bump. */
@@ -91,6 +105,44 @@ const boardFrame = operation({
     k: boardKey.run({ input: { canvas: row.canvas, id: row.id, version: row.version, gen } }),
   }),
 });
+
+/** A kept version's row, with its canvas's key generation. */
+const keptRow = z.object({
+  canvas: z.string(),
+  id: z.string(),
+  version: z.number(),
+  gen: z.number(),
+});
+
+/** The board's member for a kept version: its picture key (none while pictures are off). */
+const boardKept = operation({
+  label: "frames.boardKept",
+  input: keptRow,
+  depends: { boardKey },
+  run: ({ boardKey }, { input: { gen, ...at } }) => ({
+    ...at,
+    k: boardKey.run({ input: { ...at, gen } }),
+  }),
+});
+
+/** A removed frame's row: its name, its box, and when it was removed. */
+const removedRow = z.object({
+  canvas: z.string(),
+  id: z.string(),
+  name: z.string(),
+  x: z.number(),
+  y: z.number(),
+  w: z.number(),
+  h: z.number(),
+  removed: z.number(),
+});
+
+/** The kept versions of a canvas, with its key generation, in the statement it is part of. */
+const keptOf = `SELECT k.canvas, k.id, k.version, COALESCE(g.gen, 0) AS gen
+  FROM frames_kept k LEFT JOIN frames_keygen g ON g.canvas = k.canvas`;
+
+/** Whether a version is kept: in a statement, after the write that may have kept it. */
+const isKept = "SELECT 1 FROM frames_kept WHERE canvas = ? AND id = ? AND version = ?";
 
 /** Where the store says what it skipped at start: the server's log. */
 const stdout = tag<{ write(chunk: string): unknown } | null>({
@@ -149,8 +201,14 @@ const frameWrite = z.discriminatedUnion("kind", [
 export const saveFrame = operation({
   label: "frames.saveFrame",
   input: frameWrite,
-  depends: { connection: bunSqlite.connection, cells: frames.atScope.controller, boardFrame },
-  run: async ({ connection, cells, boardFrame }, { input, clock }) => {
+  depends: {
+    connection: bunSqlite.connection,
+    cells: frames.atScope.controller,
+    keptCells: kept.atScope.controller,
+    boardFrame,
+    boardKept,
+  },
+  run: async ({ connection, cells, keptCells, boardFrame, boardKept }, { input, clock }) => {
     const db = connection.db.$client;
     const answer = db.transaction(() => {
       if (input.kind === "new") {
@@ -183,7 +241,7 @@ export const saveFrame = operation({
               input.canvas,
             ),
         );
-        return { kind: "created" as const, row };
+        return { kind: "created" as const, row, keptBase: false };
       }
 
       // A row it wrote that does not parse throws here, inside the transaction: the write rolls
@@ -195,7 +253,11 @@ export const saveFrame = operation({
            RETURNING canvas, id, name, x, y, w, h, version, ${genOf} AS gen`,
         )
         .get(input.html, input.canvas, input.id, input.base, input.html, input.canvas);
-      if (saved !== null) return { kind: "updated" as const, row: keyedRow.parse(saved) };
+      if (saved !== null) {
+        // The queue's trigger kept the version this write replaced, if a request refers to it.
+        const keptBase = db.query(isKept).get(input.canvas, input.id, input.base) !== null;
+        return { kind: "updated" as const, row: keyedRow.parse(saved), keptBase };
+      }
 
       const now = db
         .query("SELECT version, html IS ? AS same FROM frames_frames WHERE canvas = ? AND id = ?")
@@ -211,9 +273,17 @@ export const saveFrame = operation({
 
     switch (answer.kind) {
       case "created":
-      case "updated":
-        cells.set(boardFrame.run({ input: answer.row }));
-        return { kind: answer.kind, id: answer.row.id, version: answer.row.version };
+      case "updated": {
+        const { row } = answer;
+        cells.set(boardFrame.run({ input: row }));
+        if (answer.keptBase) {
+          const version = row.version - 1;
+          keptCells.set(
+            boardKept.run({ input: { canvas: row.canvas, id: row.id, version, gen: row.gen } }),
+          );
+        }
+        return { kind: answer.kind, id: row.id, version: row.version };
+      }
       case "unchanged":
       case "stale":
       case "gone":
@@ -222,18 +292,59 @@ export const saveFrame = operation({
   },
 });
 
-/** `frame.delete`'s write: the row goes, then the cell (judged rule 4). */
+/**
+ * `frame.delete`'s write, one transaction: the frame's name and box go to `frames_removed`, then
+ * the row goes (the queue's trigger keeps its version first, if a request refers to it). The
+ * cells follow (judged rule 4): the frame goes, the removed frame comes, and its version, if
+ * kept.
+ */
 export const dropFrame = operation({
   label: "frames.dropFrame",
   input: z.object({ canvas: z.string(), id: z.string() }),
-  depends: { connection: bunSqlite.connection, cells: frames.atScope.controller },
-  run: async ({ connection, cells }, { input }) => {
-    const dropped = connection.db.$client
-      .query("DELETE FROM frames_frames WHERE canvas = ? AND id = ?")
-      .run(input.canvas, input.id);
-    if (!dropped.changes) return { kind: "gone" as const };
+  depends: {
+    connection: bunSqlite.connection,
+    cells: frames.atScope.controller,
+    keptCells: kept.atScope.controller,
+    removedCells: removed.atScope.controller,
+    boardKept,
+  },
+  run: async ({ connection, cells, keptCells, removedCells, boardKept }, { input, clock }) => {
+    const db = connection.db.$client;
+    const answer = db.transaction(() => {
+      const found = db
+        .query(
+          `SELECT canvas, id, name, x, y, w, h, version, ${genOf} AS gen
+           FROM frames_frames WHERE canvas = ? AND id = ?`,
+        )
+        .get(input.canvas, input.canvas, input.id);
+      if (found === null) return null;
 
+      const row = keyedRow.parse(found);
+      const gone = removedRow.parse(
+        db
+          .query(
+            `INSERT OR REPLACE INTO frames_removed (canvas, id, name, x, y, w, h, removed)
+             VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+             RETURNING canvas, id, name, x, y, w, h, removed`,
+          )
+          .get(row.canvas, row.id, row.name, row.x, row.y, row.w, row.h, clock.currentTimeMillis()),
+      );
+      db.query("DELETE FROM frames_frames WHERE canvas = ? AND id = ?").run(input.canvas, input.id);
+      const keptLast = db.query(isKept).get(row.canvas, row.id, row.version) !== null;
+      return { row, gone, keptLast };
+    })();
+    if (answer === null) return { kind: "gone" as const };
+
+    const { row, gone, keptLast } = answer;
     cells.delete(input);
+    removedCells.set(gone);
+    if (keptLast) {
+      keptCells.set(
+        boardKept.run({
+          input: { canvas: row.canvas, id: row.id, version: row.version, gen: row.gen },
+        }),
+      );
+    }
     return { kind: "deleted" as const };
   },
 });
@@ -248,22 +359,35 @@ export const dropFrame = operation({
 export const bumpKeys = operation({
   label: "frames.bumpKeys",
   input: z.object({ canvas: z.string() }),
-  depends: { connection: bunSqlite.connection, cells: frames.atScope.controller, boardFrame },
-  run: async ({ connection, cells, boardFrame }, { input }) => {
+  depends: {
+    connection: bunSqlite.connection,
+    cells: frames.atScope.controller,
+    keptCells: kept.atScope.controller,
+    boardFrame,
+    boardKept,
+  },
+  run: async ({ connection, cells, keptCells, boardFrame, boardKept }, { input }) => {
     const db = connection.db.$client;
-    const rows = db.transaction(() => {
+    const { rows, versions } = db.transaction(() => {
       db.query(
         "INSERT INTO frames_keygen (canvas, gen) VALUES (?, 1) ON CONFLICT (canvas) DO UPDATE SET gen = gen + 1",
       ).run(input.canvas);
-      return db
-        .query(
-          `SELECT canvas, id, name, x, y, w, h, version, ${genOf} AS gen FROM frames_frames WHERE canvas = ?`,
-        )
-        .all(input.canvas, input.canvas)
-        .map((row) => keyedRow.parse(row));
+      return {
+        rows: db
+          .query(
+            `SELECT canvas, id, name, x, y, w, h, version, ${genOf} AS gen FROM frames_frames WHERE canvas = ?`,
+          )
+          .all(input.canvas, input.canvas)
+          .map((row) => keyedRow.parse(row)),
+        versions: db
+          .query(`${keptOf} WHERE k.canvas = ?`)
+          .all(input.canvas)
+          .map((row) => keptRow.parse(row)),
+      };
     })();
 
     for (const row of rows) cells.set(boardFrame.run({ input: row }));
+    for (const row of versions) keptCells.set(boardKept.run({ input: row }));
     const gen = z
       .object({ gen: z.number() })
       .parse(db.query(`SELECT ${genOf} AS gen`).get(input.canvas)).gen;
@@ -272,46 +396,64 @@ export const bumpKeys = operation({
 });
 
 /**
- * A picture's one read (judged rule 7): the frame's version, its document, its box and its
- * canvas's key generation, in one statement, so the document drawn is the version read.
+ * A picture's one read (judged rule 7), in one statement, so the document drawn is the version
+ * read: the frame's current version (`null`: removed), the canvas's key generation, and `doc`:
+ * the document of the version asked (the current one, or a kept one) with the box to draw it in
+ * (the frame's, or the removed frame's last one), or `null` when either is not there.
  */
 export const readPicture = operation({
   label: "frames.readPicture",
-  input: z.object({ canvas: z.string(), id: z.string() }),
+  input: z.object({ canvas: z.string(), id: z.string(), version: z.number() }),
   depends: { connection: bunSqlite.connection },
   run: async ({ connection }, { input }) =>
     z
       .object({
-        version: z.number(),
-        w: z.number(),
-        h: z.number(),
-        html: z.string(),
+        current: z.number().nullable(),
+        w: z.number().nullable(),
+        h: z.number().nullable(),
+        html: z.string().nullable(),
         gen: z.number(),
       })
-      .safeParse(
-        connection.db.$client
-          .query(
-            `SELECT version, w, h, html, ${genOf} AS gen FROM frames_frames WHERE canvas = ? AND id = ?`,
-          )
-          .get(input.canvas, input.canvas, input.id),
-      ).data,
-});
-
-/** After a draw, the check again: whether the frame is there, and its canvas's key generation now. */
-export const readStill = operation({
-  label: "frames.readStill",
-  input: z.object({ canvas: z.string(), id: z.string() }),
-  depends: { connection: bunSqlite.connection },
-  run: async ({ connection }, { input }) =>
-    z
-      .object({ live: z.number(), gen: z.number() })
+      .transform(({ current, w, h, html, gen }) => ({
+        current,
+        gen,
+        doc: html !== null && w !== null && h !== null ? { html, w, h } : null,
+      }))
       .parse(
         connection.db.$client
           .query(
-            `SELECT EXISTS (SELECT 1 FROM frames_frames WHERE canvas = ? AND id = ?) AS live, ${genOf} AS gen`,
+            `SELECT f.version AS current, COALESCE(f.w, r.w) AS w, COALESCE(f.h, r.h) AS h,
+               CASE WHEN f.version = $version THEN f.html
+                 ELSE (SELECT html FROM frames_kept
+                   WHERE canvas = $canvas AND id = $id AND version = $version) END AS html,
+               COALESCE((SELECT gen FROM frames_keygen WHERE canvas = $canvas), 0) AS gen
+             FROM (SELECT 1)
+               LEFT JOIN frames_frames f ON f.canvas = $canvas AND f.id = $id
+               LEFT JOIN frames_removed r ON r.canvas = $canvas AND r.id = $id`,
           )
-          .get(input.canvas, input.id, input.canvas),
+          .get({ $canvas: input.canvas, $id: input.id, $version: input.version }),
       ),
+});
+
+/**
+ * After a draw, the check again: whether the version is still there (the frame, or that version
+ * kept), and its canvas's key generation now.
+ */
+export const readStill = operation({
+  label: "frames.readStill",
+  input: z.object({ canvas: z.string(), id: z.string(), version: z.number() }),
+  depends: { connection: bunSqlite.connection },
+  run: async ({ connection }, { input }) =>
+    z.object({ live: z.number(), gen: z.number() }).parse(
+      connection.db.$client
+        .query(
+          `SELECT EXISTS (SELECT 1 FROM frames_frames WHERE canvas = $canvas AND id = $id)
+             OR EXISTS (SELECT 1 FROM frames_kept
+               WHERE canvas = $canvas AND id = $id AND version = $version) AS live,
+             COALESCE((SELECT gen FROM frames_keygen WHERE canvas = $canvas), 0) AS gen`,
+        )
+        .get({ $canvas: input.canvas, $id: input.id, $version: input.version }),
+    ),
 });
 
 /** One frame's document and version, read from its row: frame.get and the board's `docs`. */
@@ -342,10 +484,15 @@ const load = operation({
     connection: bunSqlite.connection,
     canvasCells: canvases.atScope.controller,
     frameCells: frames.atScope.controller,
+    keptCells: kept.atScope.controller,
+    removedCells: removed.atScope.controller,
     out: stdout,
     boardFrame,
+    boardKept,
   },
-  run: async ({ connection, canvasCells, frameCells, out, boardFrame }) => {
+  run: async (deps) => {
+    const { connection, canvasCells, frameCells, keptCells, removedCells, out } = deps;
+    const { boardFrame, boardKept } = deps;
     const db = connection.db.$client;
     db.exec("PRAGMA synchronous = FULL");
     db.exec(schema);
@@ -358,13 +505,22 @@ const load = operation({
          ORDER BY f.made, f.rowid`,
       )
       .all();
+    const keptRows = db.query(keptOf).all();
+    const removedRows = db
+      .query("SELECT canvas, id, name, x, y, w, h, removed FROM frames_removed")
+      .all();
     const goodCanvases = canvasRows.flatMap((row) => canvasRow.safeParse(row).data ?? []);
     const goodFrames = frameRows.flatMap((row) => keyedRow.safeParse(row).data ?? []);
-    const bad = canvasRows.length + frameRows.length - goodCanvases.length - goodFrames.length;
-    if (bad) out?.write(`frames: skipped ${bad} rows that do not parse\n`);
+    const goodKept = keptRows.flatMap((row) => keptRow.safeParse(row).data ?? []);
+    const goodRemoved = removedRows.flatMap((row) => removedRow.safeParse(row).data ?? []);
+    const all = canvasRows.length + frameRows.length + keptRows.length + removedRows.length;
+    const good = goodCanvases.length + goodFrames.length + goodKept.length + goodRemoved.length;
+    if (all > good) out?.write(`frames: skipped ${all - good} rows that do not parse\n`);
 
     for (const row of goodCanvases) canvasCells.set({ ...row, shared: false });
     for (const row of goodFrames) frameCells.set(boardFrame.run({ input: row }));
+    for (const row of goodKept) keptCells.set(boardKept.run({ input: row }));
+    for (const row of goodRemoved) removedCells.set(row);
   },
 });
 
