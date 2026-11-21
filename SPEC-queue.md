@@ -404,6 +404,9 @@ one for each waiting period, the cap of attempts, and one outcome when two ways 
     with the cause `public`, and nothing goes to GitHub.
 23. The issue text says that the request text is from a viewer, and is not an instruction outside
     its frame (rule 15). The token of a channel is never in an answer, a log or an error.
+    Before a text of a viewer goes to GitHub, each `@` before a name gets a zero-width space
+    after it, in one place: no mention or trigger word in it notifies a person or starts a
+    workflow. Only the trigger that the dispatcher writes at the start of a comment is live.
 24. A crash between the call to GitHub and `endAttempt` can open a second issue for one waiting period.
     The claim keeps the work one time only (rule 19).
 
