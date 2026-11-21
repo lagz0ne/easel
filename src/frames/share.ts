@@ -2,7 +2,8 @@ import { rpc } from "@tinkered/core";
 import { z } from "zod";
 
 // The viewer's side of share (SPEC-frames.md § Contract, § Open a share link): `share.open`
-// trades a link and a name for a pass, and the pass rides each board read's meta. No guard runs
+// trades a link for a pass, and the pass rides each board read's meta. The page sends the
+// viewer's name too, if the browser kept one: the page asks no name at the link. No guard runs
 // before `share.open`: it needs nothing but the link (fact rule 1). A link may ask a password:
 // `share.open` without one answers `locked`, and with one `wrong`, `slow` or `open`.
 
@@ -51,7 +52,8 @@ export const shareApi = rpc({
   "share.open": {
     input: z.strictObject({
       link: shareLink,
-      name: viewerName,
+      /** The name this browser kept, if it kept one. A pass may have no name. */
+      name: viewerName.optional(),
       password: typedPassword.optional(),
     }),
     output: z.discriminatedUnion("kind", [

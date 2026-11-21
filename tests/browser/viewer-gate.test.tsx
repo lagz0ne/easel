@@ -13,10 +13,11 @@ import { frames } from "@/frames";
 import { frames as frameCells, framesBoard } from "@/frames/contract";
 import { passMeta, shareApi } from "@/frames/share";
 import { routeTree } from "@/routes";
-import { gates, nameKey, openLink, tabMeta } from "@/viewer/gate";
+import { gates, keepName, nameKey, openLink, tabMeta } from "@/viewer/gate";
 
 // In a real Chromium: the share link's page over `memory`, with the app's own routes (the
-// viewer-gate-password chart). The server here stands in for share.server.ts, which needs SQLite.
+// viewer-gate-password chart). The page asks no name at the link; a name this browser kept rides
+// `share.open`. The server here stands in for share.server.ts, which needs SQLite.
 // Each link the stub knows plays one case; any other link is gone:
 // - `live` opens to `home` with the pass the guard takes;
 // - `stale` opens twice with a pass the guard turns away, as a link that ends after it opened,
@@ -46,8 +47,9 @@ const guard = { passes: new Set<string>(), locked: new Set<string>(), ended: fal
 
 /** `share.open` calls the stub answered, by link. */
 const calls = new Map<string, number>();
+/** The name each `share.open` call sent, in order: undefined for none. */
+const sentNames: Array<string | undefined> = [];
 const callsTo = (link: string) => calls.get(link) ?? 0;
-const allCalls = () => [...calls.values()].reduce((a, b) => a + b, 0);
 
 /** What `share.open` answers. */
 type Answer =
@@ -88,6 +90,7 @@ const open = operation({
   run: (_, { input }) => {
     const n = callsTo(input.link) + 1;
     calls.set(input.link, n);
+    sentNames.push(input.name);
 
     return input.link === guarded
       ? guardedAnswer(n, input.password)
@@ -139,7 +142,9 @@ const putFrame = operation({
 });
 
 async function boot() {
+  localStorage.removeItem(nameKey);
   calls.clear();
+  sentNames.length = 0;
   guard.passes.clear();
   guard.locked.clear();
   guard.ended = false;
@@ -233,18 +238,15 @@ const frameList = () => page.getByRole("region", { name: "Frames" });
 const reconnecting = () => page.getByRole("status").filter({ hasText: "Reconnecting" });
 const endedHeading = () => page.getByRole("heading", { name: "This link has ended" });
 
-test("the name is asked once per browser, before any call; then the canvas shows its frames live, names as text, with only the camera's controls", async () => {
-  localStorage.removeItem(nameKey);
+test("the link opens with no name asked and none kept, then the canvas shows its frames live, names as text, with only the camera's controls (s0 to s1, NameNotAtTheGate)", async () => {
   const server = await boot();
   const first = await tab(server, `/s/${live}`);
 
-  await expect.element(page.getByLabelText("Your name")).toBeVisible();
-  expect(allCalls()).toBe(0);
-  await page.getByLabelText("Your name").fill("  Bo  ");
-  await page.getByRole("button", { name: "Continue" }).click();
   await expect.element(frameList().getByText("Home")).toBeVisible();
-  expect(localStorage.getItem(nameKey)).toBe("Bo");
+  expect(page.getByLabelText("Your name").elements()).toHaveLength(0);
   expect(callsTo(live)).toBe(1);
+  expect(sentNames).toEqual([undefined]);
+  expect(localStorage.getItem(nameKey)).toBeNull();
 
   // A frame name is text: markup in it is shown, never drawn.
   server.run(putFrame, { input: { id: "f2", name: "<b>Checkout</b>" } });
@@ -254,19 +256,36 @@ test("the name is asked once per browser, before any call; then the canvas shows
   first.root.unmount();
   await first.scope.close();
 
-  // Another tab of the same browser, with a session of its own: no gate, straight to the canvas.
-  sessionStorage.clear();
-  const second = await tab(server, `/s/${live}`);
-  await expect.element(frameList().getByText("<b>Checkout</b>")).toBeVisible();
-  expect(page.getByLabelText("Your name").elements()).toHaveLength(0);
-  expectCanvasControlsOnly();
-
-  await second.scope.close();
   await server.close();
 });
 
-test("an unknown link, a path that is no link, and a pass turned away twice each show only the ended page", async () => {
-  localStorage.setItem(nameKey, "Bo");
+test("a name this browser kept, trimmed, rides share.open in each tab; a kept name out of bounds is not sent", async () => {
+  const server = await boot();
+  const first = await tab(server, `/s/${live}`);
+  await expect.element(frameList().getByText("Home")).toBeVisible();
+  first.scope.run(keepName, { input: "  Bo  " });
+  expect(localStorage.getItem(nameKey)).toBe("Bo");
+  first.root.unmount();
+  await first.scope.close();
+
+  // Another tab of the same browser, with a session of its own: it sends the kept name.
+  sessionStorage.clear();
+  const second = await tab(server, `/s/${live}`);
+  await expect.element(frameList().getByText("Home")).toBeVisible();
+  expect(sentNames).toEqual([undefined, "Bo"]);
+  second.root.unmount();
+  await second.scope.close();
+
+  localStorage.setItem(nameKey, "x".repeat(41));
+  const third = await tab(server, `/s/${live}`);
+  await expect.element(frameList().getByText("Home")).toBeVisible();
+  expect(sentNames).toEqual([undefined, "Bo", undefined]);
+
+  await third.scope.close();
+  await server.close();
+});
+
+test("an unknown link, a path that is no link, and a pass turned away twice each show only the ended page, with no name asked first (s0 to s3)", async () => {
   const server = await boot();
 
   for (const path of [`/s/${"e".repeat(32)}`, "/s/not-a-link", `/s/${stale}`]) {
@@ -286,22 +305,7 @@ test("an unknown link, a path that is no link, and a pass turned away twice each
   await server.close();
 });
 
-test("the name gate on an unknown link leads to the ended page (s2 to s3)", async () => {
-  localStorage.removeItem(nameKey);
-  const server = await boot();
-  const shown = await tab(server, `/s/${"e".repeat(32)}`);
-
-  await page.getByLabelText("Your name").fill("Bo");
-  await page.getByRole("button", { name: "Continue" }).click();
-  await expect.element(endedHeading()).toBeVisible();
-  expectNoControl();
-
-  await shown.scope.close();
-  await server.close();
-});
-
 test("a pass the server ended while the link is live opens the link once more, and the canvas shows", async () => {
-  localStorage.setItem(nameKey, "Bo");
   const server = await boot();
   const shown = await tab(server, `/s/${evicted}`);
 
@@ -318,7 +322,6 @@ test("a pass the server ended while the link is live opens the link once more, a
 });
 
 test("a dropped link says Reconnecting, and the frames read so far stay", async () => {
-  localStorage.setItem(nameKey, "Bo");
   const server = await boot();
   const shown = await tab(server, `/s/${live}`);
   await expect.element(frameList().getByText("Home")).toBeVisible();
@@ -337,15 +340,13 @@ test("a dropped link says Reconnecting, and the frames read so far stay", async 
 });
 
 test("past the flood limit the page stays on Opening, with no wait page, and calls again after retryIn each time", async () => {
-  localStorage.removeItem(nameKey);
   // The jitter, pinned: half of its 1 s.
   vi.spyOn(Math, "random").mockReturnValue(0.5);
   onTestFinished(() => void vi.restoreAllMocks());
   const server = await boot();
   const shown = await tab(server, `/s/${flooded}`);
 
-  await page.getByLabelText("Your name").fill("Bo");
-  await page.getByRole("button", { name: "Continue" }).click();
+  // The slow comes while the route loads: the page says Opening there.
   await expect.element(page.getByRole("status")).toHaveTextContent("Opening.");
   expect(callsTo(flooded)).toBe(1);
   expectNoControl();
@@ -362,25 +363,12 @@ test("past the flood limit the page stays on Opening, with no wait page, and cal
   shown.clock.advance(6_000);
   await expect.element(frameList().getByText("Home")).toBeVisible();
   expect(callsTo(flooded)).toBe(3);
-  shown.root.unmount();
+
   await shown.scope.close();
-
-  // With the name kept, the slow comes while the route loads: the page says Opening there too.
-  calls.clear();
-  const again = await tab(server, `/s/${flooded}`);
-  await expect.element(page.getByRole("status")).toHaveTextContent("Opening.");
-  expect(page.getByRole("heading").elements()).toHaveLength(0);
-  again.clock.advance(6_000);
-  await expect.poll(() => callsTo(flooded)).toBe(2);
-  again.clock.advance(6_000);
-  await expect.element(frameList().getByText("Home")).toBeVisible();
-
-  await again.scope.close();
   await server.close();
 });
 
 test("leaving a link mid-retry stops its loop, and a late answer for another link never takes the shown link's pass", async () => {
-  localStorage.setItem(nameKey, "Bo");
   const server = await boot();
   const shown = await tab(server, `/s/${stuck}`);
   await expect.element(page.getByRole("status")).toHaveTextContent("Opening.");
@@ -420,14 +408,12 @@ async function enter(password: string) {
   await openButton().click();
 }
 
-test("a password link asks the password after the name and never says to wait first; a wrong one says so; the right one shows the canvas (s2 to s3, s3 to s1, OpenWithoutPasswordIsNeverSlow)", async () => {
-  localStorage.removeItem(nameKey);
+test("a password link asks the password at once, with no name, and never says to wait first; a wrong one says so; the right one shows the canvas (s0 to s2, s2 to s1, OpenWithoutPasswordIsNeverSlow)", async () => {
   const server = await boot();
   const shown = await tab(server, `/s/${guarded}`);
 
-  await page.getByLabelText("Your name").fill("Bo");
-  await page.getByRole("button", { name: "Continue" }).click();
   await expect.element(passwordHeading()).toBeVisible();
+  expect(page.getByLabelText("Your name").elements()).toHaveLength(0);
   expect(passwordBox().element()).toHaveAttribute("type", "password");
   expect(page.getByRole("alert").elements()).toHaveLength(0);
   expect(frameList().elements()).toHaveLength(0);
@@ -438,21 +424,23 @@ test("a password link asks the password after the name and never says to wait fi
   await enter(rightPw);
   await expect.element(frameList().getByText("Home")).toBeVisible();
   expectCanvasControlsOnly();
-  // Its calls: the open with the name, the wrong try and the right one.
+  // Its calls: the open, the wrong try and the right one, none with a name.
   expect(callsTo(guarded)).toBe(3);
+  expect(sentNames).toEqual([undefined, undefined, undefined]);
 
   await shown.scope.close();
   await server.close();
 });
 
-test("with the name kept, a password link opens on the password page (s0 to s3); the password is never kept in the browser", async () => {
-  localStorage.setItem(nameKey, "Bo");
+test("with the name kept, the open and the password try send it (s0 to s2); the password is never kept in the browser", async () => {
   const server = await boot();
+  localStorage.setItem(nameKey, "Bo");
   const shown = await tab(server, `/s/${guarded}`);
 
   await expect.element(passwordHeading()).toBeVisible();
   await enter(rightPw);
   await expect.element(frameList().getByText("Home")).toBeVisible();
+  expect(sentNames).toEqual(["Bo", "Bo"]);
   const kept = JSON.stringify([Object.entries(localStorage), Object.entries(sessionStorage)]);
   expect(kept).not.toContain(rightPw);
 
@@ -460,8 +448,7 @@ test("with the name kept, a password link opens on the password page (s0 to s3);
   await server.close();
 });
 
-test("past 5 wrong tries the page says to wait; even the right password does not open; a minute later the alert is gone and it opens (s3 to s6, s6 to s3, WaitMeansWait)", async () => {
-  localStorage.setItem(nameKey, "Bo");
+test("past 5 wrong tries the page says to wait; even the right password does not open; a minute later the alert is gone and it opens (s2 to s5, s5 to s2, WaitMeansWait)", async () => {
   vi.spyOn(Math, "random").mockReturnValue(0.5);
   onTestFinished(() => void vi.restoreAllMocks());
   const server = await boot();
@@ -490,8 +477,7 @@ test("past 5 wrong tries the page says to wait; even the right password does not
   await server.close();
 });
 
-test("a password set or changed while the canvas shows takes the tab back to the password page at once; the new password shows the canvas again (s1 to s3, LockPushedAtOnce)", async () => {
-  localStorage.setItem(nameKey, "Bo");
+test("a password set or changed while the canvas shows takes the tab back to the password page at once; the new password shows the canvas again (s1 to s2, LockPushedAtOnce)", async () => {
   const server = await boot();
   const shown = await tab(server, `/s/${guarded}`);
   await enter(rightPw);
@@ -513,8 +499,7 @@ test("a password set or changed while the canvas shows takes the tab back to the
   await server.close();
 });
 
-test("an unshare while the canvas shows takes the tab to the ended page at once, and it stays there (s1 to s4, EndPushedAtOnce, EndedStaysEnded)", async () => {
-  localStorage.setItem(nameKey, "Bo");
+test("an unshare while the canvas shows takes the tab to the ended page at once, and it stays there (s1 to s3, EndPushedAtOnce, EndedStaysEnded)", async () => {
   const server = await boot();
   const shown = await tab(server, `/s/${guarded}`);
   await enter(rightPw);
@@ -531,8 +516,7 @@ test("an unshare while the canvas shows takes the tab to the ended page at once,
   await server.close();
 });
 
-test("Open on the password page of a link that has ended shows the ended page, from the wait too (s3 to s4, s6 to s4)", async () => {
-  localStorage.setItem(nameKey, "Bo");
+test("Open on the password page of a link that has ended shows the ended page, from the wait too (s2 to s3, s5 to s3)", async () => {
   const server = await boot();
 
   for (const first of [null, waitPw]) {

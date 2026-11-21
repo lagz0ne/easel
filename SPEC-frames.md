@@ -74,8 +74,7 @@ that a manifest refers to and removes the rest.
 ### Open a share link
 
 1. A viewer opens the link. The page asks for no name here: the first request asks for it
-   ([viewer](SPEC-viewer.md#open-the-link)). Until the build follows, the built page asks for the
-   name first (textbox `Your name`, button `Continue`), once per browser.
+   ([viewer](SPEC-viewer.md#open-the-link)).
 2. If the link has a password, the page shows textbox `Password` and button `Open`. A wrong one
    gives an `alert`. After 5 wrong tries in a minute from one address, the `alert` says to wait,
    and the page takes no password, not even the right one, until a minute has passed since the
@@ -154,7 +153,9 @@ Inputs:
   `--no-password`.
 - `canvas.share` answers the link's page as a path, `/s/<link>`. `easel share` prints it joined
   to the server URL it called, so the server needs no public origin (decision C4).
-- `share.open` takes `{ link, password?, name }`. `name` is 1 to 40 characters; `password`, 1 to 1024. A password on a link that has none is no try: the link opens.
+- `share.open` takes `{ link, password?, name? }`. `name` is optional: the page sends it only if
+  the browser kept one. It is 1 to 40 characters; `password`, 1 to 1024. A password on a link
+  that has none is no try: the link opens.
 - A `share.open` with no password, on a link that has one, answers `locked`. It is not a try, and
   is never locked out.
 - The flood limit: every `share.open` counts, any link, password or not, at most 30 a minute per
@@ -174,8 +175,9 @@ Inputs:
 
 `pass` is what the tab sends from then on. It is a separate 128-bit random value, not the link.
 The server keeps it only as its SHA-256 digest, with the link it was given on and the viewer's
-name. A pass ends when its link ends or its link's password is set or changed. Setting the same
-password again changes nothing: it ends no pass, and keeps the key generation.
+name, if the page sent one. A pass ends when its link ends or its link's password is set or
+changed. Setting the same password again changes nothing: it ends no pass, and keeps the key
+generation.
 
 Refusals: `{ signIn: true }` (no user token, or a revoked one), `{ ended: true }` (the pass's link
 has ended), `{ locked: true }` (the pass ended because the password was set or changed; the page

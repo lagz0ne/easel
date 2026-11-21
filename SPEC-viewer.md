@@ -34,8 +34,7 @@ this spec wins, and the screen gets a fix.
    password, if the link has one). The first `Send` of a request asks for the name in the same
    popover (textbox `Your name`), once per browser, and the browser keeps it. A viewer who only
    looks gives no name. Decided on 2026-11-21 in the E3 design (page `Work · E3 Share and look`),
-   as Pastel, BugHerd and Markup.io do. Until the build follows, the built page still asks at the
-   link, before `share.open`.
+   as Pastel, BugHerd and Markup.io do.
 2. The rest of the gate (password, wrong tries, an unknown link) is in
    [frames](SPEC-frames.md).
 
@@ -267,7 +266,8 @@ and 4 s; after the third try the card shows.
 The page reads `easel.board` (cells `frames`, `docs`, `requests` and `messages`, keyed by canvas,
 and the server's clock offset). Its calls are:
 
-- `share.open { link, password?, name }` ([frames](SPEC-frames.md)), once at the gate.
+- `share.open { link, password?, name? }` ([frames](SPEC-frames.md)), once at the gate. `name` is
+  the name this browser kept, if it kept one.
 - `request.add { canvas, frameId, version, x, y, text, key }` ([queue](SPEC-queue.md)). `key` is
   the client key: one per request, the same on each retry of it.
 - `request.edit`, `answer`, `accept`, `reopen` and `close` ([queue](SPEC-queue.md)), from the

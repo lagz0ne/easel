@@ -1,8 +1,9 @@
 ---- MODULE ViewerGate ----
 \* The share-link gate of the easel viewer (SPEC-viewer.md "Open the link", "When the link ends";
-\* the share calls are in SPEC-frames.md). share.open takes the viewer's name, so the page asks
-\* for it first, once per browser. An unshare pushes the refusal { ended: true } to every open
-\* tab; a password set or changed ends every pass and pushes { locked: true }.
+\* the share calls are in SPEC-frames.md). The page asks no name at the link: share.open needs
+\* only the link, and the first request asks for the name (viewer-pin-post). An unshare pushes
+\* the refusal { ended: true } to every open tab; a password set or changed ends every pass and
+\* pushes { locked: true }.
 \* share.open with no password on a password link always answers `locked` (the password page),
 \* even while the address is slowed for wrong tries. Past the flood limit (30 opens a minute per
 \* address) share.open answers `slow`; the page stays on Opening and calls again, so the model
@@ -25,22 +26,20 @@ MaxWrong == 2
 VARIABLES page,      \* what the tab shows
           conn,      \* the tab's one socket, while it shows the canvas: "up" or "down"
           wrong,     \* wrong passwords from this address on this link in the last minute (server)
-          nameKept,  \* this browser remembers the viewer's name
           link,      \* the share link on the server: "open", "password", "unknown", "ended"
           pass,      \* the tab's pass is live (share.open gave it, and no password since ended it)
           sawEnd,    \* this tab has been told that its link ended
           trimmed    \* the server ended this tab's pass as the link's oldest past 1000 (the tab
                      \* does not know until its next read starts)
 
-vars == <<page, conn, wrong, nameKept, link, pass, sawEnd, trimmed>>
+vars == <<page, conn, wrong, link, pass, sawEnd, trimmed>>
 
-Pages == {"opening", "name", "password", "wait", "canvas", "ended"}
+Pages == {"opening", "password", "wait", "canvas", "ended"}
 Dead  == {"unknown", "ended"}
 
 \* The controls each page shows, by role and name.
 Controls(p) ==
   CASE p = "opening"  -> {}
-    [] p = "name"     -> {"textbox Your name", "button Continue"}
     [] p = "password" -> {"textbox Password", "button Open"}
     [] p = "wait"     -> {"textbox Password", "button Open"}
     [] p = "canvas"   -> CanvasControls
@@ -53,15 +52,16 @@ Init ==
   /\ page = "opening"
   /\ conn = "up"
   /\ wrong = 0
-  /\ nameKept \in BOOLEAN
   /\ link \in IF PasswordLinks THEN {"open", "password", "unknown"} ELSE {"open", "unknown"}
   /\ pass = FALSE
   /\ sawEnd = FALSE
   /\ trimmed = FALSE
 
-\* share.open { link, name } with no password: open (a pass), locked (the password page, also
-\* while this address is slowed for wrong tries), or gone.
-OpenNoPassword ==
+\* share.open { link } with no password, at once: open (a pass), locked (the password page, also
+\* while this address is slowed for wrong tries), or gone. A name the browser kept goes with it,
+\* and changes nothing here.
+YouOpenTheLink ==
+  /\ page = "opening"
   /\ page' = CASE link \in Dead     -> "ended"
                [] link = "password" -> "password"
                [] OTHER             -> "canvas"
@@ -69,22 +69,9 @@ OpenNoPassword ==
   /\ sawEnd' = (link \in Dead)
   /\ conn' = "up"
   /\ trimmed' = FALSE
-
-YouOpenTheLink ==
-  /\ page = "opening"
-  /\ IF nameKept
-       THEN OpenNoPassword
-       ELSE /\ page' = "name" /\ UNCHANGED <<conn, pass, sawEnd, trimmed>>
-  /\ UNCHANGED <<wrong, nameKept, link>>
-
-\* Continue: the name is kept in this browser, and share.open runs with it.
-YouGiveYourName ==
-  /\ page = "name"
-  /\ nameKept' = TRUE
-  /\ OpenNoPassword
   /\ UNCHANGED <<wrong, link>>
 
-\* share.open { link, password, name }: open, or slow after 5 wrong tries even with the right
+\* share.open { link, password }: open, or slow after 5 wrong tries even with the right
 \* one, or gone.
 YouEnterTheRightPassword ==
   /\ page \in {"password", "wait"}
@@ -95,7 +82,7 @@ YouEnterTheRightPassword ==
   /\ sawEnd' = (link = "ended")
   /\ conn' = "up"
   /\ trimmed' = FALSE
-  /\ UNCHANGED <<wrong, nameKept, link>>
+  /\ UNCHANGED <<wrong, link>>
 
 \* share.open answers wrong (an alert) for tries 1-5 in a minute, and slow for any try after 5
 \* wrong ones.
@@ -106,13 +93,13 @@ YouEnterAWrongPassword ==
        ELSE IF wrong >= MaxWrong
               THEN /\ page' = "wait" /\ UNCHANGED <<wrong, sawEnd>>
               ELSE /\ wrong' = wrong + 1 /\ page' = "password" /\ UNCHANGED sawEnd
-  /\ UNCHANGED <<conn, nameKept, link, pass, trimmed>>
+  /\ UNCHANGED <<conn, link, pass, trimmed>>
 
 AMinutePasses ==
   /\ wrong > 0
   /\ wrong' = 0
   /\ page' = IF page = "wait" THEN "password" ELSE page
-  /\ UNCHANGED <<conn, nameKept, link, pass, sawEnd, trimmed>>
+  /\ UNCHANGED <<conn, link, pass, sawEnd, trimmed>>
 
 \* A user sets a password on the link, or changes it. That ends every pass; the server pushes
 \* the refusal { locked: true } to each tab on the link whose socket is up, in the same step,
@@ -125,7 +112,7 @@ APasswordIsSet ==
   /\ IF page = "canvas" /\ conn = "up"
        THEN page' = "password"
        ELSE UNCHANGED page
-  /\ UNCHANGED <<conn, wrong, nameKept, sawEnd, trimmed>>
+  /\ UNCHANGED <<conn, wrong, sawEnd, trimmed>>
 
 \* A user runs `easel unshare` (or deletes the canvas). The server pushes the refusal
 \* { ended: true } to each tab on the link whose socket is up, in the same step.
@@ -136,7 +123,7 @@ TheLinkEnds ==
   /\ IF page = "canvas" /\ conn = "up"
        THEN page' = "ended" /\ sawEnd' = TRUE
        ELSE UNCHANGED <<page, sawEnd>>
-  /\ UNCHANGED <<conn, wrong, nameKept, pass, trimmed>>
+  /\ UNCHANGED <<conn, wrong, pass, trimmed>>
 
 \* Others open the link past 1000 passes: the server ends this tab's pass, its oldest. No
 \* refusal is pushed; the live read goes on until it starts again.
@@ -144,12 +131,12 @@ ThePassIsTrimmed ==
   /\ page = "canvas" /\ pass /\ ~trimmed
   /\ link \in {"open", "password"}
   /\ trimmed' = TRUE
-  /\ UNCHANGED <<page, conn, wrong, nameKept, link, pass, sawEnd>>
+  /\ UNCHANGED <<page, conn, wrong, link, pass, sawEnd>>
 
 TheSocketDrops ==
   /\ page = "canvas" /\ conn = "up"
   /\ conn' = "down"
-  /\ UNCHANGED <<page, wrong, nameKept, link, pass, sawEnd, trimmed>>
+  /\ UNCHANGED <<page, wrong, link, pass, sawEnd, trimmed>>
 
 \* Back up, the tab reads the whole board again; on an ended link that read is refused
 \* { ended: true }, and with a pass a new password ended it is refused { locked: true }. A pass
@@ -162,16 +149,16 @@ TheSocketReconnects ==
        [] ~pass          -> page' = "password" /\ UNCHANGED <<sawEnd, trimmed>>
        [] trimmed        -> page' = "opening" /\ UNCHANGED <<sawEnd, trimmed>>
        [] OTHER          -> UNCHANGED <<page, sawEnd, trimmed>>
-  /\ UNCHANGED <<wrong, nameKept, link, pass>>
+  /\ UNCHANGED <<wrong, link, pass>>
 
 YouReload ==
   /\ page # "opening"
   /\ page' = "opening"
   /\ conn' = "up"
-  /\ UNCHANGED <<wrong, nameKept, link, pass, sawEnd, trimmed>>
+  /\ UNCHANGED <<wrong, link, pass, sawEnd, trimmed>>
 
-Next == YouOpenTheLink \/ YouGiveYourName \/ YouEnterTheRightPassword \/ YouEnterAWrongPassword
-     \/ AMinutePasses \/ APasswordIsSet \/ TheLinkEnds \/ ThePassIsTrimmed \/ TheSocketDrops
+Next == YouOpenTheLink \/ YouEnterTheRightPassword \/ YouEnterAWrongPassword \/ AMinutePasses
+     \/ APasswordIsSet \/ TheLinkEnds \/ ThePassIsTrimmed \/ TheSocketDrops
      \/ TheSocketReconnects \/ YouReload
 
 Spec == Init /\ [][Next]_vars
@@ -180,7 +167,6 @@ TypeOK ==
   /\ page \in Pages
   /\ conn \in {"up", "down"}
   /\ wrong \in 0..MaxWrong
-  /\ nameKept \in BOOLEAN
   /\ link \in {"open", "password", "unknown", "ended"}
   /\ pass \in BOOLEAN
   /\ sawEnd \in BOOLEAN
@@ -195,11 +181,8 @@ EndedPageOnly == page = "ended" => Controls(page) = {}
 \* While the page says to wait, even the right password does not open the canvas.
 WaitMeansWait == page = "canvas" => wrong < MaxWrong
 
-\* The page asks for the name only in a browser that has not given it.
-NameOnce == page = "name" => ~nameKept
-
-\* share.open takes the name: no tab gets past the gate without one.
-NameBeforeOpen == page \in {"password", "wait", "canvas"} => nameKept
+\* The gate never asks the name: the first request asks for it.
+NameNotAtTheGate == "textbox Your name" \notin Controls(page)
 
 \* A tab with a live socket is told at once when its link ends.
 EndPushedAtOnce == page = "canvas" /\ link = "ended" => conn = "down"
@@ -217,6 +200,6 @@ EndedOnlyWhenGone == page = "ended" => link \in Dead
 
 \* Opening the link with no password never answers slow: it shows the password page.
 OpenWithoutPasswordIsNeverSlow ==
-  [][(page \in {"opening", "name"} /\ page' \notin {"opening", "name"}) => page' # "wait"]_vars
+  [][(page = "opening" /\ page' # "opening") => page' # "wait"]_vars
 
 ====

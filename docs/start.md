@@ -65,7 +65,7 @@ easel put first-look page.html --name Home
 easel share first-look
 ```
 
-This prints a link. Open it in a browser and give your name. You see the frame. Send the link to
+This prints a link. Open it in a browser. You see the frame. Send the link to
 your team. They need no account. To protect the link, add `--password` and a password of 8
 characters or more.
 

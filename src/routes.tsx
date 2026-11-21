@@ -50,7 +50,7 @@ const thread = createRoute({
   component: () => <Thread teamId={team.useParams().team} issueId={thread.useParams().id} />,
 });
 
-// A share link (SPEC-viewer.md): the loader opens it (the name gate, the canvas or ended), and
+// A share link (SPEC-viewer.md): the loader opens it (the password page, the canvas or ended), and
 // the page draws what the gate cell says.
 const share = createRoute({
   getParentRoute: () => root,

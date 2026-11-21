@@ -1,7 +1,7 @@
 import { useData, useRun } from "@tinkered/react";
 
 import { Canvas } from "./canvas";
-import { enterPassword, gates, giveName } from "./gate";
+import { enterPassword, gates } from "./gate";
 import type { Gate } from "./gate";
 
 // `/s/<link>`: the share link's page (SPEC-viewer.md; the viewer-gate-password chart). No state of
@@ -14,29 +14,6 @@ function Ended() {
     <main>
       <h1>This link has ended</h1>
       <p>Ask whoever shared it for a new one.</p>
-    </main>
-  );
-}
-
-/** The name gate: asked once per browser, before the link opens. */
-function NameGate({ link }: { link: string }) {
-  const give = useRun(giveName);
-  return (
-    <main>
-      <h1>Who is looking?</h1>
-      <form
-        onSubmit={(event) => {
-          event.preventDefault();
-          const name = new FormData(event.currentTarget).get("name");
-          if (typeof name === "string" && name.trim()) give.run({ input: { link, name } });
-        }}
-      >
-        <input name="name" aria-label="Your name" maxLength={40} required />
-        <button type="submit" disabled={give.isPending}>
-          Continue
-        </button>
-      </form>
-      {give.error ? <p role="alert">No answer. Try again.</p> : null}
     </main>
   );
 }
@@ -67,7 +44,7 @@ function PasswordGate({
         }}
       >
         <input name="password" type="password" aria-label="Password" required />
-        {/* While it says to wait, Open still calls: the link may have ended (the chart's s6 to s4). */}
+        {/* While it says to wait, Open still calls: the link may have ended (the chart's s5 to s3). */}
         <button type="submit" disabled={enter.isPending && alert !== "wait"}>
           Open
         </button>
@@ -83,14 +60,12 @@ export function Opening() {
   return <p role="status">Opening.</p>;
 }
 
-/** The link's page: opening, the name gate, the password gate, the canvas, or ended. */
+/** The link's page: opening, the password gate, the canvas, or ended. It asks no name. */
 export function Viewer({ link }: { link: string }) {
   const gate = useData(gates.of({ link }));
   switch (gate?.page) {
     case undefined:
       return <Opening />;
-    case "name":
-      return <NameGate link={link} />;
     case "password":
       return <PasswordGate link={link} alert={gate.alert} />;
     case "canvas":

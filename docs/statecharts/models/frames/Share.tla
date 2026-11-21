@@ -77,7 +77,7 @@ Unshare ==
   /\ tabPw' = IF tab' = "open" THEN tabPw ELSE "none"
   /\ UNCHANGED <<gen, pw, wrong, tabLink, History>>
 
-\* share.open { link, name } on the live link: a pass, or `locked` (the password page), also
+\* share.open { link, name? } on the live link: a pass, or `locked` (the password page), also
 \* while the address is slowed for wrong tries (the flood limit is left out: see the header).
 ViewerOpensTheLink ==
   /\ tab \in {"none", "ended"} /\ live
@@ -95,7 +95,7 @@ ViewerOpensAnEndedLink ==
 
 OnPasswordPage == tab \in {"password", "wrong", "wait"}
 
-\* share.open { link, password, name } with the link's current password
+\* share.open { link, password, name? } with the link's current password
 ViewerTypesTheRightPassword ==
   /\ OnPasswordPage
   /\ CASE ~LinkLive(tabLink)  -> tab' = "ended" /\ UNCHANGED <<tabPw, slowedRight>>

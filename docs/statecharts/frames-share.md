@@ -83,7 +83,7 @@ stateDiagram-v2
 
 - Time, except as "a minute passes": the limit is 2 wrong tries in the model, 5 in the spec.
 - `SlowEvenWithTheRightPassword` and `AnotherAddressCannotLockTheViewerOut` hold by construction: the model checks the slowed count before the password, and counts per address. No variant of the model breaks them, so the code is judged against them.
-- The name, which the page asks first: [viewer-gate](viewer-gate.md).
+- The name: the page sends it only if the browser kept one, and it changes nothing here.
 - How a password, a link and a pass are kept and compared, and what is never logged.
 - `easel canvas rm`, which ends the link as unshare does.
 - Many tabs and many viewers: each acts as this one does.

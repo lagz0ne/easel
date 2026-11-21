@@ -14,10 +14,10 @@ import { bumpKeys, canvases } from "./store.server";
 // Share links and passwords (SPEC-frames.md § Share a canvas, § Open a share link; the
 // frames-share and viewer-gate charts). A link is 128 random bits, kept readable so `easel share`
 // prints it again (judged rule 11). A pass is 128 other random bits, kept only as its SHA-256
-// digest, with its link, the viewer's name and the link's password generation it was given under,
-// in SQLite: it survives a restart (decision C8). A password is kept only as its argon2id hash
-// (judged rule 10). None of them reaches a log (judged rule 15): no operation here takes one as a
-// label or writes one out.
+// digest, with its link, the viewer's name (if the page sent one) and the link's password
+// generation it was given under, in SQLite: it survives a restart (decision C8). A password is
+// kept only as its argon2id hash (judged rule 10). None of them reaches a log (judged rule 15): no
+// operation here takes one as a label or writes one out.
 //
 // A link's `pw_gen` goes up when its password is set or changed, and only then: a pass given
 // under an older one has ended, and is refused `{ locked: true }` (the page asks the password
@@ -55,11 +55,33 @@ CREATE UNIQUE INDEX IF NOT EXISTS frames_links_live ON frames_links (canvas) WHE
 CREATE TABLE IF NOT EXISTS frames_passes (
   digest TEXT PRIMARY KEY NOT NULL,
   link TEXT NOT NULL,
-  name TEXT NOT NULL,
+  name TEXT,
   made INTEGER NOT NULL,
   pw_gen INTEGER NOT NULL DEFAULT 0
 );
 CREATE INDEX IF NOT EXISTS frames_passes_link ON frames_passes (link, made);`;
+
+/**
+ * A file made while `share.open` took a name has `frames_passes.name NOT NULL`. SQLite cannot drop
+ * a NOT NULL, so the table is made again with its rows and its index, in one transaction (the
+ * SQLite manual's "Making Other Kinds Of Table Schema Changes").
+ */
+const nameOptional = `
+CREATE TABLE frames_passes_new (
+  digest TEXT PRIMARY KEY NOT NULL,
+  link TEXT NOT NULL,
+  name TEXT,
+  made INTEGER NOT NULL,
+  pw_gen INTEGER NOT NULL DEFAULT 0
+);
+INSERT INTO frames_passes_new (digest, link, name, made, pw_gen)
+  SELECT digest, link, name, made, pw_gen FROM frames_passes;
+DROP TABLE frames_passes;
+ALTER TABLE frames_passes_new RENAME TO frames_passes;
+CREATE INDEX frames_passes_link ON frames_passes (link, made);`;
+
+/** A column of `PRAGMA table_info` that must take NULL and does not. */
+const notNullName = z.object({ name: z.literal("name"), notnull: z.literal(1) });
 
 /** The columns passwords added, for a file made before them: table, column, its definition. */
 const addedColumns = [
@@ -316,13 +338,14 @@ const passwordGate = operation({
 /**
  * Gives a pass on the live link, in one transaction: `gone` when it has ended, `changed` when
  * its password changed since the gate read it, else `given`. The pass is kept as its digest,
- * with the name and the link's password generation; the link's oldest pass ends past 1000.
+ * with the name (if the page sent one) and the link's password generation; the link's oldest
+ * pass ends past 1000.
  */
 const givePass = operation({
   label: "frames.givePass",
   input: z.object({
     link: z.string(),
-    name: z.string(),
+    name: z.string().optional(),
     digest: z.string(),
     hash: z.string().nullable(),
     gen: z.number(),
@@ -340,7 +363,7 @@ const givePass = operation({
 
       db.query(
         "INSERT INTO frames_passes (digest, link, name, made, pw_gen) VALUES (?, ?, ?, ?, ?)",
-      ).run(digest, link, name, now, still.pw_gen);
+      ).run(digest, link, name ?? null, now, still.pw_gen);
       db.query(
         "DELETE FROM frames_passes WHERE link = ?1 AND rowid NOT IN (SELECT rowid FROM frames_passes WHERE link = ?1 ORDER BY made DESC, rowid DESC LIMIT ?2)",
       ).run(link, passesPerLink);
@@ -463,6 +486,10 @@ const loadShares = operation({
       if (!columns.some((c) => z.object({ name: z.literal(column) }).safeParse(c).success)) {
         db.exec(`ALTER TABLE ${table} ADD COLUMN ${column} ${definition}`);
       }
+    }
+    const passColumns = db.query("PRAGMA table_info(frames_passes)").all();
+    if (passColumns.some((c) => notNullName.safeParse(c).success)) {
+      db.transaction(() => db.exec(nameOptional))();
     }
 
     const rows = db.query("SELECT canvas FROM frames_links WHERE ended IS NULL").all();

@@ -3,7 +3,6 @@ export const title = "Viewer: open a share link, and the link ends";
 
 const pages = {
   opening: "Opening the link",
-  name: "Asks your name",
   password: "Asks the password",
   wait: "Alert: wait a minute",
   ended: "Page: this link has ended",
@@ -27,7 +26,6 @@ const links = {
 export const state = (v) => ({
   Page: page(v),
   Link: links[v.link],
-  Browser: v.nameKept ? "Remembers your name" : "Has no name",
 });
 
 const groups = { ended: "ended", canvas: "in" };
@@ -50,7 +48,6 @@ const reconnects = {
 const steps = {
   // Opening a password link never answers slow: it shows the password page.
   YouOpenTheLink: () => "you open the link",
-  YouGiveYourName: () => "you give your name",
   YouEnterTheRightPassword: (from, to) => pressOpen[to.page] ?? "you enter the right password",
   YouEnterAWrongPassword: (from, to) =>
     pressOpen[to.page] ?? "you enter a wrong password (alert: wrong)",

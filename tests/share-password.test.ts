@@ -139,9 +139,9 @@ async function client(
     unshare: (canvas: string) => scope.run(frames.api["canvas.unshare"], { input: { canvas } }),
     put: (canvas: string, html: string, name: string) =>
       scope.run(frames.api["frame.put"], { input: { canvas, html, name } }),
-    open: (link: string, password?: string, name = "Bo") =>
+    open: (link: string, password?: string) =>
       scope.run(frames.viewer["share.open"], {
-        input: password === undefined ? { link, name } : { link, name, password },
+        input: password === undefined ? { link } : { link, password },
       }),
   };
 }
@@ -634,7 +634,7 @@ test(
 );
 
 test(
-  "a file from before passwords opens: its links ask none, and its passes still read",
+  "a file from before passwords opens: its links ask none, its passes still read, and a pass with no name is kept",
   { timeout: 30_000 },
   async () => {
     const dir = mkdtempSync(join(tmpdir(), "easel-share-pw-"));

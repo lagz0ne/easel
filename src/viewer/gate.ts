@@ -6,11 +6,12 @@ import { endedRefusal, lockedRefusal, shareLink, typedPassword, viewerName } fro
 import { whoMeta } from "@/issues/sign-in";
 
 // The share link's gate (SPEC-viewer.md § Open the link; SPEC-frames.md § Open a share link; the
-// viewer-gate-password chart). The page asks for the viewer's name once per browser, then trades
-// the link and the name for a pass with `share.open`. The name is kept in this browser; the pass
-// only in this tab's memory, so a reload opens the link again. A link with a password answers
-// `locked`, and the page asks it: a wrong one says so, and after 5 wrong ones in a minute the
-// page says to wait, and takes no password until that minute has passed. A password set or
+// viewer-gate-password chart). The page asks no name at the link: it trades the link for a pass
+// with `share.open` at once, and sends the viewer's name too if this browser kept one (the first
+// request asks for it, and keeps it). The pass is kept only in this tab's memory, so a reload
+// opens the link again. A link with a password answers `locked`, and the page asks it: a wrong
+// one says so, and after 5 wrong ones in a minute the page says to wait, and takes no password
+// until that minute has passed. A password set or
 // changed ends this tab's pass: its read is refused `{ locked: true }`, and the page asks the
 // password again. A link keeps its 1000 newest passes, so a live link can end this tab's pass:
 // its read is then refused `{ ended: true }`, and the tab opens the link once more before it says
@@ -18,7 +19,6 @@ import { whoMeta } from "@/issues/sign-in";
 
 /** What the tab shows for one link: the chart's Page. */
 const gate = z.discriminatedUnion("page", [
-  z.object({ link: z.string(), page: z.literal("name") }),
   /** `again`: the tab opened the link once more after its pass was turned away. */
   z.object({
     link: z.string(),
@@ -89,6 +89,24 @@ const keptName = operation({
   run: () => viewerName.safeParse(localStorage.getItem(nameKey)).data ?? null,
 });
 
+/** The viewer gives a name (the first request asks for it): this browser keeps it, trimmed. */
+export const keepName = operation({
+  label: "viewer.keepName",
+  input: viewerName,
+  run: (_, { input }) => localStorage.setItem(nameKey, input.trim()),
+});
+
+/** `share.open`'s input: the link, and the name this browser kept, if it kept one. */
+const openInput = operation({
+  label: "viewer.openInput",
+  input: z.string(),
+  depends: { keptName },
+  run: ({ keptName }, { input }) => {
+    const name = keptName.run();
+    return name === null ? { link: input } : { link: input, name };
+  },
+});
+
 /** A `share.open` answer that is not `slow`: what the page shows for it. */
 const settled = z.discriminatedUnion("kind", [
   z.object({ kind: z.literal("open"), canvas: z.string(), pass: z.string() }),
@@ -123,9 +141,9 @@ const showAnswer = operation({
 });
 
 /**
- * You open the link: with no name kept, the page asks for it; with one, `share.open` answers
- * `open` (the canvas, and the pass this tab keeps), `locked` (the link asks a password: the
- * password page) or `gone` (the page says the link has ended).
+ * You open the link: `share.open` answers `open` (the canvas, and the pass this tab keeps),
+ * `locked` (the link asks a password: the password page) or `gone` (the page says the link has
+ * ended). The page asks no name first.
  * A path that is not a link's shape is gone too: no link has it. Past the flood limit it answers
  * `slow`: the page stays on Opening and calls again after `retryIn`. It never shows a wait page.
  */
@@ -140,23 +158,21 @@ export const openLink = operation({
   depends: {
     pages: gates.controller,
     shown: shownLink.controller,
-    keptName,
+    openInput,
     waitOut,
     showAnswer,
     open: frames.viewer["share.open"],
   },
-  run: async ({ pages, shown, keptName, waitOut, showAnswer, open }, { input }) => {
+  run: async ({ pages, shown, openInput, waitOut, showAnswer, open }, { input }) => {
     const { link } = input;
     shown.set(link);
-    const name = keptName.run();
-    if (name === null) return pages.set({ link, page: "name" });
     if (!shareLink.safeParse(link).success) return pages.set({ link, page: "ended" });
 
     for (;;) {
       // A late answer after the page left this link writes only this link's entries (pass and
       // page are keyed by link), and the loop ends: open and gone return, and a slow's sleep
       // sees the aborted stop.
-      const answer = await open.run({ input: { link, name } });
+      const answer = await open.run({ input: openInput.run({ input: link }) });
       if (answer.kind !== "slow") {
         return showAnswer.run({ input: { link, again: input.again === true, answer } });
       }
@@ -197,18 +213,15 @@ export const enterPassword = operation({
   label: "viewer.enterPassword",
   input: z.object({ link: z.string(), password: typedPassword }),
   depends: {
-    pages: gates.controller,
-    keptName,
+    openInput,
     showAnswer,
     waitThenAsk,
     open: frames.viewer["share.open"],
   },
-  run: async ({ pages, keptName, showAnswer, waitThenAsk, open }, { input }) => {
+  run: async ({ openInput, showAnswer, waitThenAsk, open }, { input }) => {
     const { link, password } = input;
-    const name = keptName.run();
-    if (name === null) return pages.set({ link, page: "name" });
 
-    const answer = await open.run({ input: { link, name, password } });
+    const answer = await open.run({ input: { ...openInput.run({ input: link }), password } });
     if (answer.kind !== "slow") return showAnswer.run({ input: { link, again: false, answer } });
 
     return waitThenAsk.run({ input: { link, retryIn: answer.retryIn } });
@@ -271,17 +284,6 @@ export const openPage = operation({
   input: z.object({ link: z.string(), stop: z.instanceof(AbortSignal) }),
   depends: { refusals, openLink },
   run: ({ openLink }, { input }) => openLink.run({ input }),
-});
-
-/** You give your name (Continue): this browser keeps it, and the link opens with it. */
-export const giveName = operation({
-  label: "viewer.giveName",
-  input: z.object({ link: z.string(), name: viewerName }),
-  depends: { openLink },
-  run: async ({ openLink }, { input }) => {
-    localStorage.setItem(nameKey, input.name.trim());
-    await openLink.run({ input: { link: input.link } });
-  },
 });
 
 /**

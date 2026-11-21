@@ -108,8 +108,11 @@ async function client(
     share: (canvas: string) => scope.run(frames.api["canvas.share"], { input: { canvas } }),
     put: (canvas: string, html: string, name: string) =>
       scope.run(frames.api["frame.put"], { input: { canvas, html, name } }),
-    open: (link: string, name = "Bo") =>
-      scope.run(frames.viewer["share.open"], { input: { link, name } }),
+    /** `name`: the name this browser kept, if it kept one. */
+    open: (link: string, name?: string) =>
+      scope.run(frames.viewer["share.open"], {
+        input: name === undefined ? { link } : { link, name },
+      }),
   };
 }
 
@@ -348,7 +351,7 @@ test(
 
 // Each write is fsynced (synchronous=FULL, decision C6): on a loaded disk, ~0.5 s.
 test(
-  "the link is kept readable, the pass only as its digest with the name; both survive a restart",
+  "the link is kept readable, the pass only as its digest with the name, if the page sent one; both survive a restart",
   { timeout: 30_000 },
   async () => {
     const dir = mkdtempSync(join(tmpdir(), "easel-share-"));
@@ -360,14 +363,18 @@ test(
     const tab = await client(first.server);
     const opened = await tab.open(link, "Bo");
     const pass = opened.kind === "open" ? opened.pass : "";
+    const nameless = await tab.open(link);
+    const other = nameless.kind === "open" ? nameless.pass : "";
     await first.server.close();
 
     const db = new Database(file, { readonly: true });
-    const passes = db.query("SELECT digest, link, name FROM frames_passes").all();
+    const passes = db.query("SELECT digest, link, name FROM frames_passes ORDER BY rowid").all();
     const rows = JSON.stringify([passes, db.query("SELECT * FROM frames_links").all()]);
     db.close();
+    const digest = (secret: string) => createHash("sha256").update(secret).digest("hex");
     expect(passes).toEqual([
-      { digest: createHash("sha256").update(pass).digest("hex"), link, name: "Bo" },
+      { digest: digest(pass), link, name: "Bo" },
+      { digest: digest(other), link, name: null },
     ]);
     expect(rows).toContain(link);
     expect(rows).not.toContain(pass);
@@ -419,11 +426,12 @@ test("no link, pass or pass digest reaches a span, a log record, the console, or
 
 // ---- Inputs (SPEC-frames § Inputs; judged rule 11)
 
-test("a viewer's name is 1 to 40 characters, trimmed; any other stops on the client", async () => {
+test("a viewer's name is optional, else 1 to 40 characters, trimmed; any other stops on the client", async () => {
   const srv = await boot();
   const { link } = await sharedFlow(srv);
   const tab = await client(srv.server);
 
+  expect((await tab.open(link)).kind).toBe("open");
   expect((await tab.open(link, "B")).kind).toBe("open");
   expect((await tab.open(link, "x".repeat(40))).kind).toBe("open");
   expect((await tab.open(link, ` ${"x".repeat(40)} `)).kind).toBe("open");

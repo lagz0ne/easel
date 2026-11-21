@@ -204,7 +204,7 @@ async function client(port: string, held: Held) {
 /** The id a put answered with. */
 const idOf = (out: { kind: string }) => ("id" in out && typeof out.id === "string" ? out.id : "");
 
-test("a viewer's tab says Reconnecting when the server stops, and once it is back shows what an agent added, deleted and wrote while it was down (viewer-gate-open s1 to s4, s4 to s1)", async () => {
+test("a viewer's tab says Reconnecting when the server stops, and once it is back shows what an agent added, deleted and wrote while it was down (viewer-gate-open s1 to s3, s3 to s1)", async () => {
   const file = join(folder(), "easel.db");
   const first = await run("0", { EASEL_DB: file });
   const port = first.url.port;
@@ -248,7 +248,7 @@ test("a viewer's tab says Reconnecting when the server stops, and once it is bac
   await until(() => names().length === 2 && doc.get()?.version === 1);
   expect(reconnecting()).toBe(false);
 
-  // SIGTERM: the socket drops (s1 to s4), and the frames read so far stay.
+  // SIGTERM: the socket drops (s1 to s3), and the frames read so far stay.
   first.stop.abort();
   expect(await within(first.closed, grace + 1000)).toBe("closed");
   await until(reconnecting);
@@ -269,7 +269,7 @@ test("a viewer's tab says Reconnecting when the server stops, and once it is bac
   expect(reconnecting()).toBe(true);
   expect(names()).toEqual(["Home", "Keep"]);
 
-  // The next deploy, on the same port and file: the socket is back (s4 to s1). Each time the
+  // The next deploy, on the same port and file: the socket is back (s3 to s1). Each time the
   // status is seen gone, the frames are already the new ones: no old list without Reconnecting.
   const seen: string[] = [];
   closers.push(faults.watch(() => void (reconnecting() || seen.push(names().join(",")))));
