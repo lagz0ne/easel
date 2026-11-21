@@ -654,7 +654,15 @@ const durationsMs = (v: string): Array<number> =>
 
 type MotionRule = { why: string; bad: (prop: string, v: string) => boolean };
 
-// A loop (infinite) may run longer and ease in and out; nothing else may.
+// A loop may run longer and ease in and out; nothing else may. A loop is an animation that runs for
+// ever, or more than once: a bare number in it (no unit, outside a curve) is its count.
+const isLoop = (p: string, v: string): boolean =>
+  v.includes("infinite") ||
+  (p.startsWith("animation") &&
+    [...v.replace(/\([^)]*\)/g, "").matchAll(/(?<![\w.#-])(\d*\.?\d+)(?![\w.%-])/g)].some(
+      (m) => Number(m[1]) > 1,
+    ));
+
 const MOTION_RULES: ReadonlyArray<MotionRule> = [
   { why: "names all", bad: (_p, v) => /\ball\b/.test(v) },
   {
@@ -664,7 +672,7 @@ const MOTION_RULES: ReadonlyArray<MotionRule> = [
   },
   {
     why: "is longer than 300ms",
-    bad: (_p, v) => !v.includes("infinite") && durationsMs(v).some((ms) => ms > 300),
+    bad: (p, v) => !isLoop(p, v) && durationsMs(v).some((ms) => ms > 300),
   },
   { why: "eases in", bad: (_p, v) => /\bease-in\b(?!-out)/.test(v) },
   {
@@ -676,7 +684,7 @@ const MOTION_RULES: ReadonlyArray<MotionRule> = [
   },
   {
     why: "has a default curve",
-    bad: (_p, v) => !v.includes("infinite") && /\b(ease|linear|ease-in-out)\b(?!-)/.test(v),
+    bad: (p, v) => !isLoop(p, v) && /\b(ease|linear|ease-in-out)\b(?!-)/.test(v),
   },
 ];
 

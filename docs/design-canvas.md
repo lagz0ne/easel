@@ -57,35 +57,43 @@ Example: `Work · E4 Comment and get a change`.
 ### An epic page
 
 A person reads the page from the top left, without help. This follows the create canvas
-(`create · Product design`: a sheet first, one page for each epic), Figma sections (a titled
-background behind a group of frames) and Miro frames. Doop has no sections, so a section is a
-**panel**: a locked frame behind the screens, with the title and the text of the group.
+(`create · Product design`: a sheet first, one page for each epic) and Figma sections (a title
+over a group of frames). Doop has no sections, and each frame is a full HTML document, so a group
+is shown by a small **header frame** above its screens and by space, never by a frame behind them.
 
 1. **The sheet** `E<n>.00 Requirements and review`, at x 0, y 0. It is the traceability matrix:
    each requirement ID of the epic, its need and fit criterion, the frames that prove it (links),
    and the last review verdict. It says how to read the page and names the prior art.
-2. **Each journey, top to bottom**, at the right of the sheet: a grey **title bar** with the
-   actor, need, trigger, the two ends, and a link that opens the prototype at the start of the
-   journey.
-3. **White groups under the title bar, by number.** Group 0 is the journey's state sheet. Each
-   other group is one short path: 1 to 5 screens in click order, left to right, under one or two
-   sentences that say what happens and the IDs that the screens prove. Groups wrap into rows of at
-   most 10,400 px, so no row and no frame gets very long (create puts all states of a screen in one
-   frame, up to 30,000 px tall).
-4. **Click-path copies** go to `Work · E<n> · click-path copies`, in the same panels. A Doop link
+2. **Each journey, top to bottom**, at the right of the sheet: a grey **title** (at most
+   4400 × 620) with the actor, need, trigger, the two ends, and a link that opens the prototype at
+   the start of the journey.
+3. **Groups under the title, by number.** Group 0 is the journey's state sheet. Each other group
+   is one short path: 1 to 5 screens in click order, left to right. Its **header** (at most 2560
+   px wide, as tall as its text) has the number, the title, one or two sentences that say what
+   happens, and the IDs that the screens prove. Groups wrap into rows of at most 10,400 px.
+4. **Click-path copies** go to `Work · E<n> · click-path copies`, in the same layout. A Doop link
    always opens a frame at its top, so a screen with a tab (Before or After) needs one copy for each
    tab. People read the screen on the epic page; only the prototype needs the copies. A prototype
    link works across pages. Change a copy when you change its screen.
 
-Panels stay `draft`, and the proof does not check them. **One layer of background only**: a panel
-never lies on another panel. Doop draws each frame as a live page, and the first version, with a
-journey panel behind its groups, had render problems (the human, 2026-11-21). A frame that comes to
-a page goes in front of the frames there. So to put screens in front of new panels, make the panels
-first, then move each screen to a page and back. A move on the same page keeps the stacking. Leave
-at least 380 px above each panel and 200 px beside it: Doop draws frame names at one size on the
-screen, so at low zoom a name covers more of the canvas above its frame. Keep each screen as its own
-frame: a link to a state inside a tall frame opens at its top, and the prototype needs each state as
-a frame.
+**No frame behind a screen.** Doop draws each frame as a picture, and up close as a live page.
+Frames behind the screens made the E4 page 3 to 5 times slower to open, zoom and pan (doop's
+maintainer measured it, 2026-11-21: 260 Mpx of backdrop under 50 Mpx of screens). Headers and
+titles are about a third of the screens' area. If a page needs a colour, use the page background
+(`set_page_background`), not a frame.
+
+**Space shows the groups.** 120 px between screens in a group, 400 px between groups side by side,
+600 px between rows, 900 px between journeys, and 220 px between a header and its screens. Doop
+draws frame names at one size on the screen, so at low zoom a name covers more of the canvas above
+its frame.
+
+**No endless animation in a canvas frame.** A live frame with an endless animation paints all the
+time. A part that shows a waiting state pulses a few times, then rests (the Composer pulses 4
+times). The app may animate until the wait ends.
+
+Headers and titles stay `draft`, and the proof does not check them. Keep each screen as its own
+frame: a link to a state inside a tall frame opens at its top, and the prototype needs each state
+as a frame.
 
 ## Frame names
 
@@ -93,7 +101,7 @@ a frame.
   `E4.1 Ask for a change (N1 N2)`.
 - A state sheet: `E<n>.<m> states: <what> (<IDs>)`. One sheet for each journey.
 - The epic sheet: `E<n>.00 Requirements and review`.
-- A panel: a journey `E<n>.<m> · <title>`, or a group `E<n>.<m> · <number> <title>`.
+- A header: a journey title `E<n>.<m> · <title>`, or a group `E<n>.<m> · <number> <title>`.
 - An exploration: `E<n>.W<nn> <what>`. It stays `draft`. The index counts for each epic. Do not use
   an index again.
 - A component main has the name of the component. Its frame is on the page of its level.
@@ -127,7 +135,7 @@ a frame.
 3. Make the page `Work · E<n> <epic title>` on **easel · Product design**.
 4. Compose each screen from the library: layout parts first, then patterns, then primitives. Write
    new CSS only for the page grid. A missing part is made on the library first (see above).
-5. Add the sheet `E<n>.00` and the panels, and put the screens in their groups (see "An epic
+5. Add the sheet `E<n>.00` and the headers, and put the screens in their groups (see "An epic
    page"). Add the frames and the IDs to `scripts/design-proof.ts` in the same ship.
 6. Prove the design round by round with `epic-flow`, until each ID is proven.
 
