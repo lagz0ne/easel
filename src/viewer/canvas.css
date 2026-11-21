@@ -1006,6 +1006,79 @@ span.e-opt[data-picked="false"] {
   color: var(--e-muted);
 }
 
+/* Two pictures of one frame (the design's Compare, view switch): one picture, 16:10, with a
+   two-way switch on its top edge, as a fieldset legend. Folded, only the switch shows. */
+.e-cmpr {
+  position: relative;
+  padding-top: 14px;
+}
+
+.e-cmpr[data-open="no"] {
+  padding-top: 0;
+}
+
+.e-cmpr-switch {
+  position: absolute;
+  top: 0;
+  left: var(--e-3);
+  z-index: 1;
+  display: inline-flex;
+  gap: 2px;
+  padding: 2px;
+  background-color: var(--e-hover, var(--e-card));
+  border-radius: var(--e-radius);
+  box-shadow: 0 0 0 1px var(--e-line, var(--e-card));
+}
+
+.e-cmpr[data-open="no"] .e-cmpr-switch {
+  position: static;
+}
+
+.e-cmpr-cap {
+  height: 24px;
+  padding: 0 var(--e-3);
+  font-family: inherit;
+  font-size: var(--e-size-1);
+  font-weight: 500;
+  line-height: 1;
+  color: var(--e-muted);
+  white-space: nowrap;
+  cursor: pointer;
+  background: none;
+  border: 0;
+  border-radius: calc(var(--e-radius) - 2px);
+}
+
+.e-cmpr-cap[aria-checked="true"] {
+  color: var(--e-text);
+  background-color: var(--e-surface);
+  box-shadow: 0 0 0 1px var(--e-line, var(--e-card));
+}
+
+.e-cmpr-pic {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  aspect-ratio: 16 / 10;
+  overflow: hidden;
+  background-color: var(--e-hover, var(--e-card));
+  border: 1px solid var(--e-line, var(--e-card));
+  border-radius: var(--e-radius);
+}
+
+.e-cmpr-pic .e-pic {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  object-position: top;
+}
+
+.e-cmpr-none {
+  margin: 0;
+  font-size: var(--e-size-2);
+  color: var(--e-muted);
+}
+
 .e-reply {
   display: flex;
   flex-direction: column;

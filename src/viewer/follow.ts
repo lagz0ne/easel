@@ -56,8 +56,21 @@ export type Line =
       picked: number | null;
       /** This question waits for its answer: its options are buttons. */
       live: boolean;
+      /** A result's pictures of its frame: the version before and after, and if it opens. */
+      proof: Proof | null;
     }
   | { key: string; kind: "step"; who: string | null; what: string; at: number | null };
+
+/** A result's pictures (§ Follow the requests 13): its frame, the versions, and if it opens. */
+const proof = z.object({
+  id: z.string(),
+  before: z.number(),
+  after: z.number(),
+  /** It opens on `After`: the last result, while the request waits for a decision. */
+  opens: z.boolean(),
+});
+
+export type Proof = z.infer<typeof proof>;
 
 /** A request as the panel, its pin and its popover show it. */
 export type RequestView = {
@@ -347,8 +360,8 @@ const stepWords = operation({
 /** A message as the thread shows it. The ask shows the text of the request now. */
 const messageLine = operation({
   label: "viewer.messageLine",
-  input: z.object({ m: message, known: sofar, live: z.boolean() }),
-  run: (_, { input: { m, known, live } }): Extract<Line, { kind: "message" }> => ({
+  input: z.object({ m: message, known: sofar, live: z.boolean(), proof: proof.nullable() }),
+  run: (_, { input: { m, known, live, proof } }): Extract<Line, { kind: "message" }> => ({
     key: m.id,
     kind: "message",
     from: m.from,
@@ -359,7 +372,20 @@ const messageLine = operation({
     options: m.options,
     picked: known.picked[m.id] ?? null,
     live,
+    proof,
   }),
+});
+
+/** A result's pictures, for a result on a frame with both its versions; else null. */
+const proofOf = operation({
+  label: "viewer.proofOf",
+  input: z.object({ m: message, frameId: z.string().nullable(), opens: z.boolean() }),
+  run: (_, { input: { m, frameId, opens } }): Proof | null => {
+    if (m.kind !== "result" || frameId === null) return null;
+    if (m.before === null || m.after === null) return null;
+
+    return { id: frameId, before: m.before, after: m.after, opens };
+  },
 });
 
 /** What an answer brings: the request is back in the queue, in its first place (E4.2 M19). */
@@ -368,11 +394,17 @@ const backInQueue = "Back in the queue, in its first place";
 /** The lines of one message: the message, its step, or both, in the order the thread shows them. */
 const linesOfMessage = operation({
   label: "viewer.linesOfMessage",
-  input: z.object({ m: message, author: z.string(), known: sofar, live: z.boolean() }),
+  input: z.object({
+    m: message,
+    author: z.string(),
+    known: sofar,
+    live: z.boolean(),
+    proof: proof.nullable(),
+  }),
   depends: { stepWords, messageLine },
-  run: ({ stepWords, messageLine }, { input: { m, author, known, live } }): Line[] => {
+  run: ({ stepWords, messageLine }, { input: { m, author, known, live, proof } }): Line[] => {
     const sentBack = known.sentBack.includes(m.id);
-    const said = messageLine.run({ input: { m, known, live } });
+    const said = messageLine.run({ input: { m, known, live, proof } });
     const what = stepWords.run({ input: { m, author, sentBack } });
     if (m.kind === "answer") {
       return [said, { key: `${m.id}.queue`, kind: "step", who: null, what: backInQueue, at: null }];
@@ -455,12 +487,16 @@ const start: Sofar = {
 const linesOf = operation({
   label: "viewer.linesOf",
   input: z.object({ r: request, thread: z.array(message), shown: z.enum(shownStates) }),
-  depends: { sofarStep, linesOfMessage, stateLine },
-  run: ({ sofarStep, linesOfMessage, stateLine }, { input: { r, thread, shown } }) => {
+  depends: { sofarStep, linesOfMessage, stateLine, proofOf },
+  run: (deps, { input: { r, thread, shown } }) => {
+    const { sofarStep, linesOfMessage, stateLine, proofOf } = deps;
     const known = thread.reduce((was, m) => sofarStep.run({ input: { was, m } }), start);
+    const lastResult = thread.findLast((m) => m.kind === "result")?.id;
     const lines = thread.flatMap((m) => {
       const live = shown === "question" && known.question === m.id;
-      return linesOfMessage.run({ input: { m, author: r.author, known, live } });
+      const opens = shown === "result" && m.id === lastResult;
+      const proof = proofOf.run({ input: { m, frameId: r.frameId, opens } });
+      return linesOfMessage.run({ input: { m, author: r.author, known, live, proof } });
     });
     const last = thread.at(-1) ?? null;
 

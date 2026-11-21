@@ -4,7 +4,6 @@ import { memo } from "react";
 import { z } from "zod";
 
 import { frames } from "@/frames";
-import { maxPicturePixels, picturePrefix } from "@/frames/contract";
 import type { FrameInfo } from "@/frames/contract";
 
 import "./canvas.css";
@@ -13,6 +12,7 @@ import { escapeKey, openRequest, pickPlace, requestMode, resendOnBack } from "./
 import { clockTicker, panelOpen } from "./follow";
 import type { RequestView } from "./follow";
 import { Panel, RequestsButton } from "./panel";
+import { FramePicture } from "./picture";
 import { RequestButton, Requests } from "./request";
 import { liveSet, painted, paintScript, stage, zoomShown } from "./stage";
 
@@ -105,53 +105,6 @@ function LiveDoc({
   );
 }
 
-/** A picture that failed (a busy server answers 503) is asked again after 1, 2 and 4 s, no more. */
-export const picRetryMs = [1_000, 2_000, 4_000] as const;
-
-/**
- * The tries of each picture: an img that failed sets its address again after its wait, which
- * asks the server again with no React render. A new address starts its tries over.
- */
-const picRetry = resource({
-  label: "viewer.picRetry",
-  target: "scope",
-  factory: (_, ctx) => {
-    const tries = new WeakMap<HTMLImageElement, { src: string; n: number }>();
-
-    return {
-      failed: (img: HTMLImageElement) => {
-        const src = img.getAttribute("src") ?? "";
-        const before = tries.get(img);
-        const n = before?.src === src ? before.n : 0;
-        const wait = picRetryMs[n];
-        if (wait === undefined) return;
-
-        tries.set(img, { src, n: n + 1 });
-        ctx.clock.sleep(wait, ctx.signal).then(
-          () => img.getAttribute("src") === src && img.setAttribute("src", src),
-          () => undefined,
-        );
-      },
-    };
-  },
-});
-
-/** A frame's picture. */
-function Picture({ src, alt }: { src: string; alt: string }) {
-  const retry = useResource(picRetry);
-
-  return (
-    <img
-      className="e-pic"
-      src={src}
-      alt={alt}
-      decoding="async"
-      draggable={false}
-      onError={(event) => retry.failed(event.currentTarget)}
-    />
-  );
-}
-
 /**
  * A frame's shell at its box: its name, its card with the picture of its version on it, and its
  * document when it is live. The card stays on top until the document of this version painted. The
@@ -170,8 +123,6 @@ const Shell = memo(function Shell({
 }) {
   const live = useData(liveSet, (ids) => ids.includes(frame.id));
   const shown = useData(painted, (p) => p[frame.id]);
-  const area = frame.w * frame.h;
-  const scale = area / 4 <= maxPicturePixels ? 0.5 : area / 16 <= maxPicturePixels ? 0.25 : null;
 
   return (
     <div
@@ -191,12 +142,7 @@ const Shell = memo(function Shell({
       </div>
       {live ? <LiveDoc canvas={canvas} frame={frame} attach={at.doc} /> : null}
       <div className="e-card" hidden={live && shown === frame.version}>
-        {frame.k === undefined || scale === null ? null : (
-          <Picture
-            src={`${picturePrefix}${canvas}/${frame.id}/${frame.version}?s=${scale}&k=${frame.k}`}
-            alt={frame.name}
-          />
-        )}
+        <FramePicture canvas={canvas} frame={frame} version={frame.version} k={frame.k} />
       </div>
     </div>
   );

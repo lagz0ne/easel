@@ -218,9 +218,12 @@ this spec wins, and the screen gets a fix.
     switch shows, and a click on a side opens the picture on that side. A question with options
     shows one button for each option, under its HTML part, and a textbox `Answer`. After the
     answer, the options show as text, and the option that the answer picked has an accent
-    outline. (The picture `Before` | `After` is not built yet: the picture route serves only the
-    current version of a frame, so a picture of an older version needs the frames side first.
-    Until then, a result shows its text and its HTML part.)
+    outline. The picture is 16:10 and shows the top of the frame. `Before` is the version at the
+    claim, and `After` the version at the result. The picture of a version that is not current
+    has its key in the board's cell `kept`; a version with no key shows the plain card. Only the
+    last result opens on `After`, and only while it waits for a decision. The side that the
+    viewer picks stays until the request changes; a side picked while a textbox is open stays
+    only while the textbox is open.
 14. A request that may be outdated shows what the viewer saw: a switch `When asked` | `Now` on
     the picture, open on `When asked` (E4.1 N8). `Now` shows the frame now, or "Frame removed".
     A step says how many times the frame changed since the request.

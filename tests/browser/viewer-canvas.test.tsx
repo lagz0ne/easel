@@ -11,7 +11,8 @@ import { z } from "zod";
 
 import { frames } from "@/frames";
 import { frames as frameCells, framesBoard } from "@/frames/contract";
-import { Canvas, picRetryMs } from "@/viewer/canvas";
+import { Canvas } from "@/viewer/canvas";
+import { picRetryMs } from "@/viewer/picture";
 
 // The canvas in a real Chromium (the viewer-canvas chart, SPEC-viewer.md § Pan and zoom, § Watch
 // an agent work, § Numbers). The server is the board alone over `memory`: its `docs` load reads a

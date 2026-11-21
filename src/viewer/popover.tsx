@@ -17,6 +17,7 @@ import {
   typeName,
 } from "./act";
 import type { Act } from "./act";
+import { Compare } from "./compare";
 import { acting, escape, moreMenu } from "./draft";
 import type { ActBox as Box, Acting as Acts } from "./draft";
 import { seenWhileOpen } from "./follow";
@@ -95,8 +96,32 @@ function Options({ line, v }: { line: Extract<Line, { kind: "message" }>; v: Req
   );
 }
 
+/**
+ * A result's picture, with the switch `Before` | `After` on its top edge (step 13). It opens on
+ * `After` while the request waits for a decision and no textbox is open; else only the switch
+ * shows. A change of the request, or a textbox, folds it again.
+ */
+function Proof({ v, line, box }: { v: RequestView; line: Message; box: Box | null }) {
+  const { proof } = line;
+  if (proof === null) return null;
+
+  return (
+    <Compare
+      canvas={v.r.canvas}
+      id={proof.id}
+      left={{ label: "Before", version: proof.before }}
+      right={{ label: "After", version: proof.after }}
+      show="right"
+      open={proof.opens && box === null}
+      pickKey={`${line.key}@${v.r.updated}@${box ?? ""}`}
+    />
+  );
+}
+
+type Message = Extract<Line, { kind: "message" }>;
+
 /** One message of the thread: the avatar (square for an agent), the name, the time, the text. */
-function Said({ line, v }: { line: Extract<Line, { kind: "message" }>; v: RequestView }) {
+function Said({ line, v, box }: { line: Message; v: RequestView; box: Box | null }) {
   return (
     <li className="e-msg">
       <span className="e-avatar" data-agent={line.agent} aria-hidden="true">
@@ -119,21 +144,22 @@ function Said({ line, v }: { line: Extract<Line, { kind: "message" }>; v: Reques
             srcDoc={line.html}
           />
         ) : null}
+        <Proof v={v} line={line} box={box} />
         {line.options ? <Options line={line} v={v} /> : null}
       </div>
     </li>
   );
 }
 
-/** The thread, oldest first (step 12). */
-function Thread({ v }: { v: RequestView }) {
+/** The thread, oldest first (step 12). `box` is the textbox open on the request, if one is. */
+function Thread({ v, box }: { v: RequestView; box: Box | null }) {
   return (
     <ol className="e-thread">
       {v.lines.map((line) =>
         line.kind === "step" ? (
           <Step key={line.key} line={line} />
         ) : (
-          <Said key={line.key} line={line} v={v} />
+          <Said key={line.key} line={line} v={v} box={box} />
         ),
       )}
     </ol>
@@ -468,7 +494,7 @@ export function Opened({ v, list }: { v: RequestView; list: readonly FrameInfo[]
           ×
         </button>
       </header>
-      <Thread v={v} />
+      <Thread v={v} box={here.box} />
       {here.step === "naming" ? <NameField /> : null}
       <Controls v={v} here={here} />
     </section>

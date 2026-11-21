@@ -10,7 +10,7 @@ import { page, userEvent } from "vite-plus/test/browser/context";
 import { z } from "zod";
 
 import { frames } from "@/frames";
-import { frames as frameCells } from "@/frames/contract";
+import { frames as frameCells, kept, removed } from "@/frames/contract";
 import { passApi, passMeta, shareApi } from "@/frames/share";
 import { queue } from "@/queue";
 import { messageKind, messages, request, requests, serverClock } from "@/queue/cells";
@@ -65,7 +65,14 @@ const store = {
   /** Each viewer call that reached the server, with its input, in order. */
   calls: [] as Array<{ call: Call; input: unknown }>,
   plan: [] as Plan[],
+  /** Frame Home's version, and the key of its picture; null: Home was removed. */
+  home: { version: 1, k: "kh1" } as { version: number; k: string } | null,
+  /** The kept versions of Home, each with the key of its picture. */
+  kept: [] as Array<{ version: number; k?: string }>,
 };
+
+/** Frame Home's box. */
+const homeBox = { name: "Home", x: 0, y: 0, w: 400, h: 300 };
 
 let current: Scope.Handle | null = null;
 
@@ -167,12 +174,16 @@ const seed = operation({
   label: "test.actSeed",
   depends: {
     cells: frameCells.controller,
+    versions: kept.controller,
+    gone: removed.controller,
     rows: requests.controller,
     thread: messages.controller,
     clocks: serverClock.controller,
   },
-  run: ({ cells, rows, thread, clocks }) => {
-    cells.set({ canvas: "home", id: home, name: "Home", x: 0, y: 0, w: 400, h: 300, version: 1 });
+  run: ({ cells, versions, gone, rows, thread, clocks }) => {
+    if (store.home) cells.set({ canvas: "home", id: home, ...homeBox, ...store.home });
+    else gone.set({ canvas: "home", id: home, ...homeBox, removed: serverNow - minute });
+    for (const v of store.kept) versions.set({ canvas: "home", id: home, ...v });
     clocks.set({ canvas: "home", now: serverNow });
     for (const row of store.requests) rows.set(row);
     for (const m of store.messages) thread.set(m);
@@ -388,6 +399,8 @@ async function boot(fill: () => void, name: string | null = "Mai") {
   store.messages.length = 0;
   store.calls.length = 0;
   store.plan.length = 0;
+  store.home = { version: 1, k: "kh1" };
+  store.kept.length = 0;
   fill();
 
   return serve();
@@ -613,6 +626,109 @@ test("a result: Accept makes it done; Open again asks a note, Cancel keeps it, S
     { call: "request.reopen", input: { canvas: "home", n: 1, text: "The label is too loud." } },
     { call: "request.reopen", input: { canvas: "home", n: 2, text: "Make it grey." } },
   ]);
+});
+
+/** The switch of a picture in the popover of request `n`, its sides, and the picture on show. */
+const compare = (n: number) => {
+  const group = dialog(n).getByRole("radiogroup", { name: "Picture" });
+  const side = (name: string) => group.getByRole("radio", { name, exact: true });
+  const pictures = () =>
+    [...dialog(n).element().querySelectorAll<HTMLImageElement>(".e-cmpr img")].map((img) => ({
+      alt: img.alt,
+      src: img.getAttribute("src"),
+    }));
+
+  return { group, side, pictures };
+};
+
+/** The address of a picture of Home at a version, with its key. */
+const homePicture = (version: number, k: string) =>
+  `/api/pictures/home/${home}/${version}?s=0.5&k=${k}`;
+
+test("a result: one picture, the switch Before | After on its top edge, open on After; folded after a decision and while a note is written (Follow the requests 13, E4.2 M11, M12, M17)", async () => {
+  const server = await boot(() => {
+    store.home = { version: 3, k: "kh3" };
+    store.kept.push({ version: 2, k: "kh2" });
+    const r = stored(1, "Make the Team plan stand out.", {
+      status: "resolved",
+      claimedBy: "claude-1",
+      version: 2,
+    });
+    said(
+      r,
+      { kind: "result", from: "claude-1", text: "Done.", before: 2, after: 3 },
+      r.created + minute,
+    );
+  });
+  await tab(server);
+  await openIt(1);
+  const { group, side, pictures } = compare(1);
+
+  await expect.element(group).toBeVisible();
+  expect(side("After").element()).toHaveAttribute("aria-checked", "true");
+  expect(side("Before").element()).toHaveAttribute("aria-checked", "false");
+  expect(pictures()).toEqual([{ alt: "After: Home", src: homePicture(3, "kh3") }]);
+  // The switch sits on the top edge of the picture.
+  const edge = dialog(1).element().querySelector(".e-cmpr-pic")?.getBoundingClientRect();
+  const top = group.element().getBoundingClientRect();
+  expect(top.top).toBeLessThan(edge?.top ?? 0);
+  expect(top.bottom).toBeGreaterThan(edge?.top ?? 0);
+
+  await side("Before").click();
+  expect(pictures()).toEqual([{ alt: "Before: Home", src: homePicture(2, "kh2") }]);
+  expect(side("Before").element()).toHaveAttribute("aria-checked", "true");
+
+  // While the note is written, only the switch shows; a click on a side opens it.
+  await dialog(1).getByRole("button", { name: "Open again" }).click();
+  expect(pictures()).toEqual([]);
+  expect(side("After").element()).toHaveAttribute("aria-checked", "false");
+  expect(side("Before").element()).toHaveAttribute("aria-checked", "false");
+  await side("After").click();
+  expect(pictures()).toEqual([{ alt: "After: Home", src: homePicture(3, "kh3") }]);
+  // Cancel: the picture is as it was before the note.
+  await dialog(1).getByRole("button", { name: "Cancel" }).click();
+  expect(pictures()).toEqual([{ alt: "Before: Home", src: homePicture(2, "kh2") }]);
+
+  // After a decision, only the switch shows.
+  await dialog(1).getByRole("button", { name: "Accept" }).click();
+  await expect.poll(() => mark(1)).toBe("Done");
+  expect(pictures()).toEqual([]);
+  await side("Before").click();
+  expect(pictures()).toEqual([{ alt: "Before: Home", src: homePicture(2, "kh2") }]);
+});
+
+test("a picture with no key is the plain card; a result on the whole canvas has no switch (Follow the requests 13)", async () => {
+  const server = await boot(() => {
+    store.home = { version: 3, k: "kh3" };
+    store.kept.push({ version: 2 });
+    const r = stored(1, "Make it stand out.", { status: "resolved", claimedBy: "claude-1" });
+    said(r, { kind: "result", from: "claude-1", text: "Done.", before: 2, after: 3 }, r.created);
+
+    const c = stored(2, "Add a frame.", {
+      status: "resolved",
+      claimedBy: "claude-1",
+      frameId: null,
+      version: null,
+    });
+    said(
+      c,
+      { kind: "result", from: "claude-1", text: "Added.", before: null, after: null },
+      c.created,
+    );
+  });
+  await tab(server);
+  await openIt(1);
+  const { side, pictures } = compare(1);
+  await side("Before").click();
+  expect(pictures()).toEqual([]);
+  expect(dialog(1).element().querySelectorAll(".e-cmpr-pic")).toHaveLength(1);
+  await side("After").click();
+  expect(pictures()).toEqual([{ alt: "After: Home", src: homePicture(3, "kh3") }]);
+
+  await userEvent.keyboard("{Escape}");
+  await pin(2).click();
+  await expect.element(dialog(2)).toBeVisible();
+  expect(dialog(2).getByRole("radiogroup").elements()).toHaveLength(0);
 });
 
 test("needs a person: the reason shows; the textbox sends it back made clear, or Close request closes it (s29 to s3, s29 to s9, A request no agent finishes 3)", async () => {
