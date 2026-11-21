@@ -3,6 +3,7 @@ import { useData, useRun } from "@tinkered/react";
 import { Canvas } from "./canvas";
 import { enterPassword, gates } from "./gate";
 import type { Gate } from "./gate";
+import { KeptText } from "./request";
 
 // `/s/<link>`: the share link's page (SPEC-viewer.md; the viewer-gate-password chart). No state of
 // its own: the gate cell says which page the tab is on, and the canvas reads the live board. The
@@ -15,6 +16,7 @@ function Ended() {
     <main>
       <h1>This link does not work</h1>
       <p>It has ended, or it is wrong. Ask the person who shared it for a new link.</p>
+      <KeptText />
     </main>
   );
 }
@@ -53,6 +55,7 @@ function PasswordGate({
       </form>
       {alert === "none" ? null : <p role="alert">{alerts[alert]}</p>}
       {enter.error ? <p role="alert">No answer. Try again.</p> : null}
+      <KeptText />
     </main>
   );
 }

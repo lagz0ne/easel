@@ -74,7 +74,8 @@ that a manifest refers to and removes the rest.
 ### Open a share link
 
 1. A viewer opens the link. The page asks for no name here: the first request asks for it
-   ([viewer](SPEC-viewer.md#open-the-link)).
+   ([viewer](SPEC-viewer.md#open-the-link)), and `share.name` sets it on the pass that the tab
+   holds.
 2. If the link has a password, the page shows textbox `Password` and button `Open`. A wrong one
    gives an `alert`. After 5 wrong tries in a minute from one address, the `alert` says to wait,
    and the page takes no password, not even the right one, until a minute has passed since the
@@ -84,8 +85,9 @@ that a manifest refers to and removes the rest.
 
 ## Contract
 
-Every call but `share.open` is refused `{ signIn: true }` without a live user token. `share.open`
-needs nothing but the link. In V1 any signed-in user may read and write any canvas: one server is
+Every call but `share.open` and `share.name` is refused `{ signIn: true }` without a live user
+token. `share.open` needs nothing but the link. `share.name` needs a live pass for the canvas that
+it names. In V1 any signed-in user may read and write any canvas: one server is
 one team.
 
 ```ts
@@ -112,6 +114,7 @@ type Frame = FrameInfo & { html: string }
 // a viewer
 "share.open": { kind: "open"; canvas: string; pass: string } | { kind: "locked" } | { kind: "wrong" }
             | { kind: "slow"; retryIn: number } | { kind: "gone" }
+"share.name": { kind: "named"; name: string }
 ```
 
 The success kinds are these, and only these. The CLI exits 0 on them, and MCP sets no `isError`;
@@ -129,6 +132,7 @@ every other kind exits 1 and sets `isError`.
 | `frame.move`                    | `moved`                           |
 | `frame.shot`                    | `ready`                           |
 | `share.open`                    | `open`                            |
+| `share.name`                    | `named`                           |
 
 Inputs:
 
@@ -156,6 +160,13 @@ Inputs:
 - `share.open` takes `{ link, password?, name? }`. `name` is optional: the page sends it only if
   the browser kept one. It is 1 to 40 characters; `password`, 1 to 1024. A password on a link
   that has none is no try: the link opens.
+- `share.name` takes `{ canvas, name }`, with the name 1 to 40 characters, trimmed, as
+  `share.open` takes it. The pass in the call's meta is the proof: the `mayName` guard judges it
+  as `mayRead` judges a read. No pass, a pass that is not live, or a pass for another canvas is
+  refused `{ ended: true }`; a pass that a new password ended is refused `{ locked: true }`. A
+  pass takes a name only once: a later name does not replace it, and `named` gives the name that
+  the pass holds. So the page gives the name at the first request with no new `share.open`: it
+  does not ask the password again, and the browser never keeps the password.
 - A `share.open` with no password, on a link that has one, answers `locked`. It is not a try, and
   is never locked out.
 - The flood limit: every `share.open` counts, any link, password or not, at most 30 a minute per
@@ -177,7 +188,7 @@ Inputs:
 
 `pass` is what the tab sends from then on. It is a separate 128-bit random value, not the link.
 The server keeps it only as its SHA-256 digest, with the link it was given on and the viewer's
-name, if the page sent one. A pass ends when its link ends or its link's password is set or
+name, if the page sent one with `share.open` or later with `share.name`. A pass ends when its link ends or its link's password is set or
 changed. Setting the same password again changes nothing: it ends no pass, and keeps the key
 generation.
 
@@ -243,15 +254,16 @@ number or section.
 
 ### Fact rules (the code graph decides)
 
-1. Every call above but `share.open` runs the `user` guard first. `share.open` runs no guard.
+1. Every call above but `share.open` and `share.name` runs the `user` guard first. `share.open`
+   runs no guard; `share.name` runs the `mayName` guard.
 2. Every operation that writes `frames`, `docs` or kept versions calls a store operation:
    `saveFrame`, `saveBox`, `dropFrame`, `dropCanvas` or `bumpKeys`.
 3. `pictureRoute` draws through the one `pictures.render`. `frame.shot` does not draw.
 4. `pictureRoute` depends on `pictureKey`, not on a user or a pass.
 5. The store's start hook writes cells only from rows it read.
 6. Every board read runs the `mayRead` guard: a user, or a live pass for that canvas.
-7. The viewer's calls are `share.open` and the viewer calls of the queue (`request.add`, `edit`,
-   `answer`, `accept`, `reopen`, `close`) only. No viewer call writes `frames` or `docs`.
+7. The viewer's calls are `share.open`, `share.name` and the viewer calls of the queue
+   (`request.add`, `edit`, `answer`, `accept`, `reopen`, `close`) only. No viewer call writes `frames` or `docs`.
 
 ### Judged rules (need reading the code)
 

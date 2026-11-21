@@ -32,6 +32,14 @@ export const maxZoom = 4;
 export const fitEdge = 40;
 /** A label's inverse zoom is rewritten once the zoom drifts this much, and at rest. */
 export const labelDrift = 0.1;
+/** A press that moves less than this, in screen pixels, is a click, not a drag. */
+export const clickSlop = 4;
+
+/**
+ * An element that takes its own pointer: a pin, or the popover of a request. A press on it does
+ * not pan the canvas, and text in it can be selected.
+ */
+export const ownPointer = "[data-own-pointer]";
 
 /** The ids of the live frames, in the order they went live. Only the stage writes it. */
 export const liveSet = data<readonly string[]>({ label: "viewer.liveSet", initial: [] });
@@ -90,6 +98,7 @@ export const stage = resource({
     let moving = false;
     let labelZoom = 0;
     let restWait: AbortController | null = null;
+    let travel = 0;
     let queue: string[] = [];
     let adding = 0;
     let settling = false;
@@ -143,9 +152,13 @@ export const stage = resource({
         shell.label.style.width = `${shell.box.w * labelZoom}px`;
       },
 
-      /** Every shown label, at the camera's zoom: after a 10% drift, and at rest. */
+      /**
+       * Every shown label, at the camera's zoom: after a 10% drift, and at rest. The pins and the
+       * popover of a request read the same inverse zoom from the world, to keep their screen size.
+       */
       writeLabels: () => {
         labelZoom = cam.z;
+        world?.style.setProperty("--e-unzoom", String(1 / cam.z));
         for (const shell of shells.values()) if (!shell.hidden) at.writeLabel(shell);
       },
 
@@ -314,8 +327,11 @@ export const stage = resource({
       },
 
       onDown: (event: PointerEvent) => {
-        if (event.button !== 0) return;
+        const own = event.target instanceof Element && event.target.closest(ownPointer);
+        if (event.button !== 0 || own) return;
+
         at.measure();
+        if (!pointers.size) travel = 0;
         pointers.set(event.pointerId, { x: event.clientX, y: event.clientY });
         // A pointer the browser does not know (a synthetic one) cannot be captured; it still
         // drags while it is over the canvas.
@@ -330,7 +346,9 @@ export const stage = resource({
         const old = pointers.get(event.pointerId);
         if (!old) return;
         if (pointers.size > 1) return at.pinch(event.pointerId, event.clientX, event.clientY);
+
         pointers.set(event.pointerId, { x: event.clientX, y: event.clientY });
+        travel += Math.hypot(event.clientX - old.x, event.clientY - old.y);
         at.pan(event.clientX - old.x, event.clientY - old.y);
       },
 
@@ -350,7 +368,30 @@ export const stage = resource({
         }
       },
 
-      noSelect: (event: Event) => event.preventDefault(),
+      /** Text in an element that takes its own pointer can be selected; no other. */
+      noSelect: (event: Event) =>
+        (event.target instanceof Element && event.target.closest(ownPointer)) ||
+        event.preventDefault(),
+
+      /**
+       * Where a click on the canvas is: the frame under it (the top one), and the place on that
+       * frame; or, out of all frames, the place on the canvas. Null for the end of a drag or a
+       * pinch, which is no click, and for a click on an element that takes its own pointer.
+       */
+      pick: (event: MouseEvent) => {
+        const own = event.target instanceof Element && event.target.closest(ownPointer);
+        if (travel >= clickSlop || pointers.size || own) return null;
+        at.measure();
+        const x = (event.clientX - view.left - cam.x) / cam.z;
+        const y = (event.clientY - view.top - cam.y) / cam.z;
+        const under = [...shells.values()]
+          .filter(
+            (s) => x >= s.box.x && x <= s.box.x + s.box.w && y >= s.box.y && y <= s.box.y + s.box.h,
+          )
+          .at(-1);
+
+        return { x, y, frame: under ? { ...under.box } : null };
+      },
 
       onResize: ([entry]: ResizeObserverEntry[]) => {
         if (!entry) return;

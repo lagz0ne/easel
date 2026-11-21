@@ -1,5 +1,5 @@
 import { resource, tag } from "@tinkered/core";
-import { useData, useResource } from "@tinkered/react";
+import { useData, useResource, useRun } from "@tinkered/react";
 import { memo } from "react";
 import { z } from "zod";
 
@@ -8,6 +8,8 @@ import { maxPicturePixels, picturePrefix } from "@/frames/contract";
 import type { FrameInfo } from "@/frames/contract";
 
 import "./canvas.css";
+import { escapeKey, pickPlace, resendOnBack } from "./draft";
+import { RequestButton, Requests } from "./request";
 import { liveSet, painted, paintScript, stage, zoomShown } from "./stage";
 
 // The canvas behind `/s/<link>` (SPEC-viewer.md § See the frames, § Pan and zoom, § Watch an
@@ -210,21 +212,46 @@ export function Canvas({ canvas, opening }: { canvas: string; opening: React.Rea
   const state = useData(frames.board.status(part));
   const lost = useData(frames.board.faults, (f) => f.frames?.fault === "link");
   const at = useResource(stage);
+  useResource(resendOnBack);
+  useResource(escapeKey);
+  const pick = useRun(pickPlace);
   if (state?.status === "fault" && ended.safeParse(state.fault.payload).success) return opening;
 
   return (
     <main className="e-canvas">
-      <section ref={at.viewport} className="e-viewport" aria-label="Frames">
+      <section
+        ref={at.viewport}
+        className="e-viewport"
+        aria-label="Frames"
+        onClick={(event) => {
+          const spot = at.pick(event.nativeEvent);
+          if (!spot) return;
+          const frame = spot.frame ? list.find((f) => f.id === spot.frame?.id) : undefined;
+          const place = frame
+            ? {
+                frameId: frame.id,
+                frameName: frame.name,
+                version: frame.version,
+                x: spot.x - frame.x,
+                y: spot.y - frame.y,
+                box: { x: frame.x, y: frame.y, w: frame.w, h: frame.h },
+              }
+            : { frameId: null, frameName: null, version: null, x: spot.x, y: spot.y, box: null };
+          pick.run({ input: { canvas, place } });
+        }}
+      >
         <div ref={at.world} className="e-world">
           {list.map((f) => (
             <Shell key={f.id} canvas={canvas} frame={f} at={at} />
           ))}
+          <Requests canvas={canvas} list={list} lost={lost} />
         </div>
       </section>
       {list.length === 0 ? (
         <Empty canvas={canvas} ready={state?.status === "ready"} lost={lost} />
       ) : null}
       <div className="e-toolbar" role="toolbar" aria-label="Canvas">
+        <RequestButton />
         <button type="button" onClick={() => at.zoomOut()}>
           Zoom out
         </button>

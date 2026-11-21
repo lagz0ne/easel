@@ -18,7 +18,7 @@ import { mayName, passOps, shareOps, shareServer } from "@/frames/share.server";
 import { framesServer } from "@/frames/store.server";
 import { queue } from "@/queue";
 import { mayAct } from "@/queue/guards.server";
-import { queueOps, requestOps } from "@/queue/ops.server";
+import { requestOps } from "@/queue/ops.server";
 import { queueServer } from "@/queue/store.server";
 
 // `share.name` (SPEC-frames § Contract; SPEC-viewer § Open the link): the viewer gives a name at

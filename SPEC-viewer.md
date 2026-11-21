@@ -33,7 +33,10 @@ this spec wins, and the screen gets a fix.
 1. The page asks for no name when the link opens. The viewer sees the canvas at once (after the
    password, if the link has one). The first `Send` of a request asks for the name in the same
    popover (textbox `Your name`), once per browser, and the browser keeps it. A viewer who only
-   looks gives no name. Decided on 2026-11-21 in the E3 design (page `Work · E3 Share and look`),
+   looks gives no name. `share.name` gives the name to the pass that the tab holds
+   ([frames](SPEC-frames.md)): the page does not open the link again, so it does not ask the
+   password again. A browser that kept a name sends it with `share.open`, so its first `Send` asks
+   nothing. Decided on 2026-11-21 in the E3 design (page `Work · E3 Share and look`),
    as Pastel, BugHerd and Markup.io do.
 2. The rest of the gate (password, wrong tries, an unknown link) is in
    [frames](SPEC-frames.md).
@@ -84,7 +87,9 @@ this spec wins, and the screen gets a fix.
 ### Ask for a change
 
 1. A viewer presses the button `Request` (it shows pressed), and the canvas goes into request mode.
-2. They click a part of a frame. The part gets an outline and a draft pin. Or they click the
+2. They click a part of a frame. The part gets an outline and a draft pin. (The outline is not
+   built yet: the page cannot read the frame's document in its sandbox. The draft pin shows the
+   place.) Or they click the
    canvas out of all frames, for a request about the whole canvas (E4.1 N2). A popover opens next
    to the pin, with a textbox `Request` and the button `Send`. Under the textbox, the place shows:
    "On <frame>" or "On the whole canvas". The page makes a client key for this request, and keeps
@@ -271,6 +276,8 @@ and the server's clock offset). Its calls are:
 
 - `share.open { link, password?, name? }` ([frames](SPEC-frames.md)), once at the gate. `name` is
   the name this browser kept, if it kept one.
+- `share.name { canvas, name }` ([frames](SPEC-frames.md)), at the first `Send` of a browser that
+  kept no name, or when `request.add` is refused `{ name: true }` because the pass has no name.
 - `request.add { canvas, frameId, version, x, y, text, key }` ([queue](SPEC-queue.md)). `key` is
   the client key: one per request, the same on each retry of it.
 - `request.edit`, `answer`, `accept`, `reopen` and `close` ([queue](SPEC-queue.md)), from the
@@ -301,8 +308,8 @@ camera controls.
 5. The page reads `docs` only by `of({ canvas, id })`, never by `where`.
 6. Each stateful page feature (camera, live set, request mode, open request, connection status,
    clock, last visit) is a Tinker cell or resource. There is no useState, useEffect or useReducer.
-7. The page's only calls are `share.open` and `request.add`, `edit`, `answer`, `accept`, `reopen`
-   and `close`.
+7. The page's only calls are `share.open`, `share.name` and `request.add`, `edit`, `answer`,
+   `accept`, `reopen` and `close`.
 8. One page module adds the paint script, to the document it gives the iframe. No server module
    and no stored document carries it.
 9. The panel reads time only from the clock capsule, never from `Date.now()`.

@@ -84,7 +84,7 @@ const waitOut = operation({
 export const nameKey = "easel.viewerName";
 
 /** The name this browser kept, if it kept a good one. */
-const keptName = operation({
+export const keptName = operation({
   label: "viewer.keptName",
   run: () => viewerName.safeParse(localStorage.getItem(nameKey)).data ?? null,
 });
@@ -243,34 +243,51 @@ const lockedFault = z.object({ payload: z.object({ locked: z.literal(lockedRefus
  * refusal of that new pass before it reads shows the ended page, with no third try. Once it
  * reads, a later refusal (trimmed once more, met on a reconnect) opens the link once more again.
  */
-const refusals = resource({
-  label: "viewer.refusals",
-  target: "scope",
+const showRefusal = operation({
+  label: "viewer.showRefusal",
+  input: z.object({ fault: z.unknown() }),
   depends: {
-    faults: frames.board.faults,
     pages: gates.controller,
     shown: shownLink.controller,
     passes: heldPasses.controller,
     openLink,
   },
-  factory: ({ faults, pages, shown, passes, openLink }, ctx) => {
+  run: ({ pages, shown, passes, openLink }, { input: { fault } }) => {
+    const link = shown.get();
+    const gate = pages.of({ link }).get();
+    if (gate?.page !== "canvas") return;
+
+    // The read is back: a later refusal opens the link once more again.
+    if (fault === undefined) return gate.again && pages.set({ ...gate, again: false });
+
+    if (lockedFault.safeParse(fault).success) {
+      passes.delete({ link });
+      return pages.set({ link, page: "password", alert: "none" });
+    }
+    if (!endedFault.safeParse(fault).success) return;
+    if (gate.again) return pages.set({ link, page: "ended" });
+
+    pages.delete({ link });
+    void openLink.run({ input: { link, again: true } });
+  },
+});
+
+/**
+ * The watch of the canvas read's refusals. Only a change of the frames read's fault counts: the
+ * reads of the other cells (a request's) are refused with it, and a late refusal of an ended pass
+ * must not end the pass that came after it.
+ */
+const refusals = resource({
+  label: "viewer.refusals",
+  target: "scope",
+  depends: { faults: frames.board.faults, showRefusal },
+  factory: ({ faults, showRefusal }, ctx) => {
+    let last = faults.get().frames;
     const unwatch = faults.watch((next) => {
-      const link = shown.get();
-      const gate = pages.of({ link }).get();
-      if (gate?.page !== "canvas") return;
+      if (next.frames === last) return;
 
-      // The read is back: a later refusal opens the link once more again.
-      if (next.frames === undefined) return gate.again && pages.set({ ...gate, again: false });
-
-      if (lockedFault.safeParse(next.frames).success) {
-        passes.delete({ link });
-        return pages.set({ link, page: "password", alert: "none" });
-      }
-      if (!endedFault.safeParse(next.frames).success) return;
-      if (gate.again) return pages.set({ link, page: "ended" });
-
-      pages.delete({ link });
-      void openLink.run({ input: { link, again: true } });
+      last = next.frames;
+      void showRefusal.run({ input: { fault: next.frames } });
     });
     ctx.defer(() => unwatch());
 
