@@ -81,9 +81,11 @@ Panels stay `draft`, and the proof does not check them. **One layer of backgroun
 never lies on another panel. Doop draws each frame as a live page, and the first version, with a
 journey panel behind its groups, had render problems (the human, 2026-11-21). A frame that comes to
 a page goes in front of the frames there. So to put screens in front of new panels, make the panels
-first, then move each screen to a page and back. A move on the same page keeps the stacking. Keep
-each screen as its own frame: a link to a state inside a tall frame opens at its top, and the
-prototype needs each state as a frame.
+first, then move each screen to a page and back. A move on the same page keeps the stacking. Leave
+at least 380 px above each panel and 200 px beside it: Doop draws frame names at one size on the
+screen, so at low zoom a name covers more of the canvas above its frame. Keep each screen as its own
+frame: a link to a state inside a tall frame opens at its top, and the prototype needs each state as
+a frame.
 
 ## Frame names
 
