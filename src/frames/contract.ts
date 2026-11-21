@@ -1,6 +1,8 @@
 import { data, remoteData, rpc } from "@tinkered/core";
 import { z } from "zod";
 
+import { messages, requests, serverClock } from "@/queue/cells";
+
 import { sharePassword, sharePath } from "./share";
 
 // frames' contract (SPEC-frames.md § Contract): the CLI, MCP and the page import it. `framesApi`
@@ -128,8 +130,11 @@ export const docs = data({
   key: (d) => ({ canvas: d.canvas, id: d.id }),
 });
 
-/** `easel.board`: what a live tab watches. */
-export const framesBoard = remoteData({ frames, docs });
+/**
+ * `easel.board`: what a live tab watches. The queue's cells ride it (SPEC-viewer.md § Contract),
+ * so `mayRead` guards them, and a link that ends refuses them, as it does the frames.
+ */
+export const framesBoard = remoteData({ frames, docs, requests, messages, serverClock });
 
 const gone = z.object({ kind: z.literal("gone") });
 

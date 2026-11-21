@@ -52,6 +52,13 @@ export const loadDocs = operation({
   },
 });
 
+/** The board's `serverClock` load: the time of the server now, for a tab's clock offset. */
+export const loadServerClock = operation({
+  label: "frames.loadServerClock",
+  input: z.object({ canvas: z.string() }),
+  run: (_, { input, clock }) => [{ canvas: input.canvas, now: clock.currentTimeMillis() }],
+});
+
 /** `canvas.create`: the name's key, if no canvas has it (decision C3). */
 export const createCanvas = operation({
   label: "canvas.create.do",
@@ -167,4 +174,4 @@ export const framesOps = {
 } as const;
 
 /** The board's loads: `frames.board({ serve: true, load: framesLoads, onStart: [mayRead] })`. */
-export const framesLoads = { docs: loadDocs } as const;
+export const framesLoads = { docs: loadDocs, serverClock: loadServerClock } as const;

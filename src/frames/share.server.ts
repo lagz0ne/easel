@@ -120,8 +120,15 @@ const endPasses = operation({
   depends: { bumpKeys, invalidate: framesBoard.invalidate },
   run: async ({ bumpKeys, invalidate }, { input }) => {
     await bumpKeys.run({ input });
+    const canvas = { canvas: input.canvas };
     await invalidate.run({
-      input: { frames: { canvas: input.canvas }, docs: { canvas: input.canvas } },
+      input: {
+        frames: canvas,
+        docs: canvas,
+        requests: canvas,
+        messages: canvas,
+        serverClock: canvas,
+      },
     });
   },
 });
@@ -447,13 +454,18 @@ export const openShare = operation({
 
 /** A pass's state as a read finds it: its link is live and its pass under the current password. */
 const passRow = z
-  .object({ canvas: z.string(), pass_gen: z.number(), link_gen: z.number() })
+  .object({
+    canvas: z.string(),
+    name: z.string().nullable(),
+    pass_gen: z.number(),
+    link_gen: z.number(),
+  })
   .nullable();
 
 /**
  * What a pass may read: its canvas, `live`, or `locked` once a password set or changed after it
- * was given ended it. Null for any other pass: its link ended, or it was never given, or it was
- * the link's oldest past 1000.
+ * was given ended it, and the viewer's name it was given with (null: none). Null for any other
+ * pass: its link ended, or it was never given, or it was the link's oldest past 1000.
  */
 export const passCanvas = operation({
   label: "frames.passCanvas",
@@ -462,17 +474,18 @@ export const passCanvas = operation({
   run: async (
     { connection, digestOf },
     { input: pass },
-  ): Promise<{ canvas: string; state: "live" | "locked" } | null> => {
+  ): Promise<{ canvas: string; name: string | null; state: "live" | "locked" } | null> => {
     const row = passRow.parse(
       connection.db.$client
         .query(
-          "SELECT l.canvas, p.pw_gen AS pass_gen, l.pw_gen AS link_gen FROM frames_passes p JOIN frames_links l ON l.link = p.link WHERE p.digest = ? AND l.ended IS NULL",
+          "SELECT l.canvas, p.name, p.pw_gen AS pass_gen, l.pw_gen AS link_gen FROM frames_passes p JOIN frames_links l ON l.link = p.link WHERE p.digest = ? AND l.ended IS NULL",
         )
         .get(digestOf.run({ input: pass })),
     );
     if (!row) return null;
 
-    return { canvas: row.canvas, state: row.pass_gen < row.link_gen ? "locked" : "live" };
+    const state = row.pass_gen < row.link_gen ? "locked" : "live";
+    return { canvas: row.canvas, name: row.name, state };
   },
 });
 

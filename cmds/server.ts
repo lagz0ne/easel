@@ -27,6 +27,10 @@ import { ops } from "@/ops";
 import { opsOwnerOps, opsServer, opsUserOps, ready } from "@/ops/ops.server";
 import { observePanics } from "@/ops/panic.server";
 import { opsTelemetryRoute, opsThreadRoute } from "@/ops/sink.server";
+import { queue } from "@/queue";
+import { mayAct } from "@/queue/guards.server";
+import { queueOps, requestOps } from "@/queue/ops.server";
+import { queueServer } from "@/queue/store.server";
 import { release } from "@/release";
 import { todo } from "@/todo";
 import { todoOps } from "@/todo/ops.server";
@@ -104,6 +108,8 @@ export default defineMain(async ({ env, args, signal, stdout, stderr, exit }) =>
       frames.api,
       frames.board,
       frames.viewer,
+      queue.api,
+      queue.viewer,
     ],
     origin,
     // 2 MiB, above the 1 MiB document: a document a little too big gets `tooBig`, not a closed
@@ -157,6 +163,11 @@ export default defineMain(async ({ env, args, signal, stdout, stderr, exit }) =>
       // Share links and passes, in EASEL_DB; `share.open` needs nothing but the link (fact rule 1).
       shareServer(),
       frames.viewer({ implement: shareOps }),
+      // Requests and their messages, in EASEL_DB, after frames (SPEC-queue): an agent's calls
+      // need a user; a viewer's, a live pass for the canvas or a user (fact rules 1, 3).
+      queueServer({ stdout }),
+      queue.api({ implement: queueOps, onStart: [user] }),
+      queue.viewer({ implement: requestOps, onStart: [mayAct] }),
       // The build that runs: the image sets GIT_SHA and BUILD.
       release({ commit: set.GIT_SHA, build: Number(set.BUILD) }),
       // The error groups, readiness and the fixer's stamp, kept in EASEL_DB.

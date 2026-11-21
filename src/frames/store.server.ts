@@ -22,7 +22,11 @@ export const canvases = data({
   key: (c) => ({ key: c.key }),
 });
 
-/** The tables, made at start. A binary carries no migrations folder; frames owns two tables. */
+/**
+ * The tables, made at start. A binary carries no migrations folder. `frames_kept` holds the old
+ * versions that a request or a message refers to (judged rule 16): the queue's store fills it, in
+ * the statement of the put or the delete that replaces one.
+ */
 const schema = `
 CREATE TABLE IF NOT EXISTS frames_canvases (
   key TEXT PRIMARY KEY NOT NULL,
@@ -45,6 +49,13 @@ CREATE TABLE IF NOT EXISTS frames_frames (
 CREATE TABLE IF NOT EXISTS frames_keygen (
   canvas TEXT PRIMARY KEY NOT NULL,
   gen INTEGER NOT NULL
+);
+CREATE TABLE IF NOT EXISTS frames_kept (
+  canvas TEXT NOT NULL,
+  id TEXT NOT NULL,
+  version INTEGER NOT NULL,
+  html TEXT NOT NULL,
+  PRIMARY KEY (canvas, id, version)
 );`;
 
 /** A canvas's picture key generation, in the statement it is part of: 0 until its first bump. */
