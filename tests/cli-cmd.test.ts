@@ -2,6 +2,7 @@ import {
   chmodSync,
   mkdirSync,
   mkdtempSync,
+  readdirSync,
   readFileSync,
   rmSync,
   statSync,
@@ -208,6 +209,35 @@ test("a server that is not there is unreachable (69)", async () => {
     code: 69,
     out: `${JSON.stringify({ unreachable: `http://localhost:${port}` })}\n`,
   });
+});
+
+test("EASEL_TOKEN: with no EASEL_SERVER it is usage (64); it reads no hosts file; --server must be EASEL_SERVER", async () => {
+  const dir = home();
+  mkdirSync(join(dir, ".config", "easel"), { recursive: true });
+  writeFileSync(hostsOf(dir), "{ not json");
+  const free = Bun.serve({ port: 0, fetch: () => new Response(null) });
+  const port = free.port;
+  await free.stop();
+  const env = { HOME: dir, EASEL_TOKEN: "t0ken" };
+
+  expect(await main(["whoami", "--json"], env)).toEqual({
+    code: 64,
+    out: `${JSON.stringify({ usage: "EASEL_TOKEN needs EASEL_SERVER, the address of its server" })}\n`,
+  });
+  expect(await main(["whoami", "--json"], { ...env, EASEL_SERVER: `localhost:${port}` })).toEqual({
+    code: 69,
+    out: `${JSON.stringify({ unreachable: `http://localhost:${port}` })}\n`,
+  });
+  expect(
+    await main(["whoami", "--json", "--server", "other.example"], {
+      ...env,
+      EASEL_SERVER: `localhost:${port}`,
+    }),
+  ).toEqual({
+    code: 64,
+    out: `${JSON.stringify({ usage: `EASEL_TOKEN is for http://localhost:${port}: unset it to use other.example` })}\n`,
+  });
+  expect(readFileSync(hostsOf(dir), "utf8")).toBe("{ not json");
 });
 
 // ---- End to end
@@ -584,5 +614,29 @@ test(
       code: 64,
       out: "--size takes WxH in CSS pixels, each 1 to 16000, as 390x844\n",
     });
+  },
+);
+
+test(
+  "a run with only EASEL_TOKEN and EASEL_SERVER: whoami and next answer, and it leaves no file",
+  slow,
+  async () => {
+    const srv = await serve();
+    const ann = home();
+    await easel(ann, "login", srv.origin, "--name", "ann", "--setup", srv.setupCode());
+    const token = String(
+      JSON.parse(readFileSync(hostsOf(ann), "utf8")).hosts[srv.origin].user.token,
+    );
+    const run = home();
+    const env = { HOME: run, EASEL_TOKEN: token, EASEL_SERVER: srv.origin };
+
+    expect(await main(["whoami"], env)).toEqual({ code: 0, out: `ann (owner) on ${srv.origin}\n` });
+    expect(await main(["next", "--json"], env)).toEqual({
+      code: 0,
+      out: `${JSON.stringify({ kind: "empty" })}\n`,
+    });
+    expect(await main(["logout", "--json"], env)).toMatchObject({ code: 64 });
+    expect(await main(["whoami"], env)).toMatchObject({ code: 0 });
+    expect(readdirSync(run)).toEqual([]);
   },
 );

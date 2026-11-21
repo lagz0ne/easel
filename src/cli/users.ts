@@ -4,8 +4,8 @@ import { z } from "zod";
 import { access } from "@/access";
 import { code, name } from "@/access/contract";
 
-import { deadline, exitOf, faultExit } from "./exit";
-import { entryOf, saveEntry, server } from "./hosts";
+import { deadline, exitOf, exits, faultExit } from "./exit";
+import { entryOf, envToken, saveEntry, server } from "./hosts";
 import { say } from "./output";
 
 // `easel whoami`, `easel logout` and `easel users` (SPEC-access.md § Revoke a user, § Sign out).
@@ -40,7 +40,8 @@ export const whoami = operation({
 
 /**
  * `easel logout` (`login.end`): the server removes the user, then the CLI deletes the token. The
- * last owner's answers `last`, and the token, which still works, is kept.
+ * last owner's answers `last`, and the token, which still works, is kept. With `EASEL_TOKEN` it
+ * changes nothing and is usage (64): a run must not remove its own user.
  */
 export const logout = operation({
   label: "cli.logout",
@@ -53,8 +54,17 @@ export const logout = operation({
     saveEntry,
     end: access.user["login.end"],
     server: server.required,
+    envToken,
   },
-  run: async ({ say, exitOf, faultExit, deadline, entryOf, saveEntry, end, server }) => {
+  run: async (deps) => {
+    const { say, exitOf, faultExit, deadline, entryOf, saveEntry, end, server } = deps;
+    if (deps.envToken !== null) {
+      const usage =
+        "EASEL_TOKEN is set: logout changes nothing; an owner ends this user with `easel users revoke <name>`";
+      say.run({ input: { json: { usage }, text: usage, error: true } });
+      return exits.usage;
+    }
+
     const stop = deadline.run({ input: "login.end" });
     const reply = await end.settle({ input: null, signal: stop.signal });
     stop.abort();

@@ -6,7 +6,7 @@ import { build, fingerprint } from "@/ops/contract";
 
 import { channelCommand, channelRun } from "./channels";
 import { framesCommand, framesRun, shareCommand, shareRun } from "./frames";
-import { entryOf, hostsPath, server } from "./hosts";
+import { entryOf, envToken, hostsPath, server } from "./hosts";
 import { login, waitLogin } from "./login";
 import {
   errorsHandOff,
@@ -146,13 +146,13 @@ const run = operation({
 
 /**
  * The token this server's user holds, as the call's bearer (RFC 6750): the `meta` of the rpc
- * client, read on each call. None when the CLI holds no token for it.
+ * client, read on each call. `EASEL_TOKEN` comes first. None when the CLI holds no token for it.
  */
 const bearer = operation({
   label: "cli.bearer",
-  depends: { entryOf },
-  run: async ({ entryOf }): Promise<Record<string, string>> => {
-    const token = entryOf.run().user?.token;
+  depends: { entryOf, envToken },
+  run: async ({ entryOf, envToken }): Promise<Record<string, string>> => {
+    const token = envToken ?? entryOf.run().user?.token;
 
     return token ? { authorization: `Bearer ${token}` } : {};
   },
@@ -166,6 +166,7 @@ export const cli = capsule({
     json,
     hosts: hostsPath.required,
     server: server.required,
+    token: envToken,
   },
   exports: { run, bearer },
 });

@@ -4,7 +4,7 @@ import { z } from "zod";
 import { loginApi, ownerApi, successKinds, userApi } from "@/access/contract";
 import { opsOwnerApi, opsSuccessKinds, opsUserApi } from "@/ops/contract";
 
-import { entryOf, saveEntry, server } from "./hosts";
+import { entryOf, envToken, saveEntry, server } from "./hosts";
 import { say } from "./output";
 
 // The exit table (SPEC-cli.md § Contract). A kind's exit reads the contract's success list
@@ -89,10 +89,13 @@ const signIn = z.object({ signIn: z.literal(true) });
 const refusal = operation({
   label: "cli.refusal",
   input: z.unknown(),
-  depends: { server: server.required, entryOf, saveEntry },
-  run: ({ server, entryOf, saveEntry }, { input: payload }) => {
+  depends: { server: server.required, entryOf, saveEntry, envToken },
+  run: ({ server, entryOf, saveEntry, envToken }, { input: payload }) => {
     if (!signIn.safeParse(payload).success) {
       return `refused ${JSON.stringify(payload)}: this needs an owner; ask an owner of ${server}`;
+    }
+    if (envToken !== null) {
+      return `EASEL_TOKEN does not work on ${server}: get a new one with \`easel login ${server} --name <name> --print-token\``;
     }
 
     // The token no longer works (revoked, or logged out): the CLI keeps it no longer.

@@ -73,9 +73,14 @@ run, E4.5) signs in from the env (epics R2, A8). Prior art:
 2. The team lead puts the token in a secret of GitHub Actions, `EASEL_TOKEN`, and the address in
    `EASEL_SERVER`. The run installs the CLI with the line of "Get the command line".
 3. When `EASEL_TOKEN` is set, the CLI uses it with `EASEL_SERVER`, and does not read or write
-   `hosts.json`. `EASEL_TOKEN` with no `EASEL_SERVER` exits 64, and says so.
+   `hosts.json`. `EASEL_TOKEN` with no `EASEL_SERVER` exits 64, and says so. A `--server` that is
+   not `EASEL_SERVER` exits 64 too.
 4. With `EASEL_TOKEN`, `easel logout` changes nothing and exits 64: a run must not remove its own
-   user. An owner stops it with `easel users revoke github`.
+   user. An owner stops it with `easel users revoke github`. `easel login` and `login --resume`
+   exit 64 too, because they keep a token in `hosts.json`; `login --print-token` keeps nothing, so
+   it works.
+5. When the server refuses `EASEL_TOKEN`, the CLI exits 2 and says to get a new token with
+   `--print-token`.
 
 ### Wait longer than one call
 

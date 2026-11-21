@@ -7,7 +7,7 @@ import { access } from "@/access";
 import { code, loginApi, name, roles } from "@/access/contract";
 
 import { deadline, exitOf, exits, faultExit } from "./exit";
-import { entryOf, saveEntry, server } from "./hosts";
+import { entryOf, envToken, saveEntry, server } from "./hosts";
 import { say } from "./output";
 
 // `easel login` (SPEC-access.md § Join a server, § Become the first owner), checked against the
@@ -289,12 +289,16 @@ const setupLogin = operation({
 
 /**
  * Why this server takes no new login now: it holds a token, or a login waits. A new login would
- * drop a token that may work (the chart's AWorkingTokenIsNeverDropped).
+ * drop a token that may work (the chart's AWorkingTokenIsNeverDropped). With `EASEL_TOKEN`, the
+ * CLI keeps no file, so a login could keep nothing.
  */
 const busy = operation({
   label: "cli.busy",
-  depends: { entryOf, server: server.required },
-  run: ({ entryOf, server }) => {
+  depends: { entryOf, server: server.required, envToken },
+  run: ({ entryOf, server, envToken }) => {
+    if (envToken !== null) {
+      return "EASEL_TOKEN is set: this run keeps no login; unset EASEL_TOKEN to log in";
+    }
     const { user, pending } = entryOf.run();
     if (user) return `signed in to ${server} as ${user.name}: run \`easel logout\` first`;
     if (pending) {

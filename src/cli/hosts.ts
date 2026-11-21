@@ -65,6 +65,13 @@ export const hostsAt = z
 /** The server this run talks to, as an origin: the key of its entry. */
 export const server = tag<string>({ label: "cli.server" });
 
+/**
+ * `EASEL_TOKEN`, as the cmd read it: a run with no file (SPEC-cli.md § Sign in with no file). Set,
+ * the CLI sends it and never reads or writes the hosts file (judged rule 5), as `gh` does with
+ * `GH_TOKEN`. Null when it is not set.
+ */
+export const envToken = tag<string | null>({ label: "cli.envToken", default: null });
+
 /** The hosts file as it is now. A file that is not one throws: the cmd checked it at start. */
 export const loadHosts = operation({
   label: "cli.hosts.load",
@@ -72,23 +79,27 @@ export const loadHosts = operation({
   run: ({ path }) => hostsAt.parse(path),
 });
 
-/** This server's entry: empty when it has none. */
+/** This server's entry: empty when it has none, and with `EASEL_TOKEN` (no file is read). */
 export const entryOf = operation({
   label: "cli.hosts.entry",
-  depends: { loadHosts, server: server.required },
-  run: ({ loadHosts, server }): Entry => loadHosts.run().hosts[server] ?? {},
+  depends: { loadHosts, server: server.required, envToken },
+  run: ({ loadHosts, server, envToken }): Entry =>
+    envToken === null ? (loadHosts.run().hosts[server] ?? {}) : {},
 });
 
 /**
  * Writes this server's entry; an empty one is deleted. The first server written becomes the
  * default, and stays so. A new file, made 0600, is renamed over the old: no other user can read
- * a token, not even for a moment (gh's hosts.yml and kubectl's config are 0600 too).
+ * a token, not even for a moment (gh's hosts.yml and kubectl's config are 0600 too). With
+ * `EASEL_TOKEN`, it writes nothing.
  */
 export const saveEntry = operation({
   label: "cli.hosts.save",
   input: entry,
-  depends: { loadHosts, path: hostsPath.required, server: server.required },
-  run: ({ loadHosts, path, server }, { input }) => {
+  depends: { loadHosts, path: hostsPath.required, server: server.required, envToken },
+  run: ({ loadHosts, path, server, envToken }, { input }) => {
+    // With `EASEL_TOKEN`, nothing is kept: the run leaves no file (judged rule 5).
+    if (envToken !== null) return;
     const hosts = loadHosts.run();
     const { [server]: _old, ...others } = hosts.hosts;
     const kept = input.user || input.pending ? { ...others, [server]: input } : others;

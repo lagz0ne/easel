@@ -1,6 +1,14 @@
-import { existsSync, mkdtempSync, readFileSync, rmSync, statSync } from "node:fs";
+import {
+  existsSync,
+  mkdirSync,
+  mkdtempSync,
+  readFileSync,
+  rmSync,
+  statSync,
+  writeFileSync,
+} from "node:fs";
 import { tmpdir } from "node:os";
-import { join } from "node:path";
+import { dirname, join } from "node:path";
 
 import { bunSqlite } from "@tinkered/bun/sqlite";
 import { exits } from "@tinkered/cli/test";
@@ -91,7 +99,7 @@ function home() {
   return join(dir, "easel", "hosts.json");
 }
 
-type Options = { peer?: string; json?: boolean; path?: string };
+type Options = { peer?: string; json?: boolean; path?: string; token?: string };
 
 /** One CLI, as the cmd builds it, on the memory transport: what it prints, and its runs. */
 async function easel(srv: Srv, options: Options = {}) {
@@ -117,6 +125,7 @@ async function easel(srv: Srv, options: Options = {}) {
         json: options.json ?? true,
         server: origin,
         hosts: path,
+        token: options.token ?? null,
       }),
     ],
   });
@@ -621,4 +630,47 @@ test("each fault has its exit: invalid 65, encode and decode 70, link 69; an err
   await expect(async () => a.scope.run(faultExit, { input: new Error("a bug") })).rejects.toThrow(
     "a bug",
   );
+});
+
+// ---- Sign in with no file: EASEL_TOKEN (SPEC-cli.md § Sign in with no file)
+
+/** A hosts file that is not one: a CLI that reads it fails. */
+function brokenHosts() {
+  const path = home();
+  mkdirSync(dirname(path), { recursive: true });
+  writeFileSync(path, "{ not json");
+
+  return path;
+}
+
+test("with EASEL_TOKEN the CLI uses it and never reads or writes hosts.json; a refused token says to get a new one", async () => {
+  const srv = await boot();
+  const a = await ann(srv);
+  const path = brokenHosts();
+  const run = await easel(srv, { token: a.hosts().user.token, path, json: false });
+
+  expect(await run.run({ kind: "whoami" })).toBe(0);
+  expect(run.out.join("")).toBe(`ann (owner) on ${origin}\n`);
+  expect(readFileSync(path, "utf8")).toBe("{ not json");
+
+  const stranger = await easel(srv, { token: "not-a-token", path, json: false });
+  expect(await stranger.run({ kind: "whoami" })).toBe(2);
+  expect(stranger.err.join("")).toContain(`EASEL_TOKEN does not work on ${origin}`);
+  expect(readFileSync(path, "utf8")).toBe("{ not json");
+});
+
+test("with EASEL_TOKEN, logout changes nothing and exits 64; login and login --resume exit 64 too", async () => {
+  const srv = await boot();
+  const a = await ann(srv);
+  const path = brokenHosts();
+  const run = await easel(srv, { token: a.hosts().user.token, path });
+
+  expect(await run.run({ kind: "logout" })).toBe(64);
+  expect(run.lines()).toEqual([{ usage: expect.stringContaining("easel users revoke") }]);
+  expect(await run.run({ kind: "whoami" })).toBe(0);
+  run.lines();
+  expect(await run.run(login("other", { noWait: true }))).toBe(64);
+  expect(run.lines()).toEqual([{ usage: expect.stringContaining("EASEL_TOKEN is set") }]);
+  expect(await run.run({ kind: "resume" })).toBe(64);
+  expect(readFileSync(path, "utf8")).toBe("{ not json");
 });

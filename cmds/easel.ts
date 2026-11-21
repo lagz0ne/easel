@@ -71,6 +71,8 @@ const help = `easel: the canvas CLI. Every command takes --json (one JSON value 
   easel channel ls                                 the channels; the last 4 characters of each token (owner)
   easel channel rm <name>                          remove a channel; its issues stay on GitHub (owner)
 
+With EASEL_TOKEN set, the CLI sends that token to EASEL_SERVER, and reads and writes no hosts file.
+
 Exit: 0 success, 1 another answer, 2 refused, 64 usage, 65 invalid, 69 unreachable, 70 failed,
 76 missing, 78 a hosts file that cannot be read.
 `;
@@ -609,16 +611,54 @@ const origin = z
 /** A run that ends before it reaches a server: its exit code, and what it prints. */
 type Early = { code: number; text: string; json: Record<string, unknown> };
 
+/**
+ * A run with no file (SPEC-cli.md § Sign in with no file): `EASEL_TOKEN` and `EASEL_SERVER`, as
+ * `gh` reads `GH_TOKEN` and `GH_HOST`. Empty counts as unset. Null when `EASEL_TOKEN` is not set.
+ */
+const tokenEnv = z
+  .object({ EASEL_TOKEN: z.string().optional(), EASEL_SERVER: z.string().optional() })
+  .transform((env) => (env.EASEL_TOKEN ? { token: env.EASEL_TOKEN, at: env.EASEL_SERVER } : null));
+
+type Planned = { path: string; server: string; token: string | null; command: Command };
+
+/**
+ * With `EASEL_TOKEN`: the server is `EASEL_SERVER`, and no hosts file is read (judged rule 5). A
+ * `--server` (or a login's server) must be that one.
+ */
+const tokenRun = z
+  .object({
+    token: z.string(),
+    at: z.string().optional(),
+    asked: z.custom<{ at?: string; command: Command }>(),
+    path: z.string(),
+  })
+  .transform(({ token, at, asked, path }): Early | Planned => {
+    const server = origin.safeParse(at ?? "");
+    if (!server.success) {
+      const usage = "EASEL_TOKEN needs EASEL_SERVER, the address of its server";
+      return { code: 64, text: usage, json: { usage } };
+    }
+
+    const typed = origin.safeParse(asked.at ?? server.data);
+    if (typed.success && typed.data === server.data) {
+      return { path, server: server.data, token, command: asked.command };
+    }
+
+    const usage = `EASEL_TOKEN is for ${server.data}: unset it to use ${asked.at}`;
+    return { code: 64, text: usage, json: { usage } };
+  });
+
 /** One run, read from the words, the flags and the hosts file: what to run where, or its end. */
 const plan = z
-  .object({ args: z.array(z.string()), env: configEnv })
-  .transform(({ args, env: path }): Early | { path: string; server: string; command: Command } => {
+  .object({ args: z.array(z.string()), env: configEnv, tokenEnv })
+  .transform(({ args, env: path, tokenEnv }): Early | Planned => {
     const asked = argv.safeParse(args);
     if (!asked.success) {
       const usage = asked.error.issues[0]?.message;
       return { code: 64, text: `${usage}\n\n${help}`, json: { usage } };
     }
     if ("help" in asked.data) return { code: 0, text: help, json: { help } };
+    if (tokenEnv) return tokenRun.parse({ ...tokenEnv, asked: asked.data, path });
 
     const hosts = hostsAt.safeParse(path);
     if (!hosts.success) {
@@ -632,7 +672,7 @@ const plan = z
       return { code: 64, text: usage, json: { usage } };
     }
 
-    return { path, server: at.data, command: asked.data.command };
+    return { path, server: at.data, token: null, command: asked.data.command };
   });
 
 const main = defineMain(async (ctx) => {
@@ -642,7 +682,7 @@ const main = defineMain(async (ctx) => {
   }
 
   const asJson = args.includes("--json");
-  const planned = plan.parse({ args, env });
+  const planned = plan.parse({ args, env, tokenEnv: env });
   if ("code" in planned) {
     (asJson || !planned.code ? stdout : stderr).write(
       asJson ? `${JSON.stringify(planned.json)}\n` : `${planned.text}\n`,
@@ -666,7 +706,14 @@ const main = defineMain(async (ctx) => {
       queue.api({ remote: ws.client }),
       queue.viewer({ remote: ws.client }),
       queue.channels({ remote: ws.client }),
-      cli({ stdout, stderr, json: asJson, server: planned.server, hosts: planned.path }),
+      cli({
+        stdout,
+        stderr,
+        json: asJson,
+        server: planned.server,
+        hosts: planned.path,
+        token: planned.token,
+      }),
     ],
   });
   const live = await app.ready;
