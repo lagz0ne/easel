@@ -125,16 +125,16 @@ in the script, run it, read the diff, and ship
 it. These skills load on their own; at these
 moments, make sure the right one is loaded:
 
-| Moment                                                    | Skill                                                                   |
-| --------------------------------------------------------- | ----------------------------------------------------------------------- |
-| A feature with state (canvas modes, selection, drag)      | the hub's `statechart` tool (on `PATH`), before UI or code              |
-| Writing or changing a test; fixing a bug                  | `test-driven-development`                                               |
-| Splitting work into ships                                 | `planning-and-task-breakdown`, `incremental-implementation`             |
-| Before you say "done"                                     | run the smoke, or look with `agent-browser`                             |
-| A design on the Doop canvas changes                       | `bun run design:proof` until it prints OK; show its output              |
-| Docs and decisions                                        | `documentation-and-adrs`                                                |
-| Requirements: a round, an epic, a journey, a design check | `writing-requirements` (the project's own; method in `docs/method.md`)  |
-| An agreed epic gets its design; prove it, round by round  | `epic-flow` (the project's own): a fresh reviewer each round, 5 at most |
+| Moment                                                    | Skill                                                                    |
+| --------------------------------------------------------- | ------------------------------------------------------------------------ |
+| A feature with state (canvas modes, selection, drag)      | a TLA+ model and its chart (`scripts/statecharts.sh`), before UI or code |
+| Writing or changing a test; fixing a bug                  | `test-driven-development`                                                |
+| Splitting work into ships                                 | `planning-and-task-breakdown`, `incremental-implementation`              |
+| Before you say "done"                                     | run the smoke, or look with `agent-browser`                              |
+| A design on the Doop canvas changes                       | `bun run design:proof` until it prints OK; show its output               |
+| Docs and decisions                                        | `documentation-and-adrs`                                                 |
+| Requirements: a round, an epic, a journey, a design check | `writing-requirements` (the project's own; method in `docs/method.md`)   |
+| An agreed epic gets its design; prove it, round by round  | `epic-flow` (the project's own): a fresh reviewer each round, 5 at most  |
 
 Two skills are the project's own, not Addy's:
 `writing-requirements` and `epic-flow`. The sync

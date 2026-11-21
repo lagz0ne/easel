@@ -3,3 +3,5 @@
 .claude/references/
 .claude/agents/
 .claude/commands/
+# Vendored by scripts/statechart-sync.sh: kept as upstream.
+vendor/

@@ -84,9 +84,12 @@ made, and fails on a difference.
 It prints one line per chart: `ok`, `DIFF` or `BROKE`. `BROKE` means TLC's verdict is not the one
 in `charts.tsv`, or the chart could not be made.
 
-The script runs the statechart skill from the hub (`~/.claude/skills/statechart`), with Bun on
-`PATH`. Its first run installs TLC and Java, so it needs the network once.
+The script runs easel's own copy of the generator, `vendor/statechart` (the `statechart` script of
+[pstack](https://github.com/backnotprop/pstack), MIT, pinned by `scripts/statechart-sync.sh`), with
+Bun on `PATH`. The hub removed its machine tool on 2026-11-21, so easel keeps this copy.
+`scripts/tlc.sh` gets Java (Temurin JRE) and TLC (`tla2tools.jar`) at pinned SHA-256 into
+`~/.cache/easel/tlc` on its first run, so it needs the network once.
 
 `scripts/ship.sh` runs `--check` as a gate, on this host, when a ship changes `docs/statecharts/`,
-a `SPEC*.md` or `scripts/statecharts.sh`. A red check commits nothing. Without the skill, ship
-refuses such a ship; it does not skip the check. CI does not run it: CI has no skill.
+a `SPEC*.md`, `vendor/statechart/`, `scripts/statecharts.sh` or `scripts/tlc.sh`. A red check
+commits nothing; ship never skips the check. CI does not run it yet.

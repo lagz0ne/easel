@@ -17,16 +17,17 @@
 # charts.tsv: tab-separated `chart  tla  cfg  view  expect`, with paths relative to
 # docs/statecharts. Blank lines, lines starting with `#`, and the header row are skipped.
 #
-# Needs the hub's statechart tool: $STATECHART, else `statechart` on PATH (the hub links it in
-# ~/.local/bin), else ~/.claude/skills/statechart/scripts/statechart. Needs Bun or Node on PATH.
-# Its first run installs TLC and Java with mise, so it needs the network once. scripts/ship.sh runs --check as a gate, on this host, for a
-# ship that changes docs/statecharts/, a SPEC*.md or this script. CI does not: CI has no skill.
+# The generator is easel's own copy: vendor/statechart (scripts/statechart-sync.sh, pinned pstack,
+# MIT). It needs Bun or Node on PATH, and Java and TLC from scripts/tlc.sh: its first run downloads
+# them, at pinned SHA-256, into ~/.cache/easel/tlc, so it needs the network once. $STATECHART
+# replaces the generator. scripts/ship.sh runs --check as a gate, on this host, for a ship that
+# changes docs/statecharts/, a SPEC*.md, vendor/statechart/ or this script.
 set -euo pipefail
 
 root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 dir="$root/docs/statecharts"
 manifest="$dir/charts.tsv"
-tool="${STATECHART:-$(command -v statechart || echo "$HOME/.claude/skills/statechart/scripts/statechart")}"
+tool="${STATECHART:-$root/vendor/statechart/statechart}"
 export PATH="$HOME/.bun/bin:$PATH"
 
 usage() { sed -n '4,4s/^#   //p' "${BASH_SOURCE[0]}"; }
@@ -50,9 +51,15 @@ for arg in "$@"; do
 done
 
 if [[ ! -x "$tool" ]]; then
-  echo "statecharts: no generator at $tool; it comes from the hub's statechart skill" >&2
+  echo "statecharts: no generator at $tool; run scripts/statechart-sync.sh" >&2
   exit 69
 fi
+# Always the pinned Java and TLC, never ones from the environment.
+tlc="$(bash "$root/scripts/tlc.sh")" || {
+  echo "statecharts: no Java and TLC; scripts/tlc.sh failed" >&2
+  exit 69
+}
+while IFS='=' read -r k v; do export "$k=$v"; done <<<"$tlc"
 if [[ ! -f "$manifest" ]]; then
   echo "statecharts: no manifest at ${manifest#"$root"/}" >&2
   exit 66

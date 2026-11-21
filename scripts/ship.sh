@@ -13,8 +13,9 @@
 # The gate runs on that exact tree, in a clean copy under .ship/:
 #   install, check:style, check:plain (types, rules, tests), build, scripts/smoke.sh (browser)
 #   docs only (*.md): check:style only.
-#   a change under docs/statecharts/, to a SPEC*.md or to scripts/statecharts.sh: also
-#   scripts/statecharts.sh --check (needs the hub's statechart skill; without it, ship refuses).
+#   a change under docs/statecharts/ or vendor/statechart/, to a SPEC*.md, or to
+#   scripts/statecharts.sh or scripts/tlc.sh: also scripts/statecharts.sh --check (easel's own
+#   generator in vendor/statechart; Java and TLC from scripts/tlc.sh, cached in ~/.cache/easel/tlc).
 # Green: one commit, pushed. Red: nothing committed; the logs stay in ~/.cache/ship/<repo>/<run>/.
 # Stop the line: while a `trunk-red` issue is open (CI's trunk-status workflow files it), only --fix
 # and -r ship. One ship at a time on this machine (flock on .ship/lock); others wait their turn.
@@ -87,16 +88,12 @@ gate() {  # <tree> <run dir>; sets $stage on failure
   local tree="$1" run="$2" docs=1 charts=0 f
   for f in $(git diff-tree -r --name-only HEAD "$tree"); do
     [[ "$f" == *.md ]] || docs=0
-    case "$f" in docs/statecharts/* | SPEC*.md | scripts/statecharts.sh) charts=1 ;; esac
+    case "$f" in docs/statecharts/* | SPEC*.md | scripts/statecharts.sh | scripts/tlc.sh | vendor/statechart/*) charts=1 ;; esac
   done
   mkdir -p "$run/tree"
   git archive "$tree" | tar -x -C "$run/tree"
   if [[ $charts -eq 1 ]]; then  # the charts are the oracle: a spec or chart ships only as its models say
-    stage=statecharts; bash "$run/tree/scripts/statecharts.sh" --check >"$run/statecharts.log" 2>&1 || {
-      [[ -n "${STATECHART:-}" || -n "$(command -v statechart)" || -x "$HOME/.claude/skills/statechart/scripts/statechart" ]] \
-        || echo "ship refuses: this tree changes the specs or the charts, and the check needs the hub's statechart tool (\$STATECHART, or statechart on PATH)" >>"$run/statecharts.log"
-      return 1
-    }
+    stage=statecharts; bash "$run/tree/scripts/statecharts.sh" --check >"$run/statecharts.log" 2>&1 || return 1
   fi
   stage=install; (cd "$run/tree" && bun install --frozen-lockfile) >"$run/install.log" 2>&1 || return 1
   stage=check:style; (cd "$run/tree" && bun run check:style) >"$run/style.log" 2>&1 || return 1
