@@ -61,14 +61,13 @@ A person reads the page from the top left, without help. This follows the create
 background behind a group of frames) and Miro frames. Doop has no sections, so a section is a
 **panel**: a locked frame behind the screens, with the title and the text of the group.
 
-1. **Start here**: a panel with the sheet `E<n>.00 Requirements and review`, at x 0, y 0. The sheet
-   is the traceability matrix: each requirement ID of the epic, its need and fit criterion, the
-   frames that prove it (links), and the last review verdict. It says how to read the page and
-   names the prior art.
-2. **One grey panel for each journey**, top to bottom, at the right of the sheet. Its head gives
-   the actor, need, trigger, the two ends, and a link that opens the prototype at the start of the
+1. **The sheet** `E<n>.00 Requirements and review`, at x 0, y 0. It is the traceability matrix:
+   each requirement ID of the epic, its need and fit criterion, the frames that prove it (links),
+   and the last review verdict. It says how to read the page and names the prior art.
+2. **Each journey, top to bottom**, at the right of the sheet: a grey **title bar** with the
+   actor, need, trigger, the two ends, and a link that opens the prototype at the start of the
    journey.
-3. **White groups inside the journey, by number.** Group 0 is the journey's state sheet. Each
+3. **White groups under the title bar, by number.** Group 0 is the journey's state sheet. Each
    other group is one short path: 1 to 5 screens in click order, left to right, under one or two
    sentences that say what happens and the IDs that the screens prove. Groups wrap into rows of at
    most 10,400 px, so no row and no frame gets very long (create puts all states of a screen in one
@@ -78,10 +77,13 @@ background behind a group of frames) and Miro frames. Doop has no sections, so a
    tab. People read the screen on the epic page; only the prototype needs the copies. A prototype
    link works across pages. Change a copy when you change its screen.
 
-Panels stay `draft`, and the proof does not check them. A frame that comes to a page goes in front
-of the frames there. So to put screens in front of new panels, make the panels first, then move
-each screen to a page and back. Keep each screen as its own frame: a link to a state inside a tall
-frame opens at its top, and the prototype needs each state as a frame.
+Panels stay `draft`, and the proof does not check them. **One layer of background only**: a panel
+never lies on another panel. Doop draws each frame as a live page, and the first version, with a
+journey panel behind its groups, had render problems (the human, 2026-11-21). A frame that comes to
+a page goes in front of the frames there. So to put screens in front of new panels, make the panels
+first, then move each screen to a page and back. A move on the same page keeps the stacking. Keep
+each screen as its own frame: a link to a state inside a tall frame opens at its top, and the
+prototype needs each state as a frame.
 
 ## Frame names
 
