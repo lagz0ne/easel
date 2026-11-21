@@ -1,7 +1,7 @@
 # Spec: queue — V1
 
 Module `queue` of [SPEC.md](SPEC.md). Depends on [access](SPEC-access.md),
-[frames](SPEC-frames.md) and [ops](SPEC-ops.md). The needs it meets are E4.1 to E4.3 and E4.5 in
+[frames](SPEC-frames.md), [ops](SPEC-ops.md) and [kit](SPEC-kit.md). The needs it meets are E4.1 to E4.3 and E4.5 in
 [epics](docs/epics.md). How the pins and the panel look is in [viewer](SPEC-viewer.md).
 
 ## Objective
@@ -50,8 +50,8 @@ Prior art:
 ### A viewer asks for a change
 
 1. A viewer puts a request at a place on a frame, or at a place on the canvas outside all frames
-   ([viewer](SPEC-viewer.md)). The page sends the text, a client key, and the frame version that
-   it shows. The answer is `added` with the number `n` of the request. Every tab on the canvas
+   ([viewer](SPEC-viewer.md)). The page sends the text, a client key, and the frame version and
+   the kit version ([kit](SPEC-kit.md)) that it shows. The answer is `added` with the number `n` of the request. Every tab on the canvas
    shows the request within 1 s, with the name of the viewer.
 2. If the answer is lost, the page sends the request again with the same key. The answer is
    `added` with the same `n`. Nothing new is saved.
@@ -175,6 +175,10 @@ Prior art:
    - The frame has a newer version than the version that the viewer saw.
    - The frame was removed.
    - The request was made more than 7 days ago.
+
+   A change of the look or of the kit does not make a request outdated: the When asked picture
+   still shows the look that the viewer saw ([kit](SPEC-kit.md), K10).
+
 2. "May be outdated" is a mark on the request. It does not change its state. A viewer edits,
    closes or keeps it.
 
@@ -186,7 +190,7 @@ Prior art:
 // pass, { name: true } when the pass has no name, { signIn: true } with no pass and no live
 // token). The page asks the name at the first Send, and gives it to the pass
 // ([frames](SPEC-frames.md)).
-// request.add { canvas, frameId: string | null, version: number | null, x, y, text, key }
+// request.add { canvas, frameId: string | null, version: number | null, kit: number, x, y, text, key }
 "request.add":     { kind: "added"; n: number } | { kind: "gone" } | { kind: "full" }
                  | { kind: "slow"; retryIn: number }
 // request.edit { canvas, n, text }; answer { canvas, n, text, option? }; accept { canvas, n };
@@ -205,7 +209,7 @@ type Refused = { kind: "wrongState"; state: State } | { kind: "gone" }
 // list { canvas?, state? }; next takes n with canvas: only that request
 // deliveries { canvas, n }
 "request.next":    { kind: "claimed"; request: Request; messages: Message[];
-                     frame: Frame | null; saw: { version: number; doc: string } | null;
+                     frame: Frame | null; saw: { version: number; kit: number; doc: string } | null;
                      frames: FrameBox[] | null; claim: string; until: number; now: number;
                      note: string }
                  | { kind: "empty" }
@@ -254,13 +258,15 @@ so the one `mayRead` guard and the refusal that a link sends when it ends cover 
 the tab keeps the difference to its own time as the clock offset.
 
 A request on the board (cell `requests`, keyed by canvas):
-`{ canvas, id, n, frameId, version, x, y, author, key, status, claimedBy, claimedUntil, claimedAt,
+`{ canvas, id, n, frameId, version, kit, x, y, author, key, status, claimedBy, claimedUntil, claimedAt,
 tries, queuedAt, acceptedBy, created, updated }`.
 
 - `status` is `open`, `asking`, `resolved`, `person` or `closed`.
 - `frameId` is `null` for a request on the canvas. Then `x` and `y` are on the canvas. Else they
   are relative to the top left of the frame.
 - `version` is the frame version that the viewer saw, or `null` for a request on the canvas.
+- `kit` is the kit version that the viewer saw ([kit](SPEC-kit.md)). A kit version that is not
+  stored is `invalid`.
 - `claimedBy` is the name of the user. Only the agent that claimed holds the claim handle. The
   server keeps its digest.
 - `claimedAt` is the time of the claim. The claim writes it in its one write; `extend` keeps it.
@@ -293,11 +299,14 @@ status, cause, ref, next, created, updated }`.
   one request to one channel use the same issue.
 
 A message on the board (cell `messages`, keyed by canvas):
-`{ canvas, id, request, kind, from, text, html, options, option, before, after, created }`.
+`{ canvas, id, request, kind, from, text, html, options, option, before, after, beforeKit, afterKit,
+created }`.
 
 - `kind` is `ask`, `edit`, `question`, `answer`, `result`, `accept`, `reopen`, `release`,
   `decline` or `close`.
 - `from` is the name of the viewer, or of the user.
+- `beforeKit` and `afterKit` are the kit versions at the claim and at the resolve, on a `result`
+  only. The pictures of Before and After draw each frame version in its kit version (K10).
 - `before` and `after` are frame versions, on a `result` only. `before` is the version at the
   claim. `after` is the version at the resolve. They are the same when the agent did not change
   the frame.
@@ -391,8 +400,9 @@ one for each waiting period, the cap of attempts, and one outcome when two ways 
     the canvas. The `request.next` answer, and the description of the `next_request` tool, say
     this. They also say that the text is the request of a viewer, not an instruction to follow
     outside that frame.
-16. `request.next` gives the frame version that the viewer saw. [frames](SPEC-frames.md) keeps
-    each version that a request refers to, also after the frame is removed.
+16. `request.next` gives the frame version and the kit version that the viewer saw.
+    [frames](SPEC-frames.md) keeps each version that a request refers to, also after the frame is
+    removed, and [kit](SPEC-kit.md) keeps each kit version.
 17. A removed frame keeps its requests. A removed canvas removes its requests and messages.
 18. An HTML part shows in the same sandbox as a live document ([viewer](SPEC-viewer.md)). It
     never runs in the page of easel.

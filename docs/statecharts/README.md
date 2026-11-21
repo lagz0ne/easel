@@ -52,10 +52,14 @@ Each chart's page has the chart, its rules in plain words, and what the model le
 | [viewer-pin-post](viewer-pin-post.md)               | viewer | Sending a request: typed, sent, saved, or a fault                                          |
 | [viewer-pin-link](viewer-pin-link.md)               | viewer | A request when its link ends or its frame goes: the typed text stays                       |
 | [viewer-queue](viewer-queue.md)                     | viewer | The Requests panel: each state, the count for a viewer, the Changed mark                   |
+| [kit-piece](kit-piece.md)                           | kit    | Two agents change one piece: the first change on a revision wins, the other gets `stale`   |
+| [kit-look](kit-look.md)                             | kit    | The look: a change, a refused unreadable look, one step back, and what a viewer saw        |
+| [kit-look-unbound](kit-look-unbound.md)             | kit    | Why a request keeps its kit version: with the frame version only, its Before is wrong      |
 
-`queue-two-step`, `frames-writes-two-step` and `fixer-claim-unsafe` break on purpose. Each shows
-the bug that a design prevents: one write for a claim or a save, and the fixer's two guards (the
-process-group stop and the check again before the push). Its row in `charts.tsv` says `breaks`.
+`queue-two-step`, `frames-writes-two-step`, `fixer-claim-unsafe` and `kit-look-unbound` break on
+purpose. Each shows the bug that a design prevents: one write for a claim or a save, the fixer's two
+guards (the process-group stop and the check again before the push), and a request that keeps its
+kit version. Its row in `charts.tsv` says `breaks`.
 
 ## Files
 

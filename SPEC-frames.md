@@ -1,6 +1,7 @@
 # Spec: frames — V1
 
-Module `frames` of [SPEC.md](SPEC.md). Depends on [access](SPEC-access.md) and [ops](SPEC-ops.md).
+Module `frames` of [SPEC.md](SPEC.md). Depends on [access](SPEC-access.md), [ops](SPEC-ops.md) and
+[kit](SPEC-kit.md).
 
 ## Objective
 
@@ -11,6 +12,13 @@ through the CLI ([cli](SPEC-cli.md)). Every open tab sees each change live
 viewer's shells and for agents. A user shares a canvas by a link, with an optional password. A
 viewer who opens the link gets a pass, and looks and asks for changes with it
 ([queue](SPEC-queue.md)). easel keeps each old version of a frame that a request refers to.
+
+A frame shows in the look and the kit of the easel ([kit](SPEC-kit.md)). The document holds only
+the frame's content: HTML, kit classes and Tailwind utilities. At each put, easel makes the CSS of
+the frame's class names (the make step of [kit](SPEC-kit.md)) and keeps it with the frame version.
+When easel shows a frame in a tab, or draws its picture, it composes the document, its made CSS
+and the current kit version. So a change of the look reaches each frame, and no frame
+is written. What a person saw is a frame version and a kit version: a picture address names both.
 
 Prior art: a put with a base is optimistic concurrency, as HTTP `If-Match` with `412` and
 CouchDB's `_rev`: the first write on a version wins, and a later write on the same version is
@@ -35,7 +43,8 @@ that a manifest refers to and removes the rest.
 
 1. `easel put <canvas> page.html --name Cart` makes a frame to the right of the others: at y 0,
    80 px right of the rightmost frame's right edge, or at 0,0 when it is the first. It is 1440×900
-   unless `--size 390x844` is given. It prints the id and version 1. Every open tab shows it.
+   unless `--size 390x844` is given. It prints the id and version 1. Every open tab shows it, in
+   the look and the kit.
 2. `easel ls <canvas>` lists the frames: id, name, box, version, open requests.
 3. `easel get <canvas> <id> -o page.html` writes the document and prints the version.
 4. `easel put <canvas> page.html --id <id> --base <version>` writes it again and prints the new
@@ -50,10 +59,17 @@ that a manifest refers to and removes the rest.
 7. `easel mv <canvas> <id> --at 0,1200` moves the frame; `--size` resizes it. The version stays.
 8. `easel rm <canvas> <id>` deletes the frame. Its requests stay, marked "may be outdated"
    ([queue](SPEC-queue.md)), and so do the versions that they refer to.
-9. `easel shot <canvas> <id> -o shot.webp --scale 0.5` draws the current version as a browser does.
+9. `easel shot <canvas> <id> -o shot.webp --scale 0.5` draws the current version, in the current
+   kit version, as a browser does.
    The scales are 0.25, 0.5, 1 and 2. `--region x,y,w,h` crops to part of it. The CLI gets the
    picture's address from the server and fetches it over HTTP. With no Chromium on the server, it
    says pictures are off, and exits 1.
+10. Each put that saves or answers `unchanged` also answers the findings of the kit check
+    ([kit](SPEC-kit.md)): each place that is not in the look or the kit, with its fix. The
+    findings do not stop the put. The CLI prints each one on stderr as
+    `page.html:<line>:<col> <rule> <what>. Fix: <fix>`, at most 20, then the count. A document
+    with `<meta name="easel-kit" content="off">` gets no look, no kit, no made CSS and no
+    findings.
 
 ### Share a canvas
 
@@ -104,12 +120,14 @@ type Frame = FrameInfo & { html: string }
 
 "frame.list":   { kind: "found"; frames: FrameInfo[] } | { kind: "gone" }
 "frame.get":    { kind: "found"; frame: Frame } | { kind: "gone" }
-"frame.put":    { kind: "created" | "updated" | "unchanged"; id: string; version: number }
+"frame.put":    { kind: "created" | "updated" | "unchanged"; id: string; version: number;
+                  findings: Finding[]; more: number }                  // Finding: SPEC-kit
               | { kind: "stale"; id: string; version: number } | { kind: "gone" }
               | { kind: "tooBig"; maxBytes: number }                  // a document over 1 MiB
 "frame.move":   { kind: "moved" } | { kind: "gone" }
 "frame.delete": { kind: "deleted" } | { kind: "gone" }
-"frame.shot":   { kind: "ready"; url: string; version: number } | { kind: "off" } | { kind: "gone" }
+"frame.shot":   { kind: "ready"; url: string; version: number; kit: number } | { kind: "off" }
+              | { kind: "gone" }
 
 // a viewer
 "share.open": { kind: "open"; canvas: string; pass: string } | { kind: "locked" } | { kind: "wrong" }
@@ -142,7 +160,9 @@ Inputs:
 - `frame.put` takes `{ canvas, html, name?, size?, id?, base? }`. `id` and `base` come together or
   not at all; one without the other is `invalid`, and so is `name` or `size` with `id`. Without
   them, the put makes a frame.
-- `tooBig` is measured on the document's encoded size, its UTF-8 bytes, not its string length. The
+- `tooBig` is measured on the document's encoded size, its UTF-8 bytes, not its string length.
+  The made CSS is not counted; it is at most 256 KiB, and a document whose CSS would be more
+  answers `tooBig` too. The
   cmd sets the socket's `maxPayload` to 2 MiB, so a document a little over 1 MiB gets the
   `tooBig` answer and not a closed socket. The CLI checks the same limit before it sends.
 - The CLI also checks the document as it goes on the socket, JSON-encoded: each `"`, `\` and
@@ -198,9 +218,10 @@ shows the password page). When a pass ends, the server sends its refusal at once
 watch that holds it.
 
 The board (`easel.board`, read by the viewer) has the cells `frames`, `docs`, `kept` and `removed`, keyed by
-canvas.
+canvas, and the cell `kit` of [kit](SPEC-kit.md). A document in the cell `docs` is
+`{ html, css, version }`: `css` is the made CSS of that frame version.
 A frame on the board carries its picture key `k`. The cell `kept` carries the key of each kept
-version (§ Pictures). The cell `removed` keeps each removed frame: `{ canvas, id, name, x, y, w, h,
+view (§ Pictures). The cell `removed` keeps each removed frame: `{ canvas, id, name, x, y, w, h,
 removed }`, its name and its last box, and when it was removed, so the viewer shows the requests
 of a removed frame where it was ([viewer](SPEC-viewer.md)). Every board read runs the `mayRead`
 guard: a user, or a live pass for that canvas.
@@ -210,8 +231,13 @@ No call here waits on the server: each answers at once, except a draw, which sto
 
 ### Pictures
 
-A picture is `GET /api/pictures/<canvas>/<id>/<version>?s=<scale>&k=<key>`, with `&r=x,y,w,h` for
-a region.
+A picture is `GET /api/pictures/<canvas>/<id>/<version>?s=<scale>&k=<key>&kit=<kit version>`, with
+`&r=x,y,w,h` for a region. The draw composes the document of that version with that kit version
+(`compose`, [kit](SPEC-kit.md)), so it needs no network for the look and the kit.
+
+A **kept view** is a kept version with the kit version that a request or a message refers to: the
+kit version of the tab when the viewer asked, at the claim, or at the result
+([queue](SPEC-queue.md)).
 
 - `key` is HMAC-SHA-256 of the server's secret, the canvas, the id, the version and the canvas's
   key generation, in base64url. The secret is 256 random bits, made at the first start and kept
@@ -219,15 +245,16 @@ a region.
   changed (not when the same password is set again), and the board's keys are written again
   then. So the keys a viewer held stop working
   when their pass does.
-- For the current version, it answers a WebP of that version with
-  `Cache-Control: private, max-age=31536000, immutable`.
-- For an older version that a request refers to (a kept version), it answers a WebP of that
-  version, as for the current version, also after its frame was removed. It draws it at the
+- For the current version and the current kit version, it answers a WebP of them with
+  `Cache-Control: private, max-age=31536000, immutable`. The board's frame cell names the current
+  kit version with the key, so a change of the kit version gives each frame a new address.
+- For a kept view, it answers a WebP of that version in that kit version, as for the current
+  version, also after its frame was removed. It draws it at the
   frame's box, or at the last box of a removed frame. The board carries a key for each kept
-  version in the cell `kept`: `{ canvas, id, version, k }`. The current version is not there:
+  view in the cell `kept`: `{ canvas, id, version, kit, k }`. The current version is not there:
   its key is on the frame.
-- For another older version, it answers `307` to the current version's address, with its key and
-  `Cache-Control: no-store`.
+- For another older version, or another kit version, it answers `307` to the address of the
+  current version and kit version, with its key and `Cache-Control: no-store`.
 - A wrong key, a version not yet made, or a deleted frame with no kept version at that address
   answers 404. A scale outside
   0.25, 0.5, 1 and 2 answers 400, and so does a region off the frame or a picture over the limits
@@ -289,7 +316,7 @@ number or section.
 5. A document drawn for a picture may load only `https` from public hosts, and `data:`. It may not
    load `http`, `file:`, or a loopback, private or link-local address.
 6. No picture is larger than 8 megapixels or 16000 px on a side.
-7. A picture answer is the drawing of the version its address names. The server takes that
+7. A picture answer is the drawing of the version and the kit version that its address names. The server takes that
    version and its document in one read, draws them, and checks the frame and the key again before
    it sends. An older version's address answers a redirect, never a picture, unless the version
    is kept. A deleted frame with no kept version there, or a key from before the link ended,
@@ -326,9 +353,16 @@ number or section.
     `<meta name="referrer">` says the same, so a link does not leave in a `Referer` header.
     The proxy's access logs (Traefik's) do hold the path `/s/<link>`: whoever reads them can open
     the link.
-16. A version that a request or a message refers to is kept until its canvas is removed. A put
+16. A version that a request or a message refers to is kept until its canvas is removed. The kit
+    version that it refers to is kept too ([kit](SPEC-kit.md), judged rule 4). A put
     that replaces a kept version saves the old document first, in the same transaction. A frame
     delete keeps the kept versions of the frame. Nothing else keeps an old version.
+17. A put saves the document as the agent wrote it, and its made CSS beside it, in one row. The
+    make step runs before the conditional write, never between its check and its write. The look
+    and the kit are never written into the document: only `compose` adds them, when easel shows
+    or draws the frame. The made CSS of a stored frame version is never made again.
+18. The findings of a put come from the one `check` of [kit](SPEC-kit.md), on the document and
+    the current kit version. They change nothing that the put writes.
 
 ## Success Criteria
 
@@ -344,6 +378,9 @@ number or section.
 - Each rule in the three statecharts is reached by a test that replays its path.
 - After a restart, every canvas, frame and share link is back as it was (SQLite under `/data`).
 - Each judged rule is judged OK with a file:line.
+- After a change of the look, a test gets the picture of a frame and finds the new look; the
+  picture of a kept view shows its own kit version.
+- A test puts a document with findings: it is saved, and the answer holds each finding.
 
 ## Out of Scope (Deferred)
 

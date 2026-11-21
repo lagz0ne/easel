@@ -1,7 +1,7 @@
 # Spec: viewer — V1
 
 Module `viewer` of [SPEC.md](SPEC.md). Depends on [access](SPEC-access.md),
-[frames](SPEC-frames.md), [queue](SPEC-queue.md) and [design](SPEC-design.md).
+[frames](SPEC-frames.md), [queue](SPEC-queue.md), [design](SPEC-design.md) and [kit](SPEC-kit.md).
 
 ## Objective
 
@@ -46,8 +46,9 @@ this spec wins, and the screen gets a fix.
 1. A viewer opens a canvas. Each frame shows at its place as a shell: its name and its picture (an
    img named for the frame).
 2. A frame in view, at a zoom where it can be read (30% or more), shows its live document (an
-   iframe titled with the frame's name). The viewer adds a small paint script to the document it
-   gives the iframe; inside the sandbox, the script posts once the document has painted. Until
+   iframe titled with the frame's name). The iframe gets `compose` of the frame's document, its
+   made CSS and the current kit version ([kit](SPEC-kit.md)), so it shows in the look of the team.
+   The viewer adds a small paint script to the end of that document; inside the sandbox, the script posts once the document has painted. Until
    then, its picture stays on top, so the viewer never sees a blank white box.
 3. A frame far out of view draws nothing.
 4. With pictures off (no Chromium on the server), a shell shows a plain card. The name sits on a
@@ -77,6 +78,13 @@ this spec wins, and the screen gets a fix.
    A move is unreached until `frame.move` ships: the stage reads a shell's box once, so a moved
    frame would keep its old box for `Fit` and for what shows and goes live. The `frame.move` work
    fixes that, with a test that moves a frame far away and back.
+4. A user changes the look or a piece of the kit ([kit](SPEC-kit.md)). Every open tab shows it.
+   Each live document shows it within 1 s, with no reload: the page posts
+   `{ easel: "kit", kit, look, css }` to it, and its piece script replaces the two style texts. A
+   live document that uses a changed template reloads, and its picture stays on top until it
+   paints. Each frame shell gets the address of the picture in the new kit version; its last
+   picture stays until the new one has decoded, so no shell is white. Each frame in view shows the
+   change within 10 s on a canvas with 20 frames in view.
 
 ### Lose the socket
 
@@ -229,8 +237,10 @@ outdated: the frame was removed`, or `May be outdated: a long wait`. Only a wait
     shows one button for each option, under its HTML part, and a textbox `Answer`. After the
     answer, the options show as text, and the option that the answer picked has an accent
     outline. The picture is 16:10 and shows the top of the frame. `Before` is the version at the
-    claim, and `After` the version at the result. The picture of a version that is not current
-    has its key in the board's cell `kept`; a version with no key shows the plain card. Only the
+    claim, and `After` the version at the result, each in the kit version that the result keeps
+    for it (`beforeKit`, `afterKit`), so a later change of the look does not change them (K10). The
+    When asked picture uses the kit version of the request. The picture of a view that is not
+    current has its key in the board's cell `kept`; a version with no key shows the plain card. Only the
     last result opens on `After`, and only while it waits for a decision. The side that the
     viewer picks stays until the request changes; a side picked while a textbox is open stays
     only while the textbox is open.
@@ -304,7 +314,8 @@ width and height, added on each side of it.
 | Done, no answer        | a result that no viewer answers for 3 days (from its `updated`)       |
 | Request panel          | 340 px wide                                                           |
 
-A shell's picture is its frame's address on the board: its version and its key `k`, at scale 0.5,
+A shell's picture is its frame's address on the board: its version, the kit version and its key
+`k`, at scale 0.5,
 or 0.25 when 0.5 would be over 8 megapixels. Past that, and with pictures off (no `k`), the shell
 is the plain card of "See the frames" step 4: a colour that is not white, under the frame's name on
 its label. A picture that fails to load (a busy server answers 503) is asked again after 1 s, 2 s
@@ -312,15 +323,16 @@ and 4 s; after the third try the card shows.
 
 ## Contract
 
-The page reads `easel.board` (cells `frames`, `docs`, `kept`, `removed`, `requests` and `messages`, keyed by canvas,
+The page reads `easel.board` (cells `frames`, `docs`, `kept`, `removed`, `requests`, `messages` and `kit`, keyed by canvas,
 and the server's clock offset). Its calls are:
 
 - `share.open { link, password?, name? }` ([frames](SPEC-frames.md)), once at the gate. `name` is
   the name this browser kept, if it kept one.
 - `share.name { canvas, name }` ([frames](SPEC-frames.md)), at the first `Send` of a browser that
   kept no name, or when `request.add` is refused `{ name: true }` because the pass has no name.
-- `request.add { canvas, frameId, version, x, y, text, key }` ([queue](SPEC-queue.md)). `key` is
-  the client key: one per request, the same on each retry of it.
+- `request.add { canvas, frameId, version, kit, x, y, text, key }` ([queue](SPEC-queue.md)). `key`
+  is the client key: one per request, the same on each retry of it. `kit` is the kit version that
+  the page shows.
 - `request.edit`, `answer`, `accept`, `reopen` and `close` ([queue](SPEC-queue.md)), from the
   controls of an open request.
 
@@ -351,8 +363,9 @@ camera controls.
    clock, last visit) is a Tinker cell or resource. There is no useState, useEffect or useReducer.
 7. The page's only calls are `share.open`, `share.name` and `request.add`, `edit`, `answer`,
    `accept`, `reopen` and `close`.
-8. One page module adds the paint script, to the document it gives the iframe. No server module
-   and no stored document carries it. The script posts that the document painted, and answers a
+8. One page module adds the paint script, to the end of the document that `compose` gives
+   ([kit](SPEC-kit.md)). The look, the kit and the piece script come only from `compose`. No server
+   module and no stored document carries the paint script. The script posts that the document painted, and answers a
    place with the box of the element there. It posts nothing else.
 9. The panel reads time only from the clock capsule, never from `Date.now()`.
 10. One page function derives the state of a request (queue spec, table `State`), and "done, no
@@ -381,6 +394,8 @@ camera controls.
 10. A refused viewer call (`wrongState`, `gone`, `full`, `slow`) never clears the typed text: of
     a request, a correction, an answer or a note (E4.1 N10).
 11. The changed mark reads and writes only `localStorage`. It sends nothing to the server.
+12. The page posts the kit message only to its own live iframes. A frame's piece script takes it
+    only from its parent. The sandbox of judged rule 4 stays as it is.
 
 ### Accepted risk
 

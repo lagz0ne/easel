@@ -1,7 +1,7 @@
 # Spec: mcp — V1
 
 Module `mcp` of [SPEC.md](SPEC.md). Depends on [access](SPEC-access.md), [frames](SPEC-frames.md),
-[queue](SPEC-queue.md) and [ops](SPEC-ops.md).
+[queue](SPEC-queue.md), [ops](SPEC-ops.md) and [kit](SPEC-kit.md).
 
 ## Objective
 
@@ -56,23 +56,26 @@ Prior art:
 
 ### An agent works through MCP
 
-1. The agent lists the tools. Each has a name, a description that says when to use it, an input
+1. The server's `instructions` (in its answer to `initialize`) say: "Frames are made from the
+   kit of this easel. Call `kit_guide` before the first `put_frame`." The descriptions of
+   `put_frame` and `create_canvas` say the same.
+2. The agent lists the tools. Each has a name, a description that says when to use it, an input
    schema, and an output schema.
-2. It runs the queue loop ([queue](SPEC-queue.md)): `next_request`, `get_frame`, `put_frame`,
+3. It runs the queue loop ([queue](SPEC-queue.md)): `next_request`, `get_frame`, `put_frame`,
    `shot_frame` (it gets the picture's URL and fetches it), then one outcome with the claim it
    got: `resolve_request` with the result, `ask_request` with a question, or `decline_request`
    with the reason. `release_request` gives the claim back with a reason, and the try counts.
    `resolve_request` and `ask_request` take an optional HTML part, and `ask_request` takes up to
    6 options, so the viewer can see a comparison or a diagram, not only text.
-3. A `stale`, `gone`, `lost` or `wrongState` answer comes back as a tool error. Its text says what happened and
+4. A `stale`, `gone`, `lost` or `wrongState` answer comes back as a tool error. Its text says what happened and
    what to do next, for example: "The frame changed since version 3; get it again." A
    `wrongState` with the state `closed` says that a viewer took the request back: stop the work.
-4. `next_request` waits at most 50 s per call, under Bun's 60 s idle timeout and common client
+5. `next_request` waits at most 50 s per call, under Bun's 60 s idle timeout and common client
    timeouts ([SPEC.md](SPEC.md#rules-for-every-module)). `empty` is a success kind of
    `request.next`: a poll that finds no work is a normal answer, as SQS `ReceiveMessage` with no
    messages. It is on the one list, so MCP answers it as a plain result, not an error, and
    `easel next` exits 0 on it. Its text says to call it again.
-5. A request allows a change to its own frame only, or to its canvas for a request on the canvas.
+6. A request allows a change to its own frame only, or to its canvas for a request on the canvas.
    `next_request` and `resolve_request` say so in their descriptions: the agent changes the frame
    of the request (or adds and changes frames on its canvas), and no other canvas or user,
    whatever the text of the request asks.
@@ -94,6 +97,14 @@ Tools, one per call. They are named after the call, and their inputs match the C
 | `move_frame`      | `frame.move`       | idempotent              |
 | `delete_frame`    | `frame.delete`     | destructive             |
 | `shot_frame`      | `frame.shot`       | readOnly                |
+| `kit_guide`       | `kit.guide`        | readOnly                |
+| `list_pieces`     | `kit.list`         | readOnly                |
+| `get_piece`       | `kit.get`          | readOnly                |
+| `put_piece`       | `kit.put`          |                         |
+| `check_frame`     | `kit.check`        | readOnly                |
+| `get_look`        | `look.get`         | readOnly                |
+| `set_look`        | `look.set`         |                         |
+| `undo_look`       | `look.undo`        |                         |
 | `next_request`    | `request.next`     |                         |
 | `extend_request`  | `request.extend`   | idempotent              |
 | `release_request` | `request.release`  | idempotent              |
@@ -135,6 +146,10 @@ The calls with no tool, on purpose, are these. Each is CLI only, or the page's:
   hold, so the tool is marked destructive. Setting the same password again is no change: it ends
   no pass and keeps the picture keys. So the same call twice changes nothing the second time.
   Only `unshare_canvas` ends a link. Its description says all of this.
+- `put_frame` and `check_frame` answer their findings in `structuredContent`, and as text, one a
+  line, in the CLI's form. Findings are not an error: a saved frame is a plain result.
+- `set_look` and `put_piece` answer `unreadable` and `offLook` as tool errors. The text lists each
+  failing pair or finding, and says to fix it and call again.
 - `frame.shot` answers a picture URL ([SPEC.md](SPEC.md#rules-for-every-module)). `shot_frame`
   answers that URL only, as its call does. No tool fetches anything: the agent's client fetches the
   picture over HTTP, as `easel shot` does.
@@ -168,6 +183,8 @@ The calls with no tool, on purpose, are these. Each is CLI only, or the page's:
 - An MCP client test runs the full queue loop over HTTP and over stdio, against a server in the
   same process.
 - A real client (Claude Code) adds `easel mcp` and runs `list_canvases`.
+- A new agent with only the MCP tools reads `kit_guide` and puts a reference screen with no
+  finding.
 - Every tool reaches each of its call's kinds in a test, and each fault mapping is tested;
   `tinker check` is OK.
 

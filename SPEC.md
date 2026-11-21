@@ -26,17 +26,18 @@ result.
 
 ## Capability map
 
-| Module id | Responsibility                                                                                                    | Depends on                    |
-| --------- | ----------------------------------------------------------------------------------------------------------------- | ----------------------------- |
-| access    | Users, login codes, owner approval, tokens, the `user` and `owner` guards                                         | none                          |
-| cli       | The `easel` shell, built with access: serve, hosts file, rpc client, `--json`, the exit table                     | access                        |
-| ops       | Errors grouped for agents, issues (list, resolve, regressed), status, readiness, build, backups                   | access                        |
-| frames    | Canvases and frames: documents, versions, boxes, pictures; share links, passwords, passes, `mayRead`              | access, ops                   |
-| queue     | Requests: a viewer asks; a dispatcher delivers to channels; agents claim (lease) and end each try; viewers decide | access, frames, ops           |
-| mcp       | The same calls as MCP tools: `/mcp` over HTTP, `easel mcp` on stdio                                               | access, frames, queue, ops    |
-| design    | easel's own design system: tokens, type, the few controls the page uses                                           | none                          |
-| viewer    | The browser page: shells, live frames, pan and zoom, pins, the requests panel                                     | access, frames, queue, design |
-| fixer     | An agent that fixes production errors: claims a group, opens one issue, ships a fix, proves it                    | access, ops, cli              |
+| Module id | Responsibility                                                                                                    | Depends on                         |
+| --------- | ----------------------------------------------------------------------------------------------------------------- | ---------------------------------- |
+| access    | Users, login codes, owner approval, tokens, the `user` and `owner` guards                                         | none                               |
+| cli       | The `easel` shell, built with access: serve, hosts file, rpc client, `--json`, the exit table                     | access                             |
+| ops       | Errors grouped for agents, issues (list, resolve, regressed), status, readiness, build, backups                   | access                             |
+| kit       | The look and the kit of the easel: look values, pieces, kit versions, the make step, the check, `compose`         | access                             |
+| frames    | Canvases and frames: documents, versions, boxes, pictures; share links, passwords, passes, `mayRead`              | access, ops, kit                   |
+| queue     | Requests: a viewer asks; a dispatcher delivers to channels; agents claim (lease) and end each try; viewers decide | access, frames, ops, kit           |
+| mcp       | The same calls as MCP tools: `/mcp` over HTTP, `easel mcp` on stdio                                               | access, frames, queue, ops, kit    |
+| design    | easel's own design system: tokens, type, the few controls the page uses                                           | none                               |
+| viewer    | The browser page: shells, live frames, pan and zoom, pins, the requests panel                                     | access, frames, queue, design, kit |
+| fixer     | An agent that fixes production errors: claims a group, opens one issue, ships a fix, proves it                    | access, ops, cli                   |
 
 The "Depends on" column is the one source of each module's dependencies. Each module spec's
 header copies it, and changes with it in the same ship.
@@ -51,12 +52,16 @@ viewer canvas slice → pictures and passwords → queue → viewer pins and que
 - ops comes second, so every module after it is watched from its first deploy. ops depends on no
   later module: frames and queue register their readiness checks and counters with it.
 - Share lives in frames, because a link and its passes guard reads of a canvas (`mayRead`).
+- kit (E8) comes after the queue in time, as Round 1 has it: it changes what frames, pictures and
+  requests keep, so those specs change with it. Its own build order is in
+  [the decision](docs/decisions/kit-on-tailwind.md).
 - fixer comes last. It fixes errors in every other module, so it needs them built and sending
   errors.
 
 Each module's journeys, contract and rules are in `SPEC-<module id>.md`: [access](SPEC-access.md),
 [cli](SPEC-cli.md), [ops](SPEC-ops.md), [frames](SPEC-frames.md), [queue](SPEC-queue.md),
-[mcp](SPEC-mcp.md), [design](SPEC-design.md), [viewer](SPEC-viewer.md), [fixer](SPEC-fixer.md).
+[mcp](SPEC-mcp.md), [design](SPEC-design.md), [viewer](SPEC-viewer.md), [fixer](SPEC-fixer.md),
+[kit](SPEC-kit.md).
 The CLI commands that belong to a module are in that module's spec. `SPEC-cli.md` holds the shell
 and the list of commands by module.
 
@@ -122,6 +127,9 @@ author.
   are off.
 - `@modelcontextprotocol/sdk` (MIT), already in `package.json`, for `/mcp` and `easel mcp`.
 - zod for every input.
+- For the kit (E8, [kit](SPEC-kit.md)): `tailwindcss` 4.3.5 (MIT), pinned exactly, for the make step;
+  Lightning CSS (MPL-2.0, used as it is, with no change to its files) for the check. Each is a new
+  dependency, approved with the decision [kit-on-tailwind](docs/decisions/kit-on-tailwind.md).
 
 ## Commands
 

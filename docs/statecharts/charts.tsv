@@ -24,3 +24,6 @@ viewer-gate-password	models/viewer/ViewerGate.tla	models/viewer/ViewerGatePasswo
 request-life	models/request/Request.tla	models/request/Request.cfg	models/request/Request.view.mjs	holds
 queue-dispatch	models/queue/Dispatch.tla	models/queue/Dispatch.cfg	models/queue/Dispatch.view.mjs	holds
 frames-pictures-kept	models/frames/Pictures.tla	models/frames/PicturesKept.cfg	models/frames/PicturesKept.view.mjs	holds
+kit-piece	models/kit/Kit.tla	models/kit/KitPiece.cfg	models/kit/Kit.view.mjs	holds
+kit-look	models/kit/Kit.tla	models/kit/KitLook.cfg	models/kit/Kit.view.mjs	holds
+kit-look-unbound	models/kit/Kit.tla	models/kit/KitLookUnbound.cfg	models/kit/Kit.view.mjs	breaks

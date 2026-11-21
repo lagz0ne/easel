@@ -26,7 +26,7 @@ Round 1 (below) holds E1, E2, E3, E4, E6 and E8. E5 and E7 are deferred.
 | E5  | Work through MCP          | An agent with no shell does all of E2, E3 and E4.                        | agent                   | [mcp](../SPEC-mcp.md#journeys) 3                                                                                                      | Not built                                                                                                               | active |
 | E6  | Watch production          | The company sees the health, the errors and the copies of each easel.    | company                 | [ops](../SPEC-ops.md#journeys) 5                                                                                                      | Built, except backups                                                                                                   | ready  |
 | E7  | Fix errors with no person | An agent fixes a production error and proves the fix.                    | fixer, tick, probe      | [fixer](../SPEC-fixer.md#journeys) 5                                                                                                  | Not built                                                                                                               | to do  |
-| E8  | One look, fast            | Agents make frames fast, and all frames of a team look like one product. | agent, user             | [E8](#e8-one-look-fast) 3                                                                                                             | Not built                                                                                                               | to do  |
+| E8  | One look, fast            | Agents make frames fast, and all frames of a team look like one product. | agent, user             | [kit](../SPEC-kit.md#journeys) 3                                                                                                      | Specified                                                                                                               | to do  |
 
 ## Round 1: Get started
 
@@ -672,11 +672,11 @@ easel is agent first. An agent that writes each frame from nothing is slow, and 
 look like the frames of the other agents. So each easel has one look and one kit from the first
 day, and each agent of the team makes its frames from them.
 
-| ID   | Journey                   | Actor | Design   | Review |
-| ---- | ------------------------- | ----- | -------- | ------ |
-| E8.1 | Make a frame from the kit | agent | none yet | to do  |
-| E8.2 | Change the look           | user  | none yet | to do  |
-| E8.3 | Add to the kit            | agent | none yet | to do  |
+| ID   | Journey                   | Actor | Design                                              | Review |
+| ---- | ------------------------- | ----- | --------------------------------------------------- | ------ |
+| E8.1 | Make a frame from the kit | agent | [kit](../SPEC-kit.md#make-a-frame-from-the-kit-e81) | to do  |
+| E8.2 | Change the look           | user  | [kit](../SPEC-kit.md#change-the-look-e82)           | to do  |
+| E8.3 | Add to the kit            | agent | [kit](../SPEC-kit.md#add-to-the-kit-e83)            | to do  |
 
 Decided:
 
@@ -686,10 +686,22 @@ Decided:
 - One look and one kit for each easel. The company runs one easel for each team (R1).
 - The look and the kit are for the frames of the team. The look of the easel page itself is
   [design](../SPEC-design.md), and the team does not change it.
-- Prior art for the need: the design systems of Figma (libraries) and Doop (tokens and
+- Prior art for the need: the design systems of Figma (libraries) and Doop (look values and
   components), and the generators v0, Lovable and Claude artifacts, which write screens from one
   known kit to be fast and alike. Doop is AGPL-3.0: easel takes only the need, and designs its own
   answer (`docs/canvas-speed.md`, "Clean room").
+- On 2026-11-21, the user picked a kit on Tailwind (A+T): easel's kit classes for the common
+  pieces, Tailwind utilities for all the rest, and the look as the Tailwind theme. "It'll take
+  forever to cover everything, and we don't want generic look." The measure and the other
+  variations are in [the decision](decisions/kit-on-tailwind.md).
+- The defaults of that decision: a frame with findings is saved and told; a piece with findings is
+  refused. Tailwind's palette, arbitrary colors and arbitrary font sizes are off and are findings;
+  arbitrary layout values are allowed. The look's CSS names are shadcn's color names
+  (`--primary`) and Tailwind's names for the rest (`--text-sm`, `--radius-md`); the theme maps the
+  Tailwind classes to them. A frame may turn the kit off. easel keeps each kit version. A change of the
+  look does not make a request "may be outdated". The seed must not look generic.
+- The engine: Tailwind v4 `compile()` in Bun, pinned exactly to 4.3.5, with a new compiler for
+  each make. A new Tailwind version is a new pin, and easel never makes again the CSS that it keeps.
 - Deferred: a look for each canvas. Add it when a team makes two products on one easel.
 - Deferred: frames in a light and a dark theme. Add it when a team asks for a dark theme of its
   product.
@@ -709,14 +721,14 @@ Decided:
 - **Failure end:** the frame does not follow the look. The agent knows at once where and how to fix
   it.
 
-| ID  | Requirement                                                                          | Fit criterion                                                                                                                                                                                                   |
-| --- | ------------------------------------------------------------------------------------ | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| K1  | On a new easel, an agent makes frames in a complete look, with no design work first. | The first frame on a new easel has the same colors, type, spacing and controls as a finished product. A person of the team accepts its look with no change.                                                     |
-| K2  | The agent learns the kit and its rules from easel alone.                             | An agent that never used easel makes a correct frame from the kit on its first try, with the guide of easel as its only help.                                                                                   |
-| K3  | A frame from the kit is fast to make.                                                | With the agent that the team uses, a usual screen (a form, a list, a dashboard) shows on the canvas within 30 seconds after the agent starts it, and in less than half the time of the same screen with no kit. |
-| K4  | The frames of several agents look alike.                                             | On a canvas of 10 frames from 3 agents, a person finds no two controls of one kind that differ in color, type, size or spacing.                                                                                 |
-| K5  | The agent knows at once when a frame does not follow the look.                       | A frame with a color, a size or a control outside the look is found when the agent writes it. The agent is told where it is, and the fix.                                                                       |
-| K6  | The kit does not make the canvas slower.                                             | With 200 frames from the kit, S8, S9 and S11 are still true.                                                                                                                                                    |
+| ID  | Requirement                                                                          | Fit criterion                                                                                                                                                                                                                                                                                                                                  |
+| --- | ------------------------------------------------------------------------------------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| K1  | On a new easel, an agent makes frames in a complete look, with no design work first. | The first frame on a new easel has the same colors, type, spacing and controls as a finished product. A person of the team accepts its look with no change. Its text passes K8.                                                                                                                                                                |
+| K2  | The agent learns the kit and its rules from easel alone.                             | An agent that never used easel makes a correct frame from the kit on its first try, with the guide of easel as its only help.                                                                                                                                                                                                                  |
+| K3  | A frame from the kit is fast to make.                                                | With the reference agent (Claude Sonnet), for each of the 3 reference screens (a form, a list, a dashboard; their briefs are kept in the repo), the median of 3 runs writes the frame within 20 seconds, and in less than half the time of the same screen with the no-kit guide. The put shows the frame on the canvas within 1 second after. |
+| K4  | The frames of several agents look alike.                                             | On a canvas of 10 frames from 3 agents, a person finds no two controls of one kind that differ in color, type, size or spacing.                                                                                                                                                                                                                |
+| K5  | The agent knows at once when a frame does not follow the look.                       | A frame with a color, a font size, a space or a radius that is not a look value, a class or a piece that is not in the kit or the look, or a frame rule that sets a look value, is found when the agent writes it. The agent is told the line, what is there, and the fix.                                                                     |
+| K6  | The kit does not make the canvas slower.                                             | With 200 frames from the kit, S8, S9 and S11 are still true.                                                                                                                                                                                                                                                                                   |
 
 ### E8.2 Change the look
 
@@ -728,13 +740,13 @@ Decided:
 - **Failure end:** the change makes text hard to read. Nothing changes, and the user knows which
   part fails.
 
-| ID  | Requirement                                                             | Fit criterion                                                                                                                                                        |
-| --- | ----------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| K7  | One change of the look reaches each frame.                              | After one change of the main color, each frame on each canvas shows the new color. Each open tab shows it within 1 second, with no reload. No agent changed a frame. |
-| K8  | A change of the look keeps text readable.                               | A change that makes text fail WCAG AA contrast is refused. The user is told which text and which color fail.                                                         |
-| K9  | The user can go back to the look before.                                | One step gives each frame the look that it had before the last change.                                                                                               |
-| K10 | A change of the look does not change what a viewer saw when they asked. | After the change, the Before of each result shows the frame in the look that the viewer saw when they asked (E4).                                                    |
-| K11 | An update of easel does not change the look or the kit of a team.       | After an update (R6), each frame looks as it did before.                                                                                                             |
+| ID  | Requirement                                                             | Fit criterion                                                                                                                                                                                                                                                                                            |
+| --- | ----------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| K7  | One change of the look reaches each frame.                              | After one change of the main color, each live document in each open tab shows the new color within 1 second, with no reload. Each other frame in view shows it within 10 seconds on a canvas with 20 frames in view, and shows its last picture until then, never a white box. No agent changed a frame. |
+| K8  | A change of the look keeps text readable.                               | A change that makes a text of the kit fail WCAG 2.2 1.4.3 (4.5:1), or a field edge or the focus ring fail 1.4.11 (3:1), is refused. The user is told which pair, its ratio, and where the kit uses it.                                                                                                   |
+| K9  | The user can go back to the look before.                                | One step gives each frame the look that it had before the last change. The step is a change too, so a second step gives the look back.                                                                                                                                                                   |
+| K10 | A change of the look does not change what a viewer saw when they asked. | After the change, the Before of each result, and the When asked picture of each request, show the frame in the look that the viewer saw (E4).                                                                                                                                                            |
+| K11 | An update of easel does not change the look or the kit of a team.       | After an update (R6), the look, the kit and the document that each frame shows are the same, byte for byte.                                                                                                                                                                                              |
 
 ### E8.3 Add to the kit
 
@@ -747,11 +759,11 @@ Decided:
 - **Failure end:** another agent changed the piece first. Nothing is written. The agent gets the
   newest piece, and makes its change on it.
 
-| ID  | Requirement                                                              | Fit criterion                                                                                                             |
-| --- | ------------------------------------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------- |
-| K12 | An agent adds a piece to the kit one time, and each agent then uses it.  | After one agent adds a pricing card, a second agent makes a frame with that card, in the same look, and does not copy it. |
-| K13 | A change to a piece of the kit reaches each frame that uses it.          | After a change to the button, each frame shows the new button within 1 second, and no agent changed a frame.              |
-| K14 | A change to the kit made on an old piece does not remove a newer change. | When two agents change one piece at the same time, the second is refused and told. No change is lost (as B6).             |
+| ID  | Requirement                                                              | Fit criterion                                                                                                                                                                                       |
+| --- | ------------------------------------------------------------------------ | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| K12 | An agent adds a piece to the kit one time, and each agent then uses it.  | After one agent adds a pricing card, a second agent makes a frame with that card, in the same look, and does not copy it.                                                                           |
+| K13 | A change to a piece of the kit reaches each frame that uses it.          | After a change to the button, each live document shows the new button within 1 second, and each other frame in view within 10 seconds on a canvas with 20 frames in view. No agent changed a frame. |
+| K14 | A change to the kit made on an old piece does not remove a newer change. | When two agents change one piece at the same time, the second is refused and told. No change is lost (as B6).                                                                                       |
 
 ### E8 walk of the slice
 
@@ -771,3 +783,8 @@ look) and K11 (an update of easel).
 | K7, K13 | A frame is one document that holds all that it shows. Nothing in it changes when the look changes. | SPEC-frames          |
 | K10     | Easel keeps old versions of a frame, but not the look that a frame had at that version.            | SPEC-frames          |
 | K6      | The speed measures in `docs/canvas-speed.md` do not cover a frame that uses the kit.               | docs/canvas-speed.md |
+
+The specs close each gap: [kit](../SPEC-kit.md) (K1 to K14), the kit commands and tools in
+[cli](../SPEC-cli.md) and [mcp](../SPEC-mcp.md) (K2), made CSS and kit versions in picture
+addresses in [frames](../SPEC-frames.md) (K7, K10, K13), the kit version of a request in
+[queue](../SPEC-queue.md) (K10), and section 18 of [canvas-speed](canvas-speed.md) (K6).

@@ -20,7 +20,7 @@ It is made for an agent first, as paseo's CLI is:
   or first JSON line, then waits. Its last line is the final answer.
 - A command that waits for work (`next --wait`) prints only its final answer.
 - A document goes in from a file or stdin, and a picture goes out to a file, so an agent never
-  pastes HTML into a flag.
+  pastes HTML into a flag. A piece of the kit and the look go in and out the same way.
 
 A team gets the CLI from its own easel, and an agent that runs in a new place each time (a GitHub
 run, E4.5) signs in from the env (epics R2, A8). Prior art:
@@ -59,8 +59,7 @@ run, E4.5) signs in from the env (epics R2, A8). Prior art:
    against the `SHA256SUMS` file of the release. It puts the binary in `~/.local/bin/easel`, or in
    `$EASEL_BIN_DIR`, and prints the next step: `easel login https://<easel> --name <name>`.
 3. On another system, or when the sum is wrong, the script installs nothing, and says why. A
-   download that fails installs nothing too. An old `easel` there stays as it was. An easel that
-   runs from source (build 0) has no release: its script says so, and installs nothing.
+   download that fails installs nothing too.
 4. The deploy workflow builds the three binaries (`bun build --compile --target`) and the sums for
    each build, and puts them on the release before the image goes live. The server image does not
    carry them.
@@ -88,6 +87,16 @@ run, E4.5) signs in from the env (epics R2, A8). Prior art:
 5. When the server refuses `EASEL_TOKEN`, the CLI exits 2 and says to get a new token with
    `--print-token`.
 
+### Learn the kit
+
+1. `easel --help` names `easel kit` first, before the frame commands: "Make frames from the kit:
+   run `easel kit` first". `easel put --help` says the same.
+2. `easel kit` prints the guide ([kit](SPEC-kit.md)) as text. With `--json`, it prints
+   `{ kind, kit, text }`.
+3. A command that answers findings (`put`, `kit check`) prints each on stderr, one a line:
+   `<file>:<line>:<col> <rule> <what>. Fix: <fix>`, at most 20, then `and <n> more`. With
+   `--json`, they are in the answer. The findings do not change the exit code.
+
 ### Wait longer than one call
 
 1. A server call waits at most 50 s ([SPEC.md](SPEC.md#rules-for-every-module)).
@@ -105,6 +114,7 @@ adds, renames or drops a command, this table changes in the same ship.
 | cli                      | `serve`, `--help`                                                                                                                                                                                                                                                                                                                                                                                                                                                             |
 | [access](SPEC-access.md) | `login` (`--setup`, `--no-wait`, `--resume`, `--print-token`), `whoami`, `logout`, `users`, `users approve` (`--owner`), `users deny`, `users revoke`                                                                                                                                                                                                                                                                                                                         |
 | [ops](SPEC-ops.md)       | `status`, `errors ls` (`--open`, `--side`, `--since`), `errors show` (`--trace`), `errors resolve`, `errors hand-off`, `errors tick`                                                                                                                                                                                                                                                                                                                                          |
+| [kit](SPEC-kit.md)       | `kit`, `kit ls`, `kit get` (`-o`, `--at`), `kit put` (`--base`), `kit check`, `look get` (`-o`, `--at`), `look set` (`--base`), `look undo` (`--base`)                                                                                                                                                                                                                                                                                                                        |
 | [frames](SPEC-frames.md) | `canvas new`, `canvas ls`, `canvas rm`, `share` (`--password`, `--no-password`), `unshare`, `ls`, `get`, `put`, `mv`, `rm`, `shot`                                                                                                                                                                                                                                                                                                                                            |
 | [queue](SPEC-queue.md)   | `next` (`--wait`, `--canvas`, `--n` with `--canvas`, `--lease`), `extend` (`--lease`), `release` and `decline` (`--reason`), `ask` (`--text`, `--html <file>`, `--option`, up to 6), `resolve` (`--text`, `--html <file>`), `requests` (`--canvas`, `--state`), `edit <canvas> <n>` (`--text`), `close <canvas> <n>` (`--text`), `deliveries <canvas> <n>`, `channel set <name> github` (`--repo`, `--label`, `--trigger`, `--token-file`), `channel ls`, `channel rm <name>` |
 | [mcp](SPEC-mcp.md)       | `mcp`                                                                                                                                                                                                                                                                                                                                                                                                                                                                         |
@@ -142,9 +152,7 @@ A waiting command that prints a pending answer first takes its exit code from it
 ([queue](SPEC-queue.md)).
 
 `GET /install.sh` (no sign-in) answers the script of "Get the command line", as
-`text/x-shellscript`, with the `PUBLIC_ORIGIN` and the `BUILD` of the server in it. With no
-`PUBLIC_ORIGIN`, the script names the address that the request came to. All the steps of the script
-are in one function that its last line calls, so a download that stops early runs nothing.
+`text/x-shellscript`, with the `PUBLIC_ORIGIN` and the `BUILD` of the server in it.
 
 ## Rules
 

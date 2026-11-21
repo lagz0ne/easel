@@ -72,18 +72,22 @@ You must know these terms to read any spec.
 
 ### Frames and sharing
 
-| Term         | Type | Definition                                                                                                               |
-| ------------ | ---- | ------------------------------------------------------------------------------------------------------------------------ |
-| canvas key   | noun | The short ID of a canvas. easel makes it from the name: `Checkout flow` gives `checkout-flow`.                           |
-| put          | verb | To write the document of a frame. Without a frame ID, a put makes a new frame.                                           |
-| base         | noun | The version that a writer read before a put. If the base is not the current version, nothing changes.                    |
-| picture      | noun | An image of one version of a frame. Chromium on the server draws it.                                                     |
-| kept version | noun | An old version of a frame that a request or a message refers to. easel keeps it until the canvas is removed.             |
-| share        | verb | To make the share link of a canvas, with or without a password.                                                          |
-| unshare      | verb | To stop the share link of a canvas. A new share makes a new link.                                                        |
-| pass         | noun | A random value that a browser tab gets when it opens a share link. It stops when the link stops or the password changes. |
-| look         | noun | The colors, type, sizes and shapes that all frames of one easel share. It is not the look of the easel page (design).    |
-| kit          | noun | The pieces of screen in the look (a button, a field, a card) that agents use to make frames. Each easel has one.         |
+| Term         | Type | Definition                                                                                                                |
+| ------------ | ---- | ------------------------------------------------------------------------------------------------------------------------- |
+| canvas key   | noun | The short ID of a canvas. easel makes it from the name: `Checkout flow` gives `checkout-flow`.                            |
+| put          | verb | To write the document of a frame. Without a frame ID, a put makes a new frame.                                            |
+| base         | noun | The version that a writer read before a put. If the base is not the current version, nothing changes.                     |
+| picture      | noun | An image of one version of a frame. Chromium on the server draws it.                                                      |
+| kept version | noun | An old version of a frame that a request or a message refers to. easel keeps it until the canvas is removed.              |
+| share        | verb | To make the share link of a canvas, with or without a password.                                                           |
+| unshare      | verb | To stop the share link of a canvas. A new share makes a new link.                                                         |
+| pass         | noun | A random value that a browser tab gets when it opens a share link. It stops when the link stops or the password changes.  |
+| look         | noun | The colors, type, sizes and shapes that all frames of one easel share. It is not the look of the easel page (design).     |
+| kit          | noun | The pieces of screen in the look (a button, a field, a card) that agents use to make frames. Each easel has one.          |
+| look value   | noun | One named value of the look, such as the main color. It is not a token: a token is only an access token.                  |
+| piece        | noun | One part of the kit: a class for a common control, or a short tag that the frame expands.                                 |
+| kit version  | noun | The number of one state of the look and the kit. It starts at 1 and increases at each change of either. It never changes. |
+| made CSS     | noun | The CSS that easel makes from the class names of a frame version or a kit version, and keeps with it.                     |
 
 ### Viewer page
 

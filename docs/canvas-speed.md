@@ -260,6 +260,35 @@ Raw HTML is mostly CSS the edit does not touch.
 - Prior art: Playwright MCP's accessibility
   snapshot, Figma's Dev Mode MCP outline.
 
+## 18. The kit in each live document
+
+Easel's own measures, 2026-11-21 (E8, see
+`SPEC-kit.md` and
+`docs/decisions/kit-on-tailwind.md`).
+
+- Put the look and the kit in each srcdoc as
+  text. Do not link them: a picture draw has no
+  base URL, and the egress proxy refuses
+  loopback.
+- 12 live documents with the kit in the srcdoc
+  (15 KB each): all loaded in 109-122 ms. Linked
+  with a warm cache: 119-138 ms. No loss.
+- A new look posted to 12 live documents: all
+  restyled in 21-26 ms. One message to each
+  frame replaces one style text. No reload.
+- Made CSS for each document: the kit 12-13 KB,
+  the frame's utilities 2 KB (median, 8 KB at
+  most).
+- The make chain at put time (check, utilities,
+  compose): 1.6 ms p50 for a usual frame, 8.4 ms
+  for 208 KB, 56 ms for the first one after a
+  start.
+- Never make CSS in the browser. Tailwind's
+  browser build is a 291 KB script for each live
+  document and each picture draw.
+- Caps: the kit's made CSS and templates 128 KiB;
+  a frame's made CSS 256 KiB.
+
 ## How to measure
 
 - Chrome traces on a page of real screens:
