@@ -1,9 +1,8 @@
-import { data, operation, resource, tag } from "@tinkered/core";
+import { data, operation, resource } from "@tinkered/core";
 import { z } from "zod";
 
 import { frames } from "@/frames";
 import { queue } from "@/queue";
-import { stateOf } from "@/queue/contract";
 
 import { keepName, keptName } from "./gate";
 
@@ -373,29 +372,6 @@ export const shownName = resource({
   config: {},
   depends: { d: drafts, keptName },
   factory: ({ d, keptName }) => (d ? keptName.run() : null),
-});
-
-const canvasOf = tag<string>({ label: "viewer.requestCanvas" });
-const numberOf = tag<number>({ label: "viewer.requestN" });
-
-/**
- * The state of a request at the server's time, as the page last read it (fact rules 9, 10): the
- * board's `serverClock`; until it is read, the request's own `updated`. Null: no such request.
- */
-export const requestState = resource({
-  label: "viewer.requestState",
-  config: { canvas: canvasOf.required, n: numberOf.required },
-  depends: (c) => ({
-    rows: frames.board.requests.where({ canvas: c.canvas }),
-    clock: frames.board.serverClock.of({ canvas: c.canvas }),
-    stateOf,
-  }),
-  factory: ({ rows, clock, stateOf }, { config }) => {
-    const request = rows.get().find((r) => r.n === config.n);
-    if (!request) return null;
-
-    return stateOf.run({ input: { request, now: clock.get()?.now ?? request.updated } });
-  },
 });
 
 /** Escape, wherever the focus is on the page: `escape`. */

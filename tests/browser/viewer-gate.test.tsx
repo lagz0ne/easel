@@ -238,7 +238,7 @@ function expectNoControl() {
   }
 }
 
-/** The canvas's controls: Request, Zoom in, Zoom out and Fit, and no other control. */
+/** The canvas's controls: Request, Requests, Zoom in, Zoom out and Fit, and no other control. */
 function expectCanvasControlsOnly() {
   for (const role of interactive.filter((r) => r !== "button")) {
     expect(page.getByRole(role).elements(), role).toHaveLength(0);
@@ -247,14 +247,14 @@ function expectCanvasControlsOnly() {
     .getByRole("button")
     .elements()
     .map((b) => b.getAttribute("aria-label") ?? b.textContent);
-  expect(buttons.toSorted()).toEqual(["Fit", "Request", "Zoom in", "Zoom out"]);
+  expect(buttons.toSorted()).toEqual(["Fit", "Request", "Requests", "Zoom in", "Zoom out"]);
 }
 
 const frameList = () => page.getByRole("region", { name: "Frames" });
 const reconnecting = () => page.getByRole("status").filter({ hasText: "Reconnecting" });
 const endedHeading = () => page.getByRole("heading", { name: "This link does not work" });
 
-test("the link opens with no name asked and none kept, then the canvas shows its frames live, names as text, with only Request and the camera's controls (s0 to s1, NameNotAtTheGate)", async () => {
+test("the link opens with no name asked and none kept, then the canvas shows its frames live, names as text, with only Request, Requests and the camera's controls (s0 to s1, NameNotAtTheGate)", async () => {
   const server = await boot();
   const first = await tab(server, `/s/${live}`);
 

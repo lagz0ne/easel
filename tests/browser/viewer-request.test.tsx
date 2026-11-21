@@ -453,7 +453,7 @@ test("the first Send asks the name; share.name names the pass, the browser keeps
 
   // The popover shows the new request, waiting, and Request is off.
   const shown = page.getByRole("dialog", { name: "Request #1" });
-  await expect.element(shown.getByText("Waiting for an agent")).toBeVisible();
+  await expect.element(shown.getByRole("img", { name: "Waiting for an agent" })).toBeVisible();
   expect(shown.getByText("Add a short FAQ here.").elements()).toHaveLength(1);
   expect(shown.getByText("#1 · On Home").elements()).toHaveLength(1);
   expect(requestButton().element()).toHaveAttribute("aria-pressed", "false");
@@ -463,7 +463,7 @@ test("the first Send asks the name; share.name names the pass, the browser keeps
   await expect.poll(() => pin(1).elements().length).toBe(2);
 });
 
-test("the dock at the bottom centre holds the canvas tools as icons, named: Request (Ask for a change), Zoom out, the zoom, Zoom in and Fit; Request shows pressed while request mode is on (The page 2)", async () => {
+test("the dock at the bottom centre holds the canvas tools as icons, named: Request (Ask for a change), Requests, Zoom out, the zoom, Zoom in and Fit; Request shows pressed while request mode is on (The page 2)", async () => {
   const server = await boot();
   await tab(server);
 
@@ -472,7 +472,7 @@ test("the dock at the bottom centre holds the canvas tools as icons, named: Requ
     .getByRole("button")
     .elements()
     .map((b) => b.getAttribute("aria-label"));
-  expect(names).toEqual(["Request", "Zoom out", "Zoom in", "Fit"]);
+  expect(names).toEqual(["Request", "Requests", "Zoom out", "Zoom in", "Fit"]);
   expect(dock.getByRole("status", { name: "Zoom" }).elements()).toHaveLength(1);
   expect(requestButton().element()).toHaveAttribute("title", "Ask for a change");
   expect(requestButton().element().querySelector("svg")).not.toBeNull();
@@ -836,7 +836,7 @@ test("the popover of a saved request names its state with the words of § Follow
     await pin(i + 1).click();
     await expect
       .element(
-        page.getByRole("dialog", { name: `Request #${i + 1}` }).getByText(word, { exact: true }),
+        page.getByRole("dialog", { name: `Request #${i + 1}` }).getByRole("img", { name: word }),
       )
       .toBeVisible();
   }

@@ -2,11 +2,9 @@ import { operation } from "@tinkered/core";
 import { useData, useRun } from "@tinkered/react";
 import { z } from "zod";
 
-import { frames } from "@/frames";
 import type { FrameInfo } from "@/frames/contract";
 import { viewerName } from "@/frames/share";
 import type { Request } from "@/queue/cells";
-import type { State } from "@/queue/contract";
 
 import {
   drafts,
@@ -14,13 +12,15 @@ import {
   openedRequest,
   openRequest,
   requestMode,
-  requestState,
   sendDraft,
   shownName,
   toggleRequest,
   typeText,
 } from "./draft";
-import type { Draft, Place } from "./draft";
+import type { Draft, Place as DraftPlace } from "./draft";
+import { doneStates, requestViews, seenWhileOpen } from "./follow";
+import type { RequestView, Shown } from "./follow";
+import { Initial, Place, StateMark } from "./panel";
 import { partBox } from "./stage";
 
 // The page side of a request (SPEC-viewer.md § Ask for a change; the E4.1 and E3.2 designs): the
@@ -47,11 +47,6 @@ export function RequestButton() {
       </svg>
     </button>
   );
-}
-
-/** The first letter of a name, for a pin or an avatar. */
-function Initial({ name }: { name: string | null }) {
-  return <>{(name?.trim().charAt(0) ?? "").toUpperCase() || "?"}</>;
 }
 
 /** Where a request is, as the popover says it. */
@@ -174,41 +169,22 @@ function Composer({ d, lost }: { d: Draft; lost: boolean }) {
   );
 }
 
-/** The word for each state of a request (SPEC-viewer § Follow the requests 6); in work, the agent's name. */
-const stateWords: Record<Exclude<State, "inWork">, string> = {
-  waiting: "Waiting for an agent",
-  person: "Needs a person",
-  question: "Question for you",
-  result: "Result to check",
-  accepted: "Done",
-  closed: "Closed",
-};
-
-/** The word of a state; in work, the name of the agent. */
-function StateWord({ state, agent }: { state: State | null; agent: string | null }) {
-  if (state === null) return null;
-
-  return <>{state === "inWork" ? (agent ?? "") : stateWords[state]}</>;
-}
-
-/** The popover of a saved request: its number and place, who asked, the text, and its state. */
-function Opened({ canvas, n, list }: { canvas: string; n: number; list: readonly FrameInfo[] }) {
-  const request = useData(frames.board.requests.where({ canvas })).find((r) => r.n === n);
-  const asked = useData(frames.board.messages.where({ canvas })).find(
-    (m) => m.request === request?.id && m.kind === "ask",
-  );
-  const state = useData(requestState({ canvas, n }));
+/**
+ * The popover of a saved request (step 10): a dialog by its pin, with its state mark, number and
+ * place, who asked and the text. While it is open, its changed mark goes (step 17).
+ */
+function Opened({ v, list }: { v: RequestView; list: readonly FrameInfo[] }) {
   const close = useRun(escape);
-  if (!request) return null;
-
-  const frame = list.find((f) => f.id === request.frameId);
+  const { r } = v;
+  useData(seenWhileOpen({ canvas: r.canvas, id: r.id, updated: r.updated }));
 
   return (
-    <section className="e-pop" role="dialog" aria-label={`Request #${n}`}>
+    <section className="e-pop" role="dialog" aria-label={`Request #${r.n}`}>
       <header className="e-head">
-        <span>
-          {`#${n} · `}
-          <Where frameName={request.frameId === null ? null : (frame?.name ?? "")} />
+        <StateMark shown={v.shown} agent={r.claimedBy} />
+        <span className="e-head-ref">
+          {`#${r.n} · `}
+          <Place r={r} list={list} />
         </span>
         <button type="button" className="e-close" aria-label="Close" onClick={() => close.run()}>
           ×
@@ -216,14 +192,11 @@ function Opened({ canvas, n, list }: { canvas: string; n: number; list: readonly
       </header>
       <div className="e-row">
         <span className="e-avatar" aria-hidden="true">
-          <Initial name={request.author} />
+          <Initial name={r.author} />
         </span>
         <div className="e-field">
-          <p className="e-who">{request.author}</p>
-          <p>{asked?.text ?? ""}</p>
-          <p className="e-state">
-            <StateWord state={state} agent={request.claimedBy} />
-          </p>
+          <p className="e-who">{r.author}</p>
+          <p>{v.text}</p>
         </div>
       </div>
     </section>
@@ -292,27 +265,46 @@ export function Requests({
   );
 }
 
-/** The pin of each saved request of the canvas, to open its popover. */
+/** The look of a pin (step 7): accent while it waits for a viewer, danger for a person. */
+const pinLooks: Record<Shown, "waits" | "person" | "quiet"> = {
+  waiting: "quiet",
+  inWork: "quiet",
+  question: "waits",
+  result: "waits",
+  person: "person",
+  accepted: "quiet",
+  closed: "quiet",
+  takenBack: "quiet",
+};
+
+/**
+ * The pin of each request of the list `Open`, to open its popover (step 7): a bubble with the
+ * author's initial. A done or closed request has no pin, but while its popover is open.
+ */
 function Pins({ canvas, list }: { canvas: string; list: readonly FrameInfo[] }) {
-  const pins = useData(frames.board.requests.where({ canvas }));
+  const views = useData(requestViews({ canvas }));
   const opened = useData(openedRequest);
   const open = useRun(openRequest);
+  const openN = opened?.canvas === canvas ? opened.n : null;
 
   return (
     <>
-      {pins.map((r) => (
-        <AtRequest key={r.n} r={r} list={list}>
-          <button
-            type="button"
-            className="e-pin"
-            aria-label={`Request #${r.n}`}
-            aria-pressed={opened?.canvas === canvas && opened.n === r.n}
-            onClick={() => open.run({ input: { canvas, n: r.n } })}
-          >
-            <Initial name={r.author} />
-          </button>
-        </AtRequest>
-      ))}
+      {views
+        .filter((v) => !doneStates.includes(v.shown) || v.r.n === openN)
+        .map(({ r, shown }) => (
+          <AtRequest key={r.n} r={r} list={list}>
+            <button
+              type="button"
+              className="e-pin"
+              data-look={pinLooks[shown]}
+              aria-label={`Request #${r.n}`}
+              aria-pressed={r.n === openN}
+              onClick={() => open.run({ input: { canvas, n: r.n } })}
+            >
+              <Initial name={r.author} />
+            </button>
+          </AtRequest>
+        ))}
     </>
   );
 }
@@ -339,7 +331,7 @@ function DraftAt({ d, lost }: { d: Draft; lost: boolean }) {
 }
 
 /** Where the draft's frame is: a dashed area once an agent removed it, else the part's outline. */
-function FrameArea({ gone, place }: { gone: boolean; place: Place }) {
+function FrameArea({ gone, place }: { gone: boolean; place: DraftPlace }) {
   const box = place.box;
   if (!box) return null;
   if (!gone) return <Outline place={place} at={box} />;
@@ -353,7 +345,7 @@ function FrameArea({ gone, place }: { gone: boolean; place: Place }) {
  * The outline of the part a draft is on: the box that the frame's document gave for the place
  * clicked (`partBox`), on the frame at `at`. None until it answers, or for no part.
  */
-function Outline({ place, at }: { place: Place; at: { x: number; y: number } }) {
+function Outline({ place, at }: { place: DraftPlace; at: { x: number; y: number } }) {
   const part = useData(partBox);
   const box =
     part?.id === place.frameId && part.x === place.x && part.y === place.y ? part.box : null;
@@ -370,12 +362,12 @@ function Outline({ place, at }: { place: Place; at: { x: number; y: number } }) 
 
 /** The popover of a saved request, at its pin. */
 function OpenedAt({ canvas, n, list }: { canvas: string; n: number; list: readonly FrameInfo[] }) {
-  const r = useData(frames.board.requests.where({ canvas })).find((row) => row.n === n);
-  if (!r) return null;
+  const v = useData(requestViews({ canvas })).find((one) => one.r.n === n);
+  if (!v) return null;
 
   return (
-    <AtRequest r={r} list={list}>
-      <Opened canvas={canvas} n={n} list={list} />
+    <AtRequest r={v.r} list={list}>
+      <Opened v={v} list={list} />
     </AtRequest>
   );
 }

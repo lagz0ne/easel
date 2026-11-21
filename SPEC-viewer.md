@@ -186,8 +186,11 @@ this spec wins, and the screen gets a fix.
    of the server's time. The board carries the server's clock offset, and a clock capsule keeps
    the estimate.
 9. A click on a row moves the canvas to the place of the request and opens it. A click on a pin
-   opens its request (E4.4 F3). A request of a removed frame moves the canvas to where the frame
-   was: a dashed area that says the frame was removed, with the pin of the request in it.
+   opens its request (E4.4 F3). The place comes to 40% of the canvas's width and height, at the
+   zoom as it is, so the popover has room. A request of a removed frame moves the canvas to where
+   the frame was: a dashed area that says the frame was removed, with the pin of the request in
+   it. (The dashed area is not built yet: it comes with "may be outdated". Until then, the row of
+   such a request shows the request as open, and no popover shows.)
 10. An open request is a popover next to its pin (a `dialog` named `Request #<n>`). It does not
     cover the part that the request is about, and the list stays open. Escape or its button
     `Close` (×) closes the popover; the request does not change.

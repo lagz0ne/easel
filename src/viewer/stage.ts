@@ -592,6 +592,16 @@ export const stage = resource({
         paints.update((p) => Object.fromEntries(Object.entries(p).filter(([key]) => key !== id)));
       },
 
+      /**
+       * A place on the canvas comes into view, at the zoom as it is: at 40% of the view's width
+       * and height, so its popover, to the right and below, has room.
+       */
+      show: (x: number, y: number) => {
+        at.measure();
+        cam = { ...cam, x: view.w * 0.4 - x * cam.z, y: view.h * 0.4 - y * cam.z };
+        at.move();
+      },
+
       zoomIn: () => at.zoomAt(view.w / 2, view.h / 2, zoomFactor),
       zoomOut: () => at.zoomAt(view.w / 2, view.h / 2, 1 / zoomFactor),
     };

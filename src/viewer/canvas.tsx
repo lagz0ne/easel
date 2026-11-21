@@ -8,7 +8,10 @@ import { maxPicturePixels, picturePrefix } from "@/frames/contract";
 import type { FrameInfo } from "@/frames/contract";
 
 import "./canvas.css";
-import { escapeKey, pickPlace, requestMode, resendOnBack } from "./draft";
+import { escapeKey, openRequest, pickPlace, requestMode, resendOnBack } from "./draft";
+import { clockTicker, panelOpen } from "./follow";
+import type { RequestView } from "./follow";
+import { Panel, RequestsButton } from "./panel";
 import { RequestButton, Requests } from "./request";
 import { liveSet, painted, paintScript, stage, zoomShown } from "./stage";
 
@@ -216,13 +219,14 @@ const icons = {
 
 /**
  * The dock at the bottom centre of the canvas (SPEC-viewer § The page 2; the library's Dock): the
- * button `Request`, then `Zoom out`, the zoom status, `Zoom in` and `Fit`. The buttons show
+ * buttons `Request` and `Requests`, then `Zoom out`, the zoom status, `Zoom in` and `Fit`. The buttons show
  * icons; their names are their accessible names and their tooltips.
  */
-function Dock({ at }: { at: Stage }) {
+function Dock({ at, canvas }: { at: Stage; canvas: string }) {
   return (
     <div className="e-dock" role="toolbar" aria-label="Canvas">
       <RequestButton />
+      <RequestsButton canvas={canvas} />
       <span className="e-dock-sep" aria-hidden="true" />
       <button
         type="button"
@@ -256,6 +260,25 @@ function Dock({ at }: { at: Stage }) {
   );
 }
 
+/**
+ * The panel `Requests`, while it is open. A press on a row moves the canvas to the place of the
+ * request and opens it (step 9). A request whose frame is gone opens where it is.
+ */
+function PanelAt({ at, canvas, list }: { at: Stage; canvas: string; list: readonly FrameInfo[] }) {
+  const open = useData(panelOpen);
+  const opening = useRun(openRequest);
+  if (!open) return null;
+
+  const onOpen = ({ r }: RequestView) => {
+    const frame = list.find((f) => f.id === r.frameId);
+    if (r.frameId === null) at.show(r.x, r.y);
+    else if (frame) at.show(frame.x + r.x, frame.y + r.y);
+    opening.run({ input: { canvas, n: r.n } });
+  };
+
+  return <Panel canvas={canvas} list={list} onOpen={onOpen} />;
+}
+
 /** The connection: `Reconnecting` while the tab may be behind, or an alert on a fault. */
 function Status({ lost, fault }: { lost: boolean; fault: boolean }) {
   if (lost) return <p role="status">Reconnecting</p>;
@@ -278,10 +301,12 @@ export function Canvas({ canvas, opening }: { canvas: string; opening: React.Rea
   useResource(escapeKey);
   const pick = useRun(pickPlace);
   const asking = useData(requestMode);
+  const panel = useData(panelOpen);
+  useData(clockTicker({ canvas }));
   if (state?.status === "fault" && ended.safeParse(state.fault.payload).success) return opening;
 
   return (
-    <main className="e-canvas">
+    <main className="e-canvas" data-panel={panel ? "open" : "closed"}>
       <section
         ref={at.viewport}
         className="e-viewport"
@@ -319,7 +344,8 @@ export function Canvas({ canvas, opening }: { canvas: string; opening: React.Rea
       <div className="e-top">
         <Status lost={lost} fault={state?.status === "fault"} />
       </div>
-      <Dock at={at} />
+      <Dock at={at} canvas={canvas} />
+      <PanelAt at={at} canvas={canvas} list={list} />
     </main>
   );
 }

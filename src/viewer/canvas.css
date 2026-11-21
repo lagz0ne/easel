@@ -483,3 +483,399 @@
   background-color: var(--e-surface);
   border: 1px solid var(--e-muted);
 }
+
+/* The panel `Requests` (SPEC-viewer § The page 3; the library's Sidebar): at the right edge, over
+   the full height. The canvas and the dock use the rest of the width. */
+.e-canvas[data-panel="open"] .e-viewport {
+  right: 340px;
+}
+
+.e-canvas[data-panel="open"] .e-dock {
+  left: calc((100% - 340px) / 2);
+}
+
+.e-panel {
+  position: absolute;
+  top: 0;
+  right: 0;
+  bottom: 0;
+  z-index: 3;
+  display: flex;
+  flex-direction: column;
+  box-sizing: border-box;
+  width: 340px;
+  font-family: var(--e-font);
+  color: var(--e-text);
+  background-color: var(--e-surface);
+  border-left: 1px solid var(--e-line, var(--e-card));
+}
+
+.e-panel-head {
+  display: flex;
+  flex: none;
+  gap: var(--e-2);
+  align-items: center;
+  height: 48px;
+  padding: 0 var(--e-4);
+  border-bottom: 1px solid var(--e-line, var(--e-card));
+}
+
+.e-panel-head h2 {
+  margin: 0;
+  font-size: var(--e-size-2);
+  font-weight: 600;
+}
+
+.e-panel-body {
+  flex: 1;
+  overflow-y: auto;
+}
+
+.e-group h3 {
+  margin: 0;
+  padding: var(--e-3) var(--e-4) var(--e-1);
+  font-size: var(--e-size-1);
+  font-weight: 500;
+  color: var(--e-muted);
+}
+
+.e-group ul {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.e-none {
+  display: flex;
+  flex-direction: column;
+  gap: var(--e-1);
+  margin: 0;
+  padding: var(--e-5) var(--e-4);
+  font-size: var(--e-size-2);
+  color: var(--e-muted);
+}
+
+.e-none strong {
+  color: var(--e-text);
+}
+
+.e-none p {
+  margin: 0;
+}
+
+/* A count (the library's Count): an accent pill. */
+.e-count {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 16px;
+  height: 16px;
+  padding: 0 var(--e-1);
+  font-size: var(--e-size-1);
+  font-weight: 600;
+  color: var(--e-surface);
+  background-color: var(--e-accent);
+  border-radius: 999px;
+}
+
+.e-dock-btn .e-count {
+  position: absolute;
+  top: 0;
+  right: 0;
+  box-shadow: 0 0 0 2px var(--e-surface);
+}
+
+/* The list's menu button and its menu. */
+.e-menu-at {
+  position: relative;
+  margin-left: auto;
+}
+
+.e-ghost {
+  display: inline-flex;
+  gap: var(--e-1);
+  align-items: center;
+  padding: var(--e-1) var(--e-2);
+  font-family: inherit;
+  font-size: var(--e-size-2);
+  color: var(--e-muted);
+  background: none;
+  border: 0;
+  border-radius: var(--e-radius);
+  cursor: pointer;
+}
+
+.e-menu {
+  position: absolute;
+  top: 100%;
+  right: 0;
+  z-index: 4;
+  display: flex;
+  flex-direction: column;
+  min-width: 180px;
+  padding: var(--e-1);
+  background-color: var(--e-surface);
+  border: 1px solid var(--e-line, var(--e-card));
+  border-radius: var(--e-radius);
+  box-shadow: var(--e-shadow);
+}
+
+.e-menu button {
+  display: flex;
+  gap: var(--e-3);
+  align-items: center;
+  justify-content: space-between;
+  padding: var(--e-2);
+  font-family: inherit;
+  font-size: var(--e-size-2);
+  color: var(--e-text);
+  text-align: left;
+  background: none;
+  border: 0;
+  border-radius: var(--e-radius);
+  cursor: pointer;
+}
+
+.e-menu button[aria-checked="true"] {
+  font-weight: 600;
+}
+
+.e-menu button[aria-disabled="true"] {
+  color: var(--e-muted);
+  cursor: default;
+}
+
+.e-menu .e-danger {
+  color: var(--e-danger);
+}
+
+.e-menu-n,
+.e-menu-hint {
+  font-size: var(--e-size-1);
+  font-weight: 400;
+  color: var(--e-muted);
+}
+
+.e-ghost:focus-visible,
+.e-menu button:focus-visible,
+.e-rr:focus-visible {
+  outline: 2px solid var(--e-focus);
+  outline-offset: -2px;
+}
+
+@media (hover: hover) and (pointer: fine) {
+  .e-menu button:hover,
+  .e-ghost:hover {
+    background-color: var(--e-hover, var(--e-bg));
+  }
+}
+
+/* A row (the library's RequestRow): no fill for its state; the mark says it. */
+.e-rr {
+  position: relative;
+  display: flex;
+  gap: var(--e-3);
+  width: 100%;
+  padding: var(--e-3) var(--e-4);
+  font-family: inherit;
+  color: var(--e-text);
+  text-align: left;
+  background-color: var(--e-surface);
+  border: 0;
+  border-bottom: 1px solid var(--e-divider, var(--e-bg));
+  cursor: pointer;
+}
+
+.e-rr[data-selected="true"] {
+  background-color: var(--e-hover, var(--e-bg));
+  box-shadow: inset 2px 0 0 var(--e-text);
+}
+
+@media (hover: hover) and (pointer: fine) {
+  .e-rr:hover {
+    background-color: var(--e-hover, var(--e-bg));
+  }
+}
+
+.e-rr-av {
+  display: flex;
+  flex: none;
+  align-items: center;
+  justify-content: center;
+  width: 24px;
+  height: 24px;
+  font-size: var(--e-size-1);
+  font-weight: 600;
+  background-color: var(--e-surface);
+  border: 1px solid var(--e-line, var(--e-card));
+  border-radius: 50%;
+}
+
+/* Changed since your last visit: an accent squircle on the avatar's top right corner. */
+.e-rr-changed {
+  position: absolute;
+  top: 8px;
+  left: 32px;
+  width: 12px;
+  height: 12px;
+  background-color: var(--e-accent);
+  border-radius: 4px;
+  box-shadow: 0 0 0 2px var(--e-surface);
+}
+
+.e-rr-main {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  gap: var(--e-1);
+  min-width: 0;
+}
+
+.e-rr-head {
+  display: flex;
+  gap: var(--e-2);
+  align-items: center;
+  font-size: var(--e-size-2);
+}
+
+.e-rr-head strong {
+  font-weight: 600;
+}
+
+.e-rr-when,
+.e-rr-ref,
+.e-rr-place {
+  font-size: var(--e-size-1);
+  color: var(--e-muted);
+}
+
+.e-rr-sep {
+  height: 12px;
+  border-left: 1px solid var(--e-line, var(--e-card));
+}
+
+.e-rr-ref {
+  margin-left: auto;
+  font-variant-numeric: tabular-nums;
+}
+
+.e-rr-text {
+  display: -webkit-box;
+  overflow: hidden;
+  font-size: var(--e-size-2);
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+}
+
+.e-rr-place {
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+/* A state mark (the library's StateBadge, look=mark): a shape per state. */
+.e-sb {
+  display: inline-flex;
+  gap: var(--e-2);
+  align-items: center;
+  font-size: var(--e-size-1);
+  font-weight: 500;
+  color: var(--e-muted);
+  white-space: nowrap;
+}
+
+.e-sb-mark {
+  display: inline-flex;
+  flex: none;
+  align-items: center;
+  justify-content: center;
+  box-sizing: border-box;
+  width: 8px;
+  height: 8px;
+  font-style: normal;
+  border: 1.5px solid currentcolor;
+  border-radius: 50%;
+}
+
+.e-sb[data-state="inWork"] .e-sb-mark {
+  background: conic-gradient(currentcolor 0 50%, transparent 50% 100%);
+}
+
+.e-sb[data-state="question"],
+.e-sb[data-state="result"] {
+  color: var(--e-accent);
+}
+
+.e-sb[data-state="question"] .e-sb-mark,
+.e-sb[data-state="result"] .e-sb-mark,
+.e-sb[data-state="person"] .e-sb-mark {
+  width: 12px;
+  height: 12px;
+  background-color: currentcolor;
+  border: 0;
+}
+
+.e-sb[data-state="question"] .e-sb-mark {
+  border-radius: 50% 50% 50% 0;
+}
+
+.e-sb[data-state="question"] .e-sb-mark::after,
+.e-sb[data-state="person"] .e-sb-mark::after {
+  font-size: var(--e-size-1);
+  font-weight: 600;
+  line-height: 1;
+  color: var(--e-surface);
+}
+
+.e-sb[data-state="question"] .e-sb-mark::after {
+  content: "?";
+}
+
+.e-sb[data-state="result"] .e-sb-mark::after {
+  content: "";
+  width: 4px;
+  height: 7px;
+  border: solid var(--e-surface);
+  border-width: 0 1.5px 1.5px 0;
+  transform: translateY(-1px) rotate(45deg);
+}
+
+.e-sb[data-state="person"] {
+  color: var(--e-danger);
+}
+
+.e-sb[data-state="person"] .e-sb-mark {
+  border-radius: 3px;
+}
+
+.e-sb[data-state="person"] .e-sb-mark::after {
+  content: "!";
+}
+
+.e-sb[data-state="accepted"] .e-sb-mark {
+  background-color: currentcolor;
+}
+
+.e-sb[data-state="closed"] .e-sb-mark,
+.e-sb[data-state="takenBack"] .e-sb-mark {
+  background: linear-gradient(45deg, transparent 42%, currentcolor 42% 58%, transparent 58%);
+}
+
+/* A pin's look (step 7): accent while it waits for a viewer, danger for a person, else quiet. */
+.e-pin[data-look="quiet"] {
+  color: var(--e-text);
+  background-color: var(--e-surface);
+  border-color: var(--e-surface);
+}
+
+.e-pin[data-look="person"] {
+  background-color: var(--e-danger);
+}
+
+.e-head-ref {
+  margin-right: auto;
+}
+
+.e-head .e-sb {
+  margin-right: var(--e-2);
+}
