@@ -532,6 +532,19 @@ test("a failed step on an issue ends the attempt with its cause: reading the iss
   expect(github.issues[0]?.state).toBe("closed");
 });
 
+test("an answer of GitHub with no issue number fails the attempt with its cause, and counts as a failure", async () => {
+  const { srv, github, a, bo, id } = await dispatching();
+  github.failWith((method, path) =>
+    method === "POST" && path.endsWith("/issues") ? { status: 201, message: "Created" } : null,
+  );
+  await ask(srv, bo, id);
+  await rounds(srv, 1000);
+
+  expect(await deliveriesOf(a)).toMatchObject([
+    { status: "pending", attempts: 1, cause: "github 201: no issue number" },
+  ]);
+});
+
 test("a pending delivery ends when its request leaves the queue, or its channel is removed", async () => {
   const { srv, github, a, bo, id } = await dispatching();
   github.failWith(() => ({ status: 503, message: "Unavailable" }));

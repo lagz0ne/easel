@@ -350,7 +350,10 @@ const openIssue = operation({
     });
     if (made.kind === "failed") return made;
 
-    return { kind: "sent" as const, ref: issueNumber.parse(made.body).number };
+    const issue = issueNumber.safeParse(made.body);
+    if (!issue.success) return { kind: "failed" as const, cause: "github 201: no issue number" };
+
+    return { kind: "sent" as const, ref: issue.data.number };
   },
 });
 
@@ -540,8 +543,13 @@ const traced = namespace({});
  */
 const dispatchEvery = operation({
   label: "queue.dispatchEvery",
-  depends: { dispatchRound, attempt: attemptDelivery.controller, counts: dispatchCounts },
-  run: async ({ dispatchRound, attempt, counts }, { clock, signal }) => {
+  depends: {
+    dispatchRound,
+    attempt: attemptDelivery.controller,
+    endAttempt,
+    counts: dispatchCounts,
+  },
+  run: async ({ dispatchRound, attempt, endAttempt, counts }, { clock, signal }) => {
     while (!signal.aborted) {
       const slept = await clock.sleep(roundMs, signal).then(
         () => true,
@@ -557,6 +565,12 @@ const dispatchEvery = operation({
         counts.busy.add(key);
         void attempt
           .run({ input: one, signal, ns: traced })
+          // An attempt that threw counts as a failure, so it cannot be tried each second forever.
+          .catch(() => {
+            const outcome = { kind: "failed" as const, cause: "easel: the attempt failed" };
+            const now = clock.currentTimeMillis();
+            return endAttempt.run({ input: { delivery: one, outcome, now } });
+          })
           .catch(() => undefined)
           .finally(() => counts.busy.delete(key));
       }
