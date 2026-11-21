@@ -30,9 +30,12 @@ this spec wins, and the screen gets a fix.
 
 ### Open the link
 
-1. The page asks for the viewer's name once per browser (textbox `Your name`, button `Continue`),
-   before its first `share.open`, which takes the name. Open question: the E4.1 design asks for
-   the name at the first send, not at the gate. The E3 design decides it.
+1. The page asks for no name when the link opens. The viewer sees the canvas at once (after the
+   password, if the link has one). The first `Send` of a request asks for the name in the same
+   popover (textbox `Your name`), once per browser, and the browser keeps it. A viewer who only
+   looks gives no name. Decided on 2026-11-21 in the E3 design (page `Work · E3 Share and look`),
+   as Pastel, BugHerd and Markup.io do. Until the build follows, the built page still asks at the
+   link, before `share.open`.
 2. The rest of the gate (password, wrong tries, an unknown link) is in
    [frames](SPEC-frames.md).
 

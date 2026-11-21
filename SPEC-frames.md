@@ -73,8 +73,9 @@ that a manifest refers to and removes the rest.
 
 ### Open a share link
 
-1. A viewer opens the link. The page asks for their name (textbox `Your name`, button `Continue`)
-   once, and remembers it in that browser.
+1. A viewer opens the link. The page asks for no name here: the first request asks for it
+   ([viewer](SPEC-viewer.md#open-the-link)). Until the build follows, the built page asks for the
+   name first (textbox `Your name`, button `Continue`), once per browser.
 2. If the link has a password, the page shows textbox `Password` and button `Open`. A wrong one
    gives an `alert`. After 5 wrong tries in a minute from one address, the `alert` says to wait,
    and the page takes no password, not even the right one, until a minute has passed since the

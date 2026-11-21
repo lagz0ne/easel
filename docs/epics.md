@@ -228,6 +228,12 @@ Decided:
 | E3.1 | Share a canvas     | user   | [frames](../SPEC-frames.md#share-a-canvas)                                                                                | ready  |
 | E3.2 | Look at the frames | viewer | [frames](../SPEC-frames.md#open-a-share-link), [viewer](../SPEC-viewer.md#journeys), [design](../SPEC-design.md#journeys) | ready  |
 
+The design of each state that a user or a viewer sees is on the Doop canvas
+[easel · Product design](https://doop.vibea.dev/c/xFJSTXA-v5), page `Work · E3 Share and look`:
+the sheet `E3.00`, then one state sheet and its click paths for each journey. Each state shows the
+IDs below that it meets. Decided on 2026-11-21: the viewer gives a name at the first request, not
+when the link opens (S7).
+
 ### E3.1 Share a canvas
 
 - **Actor:** user (an agent or a person of the team).

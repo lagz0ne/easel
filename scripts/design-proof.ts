@@ -1,4 +1,4 @@
-// Proof that the E4 design meets its requirements and the design system.
+// Proof that the E3 and E4 designs meet their requirements and the design system.
 //
 // The design review is a loop: requirement, design, proof, review, then a
 // correction to the requirement or to the design. This script is the proof
@@ -6,7 +6,7 @@
 // checks it against docs/epics.md and against the library's components and
 // tokens. The canvases and their pages: docs/design-canvas.md.
 //
-// Scope: the E4 frames on the product canvas (always), each frame on a system
+// Scope: the E3 and E4 frames on the product canvas (always), each frame on a system
 // page of the library canvas (always), and each other frame on either canvas
 // that asks for sign-off (ready_for_dev or needs_review).
 // A draft is an exploration: it may break the rules until it asks for review.
@@ -16,8 +16,8 @@
 //
 // One finding is one line: `<frame> <rule id> <what is there>`.
 // Rules:
-//   R1 each E4 ID shows on a state of a sheet, or is in NOT_SHOWN with a reason.
-//   R2 each ID on a sheet is an E4 ID in docs/epics.md.
+//   R1 each E3 and E4 ID shows on a state of a sheet, or is in NOT_SHOWN with a reason.
+//   R2 each ID on a sheet is an ID of the sheet's epic in docs/epics.md.
 //   R3 F1: each state of F1 shows on a sheet, and each has its own look.
 //   R4 F2: each full screen shows the count.
 //   R5 N4: each open request and each row shows its reference.
@@ -48,10 +48,11 @@ const PRODUCT = "xFJSTXA-v5";
 const API = "https://doop.vibea.dev/api/frames";
 const MCP = "https://doop.vibea.dev/mcp";
 
-// screen and sheet: the E4 design, checked in any status.
+// screen, page and sheet: the design of an epic, checked in any status. A page is a full
+// screen that is not the canvas (a gate, the ended page, the CLI): it has no count (R4).
 // main: a frame on a system page (a component's main, or Foundations).
 // ready: any other frame that asks for sign-off. A draft is free to explore.
-type Kind = "screen" | "sheet" | "main" | "ready";
+type Kind = "screen" | "page" | "sheet" | "main" | "ready";
 
 const E4: ReadonlyArray<{ id: string; kind: Kind }> = [
   { id: "h4pczpz7sn", kind: "screen" },
@@ -116,6 +117,43 @@ const E4: ReadonlyArray<{ id: string; kind: Kind }> = [
   { id: "Q84YFf2dBZ", kind: "screen" },
 ];
 
+// The E3 design: page `Work · E3 Share and look`.
+const E3: ReadonlyArray<{ id: string; kind: Kind }> = [
+  { id: "t1khXPEL09", kind: "sheet" },
+  { id: "-Ck-zZRXd-", kind: "page" },
+  { id: "Iy-yjtexBr", kind: "page" },
+  { id: "sCPZfGyx4f", kind: "page" },
+  { id: "bGzmRU6QGr", kind: "page" },
+  { id: "Bt6ELgTB-h", kind: "screen" },
+  { id: "C37B_BYpYM", kind: "screen" },
+  { id: "UEKzhvtyYt", kind: "page" },
+  { id: "sPQSIcxr6o", kind: "screen" },
+  { id: "L3QURfp8mv", kind: "page" },
+  { id: "6_MTPksuJG", kind: "sheet" },
+  { id: "xpeMsam50t", kind: "page" },
+  { id: "U-GpX2Ahvg", kind: "screen" },
+  { id: "rq2XCe9U5r", kind: "screen" },
+  { id: "XQpw70VuH-", kind: "screen" },
+  { id: "-SQRkwRPgf", kind: "screen" },
+  { id: "k57fxBGG06", kind: "screen" },
+  { id: "snGUZR-mMv", kind: "screen" },
+  // A canvas with no frames has no requests, so no count (F2: none at 0).
+  { id: "lY0qbt9UOG", kind: "page" },
+  { id: "1JwTBweA0t", kind: "screen" },
+  { id: "bubjKGKm3E", kind: "screen" },
+  { id: "2IGMQX4YlS", kind: "screen" },
+  { id: "mCNt_6ka2d", kind: "screen" },
+  { id: "j-WeeGzI9M", kind: "screen" },
+  { id: "pz6YsbPa7n", kind: "screen" },
+];
+
+const EPICS: ReadonlyArray<{ epic: string; frames: ReadonlyArray<{ id: string; kind: Kind }> }> = [
+  { epic: "E3", frames: E3 },
+  { epic: "E4", frames: E4 },
+];
+
+const DESIGN: Array<Frame> = EPICS.flatMap((e) => e.frames.map((f) => ({ ...f, epic: e.epic })));
+
 // Each frame on these pages of the library is part of the system: always checked.
 const SYSTEM_PAGES = new Set(["1 · Foundations", "2 · Primitives", "3 · Patterns", "4 · Layout"]);
 
@@ -155,7 +193,7 @@ const COMPONENTS: Readonly<Record<string, string>> = {
   clbzalz58t: "Dock",
 };
 
-// E4 IDs that no picture can prove. Each one is proven elsewhere.
+// IDs that no picture can prove. Each one is proven elsewhere.
 const NOT_SHOWN: Readonly<Record<string, string>> = {
   M1: "order of the queue: SPEC-queue, queue-lease chart",
   M3: "what an agent gets: SPEC-queue, SPEC-mcp",
@@ -174,6 +212,8 @@ const NOT_SHOWN: Readonly<Record<string, string>> = {
   D8: "one outcome for each request: queue-dispatch chart",
   D9: "the way and its cause: SPEC-queue, easel deliveries",
   D10: "GitHub issues follow requests: SPEC-queue, queue-dispatch chart",
+  // E3: a picture shows the state, not how fast it comes.
+  S11: "200 frames stay smooth: tests/browser/viewer-canvas.test.tsx (p95 handler time)",
 };
 
 // F1 states and the StateBadge state that shows each.
@@ -192,7 +232,7 @@ const CARD = "cwm37u9iup";
 const COUNT = "cw8rv3bcji";
 const BADGE = "chn7831wg0";
 
-type Frame = { id: string; kind: Kind };
+type Frame = { id: string; kind: Kind; epic?: string };
 
 type Instance = {
   frame: string;
@@ -524,13 +564,13 @@ const kindOf = (f: CanvasFrame): Kind | undefined => {
 const chooseFrames = (canvas: Array<CanvasFrame>): Scope => {
   const scope: Scope = { frames: [], ready: 0, drafts: 0 };
   const onProduct = new Set(canvas.filter((f) => f.canvas === PRODUCT).map((f) => f.id));
-  for (const f of E4) {
+  for (const f of DESIGN) {
     if (onProduct.has(f.id)) scope.frames.push(f);
-    else report(f.id, "IO", "an E4 frame is not on the product canvas");
+    else report(f.id, "IO", `an ${f.epic ?? ""} frame is not on the product canvas`);
   }
 
-  const e4 = new Set(E4.map((f) => f.id));
-  for (const f of canvas.filter((c) => !e4.has(c.id))) {
+  const design = new Set(DESIGN.map((f) => f.id));
+  for (const f of canvas.filter((c) => !design.has(c.id))) {
     const kind = kindOf(f);
     if (kind === "ready") scope.ready += 1;
     if (kind === undefined) scope.drafts += 1;
@@ -555,7 +595,7 @@ const checkTokens = (tokens: Doop["tokens"]): void => {
 const printScope = (scope: Scope): void => {
   const mains = scope.frames.filter((f) => f.kind === "main").length;
   console.log(
-    `scope: ${E4.length} E4 frames, ${mains} system frames, ${scope.ready} frames that ask for sign-off; ${scope.drafts} drafts not checked\n`,
+    `scope: ${EPICS.map((e) => `${e.frames.length} ${e.epic} frames`).join(", ")}, ${mains} system frames, ${scope.ready} frames that ask for sign-off; ${scope.drafts} drafts not checked\n`,
   );
 };
 
@@ -813,7 +853,8 @@ const checkRestyle = (frame: string, parsed: Parsed): void => {
 // --- Instances: requirements and S5 to S7 ---------------------------------
 
 type Proof = {
-  epic: Set<string>;
+  // Each requirement ID of a designed epic, and its epic.
+  epic: Map<string, string>;
   shown: Map<string, Array<string>>;
   badgeStates: Set<string>;
   revs: Map<string, Map<string, string>>;
@@ -831,13 +872,13 @@ const within = (child: Instance, ancestor: Instance): boolean => {
 
 const noteIds = (i: Instance): Array<string> => {
   const ids = i.props.ids ?? i.text;
-  return [...ids.matchAll(/\b([NMPF]\d{1,2})\b/g)].flatMap((m) =>
+  return [...ids.matchAll(/\b([A-Z]\d{1,2})\b/g)].flatMap((m) =>
     m[1] === undefined ? [] : [m[1]],
   );
 };
 
 const noteTitle = (i: Instance): string =>
-  i.props.title ?? i.text.split(/[NMPF]\d/)[0]?.trim() ?? "";
+  i.props.title ?? i.text.split(/[A-Z]\d/)[0]?.trim() ?? "";
 
 const checkRef: Check = (_proof, f, _parsed, i) => {
   if ((i.props.ref ?? "") !== "") return;
@@ -868,7 +909,9 @@ const traceNote: Check = (proof, f, _parsed, i) => {
 
   const title = noteTitle(i);
   for (const id of noteIds(i)) {
-    if (!proof.epic.has(id)) report(f.id, "R2", `"${title}" names ${id}, not an E4 ID`);
+    if (proof.epic.get(id) !== f.epic) {
+      report(f.id, "R2", `"${title}" names ${id}, not an ${f.epic ?? ""} ID`);
+    }
     proof.shown.set(id, [...(proof.shown.get(id) ?? []), title]);
   }
 };
@@ -918,17 +961,22 @@ const checkFrame = (proof: Proof, f: Frame, parsed: Parsed): void => {
 
 // --- Canvas: R1, R3, S5 ---------------------------------------------------
 
-const readEpicIds = async (): Promise<Set<string>> => {
+const readEpicIds = async (): Promise<Map<string, string>> => {
   const text = await Bun.file("docs/epics.md").text();
-  const e4 = text.slice(text.indexOf("## E4:"), text.indexOf("## E5:"));
-  const ids = [...e4.matchAll(/^\| ([NMPFD]\d+)\s+\|/gm)].flatMap((m) =>
-    m[1] === undefined ? [] : [m[1]],
-  );
-  return new Set(ids);
+  const out = new Map<string, string>();
+  for (const { epic } of EPICS) {
+    const start = text.indexOf(`## ${epic}:`);
+    const end = text.indexOf("\n## E", start + 1);
+    const part = text.slice(start, end === -1 ? undefined : end);
+    for (const m of part.matchAll(/^\| ([A-Z]\d+)\s+\|/gm)) {
+      if (m[1] !== undefined) out.set(m[1], epic);
+    }
+  }
+  return out;
 };
 
 const checkTrace = (proof: Proof): void => {
-  for (const id of proof.epic) {
+  for (const id of proof.epic.keys()) {
     const shown = proof.shown.has(id);
     const elsewhere = NOT_SHOWN[id] !== undefined;
     if (!shown && !elsewhere) report(PRODUCT, "R1", `${id} shows on no state`);
@@ -974,8 +1022,9 @@ const printReport = (proof: Proof): number => {
     .filter(([id]) => proof.epic.has(id))
     .sort(([a], [b]) => a.localeCompare(b, "en", { numeric: true }));
   const elsewhere = Object.keys(NOT_SHOWN).length;
+  const epics = EPICS.map((e) => e.epic).join(" and ");
   console.log(
-    `\ntrace: ${traced.length} of ${proof.epic.size} E4 IDs show on a state; ${elsewhere} are proven elsewhere`,
+    `\ntrace: ${traced.length} of ${proof.epic.size} ${epics} IDs show on a state; ${elsewhere} are proven elsewhere`,
   );
   for (const [id, titles] of traced) console.log(`  ${id}: ${[...new Set(titles)].join(" | ")}`);
   for (const [id, why] of Object.entries(NOT_SHOWN)) console.log(`  ${id}: (elsewhere) ${why}`);
