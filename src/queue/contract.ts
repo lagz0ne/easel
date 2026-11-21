@@ -94,11 +94,16 @@ export const addInput = z.union([
   }),
 ]);
 
+const one = { canvas: canvasKey, n: requestN };
+
 const gone = z.object({ kind: z.literal("gone") });
 const full = z.object({ kind: z.literal("full") });
 const slow = z.object({ kind: z.literal("slow"), retryIn: z.number() });
 const wrongState = z.object({ kind: z.literal("wrongState"), state });
 const lost = z.object({ kind: z.literal("lost") });
+
+/** A viewer's call that failed: the state now, a removed request, or too fast. */
+const refused = [wrongState, gone, slow] as const;
 
 /** An agent's call on a claim that failed: the state now, a lease that ran out, or no request. */
 const lostOr = [wrongState, lost, gone] as const;
@@ -119,6 +124,30 @@ export const requestApi = rpc({
       full,
       slow,
     ]),
+  },
+  "request.edit": {
+    input: z.strictObject({ ...one, text }),
+    output: z.discriminatedUnion("kind", [z.object({ kind: z.literal("edited") }), ...refused]),
+  },
+  "request.answer": {
+    input: z.strictObject({ ...one, text, option: z.number().int().min(0).max(5).optional() }),
+    output: z.discriminatedUnion("kind", [z.object({ kind: z.literal("answered") }), ...refused]),
+  },
+  "request.accept": {
+    input: z.strictObject(one),
+    output: z.discriminatedUnion("kind", [z.object({ kind: z.literal("accepted") }), ...refused]),
+  },
+  "request.reopen": {
+    input: z.strictObject({ ...one, text }),
+    output: z.discriminatedUnion("kind", [
+      z.object({ kind: z.literal("reopened") }),
+      ...refused,
+      full,
+    ]),
+  },
+  "request.close": {
+    input: z.strictObject({ ...one, text: text.optional() }),
+    output: z.discriminatedUnion("kind", [z.object({ kind: z.literal("closed") }), ...refused]),
   },
 });
 
@@ -213,6 +242,11 @@ export const queueSuccessKinds = {
 /** SPEC.md rule 1: the success kinds of a viewer's calls. */
 export const requestSuccessKinds = {
   "request.add": ["added"],
+  "request.edit": ["edited"],
+  "request.answer": ["answered"],
+  "request.accept": ["accepted"],
+  "request.reopen": ["reopened"],
+  "request.close": ["closed"],
 } as const satisfies { readonly [A in RequestAddress]: readonly RequestKind<A>[] };
 
 /** The state of a status that the time and the tries do not change. */

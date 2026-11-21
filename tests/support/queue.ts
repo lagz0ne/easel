@@ -123,6 +123,20 @@ export async function client(
             ? { canvas, frameId: null, version: null, x: 40, y: 60, text, key }
             : { canvas, frameId, version, x: 40, y: 60, text, key },
       }),
+    edit: (canvas: string, n: number, text = "Move it to the left.") =>
+      scope.run(queue.viewer["request.edit"], { input: { canvas, n, text } }),
+    answer: (canvas: string, n: number, text = "Navy.", option?: number) =>
+      scope.run(queue.viewer["request.answer"], {
+        input: option === undefined ? { canvas, n, text } : { canvas, n, text, option },
+      }),
+    accept: (canvas: string, n: number) =>
+      scope.run(queue.viewer["request.accept"], { input: { canvas, n } }),
+    reopen: (canvas: string, n: number, text = "Still too low.") =>
+      scope.run(queue.viewer["request.reopen"], { input: { canvas, n, text } }),
+    close: (canvas: string, n: number, text?: string) =>
+      scope.run(queue.viewer["request.close"], {
+        input: text === undefined ? { canvas, n } : { canvas, n, text },
+      }),
     list: (input: { canvas?: string; state?: "waiting" | "person" | "inWork" } = {}) =>
       scope.run(api["request.list"], { input }),
     next: (input: { canvas?: string; n?: number; lease?: number; wait?: number } = {}) =>

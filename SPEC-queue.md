@@ -177,9 +177,11 @@ Prior art:
 ## Contract
 
 ```ts
-// a viewer or a user: the mayRead guard (refused { ended: true } when the link has ended,
-// { locked: true } when a password change ended the pass, { signIn: true } with no pass and no
-// live token)
+// a viewer or a user: the mayRead guard for the canvas that the call names, `mayAct` (refused
+// { ended: true } when the link has ended, { locked: true } when a password change ended the
+// pass, { name: true } when the pass has no name, { signIn: true } with no pass and no live
+// token). The page asks the name at the first Send, and gives it to the pass
+// ([frames](SPEC-frames.md)).
 // request.add { canvas, frameId: string | null, version: number | null, x, y, text, key }
 "request.add":     { kind: "added"; n: number } | { kind: "gone" } | { kind: "full" }
                  | { kind: "slow"; retryIn: number }
@@ -200,7 +202,8 @@ type Refused = { kind: "wrongState"; state: State } | { kind: "gone" }
 // deliveries { canvas, n }
 "request.next":    { kind: "claimed"; request: Request; messages: Message[];
                      frame: Frame | null; saw: { version: number; doc: string } | null;
-                     frames: FrameBox[] | null; claim: string; until: number; now: number }
+                     frames: FrameBox[] | null; claim: string; until: number; now: number;
+                     note: string }
                  | { kind: "empty" }
 "request.extend":  { kind: "extended"; until: number; now: number } | Lost
 "request.release": { kind: "released" } | Lost
@@ -228,12 +231,22 @@ Inputs:
 
 - `text` and `reason` are 1 to 2000 characters. `key` is 16 to 64.
 - `html` is a full HTML document of at most 256 KiB, in UTF-8 bytes.
-- `options` is 2 to 6 strings of 1 to 200 characters. `option` is an index into them.
+- `options` is 2 to 6 strings of 1 to 200 characters. `option` is an index into them. An `option`
+  that is not an index into the options of the question is not kept: the answer keeps its text.
 - `lease` is seconds, 30 to 3600, default 300. `wait` is seconds, 0 to 50, default 0.
 - `until` and `now` are the time of the server, in ms since the epoch.
+- `claim` is the `id` of the request, a dot, and 128 random bits as 32 hex digits. So a call with
+  it finds its request, and answers `gone` when the request is not there (judged rule 8).
+- `note` is what the claim allows, in words (judged rule 15). `saw` is `null` when the version that
+  the viewer saw is not kept: the frame was replaced between the viewer's look and the send.
 - `n` on `request.next` needs `canvas`. `name` is 1 to 32 characters of `a-z`, `0-9` and `-`.
   `repo` is `owner/name`. `label` and `trigger` are 1 to 50 characters. `token` is 1 to 255.
 - Out of these limits, the input is `invalid`.
+
+The cells `requests`, `messages` and `serverClock` ride `easel.board`, with `frames` and `docs`,
+so the one `mayRead` guard and the refusal that a link sends when it ends cover them too. The cell
+`serverClock`, keyed by canvas, is `{ canvas, now }`: each read loads the time of the server, and
+the tab keeps the difference to its own time as the clock offset.
 
 A request on the board (cell `requests`, keyed by canvas):
 `{ canvas, id, n, frameId, version, x, y, author, key, status, claimedBy, claimedUntil, tries,
@@ -306,8 +319,9 @@ one for each waiting period, the cap of attempts, and one outcome when two ways 
    from the input.
 3. `request.next`, `extend`, `release`, `decline`, `ask`, `resolve` and `list` run the `user`
    guard first. All calls take the time from the `clock` of the run.
-4. Every operation that writes `requests` or `messages` calls `saveRequest`, `claimRequest`,
-   `endTry`, `dropFrame` or `dropCanvas`.
+4. Every operation that writes `requests` or `messages` calls `saveRequest` (a new request),
+   `changeRequest` (a call of a viewer), `claimRequest`, `endTry` (a call of the holder),
+   `dropFrame` or `dropCanvas`.
 5. No page module writes `requests` or `messages`.
 6. `channel.set`, `list` and `remove` run the `owner` guard first. `request.deliveries` runs the
    `user` guard first.

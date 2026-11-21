@@ -10,6 +10,7 @@ import type { Request } from "./cells";
 import { defaultLease, queueApi, requestApi, stateOf } from "./contract";
 import { whoActs } from "./guards.server";
 import {
+  changeRequest,
   claimRequest,
   endTry,
   readClaimed,
@@ -85,6 +86,136 @@ export const addRequest = operation({
         now: clock.currentTimeMillis(),
       },
     });
+  },
+});
+
+/** A viewer's call on one request: which, its text and option. */
+const viewerCall = z.object({
+  kind: z.enum(["edit", "answer", "accept", "reopen", "close"]),
+  canvas: z.string(),
+  n: z.number(),
+  text: z.string().nullable(),
+  option: z.number().nullable(),
+});
+
+/** A viewer's call: past the limits `slow`, else the one conditional write (`changeRequest`). */
+const actOn = operation({
+  label: "queue.actOn",
+  input: viewerCall,
+  depends: { whoActs, viewerLimit, changeRequest, newId },
+  run: async ({ whoActs, viewerLimit, changeRequest, newId }, { input, clock }) => {
+    const who = whoActs.run();
+    const slow = viewerLimit.run({ input: who.key });
+    if (slow) return slow;
+
+    return changeRequest.run({
+      input: { ...input, from: who.name, message: newId.run(), now: clock.currentTimeMillis() },
+    });
+  },
+});
+
+/** `request.edit`: a request that waits or needs a person; open, no tries, at the back. */
+export const editRequest = operation({
+  label: "request.edit.do",
+  input: requestApi["request.edit"].input,
+  depends: { actOn },
+  run: async ({ actOn }, { input }) => {
+    const answer = await actOn.run({ input: { kind: "edit", ...input, option: null } });
+    switch (answer.kind) {
+      case "done":
+        return { kind: "edited" as const };
+      case "slow":
+      case "gone":
+      case "wrongState":
+        return answer;
+      case "full":
+        throw new Error("only a reopen answers full");
+    }
+  },
+});
+
+/** `request.answer`: a question; open, no tries, in its first place (E4.2 M19). */
+export const answerRequest = operation({
+  label: "request.answer.do",
+  input: requestApi["request.answer"].input,
+  depends: { actOn },
+  run: async ({ actOn }, { input }) => {
+    const answer = await actOn.run({
+      input: { kind: "answer", ...input, option: input.option ?? null },
+    });
+    switch (answer.kind) {
+      case "done":
+        return { kind: "answered" as const };
+      case "slow":
+      case "gone":
+      case "wrongState":
+        return answer;
+      case "full":
+        throw new Error("only a reopen answers full");
+    }
+  },
+});
+
+/** `request.accept`: a result that no viewer accepted yet. */
+export const acceptRequest = operation({
+  label: "request.accept.do",
+  input: requestApi["request.accept"].input,
+  depends: { actOn },
+  run: async ({ actOn }, { input }) => {
+    const answer = await actOn.run({
+      input: { kind: "accept", ...input, text: null, option: null },
+    });
+    switch (answer.kind) {
+      case "done":
+        return { kind: "accepted" as const };
+      case "slow":
+      case "gone":
+      case "wrongState":
+        return answer;
+      case "full":
+        throw new Error("only a reopen answers full");
+    }
+  },
+});
+
+/** `request.reopen`: a result, accepted or not; open, no tries, at the back. */
+export const reopenRequest = operation({
+  label: "request.reopen.do",
+  input: requestApi["request.reopen"].input,
+  depends: { actOn },
+  run: async ({ actOn }, { input }) => {
+    const answer = await actOn.run({ input: { kind: "reopen", ...input, option: null } });
+    switch (answer.kind) {
+      case "done":
+        return { kind: "reopened" as const };
+      case "slow":
+      case "gone":
+      case "wrongState":
+      case "full":
+        return answer;
+    }
+  },
+});
+
+/** `request.close`: open (also in work), a question, or needs a person. It ends the lease. */
+export const closeRequest = operation({
+  label: "request.close.do",
+  input: requestApi["request.close"].input,
+  depends: { actOn },
+  run: async ({ actOn }, { input }) => {
+    const answer = await actOn.run({
+      input: { kind: "close", ...input, text: input.text ?? null, option: null },
+    });
+    switch (answer.kind) {
+      case "done":
+        return { kind: "closed" as const };
+      case "slow":
+      case "gone":
+      case "wrongState":
+        return answer;
+      case "full":
+        throw new Error("only a reopen answers full");
+    }
   },
 });
 
@@ -364,6 +495,11 @@ export const listRequests = operation({
 /** The server's side of `requestApi`: `queue.viewer({ implement: requestOps, onStart: [mayAct] })`. */
 export const requestOps = {
   "request.add": addRequest,
+  "request.edit": editRequest,
+  "request.answer": answerRequest,
+  "request.accept": acceptRequest,
+  "request.reopen": reopenRequest,
+  "request.close": closeRequest,
 } as const;
 
 /** The server's side of `queueApi`: `queue.api({ implement: queueOps, onStart: [user] })`. */

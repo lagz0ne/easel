@@ -288,6 +288,150 @@ export const saveRequest = operation({
   },
 });
 
+/** A viewer's call on a request: which, by whom, its text, and the new message's id. */
+const viewerWrite = z.object({
+  kind: z.enum(["edit", "answer", "accept", "reopen", "close"]),
+  canvas: z.string(),
+  n: z.number(),
+  from: z.string(),
+  text: z.string().nullable(),
+  option: z.number().nullable(),
+  message: z.string(),
+  now: z.number(),
+});
+
+/**
+ * Each viewer's call, as one conditional write on `status` and the lease (judged rule 9): where
+ * it may run, and what it sets. `$now` is the time; `$from` the sender.
+ */
+const viewerSql = {
+  // Waiting, or needs a person: open, no tries, at the back of the queue.
+  edit: {
+    set: `status = 'open', tries = 0, queued_at = $now, claimed_by = NULL, claimed_until = NULL,
+      claim_digest = NULL`,
+    where: `(status = 'open' AND (claimed_until IS NULL OR claimed_until <= $now)) OR status = 'person'`,
+  },
+  // A question: open, no tries, in its first place (E4.2 M19).
+  answer: { set: "status = 'open', tries = 0", where: "status = 'asking'" },
+  accept: { set: "accepted_by = $from", where: "status = 'resolved' AND accepted_by IS NULL" },
+  // A result: open, no tries, at the back of the queue; past 200 open, `full` (judged rule 14).
+  reopen: {
+    set: "status = 'open', tries = 0, accepted_by = NULL, queued_at = $now",
+    where: `status = 'resolved' AND (${openCount}) < ${maxOpen}`,
+  },
+  // Also in work: the close ends the lease, so the holder's next call answers wrongState.
+  close: {
+    set: "status = 'closed', claimed_by = NULL, claimed_until = NULL, claim_digest = NULL",
+    where: "status IN ('open', 'asking', 'person')",
+  },
+} as const;
+
+/**
+ * Why a viewer's call changed no row: no request is `gone`; a reopen of a result on a canvas with
+ * 200 open is `full`; else `wrongState` with the state now.
+ */
+const missedChange = operation({
+  label: "queue.missedChange",
+  input: z.object({ kind: viewerWrite.shape.kind, row: request.nullable(), now: z.number() }),
+  depends: { rowState },
+  run: ({ rowState }, { input: { kind, row, now } }) => {
+    if (row === null) return { kind: "gone" as const };
+    if (kind === "reopen" && row.status === "resolved") return { kind: "full" as const };
+    return { kind: "wrongState" as const, state: rowState.run({ input: { row, now } }) };
+  },
+});
+
+/** An answer's option, when it is an index into the options of the question (JSON); else null. */
+const pickedOption = operation({
+  label: "queue.pickedOption",
+  input: z.object({ write: viewerWrite, asked: z.string().nullable() }),
+  run: (_, { input: { write, asked } }) => {
+    const choices = asked === null ? [] : z.array(z.string()).parse(JSON.parse(asked));
+    const option = write.kind === "answer" ? write.option : null;
+    return option !== null && option < choices.length ? option : null;
+  },
+});
+
+/**
+ * A viewer's call, with its message, in one transaction: one conditional update (judged rule 9).
+ * When it changes no row, the same transaction answers `gone` with no request, `full` for a
+ * reopen of a result on a canvas with 200 open, else `wrongState` with the state now. A refusal
+ * writes nothing (judged rule 1). An answer's option counts only as an index into the options of
+ * the question it answers.
+ */
+export const changeRequest = operation({
+  label: "queue.changeRequest",
+  input: viewerWrite,
+  depends: {
+    connection: bunSqlite.connection,
+    requestCells: requests.atScope.controller,
+    messageCells: messages.atScope.controller,
+    missedChange,
+    pickedOption,
+    bell: waitingBell,
+  },
+  run: async (deps, { input }) => {
+    const { connection, requestCells, messageCells, missedChange, pickedOption, bell } = deps;
+    const db = connection.db.$client;
+    const at = { $canvas: input.canvas, $now: input.now, $n: input.n };
+
+    const answer = db.transaction(() => {
+      const sql = viewerSql[input.kind];
+      const changed = db
+        .query(
+          `UPDATE queue_requests SET ${sql.set}, updated = $now
+           WHERE canvas = $canvas AND n = $n AND (${sql.where})
+           RETURNING ${requestColumns}`,
+        )
+        .get({ ...at, $from: input.from });
+      if (changed === null) {
+        const now = db
+          .query(`SELECT ${requestColumns} FROM queue_requests WHERE canvas = $canvas AND n = $n`)
+          .get(at);
+        const row = request.nullable().parse(now);
+        return missedChange.run({ input: { kind: input.kind, row, now: input.now } });
+      }
+
+      const row = request.parse(changed);
+      const asked = z
+        .object({ options: z.string().nullable() })
+        .nullable()
+        .parse(
+          db
+            .query(
+              "SELECT options FROM queue_messages WHERE request = $request AND kind = 'question' ORDER BY created DESC, rowid DESC LIMIT 1",
+            )
+            .get({ $request: row.id }),
+        );
+      const option = pickedOption.run({ input: { write: input, asked: asked?.options ?? null } });
+      const note = messageRow.parse(
+        db.query(plainMessage).get({
+          ...at,
+          $id: input.message,
+          $request: row.id,
+          $kind: input.kind,
+          $from: input.from,
+          $text: input.text,
+          $option: option,
+        }),
+      );
+      return { kind: "done" as const, row, note };
+    })();
+
+    switch (answer.kind) {
+      case "done":
+        requestCells.set(answer.row);
+        messageCells.set(answer.note);
+        if (answer.row.status === "open") bell.ring();
+        return { kind: "done" as const };
+      case "gone":
+      case "full":
+      case "wrongState":
+        return answer;
+    }
+  },
+});
+
 /** A claim's write: who, the digest of its handle, its lease, and the scope it takes from. */
 const claimWrite = z.object({
   canvas: z.string().nullable(),
