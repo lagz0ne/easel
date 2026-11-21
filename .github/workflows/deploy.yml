@@ -2,7 +2,8 @@ name: deploy
 
 # Continuous delivery: each commit that `gates` passes on main goes live at
 # https://easel.vibea.dev. The image is built from that exact commit, pushed to
-# ghcr.io/lagz0ne/easel as :<sha> and :latest, then Dokploy's deploy hook pulls :latest.
+# ghcr.io/lagz0ne/easel as :<sha> and :latest; the command line of that build goes on the GitHub
+# release build-<n> (job binaries); then Dokploy's deploy hook pulls :latest.
 # The job is green only when the public site's /api/version names this commit.
 #
 # Rollback: `scripts/ship.sh -r <sha>` (a revert goes through gates and lands here), or
@@ -75,8 +76,57 @@ jobs:
           cache-from: type=gha
           cache-to: type=gha,mode=max
 
+  # The command line of this build (SPEC-cli.md § Get the command line): the three binaries and
+  # their SHA256SUMS on the GitHub release `build-<n>`, which GET /install.sh downloads. The deploy
+  # waits for it, so no live image names a build whose release is not there. The image does not
+  # carry these binaries.
+  binaries:
+    if: >-
+      github.event_name == 'workflow_dispatch' ||
+      (github.event.workflow_run.conclusion == 'success' &&
+       github.event.workflow_run.head_branch == 'main')
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    permissions:
+      contents: write
+    steps:
+      - id: sha
+        env:
+          RUN_SHA: ${{ github.event.workflow_run.head_sha }}
+        run: echo "sha=${RUN_SHA:-$GITHUB_SHA}" >> "$GITHUB_OUTPUT"
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          ref: ${{ steps.sha.outputs.sha }}
+          # The whole history: the build number counts the commits up to this one, as in publish.
+          fetch-depth: 0
+      - id: build
+        run: echo "build=$(git rev-list --count HEAD)" >> "$GITHUB_OUTPUT"
+      # The Bun of the Dockerfile and of gates, from npm as gates gets it.
+      - name: Bun 1.4.4
+        run: npm install --global --allow-scripts=bun bun@1.4.4
+      - run: bun install --frozen-lockfile
+      - run: bun run build:client
+      - name: The three binaries and SHA256SUMS
+        run: bash scripts/release-binaries.sh "$RUNNER_TEMP/release"
+      - name: Put them on the release build-${{ steps.build.outputs.build }}
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: build-${{ steps.build.outputs.build }}
+          SHA: ${{ steps.sha.outputs.sha }}
+          DIR: ${{ runner.temp }}/release
+        run: |
+          files=("$DIR"/easel-darwin-arm64 "$DIR"/easel-linux-x64 "$DIR"/easel-linux-arm64 "$DIR"/SHA256SUMS)
+          # A run again of the same build replaces its files; the sums and the binaries stay one set.
+          if gh release view "$TAG" >/dev/null 2>&1; then
+            gh release upload "$TAG" "${files[@]}" --clobber
+          else
+            gh release create "$TAG" "${files[@]}" --target "$SHA" --title "easel $TAG" \
+              --notes "The easel command line of commit $SHA. Install it from your easel: curl -fsSL https://<your easel>/install.sh | sh"
+          fi
+          gh release view "$TAG" --json assets --jq '.assets[].name'
+
   deploy:
-    needs: publish
+    needs: [publish, binaries]
     runs-on: ubuntu-latest
     timeout-minutes: 10
     environment:
