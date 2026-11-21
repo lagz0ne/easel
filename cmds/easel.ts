@@ -27,6 +27,8 @@ const help = `easel: the canvas CLI. Every command takes --json (one JSON value 
   easel serve                                      start the server (PORT, PUBLIC_ORIGIN, EASEL_AUTH, EASEL_DB)
   easel login <server> --name <name> [--no-wait]   ask an owner to approve a new user; prints the code at once
   easel login <server> --name <name> --setup <code>  become the first owner with the server's setup code
+  easel login <server> --name <name> --print-token  keep nothing; when approved, print the token one time
+                                                   on stdout, for the secret EASEL_TOKEN of a run
   easel login --resume                             wait again for the login that waits
   easel whoami                                     the name, the role and the server
   easel logout                                     end this user on the server, then forget its token
@@ -83,6 +85,7 @@ const options = {
   name: { type: "string" },
   setup: { type: "string" },
   "no-wait": { type: "boolean" },
+  "print-token": { type: "boolean" },
   resume: { type: "boolean" },
   owner: { type: "boolean" },
   open: { type: "boolean" },
@@ -515,6 +518,19 @@ const invocation = z.union([
         setup: values.setup,
         noWait: !!values["no-wait"],
       },
+    })),
+  z
+    .object({
+      positionals: z.union([
+        z.tuple([z.literal("login")]),
+        z.tuple([z.literal("login"), z.string()]),
+      ]),
+      // No --setup and no --no-wait: it keeps nothing, so it cannot resume.
+      values: z.strictObject({ ...common, name: z.string(), "print-token": z.literal(true) }),
+    })
+    .transform(({ positionals: [, at], values }): unknown => ({
+      at: at ?? values.server,
+      command: { kind: "login", name: values.name, noWait: false, printToken: true },
     })),
   z
     .object({

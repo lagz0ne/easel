@@ -174,6 +174,13 @@ test("usage is 64, --help is 0, a hosts file that is not one is 78, no server is
   expect((await main(["users", "approve"], env)).code).toBe(64);
   expect((await main(["users", "approve", "not-a-code"], env)).code).toBe(64);
   expect((await main(["login", "x", "--name", "Not Valid!"], env)).code).toBe(64);
+  // A stopped --print-token cannot resume, and the first owner keeps her own token.
+  expect((await main(["login", "x", "--name", "gh", "--print-token", "--no-wait"], env)).code).toBe(
+    64,
+  );
+  expect(
+    (await main(["login", "x", "--name", "gh", "--print-token", "--setup", "ABCD-EFGH"], env)).code,
+  ).toBe(64);
   expect(await main(["frobnicate", "--json"], env)).toEqual({
     code: 64,
     out: expect.stringMatching(/^\{"usage":/),
@@ -637,6 +644,39 @@ test(
     });
     expect(await main(["logout", "--json"], env)).toMatchObject({ code: 64 });
     expect(await main(["whoami"], env)).toMatchObject({ code: 0 });
+    expect(readdirSync(run)).toEqual([]);
+  },
+);
+
+test(
+  "login --print-token on the real cmds: an owner approves, the token is the one line on stdout, no file is left, and a run signs in with it",
+  slow,
+  async () => {
+    const srv = await serve();
+    const ann = home();
+    await easel(ann, "login", srv.origin, "--name", "ann", "--setup", srv.setupCode());
+    const lead = home();
+
+    const asked = spawn(lead, ["login", srv.origin, "--name", "github", "--print-token"]);
+    const said = { text: "" };
+    void (async () => {
+      for await (const chunk of asked.stderr) said.text += new TextDecoder().decode(chunk);
+    })();
+    for (let i = 0; i < 500 && !/code (\S+)/.test(said.text); i++) await Bun.sleep(10);
+    const code = /code (\S+) for github/.exec(said.text)?.[1] ?? "";
+    expect(await easel(ann, "users", "approve", code)).toMatchObject({ code: 0 });
+    const [exited, out] = await Promise.all([asked.exited, new Response(asked.stdout).text()]);
+    expect(exited).toBe(0);
+    // Bun itself may make `~/.bun` in a fresh home; easel keeps nothing.
+    expect(readdirSync(lead).filter((name) => name !== ".bun")).toEqual([]);
+
+    const token = out.trim();
+    const run = home();
+    const env = { HOME: run, EASEL_TOKEN: token, EASEL_SERVER: srv.origin };
+    expect(await main(["whoami"], env)).toEqual({
+      code: 0,
+      out: `github (member) on ${srv.origin}\n`,
+    });
     expect(readdirSync(run)).toEqual([]);
   },
 );

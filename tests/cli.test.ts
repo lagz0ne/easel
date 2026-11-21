@@ -674,3 +674,76 @@ test("with EASEL_TOKEN, logout changes nothing and exits 64; login and login --r
   expect(await run.run({ kind: "resume" })).toBe(64);
   expect(readFileSync(path, "utf8")).toBe("{ not json");
 });
+
+// ---- login --print-token (SPEC-cli.md § Sign in with no file, step 1)
+
+const printToken = (name: string): Command => ({
+  kind: "login",
+  name,
+  noWait: false,
+  printToken: true,
+});
+
+test("login --print-token: the code at once, then the token one time on stdout; nothing is kept, and the token works as EASEL_TOKEN", async () => {
+  const srv = await boot();
+  const a = await ann(srv);
+  const lead = await easel(srv);
+
+  const run = lead.run(printToken("github"));
+  await until(() => lead.out.length > 0);
+  const [pending] = lead.lines();
+  expect(pending).toEqual({
+    kind: "pending",
+    code: expect.any(String),
+    expiresAt: expect.any(Number),
+  });
+  expect(existsSync(lead.path)).toBe(false);
+
+  expect(await a.run(users({ kind: "approve", code: pending.code, owner: false }))).toBe(0);
+  expect(await run).toBe(0);
+  const [granted] = lead.lines();
+  expect(granted).toEqual({
+    kind: "granted",
+    user: expect.objectContaining({ name: "github", role: "member" }),
+    token: expect.any(String),
+  });
+  expect(existsSync(lead.path)).toBe(false);
+
+  const runner = await easel(srv, { token: String(granted.token), json: false });
+  expect(await runner.run({ kind: "whoami" })).toBe(0);
+  expect(runner.out.join("")).toBe(`github (member) on ${origin}\n`);
+});
+
+test("login --print-token from a CLI that is signed in: it is not refused, and a denied code keeps the CLI's own token", async () => {
+  const srv = await boot();
+  const a = await ann(srv);
+  const held = a.hosts();
+
+  const run = a.run(printToken("github"));
+  await until(() => a.out.length > 0);
+  const [pending] = a.lines();
+  const owner = await easel(srv, { token: String(held.user.token) });
+  expect(await owner.run(users({ kind: "deny", code: String(pending.code) }))).toBe(0);
+  expect(await run).toBe(1);
+  expect(a.lines()).toEqual([{ kind: "denied" }]);
+  expect(a.hosts()).toEqual(held);
+});
+
+test("login --print-token without --json: stdout holds only the token; the code and the next step go to stderr", async () => {
+  const srv = await boot();
+  const a = await ann(srv);
+  const lead = await easel(srv, { json: false });
+
+  const run = lead.run(printToken("github"));
+  await until(() => lead.err.length > 0);
+  const code = /code (\S+) for github/.exec(lead.err.join(""))?.[1] ?? "";
+  expect(lead.out).toEqual([]);
+  expect(await a.run(users({ kind: "approve", code, owner: false }))).toBe(0);
+  expect(await run).toBe(0);
+
+  const [token, ...more] = lead.out.join("").split("\n");
+  expect(more).toEqual([""]);
+  expect(token).toMatch(/^[\w-]{43}$/);
+  expect(lead.err.join("")).toContain("EASEL_TOKEN");
+  expect(lead.err.join("")).not.toContain(String(token));
+});

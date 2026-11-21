@@ -68,8 +68,13 @@ run, E4.5) signs in from the env (epics R2, A8). Prior art:
 
 1. The team lead runs `easel login https://<easel> --name github --print-token`. It asks for access
    as "Join a server" does ([access](SPEC-access.md#join-a-server)), but keeps nothing in
-   `hosts.json`. When an owner approves, it prints the token one time, on stdout. A stopped
-   `--print-token` cannot resume: the team lead asks again.
+   `hosts.json`. When an owner approves, it prints the token one time, on stdout. Without `--json`,
+   stdout holds only the token, and the code and the next step go to stderr, so the token can go
+   straight into a secret (`... --print-token | gh secret set EASEL_TOKEN`). It takes no `--setup`
+   and no `--no-wait`.
+   A stopped `--print-token` cannot resume: the team lead asks again. Until its code ends, the name
+   is taken: an owner denies the code (`easel users deny <code>`), or it runs out in 10 minutes.
+   When the owner approved it first, the owner revokes the name (`easel users revoke github`).
 2. The team lead puts the token in a secret of GitHub Actions, `EASEL_TOKEN`, and the address in
    `EASEL_SERVER`. The run installs the CLI with the line of "Get the command line".
 3. When `EASEL_TOKEN` is set, the CLI uses it with `EASEL_SERVER`, and does not read or write

@@ -8,7 +8,7 @@ import { code, loginApi, name, roles } from "@/access/contract";
 
 import { deadline, exitOf, exits, faultExit } from "./exit";
 import { entryOf, envToken, saveEntry, server } from "./hosts";
-import { say } from "./output";
+import { json, say } from "./output";
 
 // `easel login` (SPEC-access.md § Join a server, § Become the first owner), checked against the
 // access-login chart (docs/statecharts/access-login.md). The CLI makes the token and sends only
@@ -57,6 +57,27 @@ const signedIn = operation({
   },
 });
 
+/**
+ * `login --print-token` is granted: the token, one time, on stdout (judged rule 2), and nothing
+ * kept. Without `--json`, stdout holds only the token, so it goes straight into a secret
+ * (`gh auth token` prints so); the next step goes to stderr.
+ */
+const printed = operation({
+  label: "cli.printed",
+  input: z.object({ address: z.enum(["login.start", "login.wait"]), user, token: z.string() }),
+  depends: { say, exitOf, asJson: json, server: server.required },
+  run: ({ say, exitOf, asJson, server }, { input }) => {
+    const { user, token, address } = input;
+    if (!asJson) {
+      const text = `the token of ${user.name} (${user.role}) on ${server}, shown one time: keep it in the secret EASEL_TOKEN, with EASEL_SERVER=${server}`;
+      say.run({ input: { json: null, text, error: true } });
+    }
+
+    say.run({ input: { json: { kind: "granted", user, token }, text: token } });
+    return exitOf.run({ input: { address, kind: "granted" } });
+  },
+});
+
 /** An answer that is no success, said on the error stream, and its exit code. */
 const no = operation({
   label: "cli.no",
@@ -79,42 +100,66 @@ type WaitAnswer = Awaited<ReturnType<(typeof loginApi)["login.wait"]["run"]>>;
 
 const pending = z.object({ name: z.string(), code: z.string(), expiresAt: z.number() });
 
-/** The pending answer, printed at once as the first line: the code, and when it runs out. */
+/**
+ * The pending answer, printed at once as the first line: the code, and when it runs out. With
+ * `--print-token`, a person's text goes to stderr: stdout is for the token only.
+ */
 const sayPending = operation({
   label: "cli.sayPending",
-  input: pending,
+  input: pending.extend({ print: z.boolean() }),
   depends: { say },
   run: ({ say }, { input }) =>
     say.run({
       input: {
         json: { kind: "pending", code: input.code, expiresAt: input.expiresAt },
         text: `code ${input.code} for ${input.name}, until ${new Date(input.expiresAt).toISOString()}: ask an owner to run \`easel users approve ${input.code}\``,
+        error: input.print,
       },
     }),
 });
 
+/** A login the CLI waits on; `print`: `--print-token`, which keeps nothing. */
+const waiting = z.object({
+  name: z.string(),
+  code: z.string(),
+  request: z.string(),
+  expiresAt: z.number(),
+  token: z.string(),
+  print: z.boolean(),
+});
+
+/** A login that ended with no token: the hosts file forgets it; `--print-token` kept none. */
+const forget = operation({
+  label: "cli.forget",
+  input: z.boolean(),
+  depends: { saveEntry },
+  run: ({ saveEntry }, { input: print }) => {
+    if (!print) saveEntry.run({ input: {} });
+  },
+});
+
 /**
- * One answer of `login.wait`: the exit code, or null to ask again. `granted` keeps the token;
- * `denied` and `expired` keep nothing (that token never works); `slow` waits `retryIn` first.
+ * One answer of `login.wait`: the exit code, or null to ask again. `granted` keeps the token, or
+ * prints it with `--print-token`; `denied` and `expired` keep nothing (that token never works),
+ * and `--print-token` leaves the hosts file as it was; `slow` waits `retryIn` first.
  */
 const waited = operation({
   label: "cli.waited",
-  input: z.object({
-    answer: z.custom<WaitAnswer>(),
-    login: z.object({ name: z.string(), code: z.string(), token: z.string() }),
-  }),
-  depends: { signedIn, saveEntry, no, server: server.required },
-  run: async ({ signedIn, saveEntry, no, server }, { input, clock, signal }) => {
+  input: z.object({ answer: z.custom<WaitAnswer>(), login: waiting }),
+  depends: { signedIn, printed, forget, no, server: server.required },
+  run: async ({ signedIn, printed, forget, no, server }, { input, clock, signal }) => {
     const { answer, login } = input;
     const address = "login.wait";
 
     switch (answer.kind) {
-      case "granted":
-        return signedIn.run({ input: { address, user: answer.user, token: login.token } });
+      case "granted": {
+        const given = { address, user: answer.user, token: login.token } as const;
+        return login.print ? printed.run({ input: given }) : signedIn.run({ input: given });
+      }
       case "pending":
         return null;
       case "denied":
-        saveEntry.run({ input: {} });
+        forget.run({ input: login.print });
         return no.run({
           input: {
             address,
@@ -123,7 +168,7 @@ const waited = operation({
           },
         });
       case "expired":
-        saveEntry.run({ input: {} });
+        forget.run({ input: login.print });
         return no.run({
           input: { address, answer, text: `code ${login.code} ran out on ${server}: log in again` },
         });
@@ -140,10 +185,7 @@ const waited = operation({
  */
 const waitOnce = operation({
   label: "cli.waitOnce",
-  input: z.object({
-    login: z.object({ name: z.string(), code: z.string(), request: z.string(), token: z.string() }),
-    lost: z.number(),
-  }),
+  input: z.object({ login: waiting, lost: z.number() }),
   depends: { waited, faultExit, deadline, wait: access.login["login.wait"] },
   run: async ({ waited, faultExit, deadline, wait }, { input, clock, signal }) => {
     const { login, lost } = input;
@@ -168,21 +210,15 @@ const waitOnce = operation({
 });
 
 /**
- * Waits on the pending login until it ends. It prints the pending answer first, then asks
+ * Waits on a pending login until it ends. It prints the pending answer first, then asks
  * `login.wait` again after each `pending` (each call waits at most 50 s on the server, SPEC.md
  * rule 2) and after a dropped socket: the CLI keeps asking while it waits.
  */
-export const waitLogin = operation({
-  label: "cli.waitLogin",
-  depends: { entryOf, say, sayPending, waitOnce, server: server.required },
-  run: async ({ entryOf, say, sayPending, waitOnce, server }) => {
-    const login = entryOf.run().pending;
-    if (!login) {
-      const usage = `no login waits on ${server}: run \`easel login ${server} --name <name>\``;
-      say.run({ input: { json: { usage }, text: usage, error: true } });
-      return exits.usage;
-    }
-
+const waitOn = operation({
+  label: "cli.waitOn",
+  input: waiting,
+  depends: { sayPending, waitOnce },
+  run: async ({ sayPending, waitOnce }, { input: login }) => {
     sayPending.run({ input: login });
     for (let lost = 0; ;) {
       const step = await waitOnce.run({ input: { login, lost } });
@@ -192,26 +228,67 @@ export const waitLogin = operation({
   },
 });
 
-/** `login.start`: pending (kept, then waited on unless `--no-wait`), or its end. */
+/** `easel login --resume`: waits on the login the hosts file keeps. */
+export const waitLogin = operation({
+  label: "cli.waitLogin",
+  depends: { entryOf, say, waitOn, server: server.required },
+  run: async ({ entryOf, say, waitOn, server }) => {
+    const login = entryOf.run().pending;
+    if (!login) {
+      const usage = `no login waits on ${server}: run \`easel login ${server} --name <name>\``;
+      say.run({ input: { json: { usage }, text: usage, error: true } });
+      return exits.usage;
+    }
+
+    return waitOn.run({ input: { ...login, print: false } });
+  },
+});
+
+/**
+ * A pending answer of `login.start`: kept, then waited on unless `--no-wait`. With
+ * `--print-token` (`print`), nothing is kept, and the CLI waits on the login it holds in memory:
+ * a stopped one cannot resume.
+ */
+const pendingLogin = operation({
+  label: "cli.pendingLogin",
+  input: waiting.extend({ noWait: z.boolean() }),
+  depends: { saveEntry, sayPending, waitLogin, waitOn, exitOf },
+  run: ({ saveEntry, sayPending, waitLogin, waitOn, exitOf }, { input }) => {
+    const { noWait, print, ...login } = input;
+    if (print) return waitOn.run({ input: { ...login, print } });
+
+    const { name, code, request, expiresAt, token } = login;
+    saveEntry.run({ input: { pending: { name, code, request, expiresAt, token } } });
+    if (!noWait) return waitLogin.run();
+
+    sayPending.run({ input: { name, code, expiresAt, print } });
+    return exitOf.run({ input: { address: "login.start", kind: "pending" } });
+  },
+});
+
+/** `login.start`: pending (see `pendingLogin`), or its end. */
 const startLogin = operation({
   label: "cli.startLogin",
-  input: z.object({ name: z.string(), token: z.string(), digest: z.string(), noWait: z.boolean() }),
+  input: z.object({
+    name: z.string(),
+    token: z.string(),
+    digest: z.string(),
+    noWait: z.boolean(),
+    print: z.boolean(),
+  }),
   depends: {
     signedIn,
-    saveEntry,
-    sayPending,
-    waitLogin,
+    printed,
+    pendingLogin,
     no,
-    exitOf,
     faultExit,
     deadline,
     start: access.login["login.start"],
     server: server.required,
   },
   run: async (deps, { input }) => {
-    const { signedIn, saveEntry, sayPending, waitLogin, no, exitOf, faultExit, deadline, start } =
-      deps;
-    const { name, token, digest } = input;
+    const { pendingLogin, no, faultExit, deadline, start } = deps;
+    const { name, token, digest, print } = input;
     const stop = deadline.run({ input: "login.start" });
     const reply = await start.settle({ input: { name, digest }, signal: stop.signal });
     stop.abort();
@@ -223,14 +300,13 @@ const startLogin = operation({
     switch (answer.kind) {
       case "pending": {
         const { code, request, expiresAt } = answer;
-        saveEntry.run({ input: { pending: { name, code, request, expiresAt, token } } });
-        if (!input.noWait) return waitLogin.run();
-
-        sayPending.run({ input: { name, code, expiresAt } });
-        return exitOf.run({ input: { address, kind: answer.kind } });
+        const login = { name, code, request, expiresAt, token, print, noWait: input.noWait };
+        return pendingLogin.run({ input: login });
       }
-      case "granted":
-        return signedIn.run({ input: { address, user: answer.user, token } });
+      case "granted": {
+        const given = { address, user: answer.user, token } as const;
+        return print ? deps.printed.run({ input: given }) : deps.signedIn.run({ input: given });
+      }
       case "taken":
         return no.run({
           input: {
@@ -308,12 +384,27 @@ const busy = operation({
   },
 });
 
-/** `easel login`: a new login on this server, with an owner's approval or the setup code. */
+/**
+ * `easel login`: a new login on this server, with an owner's approval or the setup code. With
+ * `--print-token` it keeps nothing, so it drops no token and needs no free entry.
+ */
 export const login = operation({
   label: "cli.login",
-  input: z.object({ name, setup: code.optional(), noWait: z.boolean() }),
+  input: z.object({
+    name,
+    setup: code.optional(),
+    noWait: z.boolean(),
+    printToken: z.literal(true).optional(),
+  }),
   depends: { busy, newToken, startLogin, setupLogin, say },
   run: async ({ busy, newToken, startLogin, setupLogin, say }, { input }) => {
+    if (input.printToken) {
+      const { token, digest } = newToken.run();
+      return startLogin.run({
+        input: { name: input.name, token, digest, noWait: false, print: true },
+      });
+    }
+
     const usage = busy.run();
     if (usage) {
       say.run({ input: { json: { usage }, text: usage, error: true } });
@@ -325,6 +416,7 @@ export const login = operation({
       return setupLogin.run({ input: { name: input.name, code: input.setup, token, digest } });
     }
 
-    return startLogin.run({ input: { name: input.name, token, digest, noWait: input.noWait } });
+    const asked = { name: input.name, token, digest, noWait: input.noWait, print: false };
+    return startLogin.run({ input: asked });
   },
 });

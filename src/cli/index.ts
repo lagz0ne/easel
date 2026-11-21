@@ -45,7 +45,13 @@ const errorsCommand = z.discriminatedUnion("kind", [
 
 /** One command of the shell's own, as the cmd read it from its flags. */
 const shellCommand = z.discriminatedUnion("kind", [
-  z.object({ kind: z.literal("login"), name, setup: code.optional(), noWait: z.boolean() }),
+  z.object({
+    kind: z.literal("login"),
+    name,
+    setup: code.optional(),
+    noWait: z.boolean(),
+    printToken: z.literal(true).optional(),
+  }),
   z.object({ kind: z.literal("resume") }),
   z.object({ kind: z.literal("whoami") }),
   z.object({ kind: z.literal("logout") }),

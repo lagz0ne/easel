@@ -118,6 +118,10 @@ stateDiagram-v2
 - `users.me` (`easel whoami`): it changes nothing, so it is not a step.
 - A logout while a login waits, and a logout with a token the server no longer accepts: the second
   is refused like any call ("the agent's next call is refused").
+- `easel login --print-token` ([cli](../../SPEC-cli.md#sign-in-with-no-file)). The server sees the
+  same steps as for any login. The CLI keeps nothing, so it has no "Stopped waiting, can resume":
+  a stop drops the token, also one that works. `AWorkingTokenIsNeverDropped` is not true for it,
+  by choice: the team lead asks again, and an owner revokes the name or denies the code.
 - A copy of a token kept somewhere else than the CLI. When the agent logs in again with the same
   name, its new login carries a new digest, so a copy of the old token stays refused: that is
   judged rule 1, not this model.
