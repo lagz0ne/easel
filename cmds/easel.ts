@@ -16,6 +16,7 @@ import { hostsAt } from "@/cli/hosts";
 import { since } from "@/cli/ops";
 import { frames } from "@/frames";
 import { ops } from "@/ops";
+import { queue } from "@/queue";
 
 // `easel`: the CLI (SPEC-cli.md). The one place that reads its flags and the hosts file's path
 // (fact rule 1): it reads them, fills the `cli` capsule's config, runs one command against one
@@ -53,6 +54,17 @@ const help = `easel: the canvas CLI. Every command takes --json (one JSON value 
   easel unshare <canvas>                           end the link; open tabs say it has ended
   easel shot <canvas> <id> -o <file> [--scale 0.25|0.5|1|2] [--region x,y,w,h]
                                                    draw the frame as a browser does; writes a WebP
+  easel next [--canvas <k>] [--n <n>] [--wait <s>] [--lease <s>]
+                                                   claim the oldest waiting request; prints it and its claim
+  easel extend <claim> [--lease <s>]               start the lease again (30 to 3600 s, 300 when none)
+  easel release <claim> --reason <text>            give the request back: it waits again, the try counts
+  easel ask <claim> --text <q> [--html <file>] [--option <o>]...
+                                                   a question for a viewer, with up to 6 options
+  easel resolve <claim> --text <t> [--html <file>] the result: say what changed
+  easel decline <claim> --reason <text>            the request goes to a person
+  easel requests [--canvas <k>] [--state <state>]  the requests; --state person: those that need a person
+  easel edit <canvas> <n> --text <t>               make a request clear: it waits again, with no tries
+  easel close <canvas> <n> [--text <t>]            close a request
 
 Exit: 0 success, 1 another answer, 2 refused, 64 usage, 65 invalid, 69 unreachable, 70 failed,
 76 missing, 78 a hosts file that cannot be read.
@@ -80,6 +92,14 @@ const options = {
   "no-password": { type: "boolean" },
   scale: { type: "string" },
   region: { type: "string" },
+  canvas: { type: "string" },
+  n: { type: "string" },
+  wait: { type: "string" },
+  lease: { type: "string" },
+  text: { type: "string" },
+  html: { type: "string" },
+  option: { type: "string", multiple: true },
+  state: { type: "string" },
   help: { type: "boolean", short: "h" },
 } as const;
 
@@ -300,6 +320,107 @@ const framesInvocations = [
     })),
 ] as const;
 
+/** The words and flags of `easel next`, `extend`, `release`, `decline`, `ask`, `resolve`,
+ * `requests`, `edit` and `close` (SPEC-queue.md). */
+const queueInvocations = [
+  z
+    .object({
+      positionals: z.tuple([z.literal("next")]),
+      values: z.strictObject({
+        ...common,
+        canvas: z.string().optional(),
+        n: z.string().optional(),
+        wait: z.string().optional(),
+        lease: z.string().optional(),
+      }),
+    })
+    .transform(({ values: { server, canvas, n, wait, lease } }): unknown => ({
+      at: server,
+      command: { kind: "queue", act: { kind: "next", canvas, n, wait, lease } },
+    })),
+  z
+    .object({
+      positionals: z.tuple([z.literal("extend"), z.string()]),
+      values: z.strictObject({ ...common, lease: z.string().optional() }),
+    })
+    .transform(({ positionals: [, claim], values }): unknown => ({
+      at: values.server,
+      command: { kind: "queue", act: { kind: "extend", claim, lease: values.lease } },
+    })),
+  z
+    .object({
+      positionals: z.tuple([z.enum(["release", "decline"]), z.string()]),
+      values: z.strictObject({ ...common, reason: z.string() }),
+    })
+    .transform(({ positionals: [kind, claim], values }): unknown => ({
+      at: values.server,
+      command: { kind: "queue", act: { kind, claim, reason: values.reason } },
+    })),
+  z
+    .object({
+      positionals: z.tuple([z.literal("ask"), z.string()]),
+      values: z.strictObject({
+        ...common,
+        text: z.string(),
+        html: z.string().optional(),
+        option: z.array(z.string()).optional(),
+      }),
+    })
+    .transform(({ positionals: [, claim], values }): unknown => ({
+      at: values.server,
+      command: {
+        kind: "queue",
+        act: { kind: "ask", claim, text: values.text, html: values.html, options: values.option },
+      },
+    })),
+  z
+    .object({
+      positionals: z.tuple([z.literal("resolve"), z.string()]),
+      values: z.strictObject({ ...common, text: z.string(), html: z.string().optional() }),
+    })
+    .transform(({ positionals: [, claim], values }): unknown => ({
+      at: values.server,
+      command: {
+        kind: "queue",
+        act: { kind: "resolve", claim, text: values.text, html: values.html },
+      },
+    })),
+  z
+    .object({
+      positionals: z.tuple([z.literal("requests")]),
+      values: z.strictObject({
+        ...common,
+        canvas: z.string().optional(),
+        state: z.string().optional(),
+      }),
+    })
+    .transform(({ values }): unknown => ({
+      at: values.server,
+      command: {
+        kind: "queue",
+        act: { kind: "requests", canvas: values.canvas, state: values.state },
+      },
+    })),
+  z
+    .object({
+      positionals: z.tuple([z.literal("edit"), z.string(), z.string()]),
+      values: z.strictObject({ ...common, text: z.string() }),
+    })
+    .transform(({ positionals: [, canvas, n], values }): unknown => ({
+      at: values.server,
+      command: { kind: "queue", act: { kind: "edit", canvas, n, text: values.text } },
+    })),
+  z
+    .object({
+      positionals: z.tuple([z.literal("close"), z.string(), z.string()]),
+      values: z.strictObject({ ...common, text: z.string().optional() }),
+    })
+    .transform(({ positionals: [, canvas, n], values }): unknown => ({
+      at: values.server,
+      command: { kind: "queue", act: { kind: "close", canvas, n, text: values.text } },
+    })),
+] as const;
+
 /**
  * The words and flags of each command, read into its `command` input and the server it names.
  * A flag that the command does not take is bad usage, as a word too many is.
@@ -375,6 +496,7 @@ const invocation = z.union([
     })),
   ...opsInvocations,
   ...framesInvocations,
+  ...queueInvocations,
 ]);
 
 /** The words and flags, read by `parseArgs`: `--help` anywhere asks for the help. */
@@ -474,6 +596,8 @@ const main = defineMain(async (ctx) => {
       ops.user({ remote: ws.client }),
       ops.owner({ remote: ws.client }),
       frames.api({ remote: ws.client }),
+      queue.api({ remote: ws.client }),
+      queue.viewer({ remote: ws.client }),
       cli({ stdout, stderr, json: asJson, server: planned.server, hosts: planned.path }),
     ],
   });

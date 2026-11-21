@@ -117,7 +117,7 @@ Prior art:
    same issue. The comment starts with the trigger of the channel (default `@claude`), and opens
    the issue again if it is closed.
 4. GitHub starts a run of the agent of the team from the issue or the comment. The run takes the
-   request with `easel next --n`, and works as in the journey above. If an agent that asked took
+   request with `easel next --canvas <key> --n <n>`, and works as in the journey above. If an agent that asked took
    it first, or it left the queue, the run is told `empty` and ends.
 5. A delivery that fails (GitHub refuses, does not answer in 10 s, or the repository is public) is
    tried again after 10 s and 30 s. After 3 failures, the delivery is `failed` with its cause, and

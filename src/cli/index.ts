@@ -18,6 +18,7 @@ import {
   opsStatus,
 } from "./ops";
 import { json, stderr, stdout } from "./output";
+import { queueCommand, queueRun } from "./queue";
 import { approveUser, denyUser, listUsers, logout, revokeUser, whoami } from "./users";
 
 // The `easel` CLI's capsule (SPEC-cli.md): one command against one server. The cmd reads the
@@ -52,11 +53,12 @@ const shellCommand = z.discriminatedUnion("kind", [
   z.object({ kind: z.literal("errors"), act: errorsCommand }),
 ]);
 
-/** One command, as the cmd read it from its flags: the shell's, a frames command, or a share one. */
+/** One command, as the cmd read it from its flags: the shell's, a frames, share or queue one. */
 export const command = z.discriminatedUnion("kind", [
   ...shellCommand.options,
   z.object({ kind: z.literal("frames"), act: framesCommand }),
   z.object({ kind: z.literal("share"), act: shareCommand }),
+  z.object({ kind: z.literal("queue"), act: queueCommand }),
 ]);
 
 export type Command = z.infer<typeof command>;
@@ -130,10 +132,11 @@ const shell = operation({
 const run = operation({
   label: "cli.run",
   input: command,
-  depends: { shell, framesRun, shareRun },
-  run: ({ shell, framesRun, shareRun }, { input }) => {
+  depends: { shell, framesRun, shareRun, queueRun },
+  run: ({ shell, framesRun, shareRun, queueRun }, { input }) => {
     if (input.kind === "frames") return framesRun.run({ input: input.act });
     if (input.kind === "share") return shareRun.run({ input: input.act });
+    if (input.kind === "queue") return queueRun.run({ input: input.act });
     return shell.run({ input });
   },
 });

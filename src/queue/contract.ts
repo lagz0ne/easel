@@ -114,8 +114,8 @@ const lostOr = [wrongState, lost, gone] as const;
  */
 export const claimNote = z.string();
 
-/** The calls of a viewer, or of a user: `mayAct` runs first. */
-export const requestApi = rpc({
+/** The calls of a viewer, or of a user, with their inputs and outputs. */
+export const requestContracts = {
   "request.add": {
     input: addInput,
     output: z.discriminatedUnion("kind", [
@@ -149,7 +149,10 @@ export const requestApi = rpc({
     input: z.strictObject({ ...one, text: text.optional() }),
     output: z.discriminatedUnion("kind", [z.object({ kind: z.literal("closed") }), ...refused]),
   },
-});
+};
+
+/** The calls of a viewer, or of a user: `mayAct` runs first. */
+export const requestApi = rpc(requestContracts);
 
 /** `request.next`'s input: `n` needs `canvas` (rule 21). */
 export const nextInput = z
@@ -161,8 +164,8 @@ export const nextInput = z
   })
   .refine((call) => call.n === undefined || call.canvas !== undefined, "n needs canvas");
 
-/** The calls of an agent: the `user` guard runs first. */
-export const queueApi = rpc({
+/** The calls of an agent, with their inputs and outputs. The CLI reads its answers by them. */
+export const queueContracts = {
   "request.next": {
     input: nextInput,
     output: z.discriminatedUnion("kind", [
@@ -216,7 +219,10 @@ export const queueApi = rpc({
     input: z.strictObject({ canvas: canvasKey.optional(), state: state.optional() }),
     output: z.object({ kind: z.literal("listed"), requests: z.array(request) }),
   },
-});
+};
+
+/** The calls of an agent: the `user` guard runs first. */
+export const queueApi = rpc(queueContracts);
 
 export type QueueAddress = Extract<keyof typeof queueApi.contracts, string>;
 export type RequestAddress = Extract<keyof typeof requestApi.contracts, string>;
