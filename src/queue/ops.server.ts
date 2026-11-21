@@ -8,6 +8,7 @@ import { secretBytes } from "@/access/store.server";
 import { requests } from "./cells";
 import type { Request } from "./cells";
 import { defaultLease, queueApi, requestApi, stateOf } from "./contract";
+import { listDeliveries } from "./dispatch.server";
 import { whoActs } from "./guards.server";
 import {
   changeRequest,
@@ -511,4 +512,5 @@ export const queueOps = {
   "request.ask": askRequest,
   "request.resolve": resolveRequest,
   "request.list": listRequests,
+  "request.deliveries": listDeliveries,
 } as const;

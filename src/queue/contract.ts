@@ -4,6 +4,7 @@ import { z } from "zod";
 import { canvasKey, frame, frameId, frameInfo, version } from "@/frames/contract";
 
 import { message, request } from "./cells";
+import { delivery } from "./channels";
 
 // The queue's contract (SPEC-queue.md § Contract): the CLI and the page import it. `requestApi`
 // holds the calls of a viewer (or a user): `mayAct` runs first, for the canvas that the call names
@@ -219,6 +220,18 @@ export const queueContracts = {
     input: z.strictObject({ canvas: canvasKey.optional(), state: state.optional() }),
     output: z.object({ kind: z.literal("listed"), requests: z.array(request) }),
   },
+  "request.deliveries": {
+    input: z.strictObject(one),
+    output: z.discriminatedUnion("kind", [
+      z.object({
+        kind: z.literal("listed"),
+        deliveries: z.array(delivery),
+        /** How many channels the server has now: with none and no delivery, the CLI says so. */
+        channels: z.number(),
+      }),
+      gone,
+    ]),
+  },
 };
 
 /** The calls of an agent: the `user` guard runs first. */
@@ -243,6 +256,7 @@ export const queueSuccessKinds = {
   "request.ask": ["asked"],
   "request.resolve": ["resolved"],
   "request.list": ["listed"],
+  "request.deliveries": ["listed"],
 } as const satisfies { readonly [A in QueueAddress]: readonly QueueKind<A>[] };
 
 /** SPEC.md rule 1: the success kinds of a viewer's calls. */

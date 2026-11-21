@@ -3,13 +3,13 @@ import { createHash, randomBytes } from "node:crypto";
 import { bunSqlite } from "@tinkered/bun/sqlite";
 import { exits } from "@tinkered/cli/test";
 import { createScope, operation } from "@tinkered/core";
-import type { Scope } from "@tinkered/core";
+import type { Observe, Scope } from "@tinkered/core";
 import { makeTestClock, memory } from "@tinkered/core/testing";
 import type { preset } from "@tinkered/core/testing";
 import { expect } from "vite-plus/test";
 
 import { access } from "@/access";
-import { user } from "@/access/guards.server";
+import { owner, user } from "@/access/guards.server";
 import { loginOps } from "@/access/login.server";
 import { accessServer } from "@/access/store.server";
 import { ownerOps, userOps } from "@/access/users.server";
@@ -18,6 +18,8 @@ import { framesLoads, framesOps, mayRead } from "@/frames/ops.server";
 import { shareOps, shareServer } from "@/frames/share.server";
 import { framesServer } from "@/frames/store.server";
 import { queue } from "@/queue";
+import { channelOps } from "@/queue/channels.server";
+import { dispatchServer, dispatchState } from "@/queue/dispatch.server";
 import { mayAct } from "@/queue/guards.server";
 import { queueOps, requestOps } from "@/queue/ops.server";
 import { queueServer } from "@/queue/store.server";
@@ -38,15 +40,35 @@ export async function until(ok: () => boolean) {
 
 export const start = 1_800_000_000_000;
 
-/** One server. `presets` stand in for the server's own operations. */
-export async function boot(file = ":memory:", presets: Array<ReturnType<typeof preset>> = []) {
+/**
+ * One server. `presets` stand in for the server's own operations. `github` is the fetch that
+ * reaches GitHub (a double; none: GitHub out of reach); `observe` takes its spans and logs.
+ */
+export async function boot(
+  file = ":memory:",
+  presets: Array<ReturnType<typeof preset>> = [],
+  more: {
+    github?: (request: Request) => Promise<Response>;
+    observe?: Observe.Config;
+  } = {},
+) {
   const out: string[] = [];
   const stdout = { write: (chunk: string) => out.push(chunk) };
-  const services = [access.login, frames.api, frames.board, frames.viewer, queue.api, queue.viewer];
+  const services = [
+    access.login,
+    access.owner,
+    frames.api,
+    frames.board,
+    frames.viewer,
+    queue.api,
+    queue.viewer,
+    queue.channels,
+  ];
   const clock = makeTestClock({ now: start });
   const scope = createScope({
     clock,
     presets,
+    ...(more.observe ? { observe: more.observe } : {}),
     capsules: [
       exits({ file: process.env.TINKER_EXITS }),
       bunSqlite({ file }),
@@ -62,6 +84,8 @@ export async function boot(file = ":memory:", presets: Array<ReturnType<typeof p
       frames.viewer({ implement: shareOps }),
       queue.api({ implement: queueOps, onStart: [user] }),
       queue.viewer({ implement: requestOps, onStart: [mayAct] }),
+      dispatchServer(more.github ? { fetch: more.github, base: "https://github.test" } : {}),
+      queue.channels({ implement: channelOps, onStart: [user, owner] }),
       memory.server({ services }),
     ],
   });
@@ -69,7 +93,7 @@ export async function boot(file = ":memory:", presets: Array<ReturnType<typeof p
   closers.push(() => server.close());
   const setupCode = () => /setup code: (\S+)/.exec(out.join(""))?.[1] ?? "";
 
-  return { server, clock, setupCode };
+  return { server, clock, setupCode, out };
 }
 
 export type Server = Awaited<ReturnType<typeof boot>>;
@@ -101,6 +125,8 @@ export async function client(
       frames.viewer({ remote: memory.client }),
       queue.api({ remote: memory.client }),
       queue.viewer({ remote: memory.client }),
+      access.owner({ remote: memory.client }),
+      queue.channels({ remote: memory.client }),
     ],
   }).ready;
   closers.push(() => scope.close());
@@ -155,6 +181,18 @@ export async function client(
       scope.run(api["request.resolve"], {
         input: html === undefined ? { claim, text } : { claim, text, html },
       }),
+    deliveries: (canvas: string, n: number) =>
+      scope.run(api["request.deliveries"], { input: { canvas, n } }),
+    setChannel: (
+      token: string,
+      more: { name?: string; repo?: string; label?: string; trigger?: string } = {},
+    ) =>
+      scope.run(queue.channels["channel.set"], {
+        input: { name: "gh", kind: "github", repo: "acme/design", label: "easel", ...more, token },
+      }),
+    channels: () => scope.run(queue.channels["channel.list"], { input: {} }),
+    removeChannel: (name = "gh") =>
+      scope.run(queue.channels["channel.remove"], { input: { name } }),
   };
 }
 
@@ -220,7 +258,7 @@ export const faultOf = (call: Promise<unknown>) =>
   call.then(
     () => null,
     (error: unknown) =>
-      queue.viewer.fault.is(error) || queue.api.fault.is(error)
+      queue.viewer.fault.is(error) || queue.api.fault.is(error) || queue.channels.fault.is(error)
         ? { fault: error.fault, payload: error.payload }
         : { fault: "other", payload: String(error) },
   );
@@ -230,3 +268,19 @@ export const claimOf = (answer: { kind: string; claim?: string }) => {
   if (answer.kind !== "claimed" || answer.claim === undefined) throw new Error(answer.kind);
   return answer.claim;
 };
+
+/**
+ * Moves the server's clock `ms` ahead, one dispatcher round at a time, and waits after each step
+ * until the round and its attempts end.
+ */
+export async function rounds(srv: Server, ms: number, step = 1000) {
+  for (let moved = 0; moved < ms; moved += step) {
+    const before = srv.server.run(dispatchState);
+    srv.clock.advance(Math.min(step, ms - moved));
+    for (let i = 0; i < 100; i++) {
+      const now = srv.server.run(dispatchState);
+      if (now.rounds > before.rounds && now.busy === 0) break;
+      await tick(5);
+    }
+  }
+}

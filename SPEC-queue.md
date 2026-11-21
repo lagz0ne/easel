@@ -122,18 +122,22 @@ Prior art:
 5. A delivery that fails (GitHub refuses, does not answer in 10 s, or the repository is public) is
    tried again after 10 s and 30 s. After 3 failures, the delivery is `failed` with its cause, and
    the dispatcher stops for this waiting period. The request still waits for an agent that asks.
+   If the waiting period ends before an attempt goes through (an agent takes the request, or it
+   leaves the queue), the delivery is `failed` with the cause `ended`: no agent needs it.
 6. The issue follows its request. It is open while the request is waiting, in work or needs a
    person. When the request has a question, a result, or is closed, the dispatcher writes the
    state as a comment and closes the issue.
 7. `easel deliveries <canvas> <n>` shows each delivery of the request: the channel, the period, when,
-   `sent` or `failed`, the cause, and the issue. A request with no delivery and no channel says
-   so.
+   `pending`, `sent` or `failed`, the attempts, the cause, and the issue. A request with no
+   delivery and no channel says so.
 
 ### A team lead sets the channels
 
 1. An owner runs `easel channel set gh github --repo acme/design --label easel --token-file t`.
    Easel checks the token: the repository must exist, be private, and let the token write issues.
-   Then it saves the channel, and the next waiting period goes to it.
+   Easel makes the label if it is not there; that write proves that the token can write issues.
+   Then it saves the channel, and the next waiting period goes to it. The waiting periods that
+   started before do not go to it.
 2. With a repository that is public, the answer is `public`, and nothing is saved. With a token
    that cannot write issues, or a repository that does not exist, the answer is `refused` with
    the answer of GitHub.
@@ -211,7 +215,8 @@ type Refused = { kind: "wrongState"; state: State } | { kind: "gone" }
 "request.ask":     { kind: "asked" } | Lost
 "request.resolve": { kind: "resolved" } | Lost
 "request.list":    { kind: "listed"; requests: Request[] }
-"request.deliveries": { kind: "listed"; deliveries: Delivery[] } | { kind: "gone" }
+"request.deliveries": { kind: "listed"; deliveries: Delivery[]; channels: number }
+                 | { kind: "gone" }
 
 // an owner (refused { owner: true } for a member)
 // channel.set { name, kind: "github", repo, label, trigger?, token }; remove { name }
@@ -264,15 +269,23 @@ A channel (table `channels`, not on the board): `{ name, kind, repo, label, trig
 created }`. `ChannelInfo` is the same, with `tokenEnd` (the last 4 characters) in place of
 `token`.
 
-A delivery (table `deliveries`, not on the board): `{ request, channel, period, attempts, status,
-cause, ref, next, created, updated }`.
+A delivery (table `deliveries`, not on the board): `{ request, channel, kind, period, attempts,
+status, cause, ref, next, created, updated }`.
 
-- `period` is `queuedAt` and `tries` of the request when it was waiting. Each waiting period has
-  a new value. `request`, `channel` and `period` are unique together.
-- `status` is `pending`, `sent` or `failed`. `attempts` is 0 to 3. `next` is the time of the next
-  attempt of a `pending` delivery.
-- `ref` is the number of the GitHub issue. All deliveries of one request to one channel use the
-  same issue.
+- `kind` is `waiting` or `out`. A `waiting` delivery tells of a waiting period: it opens the issue,
+  or writes on it again. An `out` delivery makes the issue follow its request when the request
+  leaves the queue: it writes the state, and closes the issue. Its `period` is the last waiting
+  period that was sent, so an issue closes one time for each time it opened.
+- `period` is the time when the waiting period started: the time of the call that made the
+  request waiting (add, edit, answer, reopen or release; it writes `updated`), or `claimedUntil`
+  for a lease that ran out. Each waiting period has a new value. (`queuedAt` and `tries` do not
+  do this: an answer keeps `queuedAt` and sets `tries` to 0, as the first period had.)
+  `request`, `channel`, `kind` and `period` are unique together.
+- `status` is `pending`, `sent` or `failed`. `attempts` counts the attempts, 0 to 3. `next` is the
+  time of the next attempt of a `pending` delivery. `cause` is why the last attempt failed:
+  `public`, `timeout`, `network`, the status and message of GitHub, or `ended`.
+- `ref` is the number of the GitHub issue, from the first attempt that was sent. All deliveries of
+  one request to one channel use the same issue.
 
 A message on the board (cell `messages`, keyed by canvas):
 `{ canvas, id, request, kind, from, text, html, options, option, before, after, created }`.
@@ -326,7 +339,7 @@ one for each waiting period, the cap of attempts, and one outcome when two ways 
 6. `channel.set`, `list` and `remove` run the `owner` guard first. `request.deliveries` runs the
    `user` guard first.
 7. Only the dispatcher writes `deliveries`, and only through `startDelivery` and `endAttempt`. Only
-   the dispatcher calls GitHub.
+   the dispatcher and `channel.set` call GitHub, and only through `githubCall`.
 
 ### Judged rules (need reading the code)
 

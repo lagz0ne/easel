@@ -65,6 +65,11 @@ const help = `easel: the canvas CLI. Every command takes --json (one JSON value 
   easel requests [--canvas <k>] [--state <state>]  the requests; --state person: those that need a person
   easel edit <canvas> <n> --text <t>               make a request clear: it waits again, with no tries
   easel close <canvas> <n> [--text <t>]            close a request
+  easel deliveries <canvas> <n>                    each delivery of a request to the channels
+  easel channel set <name> github --repo <o/n> --label <l> [--trigger <t>] --token-file <f>
+                                                   deliver each waiting request to a private GitHub repository (owner)
+  easel channel ls                                 the channels; the last 4 characters of each token (owner)
+  easel channel rm <name>                          remove a channel; its issues stay on GitHub (owner)
 
 Exit: 0 success, 1 another answer, 2 refused, 64 usage, 65 invalid, 69 unreachable, 70 failed,
 76 missing, 78 a hosts file that cannot be read.
@@ -100,6 +105,10 @@ const options = {
   html: { type: "string" },
   option: { type: "string", multiple: true },
   state: { type: "string" },
+  repo: { type: "string" },
+  label: { type: "string" },
+  trigger: { type: "string" },
+  "token-file": { type: "string" },
   help: { type: "boolean", short: "h" },
 } as const;
 
@@ -421,6 +430,63 @@ const queueInvocations = [
     })),
 ] as const;
 
+/** The words and flags of `easel channel set|ls|rm` and `easel deliveries` (SPEC-queue.md). */
+const channelInvocations = [
+  z
+    .object({
+      positionals: z.tuple([z.literal("channel"), z.literal("set"), z.string(), z.string()]),
+      values: z.strictObject({
+        ...common,
+        repo: z.string().optional(),
+        label: z.string().optional(),
+        trigger: z.string().optional(),
+        "token-file": z.string().optional(),
+      }),
+    })
+    .transform(({ positionals: [, , name, channel], values }): unknown => ({
+      at: values.server,
+      command: {
+        kind: "channel",
+        act: {
+          kind: "set",
+          name,
+          channel,
+          repo: values.repo,
+          label: values.label,
+          trigger: values.trigger,
+          tokenFile: values["token-file"],
+        },
+      },
+    })),
+  z
+    .object({
+      positionals: z.tuple([z.literal("channel"), z.literal("ls")]),
+      values: z.strictObject(common),
+    })
+    .transform(({ values }): unknown => ({
+      at: values.server,
+      command: { kind: "channel", act: { kind: "ls" } },
+    })),
+  z
+    .object({
+      positionals: z.tuple([z.literal("channel"), z.literal("rm"), z.string()]),
+      values: z.strictObject(common),
+    })
+    .transform(({ positionals: [, , name], values }): unknown => ({
+      at: values.server,
+      command: { kind: "channel", act: { kind: "rm", name } },
+    })),
+  z
+    .object({
+      positionals: z.tuple([z.literal("deliveries"), z.string(), z.string()]),
+      values: z.strictObject(common),
+    })
+    .transform(({ positionals: [, canvas, n], values }): unknown => ({
+      at: values.server,
+      command: { kind: "channel", act: { kind: "deliveries", canvas, n } },
+    })),
+] as const;
+
 /**
  * The words and flags of each command, read into its `command` input and the server it names.
  * A flag that the command does not take is bad usage, as a word too many is.
@@ -497,6 +563,7 @@ const invocation = z.union([
   ...opsInvocations,
   ...framesInvocations,
   ...queueInvocations,
+  ...channelInvocations,
 ]);
 
 /** The words and flags, read by `parseArgs`: `--help` anywhere asks for the help. */
@@ -598,6 +665,7 @@ const main = defineMain(async (ctx) => {
       frames.api({ remote: ws.client }),
       queue.api({ remote: ws.client }),
       queue.viewer({ remote: ws.client }),
+      queue.channels({ remote: ws.client }),
       cli({ stdout, stderr, json: asJson, server: planned.server, hosts: planned.path }),
     ],
   });

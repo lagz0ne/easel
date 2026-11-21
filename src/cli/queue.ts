@@ -7,6 +7,8 @@ import { loginApi } from "@/access/contract";
 import { canvasKey } from "@/frames/contract";
 import { queue } from "@/queue";
 import { message, request } from "@/queue/cells";
+import { channelSuccessKinds } from "@/queue/channels";
+import type { ChannelAddress } from "@/queue/channels";
 import {
   lease,
   maxWait,
@@ -142,7 +144,7 @@ const invalid = operation({
   },
 });
 
-/** The addresses of the queue that the CLI calls. */
+/** The addresses of the queue that the CLI calls; `./channels` calls the last four. */
 const address = z.enum([
   "request.next",
   "request.extend",
@@ -153,10 +155,14 @@ const address = z.enum([
   "request.list",
   "request.edit",
   "request.close",
-] satisfies Array<QueueAddress | RequestAddress>);
+  "request.deliveries",
+  "channel.set",
+  "channel.list",
+  "channel.remove",
+] satisfies Array<QueueAddress | RequestAddress | ChannelAddress>);
 
 /** Every success list of the queue, by call. */
-const lists = { ...queueSuccessKinds, ...requestSuccessKinds };
+const lists = { ...queueSuccessKinds, ...requestSuccessKinds, ...channelSuccessKinds };
 
 /** 0 when the queue's contract lists the kind as a success, else 1. */
 export const queueExitOf = operation({
@@ -173,7 +179,7 @@ export const queueExitOf = operation({
  * One call's deadline: after `callDeadline` (60 s) its signal aborts with a `link` fault, as the
  * shell's `deadline` does. A `request.next` waits at most 50 s on the server, inside it.
  */
-const queueDeadline = operation({
+export const queueDeadline = operation({
   label: "cli.queueDeadline",
   input: address,
   run: (_, { input, clock, signal }) => {
@@ -189,13 +195,13 @@ const queueDeadline = operation({
 });
 
 /** A call that did not answer, told as the shell tells it: a queue fault is made again as one. */
-const queueFault = operation({
+export const queueFault = operation({
   label: "cli.queueFault",
   input: z.unknown(),
   depends: { faultExit },
   run: ({ faultExit }, { input: error }) => {
     const known =
-      queue.api.fault.is(error) || queue.viewer.fault.is(error)
+      queue.api.fault.is(error) || queue.viewer.fault.is(error) || queue.channels.fault.is(error)
         ? loginApi.fault.make(
             error.address,
             error.fault,

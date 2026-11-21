@@ -28,6 +28,8 @@ import { opsOwnerOps, opsServer, opsUserOps, ready } from "@/ops/ops.server";
 import { observePanics } from "@/ops/panic.server";
 import { opsTelemetryRoute, opsThreadRoute } from "@/ops/sink.server";
 import { queue } from "@/queue";
+import { channelOps } from "@/queue/channels.server";
+import { dispatchServer } from "@/queue/dispatch.server";
 import { mayAct } from "@/queue/guards.server";
 import { queueOps, requestOps } from "@/queue/ops.server";
 import { queueServer } from "@/queue/store.server";
@@ -111,6 +113,7 @@ export default defineMain(async ({ env, args, signal, stdout, stderr, exit }) =>
       frames.pass,
       queue.api,
       queue.viewer,
+      queue.channels,
     ],
     origin,
     // 2 MiB, above the 1 MiB document: a document a little too big gets `tooBig`, not a closed
@@ -171,6 +174,10 @@ export default defineMain(async ({ env, args, signal, stdout, stderr, exit }) =>
       queueServer({ stdout }),
       queue.api({ implement: queueOps, onStart: [user] }),
       queue.viewer({ implement: requestOps, onStart: [mayAct] }),
+      // The channels and the dispatcher, in EASEL_DB, after the queue: it delivers each waiting
+      // request to the GitHub repository of each channel. Only an owner sets them (fact rule 6).
+      dispatchServer({ fetch }),
+      queue.channels({ implement: channelOps, onStart: [user, owner] }),
       // The build that runs: the image sets GIT_SHA and BUILD.
       release({ commit: set.GIT_SHA, build: Number(set.BUILD) }),
       // The error groups, readiness and the fixer's stamp, kept in EASEL_DB.
