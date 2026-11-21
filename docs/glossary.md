@@ -82,6 +82,8 @@ You must know these terms to read any spec.
 | share        | verb | To make the share link of a canvas, with or without a password.                                                          |
 | unshare      | verb | To stop the share link of a canvas. A new share makes a new link.                                                        |
 | pass         | noun | A random value that a browser tab gets when it opens a share link. It stops when the link stops or the password changes. |
+| look         | noun | The colors, type, sizes and shapes that all frames of one easel share. It is not the look of the easel page (design).    |
+| kit          | noun | The pieces of screen in the look (a button, a field, a card) that agents use to make frames. Each easel has one.         |
 
 ### Viewer page
 

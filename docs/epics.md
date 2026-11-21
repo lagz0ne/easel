@@ -13,18 +13,20 @@ it with the skill `writing-requirements`.
 
 ## Story map
 
-The main story is E1, E2, E3, then E4. E5 gives the same actions through MCP. E6 and E7 keep the
-easel of each team healthy. Round 1 (below) holds E1, E2, E3, E4 and E6. E5 and E7 are deferred.
+The main story is E1, E2, E3, then E4. E8 makes each frame fast to make and like the others, from
+the first day. E5 gives the same actions through MCP. E6 and E7 keep the easel of each team healthy.
+Round 1 (below) holds E1, E2, E3, E4, E6 and E8. E5 and E7 are deferred.
 
-| ID  | Epic                      | Outcome                                                               | Actors                  | Journeys                                                                                                                              | Status                                                                                               | Review |
-| --- | ------------------------- | --------------------------------------------------------------------- | ----------------------- | ------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------- | ------ |
-| E1  | Get in                    | A person or an agent gets a token when an owner approves it.          | team lead, owner, agent | [access](../SPEC-access.md#journeys), [cli](../SPEC-cli.md#journeys)                                                                  | Built                                                                                                | ready  |
-| E2  | Make frames               | An agent puts HTML frames on a canvas and changes them safely.        | agent                   | [frames](../SPEC-frames.md#make-a-canvas): make a canvas, make and change frames                                                      | Built, except `frame.move`                                                                           | ready  |
-| E3  | Share and look            | A person opens a link and sees the frames change at once.             | agent, viewer           | [frames](../SPEC-frames.md#share-a-canvas): share, open; [viewer](../SPEC-viewer.md#journeys) 7; [design](../SPEC-design.md#journeys) | Built                                                                                                | ready  |
-| E4  | Comment and get a change  | A viewer asks for a change. An agent makes it and replies.            | viewer, agent           | [queue](../SPEC-queue.md#journeys) 3; [viewer](../SPEC-viewer.md#ask-for-a-change): ask for a change, follow the requests             | Built, except a GitHub run: `install.sh`, `EASEL_TOKEN` ([cli](../SPEC-cli.md#sign-in-with-no-file)) | active |
-| E5  | Work through MCP          | An agent with no shell does all of E2, E3 and E4.                     | agent                   | [mcp](../SPEC-mcp.md#journeys) 3                                                                                                      | Not built                                                                                            | active |
-| E6  | Watch production          | The company sees the health, the errors and the copies of each easel. | company                 | [ops](../SPEC-ops.md#journeys) 5                                                                                                      | Built, except backups                                                                                | ready  |
-| E7  | Fix errors with no person | An agent fixes a production error and proves the fix.                 | fixer, tick, probe      | [fixer](../SPEC-fixer.md#journeys) 5                                                                                                  | Not built                                                                                            | to do  |
+| ID  | Epic                      | Outcome                                                                  | Actors                  | Journeys                                                                                                                              | Status                                                                                               | Review |
+| --- | ------------------------- | ------------------------------------------------------------------------ | ----------------------- | ------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------- | ------ |
+| E1  | Get in                    | A person or an agent gets a token when an owner approves it.             | team lead, owner, agent | [access](../SPEC-access.md#journeys), [cli](../SPEC-cli.md#journeys)                                                                  | Built                                                                                                | ready  |
+| E2  | Make frames               | An agent puts HTML frames on a canvas and changes them safely.           | agent                   | [frames](../SPEC-frames.md#make-a-canvas): make a canvas, make and change frames                                                      | Built, except `frame.move`                                                                           | ready  |
+| E3  | Share and look            | A person opens a link and sees the frames change at once.                | agent, viewer           | [frames](../SPEC-frames.md#share-a-canvas): share, open; [viewer](../SPEC-viewer.md#journeys) 7; [design](../SPEC-design.md#journeys) | Built                                                                                                | ready  |
+| E4  | Comment and get a change  | A viewer asks for a change. An agent makes it and replies.               | viewer, agent           | [queue](../SPEC-queue.md#journeys) 3; [viewer](../SPEC-viewer.md#ask-for-a-change): ask for a change, follow the requests             | Built, except a GitHub run: `install.sh`, `EASEL_TOKEN` ([cli](../SPEC-cli.md#sign-in-with-no-file)) | active |
+| E5  | Work through MCP          | An agent with no shell does all of E2, E3 and E4.                        | agent                   | [mcp](../SPEC-mcp.md#journeys) 3                                                                                                      | Not built                                                                                            | active |
+| E6  | Watch production          | The company sees the health, the errors and the copies of each easel.    | company                 | [ops](../SPEC-ops.md#journeys) 5                                                                                                      | Built, except backups                                                                                | ready  |
+| E7  | Fix errors with no person | An agent fixes a production error and proves the fix.                    | fixer, tick, probe      | [fixer](../SPEC-fixer.md#journeys) 5                                                                                                  | Not built                                                                                            | to do  |
+| E8  | One look, fast            | Agents make frames fast, and all frames of a team look like one product. | agent, user             | [E8](#e8-one-look-fast) 3                                                                                                             | Not built                                                                                            | to do  |
 
 ## Round 1: Get started
 
@@ -33,15 +35,15 @@ easel of each team healthy. Round 1 (below) holds E1, E2, E3, E4 and E6. E5 and 
 - **Customer:** a small team that designs with AI agents. The team lead pays.
 - **Base:** none.
 
-| Part  | Mark                                                                      | Epics or reason                                                                                                     |
-| ----- | ------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------- |
-| Value | in the round                                                              | E1, E2, E3, E4 (with E4.5). The team gets the value only when a comment comes back as a change, so E4 is necessary. |
-| Get   | by hand: the company talks to each new team and starts its easel (R1)     | The first teams come from the contacts of the company. The team starts with written steps (R2).                     |
-| Pay   | by hand: the company sends an invoice each month (R3)                     | A payment system is not necessary for a small number of teams.                                                      |
-| Help  | by hand: the company answers at one address (R4)                          | A share link from the team lets the company see what the team sees.                                                 |
-| Run   | in the round: E6 with backups (R5); by hand: updates (R6)                 | The round holds the work of customers. A lost server must not lose it.                                              |
-| Trust | in the round: terms and privacy text (R7); by hand: one easel a team (R1) | Each user of a server sees each canvas on it. A team must not see the work of another team.                         |
-| Learn | by hand: the company talks with each team each month (R9)                 | A talk with a small number of teams teaches more than numbers.                                                      |
+| Part  | Mark                                                                      | Epics or reason                                                                                                                                                                                                              |
+| ----- | ------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Value | in the round                                                              | E1, E2, E3, E4 (with E4.5), E8. The team gets the value only when a comment comes back as a change, so E4 is necessary. Agents work well only when frames are fast to make and alike from the first day, so E8 is necessary. |
+| Get   | by hand: the company talks to each new team and starts its easel (R1)     | The first teams come from the contacts of the company. The team starts with written steps (R2).                                                                                                                              |
+| Pay   | by hand: the company sends an invoice each month (R3)                     | A payment system is not necessary for a small number of teams.                                                                                                                                                               |
+| Help  | by hand: the company answers at one address (R4)                          | A share link from the team lets the company see what the team sees.                                                                                                                                                          |
+| Run   | in the round: E6 with backups (R5); by hand: updates (R6)                 | The round holds the work of customers. A lost server must not lose it.                                                                                                                                                       |
+| Trust | in the round: terms and privacy text (R7); by hand: one easel a team (R1) | Each user of a server sees each canvas on it. A team must not see the work of another team.                                                                                                                                  |
+| Learn | by hand: the company talks with each team each month (R9)                 | A talk with a small number of teams teaches more than numbers.                                                                                                                                                               |
 
 | ID  | Requirement                                                    | Fit criterion                                                                                                                                                                                                 |
 | --- | -------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
@@ -65,6 +67,8 @@ Decided:
   team to the other teams.
 - Requests get to the agents of a team in two ways: an agent that asks for work, and GitHub
   (E4.5). The team lead chooses one or both.
+- On 2026-11-21, the user moved E8 into Round 1: easel is agent first, so frames must be fast to
+  make and alike from the first day.
 - Deferred: E5, work through MCP. Add it when a team has an agent that cannot run a shell.
 - Deferred: E7, fix errors with no person. Add it when the errors of all teams take a person of the
   company more than 1 hour a day.
@@ -661,3 +665,109 @@ Decided:
 SPEC-ops closes H3, H10, H12, H14 and the row for each easel (`8d452f6`). The bucket and the check
 from outside the host wait on the hub (hq-a6w, hq-kbl). H4 and H13 stay open: the runbook needs the
 bucket first.
+
+## E8: One look, fast
+
+easel is agent first. An agent that writes each frame from nothing is slow, and its frames do not
+look like the frames of the other agents. So each easel has one look and one kit from the first
+day, and each agent of the team makes its frames from them.
+
+| ID   | Journey                   | Actor | Design   | Review |
+| ---- | ------------------------- | ----- | -------- | ------ |
+| E8.1 | Make a frame from the kit | agent | none yet | to do  |
+| E8.2 | Change the look           | user  | none yet | to do  |
+| E8.3 | Add to the kit            | agent | none yet | to do  |
+
+Decided:
+
+- On 2026-11-21, the user moved E8 into Round 1: easel is agent first, so frames must be fast to
+  make and alike from the first day.
+- A new easel has a complete look and kit. The team changes them. It does not start from nothing.
+- One look and one kit for each easel. The company runs one easel for each team (R1).
+- The look and the kit are for the frames of the team. The look of the easel page itself is
+  [design](../SPEC-design.md), and the team does not change it.
+- Prior art for the need: the design systems of Figma (libraries) and Doop (tokens and
+  components), and the generators v0, Lovable and Claude artifacts, which write screens from one
+  known kit to be fast and alike. Doop is AGPL-3.0: easel takes only the need, and designs its own
+  answer (`docs/canvas-speed.md`, "Clean room").
+- Deferred: a look for each canvas. Add it when a team makes two products on one easel.
+- Deferred: frames in a light and a dark theme. Add it when a team asks for a dark theme of its
+  product.
+- Deferred: take the look from a web site or a design file. Add it when the brand of a team takes
+  more than 10 minutes to set.
+- Deferred: a page that shows the kit to people. Add it when a team asks to see the kit apart from
+  its frames.
+- Deferred: images, icons and fonts kept in easel. Add it when a frame cannot load what it needs.
+
+### E8.1 Make a frame from the kit
+
+- **Actor:** agent.
+- **Need:** make a frame fast, in the look of the team, so that the frames of all agents look like
+  one product.
+- **Trigger:** the agent has a screen to show.
+- **Success end:** the frame shows on the canvas in the look of the team, made from the kit.
+- **Failure end:** the frame does not follow the look. The agent knows at once where and how to fix
+  it.
+
+| ID  | Requirement                                                                          | Fit criterion                                                                                                                                                                                                   |
+| --- | ------------------------------------------------------------------------------------ | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| K1  | On a new easel, an agent makes frames in a complete look, with no design work first. | The first frame on a new easel has the same colors, type, spacing and controls as a finished product. A person of the team accepts its look with no change.                                                     |
+| K2  | The agent learns the kit and its rules from easel alone.                             | An agent that never used easel makes a correct frame from the kit on its first try, with the guide of easel as its only help.                                                                                   |
+| K3  | A frame from the kit is fast to make.                                                | With the agent that the team uses, a usual screen (a form, a list, a dashboard) shows on the canvas within 30 seconds after the agent starts it, and in less than half the time of the same screen with no kit. |
+| K4  | The frames of several agents look alike.                                             | On a canvas of 10 frames from 3 agents, a person finds no two controls of one kind that differ in color, type, size or spacing.                                                                                 |
+| K5  | The agent knows at once when a frame does not follow the look.                       | A frame with a color, a size or a control outside the look is found when the agent writes it. The agent is told where it is, and the fix.                                                                       |
+| K6  | The kit does not make the canvas slower.                                             | With 200 frames from the kit, S8, S9 and S11 are still true.                                                                                                                                                    |
+
+### E8.2 Change the look
+
+- **Actor:** user (an agent or a person of the team).
+- **Need:** give all frames the brand of the team with one change, and lose nothing that people
+  saw before.
+- **Trigger:** the team has a brand, or a viewer asks for a change of the look (E4).
+- **Success end:** each frame of the easel shows the new look, and no agent changed a frame.
+- **Failure end:** the change makes text hard to read. Nothing changes, and the user knows which
+  part fails.
+
+| ID  | Requirement                                                             | Fit criterion                                                                                                                                                        |
+| --- | ----------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| K7  | One change of the look reaches each frame.                              | After one change of the main color, each frame on each canvas shows the new color. Each open tab shows it within 1 second, with no reload. No agent changed a frame. |
+| K8  | A change of the look keeps text readable.                               | A change that makes text fail WCAG AA contrast is refused. The user is told which text and which color fail.                                                         |
+| K9  | The user can go back to the look before.                                | One step gives each frame the look that it had before the last change.                                                                                               |
+| K10 | A change of the look does not change what a viewer saw when they asked. | After the change, the Before of each result shows the frame in the look that the viewer saw when they asked (E4).                                                    |
+| K11 | An update of easel does not change the look or the kit of a team.       | After an update (R6), each frame looks as it did before.                                                                                                             |
+
+### E8.3 Add to the kit
+
+- **Actor:** agent.
+- **Need:** a piece of screen that the kit does not have is made one time, and each agent then
+  uses the same one.
+- **Trigger:** the agent needs a piece that is not in the kit, or a viewer asks for a change to a
+  piece that many frames use.
+- **Success end:** the piece is in the kit, and each frame that uses it shows the same piece.
+- **Failure end:** another agent changed the piece first. Nothing is written. The agent gets the
+  newest piece, and makes its change on it.
+
+| ID  | Requirement                                                              | Fit criterion                                                                                                             |
+| --- | ------------------------------------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------- |
+| K12 | An agent adds a piece to the kit one time, and each agent then uses it.  | After one agent adds a pricing card, a second agent makes a frame with that card, in the same look, and does not copy it. |
+| K13 | A change to a piece of the kit reaches each frame that uses it.          | After a change to the button, each frame shows the new button within 1 second, and no agent changed a frame.              |
+| K14 | A change to the kit made on an old piece does not remove a newer change. | When two agents change one piece at the same time, the second is refused and told. No change is lost (as B6).             |
+
+### E8 walk of the slice
+
+On 2026-11-21, E8 was read from left to right as a team lead: get the easel, connect an agent, see
+the first frame in the look of easel, set the brand, see each frame change, ask for a change to the
+buttons, see each frame change, get an update of easel. Then it was read as an agent: learn the
+kit, make a frame, be told of a color outside the look, add a missing piece, change a piece that
+another agent changed first. The walk added K10 (the Before of a result after a change of the
+look) and K11 (an update of easel).
+
+#### Design changes that E8 needs
+
+| Req.    | Gap in the design now                                                                              | Spec                 |
+| ------- | -------------------------------------------------------------------------------------------------- | -------------------- |
+| K1–K14  | No spec holds the look and the kit of a team.                                                      | a new module spec    |
+| K2      | The CLI help and the agent guide do not name a kit.                                                | SPEC-cli, SPEC-mcp   |
+| K7, K13 | A frame is one document that holds all that it shows. Nothing in it changes when the look changes. | SPEC-frames          |
+| K10     | Easel keeps old versions of a frame, but not the look that a frame had at that version.            | SPEC-frames          |
+| K6      | The speed measures in `docs/canvas-speed.md` do not cover a frame that uses the kit.               | docs/canvas-speed.md |
