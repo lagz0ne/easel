@@ -136,8 +136,10 @@ const E3: ReadonlyArray<{ id: string; kind: Kind }> = [
   { id: "xpeMsam50t", kind: "page" },
   { id: "U-GpX2Ahvg", kind: "screen" },
   { id: "rq2XCe9U5r", kind: "screen" },
+  { id: "VxKFjgLy3w", kind: "screen" },
   { id: "XQpw70VuH-", kind: "screen" },
   { id: "-SQRkwRPgf", kind: "screen" },
+  { id: "dRXlfnNKR3", kind: "page" },
   { id: "k57fxBGG06", kind: "screen" },
   { id: "snGUZR-mMv", kind: "screen" },
   // A canvas with no frames has no requests, so no count (F2: none at 0).

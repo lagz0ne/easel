@@ -55,6 +55,9 @@ this spec wins, and the screen gets a fix.
 ### Pan and zoom
 
 1. The viewer drags on the canvas, or scrolls, and it pans.
+   With the canvas in focus (Tab reaches it first, a `region` named `Frames`), the arrow keys pan
+   it, as in tldraw and Miro, so a person with only a keyboard can bring each frame into view (E3
+   S14, WCAG 2.1.1). Decided in the E3 design on 2026-11-21; not built yet.
 2. Ctrl+scroll or a pinch zooms around the pointer. Buttons `Zoom in`, `Zoom out` and `Fit` in the
    dock do the same. A `status` shows the zoom, rounded down to steps of 10% (26% reads 20%).
 3. While the canvas moves, the set of live documents stays as it is. When it rests, the frames now
