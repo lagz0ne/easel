@@ -11,57 +11,106 @@
   font-family: var(--e-font);
 }
 
-.e-toolbar {
+/* The top of the canvas: the status `Reconnecting`, or an alert on a fault. */
+.e-top {
   position: absolute;
   top: var(--e-3);
   left: var(--e-3);
   z-index: 2;
-  display: flex;
-  align-items: center;
-  gap: var(--e-1);
-  padding: var(--e-1);
-  background-color: var(--e-surface);
-  border-radius: var(--e-radius);
-  box-shadow: var(--e-shadow);
   font-size: var(--e-size-2);
 }
 
-.e-toolbar button {
+.e-top [role="status"],
+.e-top [role="alert"] {
+  margin: 0;
   padding: var(--e-1) var(--e-2);
-  font-family: inherit;
-  font-size: var(--e-size-2);
-  color: var(--e-text);
   background-color: var(--e-surface);
-  border: 1px solid var(--e-muted);
+  border-radius: var(--e-radius);
+  box-shadow: var(--e-shadow);
+}
+
+.e-top [role="alert"] {
+  color: var(--e-danger);
+}
+
+/* The dock (the library's Dock): the canvas tools at the bottom centre, as icons. The library's
+   tokens that tokens.css has not taken yet (--e-line, --e-hover, --e-accent-bg, --e-radius-l)
+   fall back to the nearest token it has. */
+.e-dock {
+  position: absolute;
+  bottom: var(--e-4);
+  left: 50%;
+  z-index: 2;
+  display: inline-flex;
+  align-items: center;
+  gap: var(--e-1);
+  height: 40px;
+  padding: 0 var(--e-1);
+  font-family: var(--e-font);
+  color: var(--e-muted);
+  background-color: var(--e-surface);
+  border: 1px solid var(--e-line, var(--e-card));
+  border-radius: var(--e-radius-l, var(--e-radius));
+  box-shadow: var(--e-shadow);
+  transform: translateX(-50%);
+}
+
+.e-dock-btn {
+  position: relative;
+  display: flex;
+  flex: none;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+  padding: 0;
+  color: var(--e-muted);
+  background-color: transparent;
+  border: 0;
   border-radius: var(--e-radius);
   cursor: pointer;
 }
 
-.e-toolbar button:focus-visible {
+.e-dock-btn[aria-pressed="true"] {
+  color: var(--e-accent);
+  background-color: var(--e-accent-bg, var(--e-bg));
+}
+
+.e-dock-btn:focus-visible {
   outline: 2px solid var(--e-focus);
   outline-offset: 2px;
   box-shadow: 0 0 0 2px var(--e-bg);
 }
 
-.e-toolbar button:disabled {
-  color: var(--e-muted);
-  cursor: default;
+@media (hover: hover) and (pointer: fine) {
+  .e-dock-btn:hover {
+    color: var(--e-text);
+    background-color: var(--e-hover, var(--e-bg));
+  }
 }
 
-.e-toolbar output {
-  min-width: 6ch;
+.e-icon {
+  width: 16px;
+  height: 16px;
+  fill: none;
+  stroke: currentcolor;
+  stroke-width: 2;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+.e-dock-sep {
+  height: 16px;
+  margin: 0 var(--e-1);
+  border-left: 1px solid var(--e-line, var(--e-card));
+}
+
+.e-dock-zoom {
+  min-width: 40px;
+  font-size: var(--e-size-1);
+  color: var(--e-text);
   text-align: center;
   font-variant-numeric: tabular-nums;
-}
-
-.e-toolbar [role="status"],
-.e-toolbar [role="alert"] {
-  margin: 0;
-  padding: 0 var(--e-2);
-}
-
-.e-toolbar [role="alert"] {
-  color: var(--e-danger);
 }
 
 .e-empty {
@@ -146,12 +195,6 @@
 /* A request (SPEC-viewer.md § Ask for a change; the E4.1 design). The pins and the popover sit in
    the world at their place, and undo the zoom (`--e-unzoom`, written by the stage) to keep their
    screen size. */
-.e-toolbar button[aria-pressed="true"] {
-  color: var(--e-surface);
-  background-color: var(--e-accent);
-  border-color: var(--e-accent);
-}
-
 .e-pins {
   position: absolute;
   top: 0;
@@ -200,6 +243,14 @@
 .e-kept button:focus-visible {
   outline: 2px solid var(--e-focus);
   outline-offset: 2px;
+}
+
+/* The outline of the part a request is on, at its screen width whatever the zoom. */
+.e-outline {
+  position: absolute;
+  border: calc(2px * var(--e-unzoom, 1)) solid var(--e-accent);
+  border-radius: calc(2px * var(--e-unzoom, 1));
+  pointer-events: none;
 }
 
 /* The removed frame: a dashed area where it was. */

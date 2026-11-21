@@ -27,11 +27,16 @@ const gate = z.discriminatedUnion("page", [
     again: z.boolean(),
   }),
   z.object({ link: z.string(), page: z.literal("ended") }),
-  /** The password page. `alert`: a wrong password, or the wait after 5 wrong ones in a minute. */
+  /**
+   * The password page. `alert`: a wrong password, or the wait after 5 wrong ones in a minute.
+   * `changed`: a password set or changed ended the pass this tab held (E3 S4), so the page says
+   * that the password changed, not that the link needs one.
+   */
   z.object({
     link: z.string(),
     page: z.literal("password"),
     alert: z.enum(["none", "wrong", "wait"]),
+    changed: z.boolean(),
   }),
 ]);
 
@@ -115,6 +120,17 @@ const settled = z.discriminatedUnion("kind", [
   z.object({ kind: z.literal("gone") }),
 ]);
 
+/** Whether the password page of a link says that the password changed: it said so before. */
+const saysChanged = operation({
+  label: "viewer.saysChanged",
+  input: z.string(),
+  depends: { pages: gates.controller },
+  run: ({ pages }, { input }) => {
+    const shown = pages.of({ link: input }).get();
+    return shown?.page === "password" && shown.changed;
+  },
+});
+
 /**
  * Shows a `share.open` answer that is not `slow`: `open` keeps the pass and shows the canvas;
  * `locked` asks the password; `wrong` asks it again and says it was wrong; `gone` says the link
@@ -123,17 +139,22 @@ const settled = z.discriminatedUnion("kind", [
 const showAnswer = operation({
   label: "viewer.showAnswer",
   input: z.object({ link: z.string(), again: z.boolean(), answer: settled }),
-  depends: { pages: gates.controller, passes: heldPasses.controller },
-  run: ({ pages, passes }, { input }) => {
+  depends: { pages: gates.controller, passes: heldPasses.controller, saysChanged },
+  run: ({ pages, passes, saysChanged }, { input }) => {
     const { link, again, answer } = input;
     switch (answer.kind) {
       case "open":
         passes.set({ link, pass: answer.pass });
         return pages.set({ link, page: "canvas", canvas: answer.canvas, again });
       case "locked":
-        return pages.set({ link, page: "password", alert: "none" });
+        return pages.set({ link, page: "password", alert: "none", changed: false });
       case "wrong":
-        return pages.set({ link, page: "password", alert: "wrong" });
+        return pages.set({
+          link,
+          page: "password",
+          alert: "wrong",
+          changed: saysChanged.run({ input: link }),
+        });
       case "gone":
         return pages.set({ link, page: "ended" });
     }
@@ -190,10 +211,10 @@ export const openLink = operation({
 const waitThenAsk = operation({
   label: "viewer.waitThenAsk",
   input: z.object({ link: z.string(), retryIn: z.number() }),
-  depends: { pages: gates.controller, waitOut },
-  run: async ({ pages, waitOut }, { input }) => {
+  depends: { pages: gates.controller, waitOut, saysChanged },
+  run: async ({ pages, waitOut, saysChanged }, { input }) => {
     const { link, retryIn } = input;
-    pages.set({ link, page: "password", alert: "wait" });
+    pages.set({ link, page: "password", alert: "wait", changed: saysChanged.run({ input: link }) });
     if (await waitOut.run({ input: { retryIn } })) return;
 
     const shown = pages.of({ link }).get();
@@ -262,7 +283,7 @@ const showRefusal = operation({
 
     if (lockedFault.safeParse(fault).success) {
       passes.delete({ link });
-      return pages.set({ link, page: "password", alert: "none" });
+      return pages.set({ link, page: "password", alert: "none", changed: true });
     }
     if (!endedFault.safeParse(fault).success) return;
     if (gate.again) return pages.set({ link, page: "ended" });

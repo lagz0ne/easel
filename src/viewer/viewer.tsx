@@ -27,19 +27,31 @@ const alerts = {
   wait: "Too many wrong passwords. Wait 1 minute, then try again. Until then, no password opens the link.",
 } as const;
 
+/**
+ * What the password page says: a first open, or a tab whose pass a password set or changed ended
+ * (E3 S4, the E3 frame "A new password: the tab asks for it").
+ */
+const passwordTexts = {
+  first: {
+    heading: "This link needs a password",
+    text: "Ask the person who shared it for the password.",
+  },
+  changed: {
+    heading: "The password of this link changed",
+    text: "Enter the new password to see the canvas again. Ask the person who shared it.",
+  },
+} as const;
+
+type PasswordPage = Extract<Gate, { page: "password" }>;
+
 /** The password gate: textbox Password, button Open, and an alert after a wrong one. */
-function PasswordGate({
-  link,
-  alert,
-}: {
-  link: string;
-  alert: Extract<Gate, { page: "password" }>["alert"];
-}) {
+function PasswordGate({ link, alert, changed }: Omit<PasswordPage, "page">) {
   const enter = useRun(enterPassword);
+  const says = passwordTexts[changed ? "changed" : "first"];
   return (
     <main>
-      <h1>This link needs a password</h1>
-      <p>Ask the person who shared it for the password.</p>
+      <h1>{says.heading}</h1>
+      <p>{says.text}</p>
       <form
         onSubmit={(event) => {
           event.preventDefault();
@@ -72,7 +84,7 @@ export function Viewer({ link }: { link: string }) {
     case undefined:
       return <Opening />;
     case "password":
-      return <PasswordGate link={link} alert={gate.alert} />;
+      return <PasswordGate link={link} alert={gate.alert} changed={gate.changed} />;
     case "canvas":
       return <Canvas canvas={gate.canvas} opening={<Opening />} />;
     case "ended":

@@ -87,9 +87,11 @@ this spec wins, and the screen gets a fix.
 ### Ask for a change
 
 1. A viewer presses the button `Request` (it shows pressed), and the canvas goes into request mode.
-2. They click a part of a frame. The part gets an outline and a draft pin. (The outline is not
-   built yet: the page cannot read the frame's document in its sandbox. The draft pin shows the
-   place.) Or they click the
+2. They click a part of a frame. The part gets an outline and a draft pin. The page cannot read
+   the frame's document in its sandbox, so it asks the paint script in the frame for the box of
+   the element at the place clicked, and draws the outline from the answer, cut to the frame (as
+   the comment overlays of Figma and Vercel do). A frame that is not live, or a click on its page's
+   body, gets no outline: the draft pin shows the place. Or they click the
    canvas out of all frames, for a request about the whole canvas (E4.1 N2). A popover opens next
    to the pin, with a textbox `Request` and the button `Send`. Under the textbox, the place shows:
    "On <frame>" or "On the whole canvas". The page makes a client key for this request, and keeps
@@ -126,9 +128,11 @@ this spec wins, and the screen gets a fix.
 1. A user sets or changes the link's password. That ends every pass on the link
    ([frames](SPEC-frames.md)), and each open tab on it is told at once: the server pushes the
    refusal `{ locked: true }`. A tab whose socket was down is told by its read when it is back.
-2. The tab goes back to the password page. If a request or an answer was being typed, its text
-   stays visible there to copy, as on the ended page, and the page says it was not sent, or that it is not
-   known whether it saved.
+2. The tab goes back to the password page. It says "The password of this link changed" and
+   "Enter the new password to see the canvas again. Ask the person who shared it." (E3 S4); a
+   first open says "This link needs a password". If a request or an answer was being typed, its
+   text stays visible there to copy, as on the ended page, and the page says it was not sent, or
+   that it is not known whether it saved.
 
 ### Follow the requests
 
@@ -311,7 +315,8 @@ camera controls.
 7. The page's only calls are `share.open`, `share.name` and `request.add`, `edit`, `answer`,
    `accept`, `reopen` and `close`.
 8. One page module adds the paint script, to the document it gives the iframe. No server module
-   and no stored document carries it.
+   and no stored document carries it. The script posts that the document painted, and answers a
+   place with the box of the element there. It posts nothing else.
 9. The panel reads time only from the clock capsule, never from `Date.now()`.
 10. One page function derives the state of a request (queue spec, table `State`), and "done, no
     answer" and "taken back" from it. The panel, the pin, the popover and the count all use it.

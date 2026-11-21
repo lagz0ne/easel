@@ -20,21 +20,31 @@ import {
   toggleRequest,
   typeText,
 } from "./draft";
-import type { Draft } from "./draft";
+import type { Draft, Place } from "./draft";
+import { partBox } from "./stage";
 
 // The page side of a request (SPEC-viewer.md § Ask for a change; the E4.1 and E3.2 designs): the
 // button `Request`, the pins, the textbox's popover, and the text a gate page keeps. The pins and
 // the popover sit in the world, so they move with the canvas, and keep their screen size by the
 // stage's inverse zoom (`--e-unzoom`). They take their own pointer: a press on them does not pan.
 
-/** The button `Request`: it shows pressed in request mode. */
+/** The button `Request` in the dock: a speech bubble. It shows pressed in request mode. */
 export function RequestButton() {
   const on = useData(requestMode);
   const toggle = useRun(toggleRequest);
 
   return (
-    <button type="button" aria-pressed={on} title="Ask for a change" onClick={() => toggle.run()}>
-      Request
+    <button
+      type="button"
+      className="e-dock-btn"
+      aria-label="Request"
+      aria-pressed={on}
+      title="Ask for a change"
+      onClick={() => toggle.run()}
+    >
+      <svg className="e-icon" viewBox="0 0 24 24" aria-hidden="true">
+        <path d="M7.9 20A9 9 0 1 0 4 16.1L2 22Z" />
+      </svg>
     </button>
   );
 }
@@ -164,16 +174,22 @@ function Composer({ d, lost }: { d: Draft; lost: boolean }) {
   );
 }
 
-/** The word for each state of a request, in its popover. */
-const stateWords: Record<State, string> = {
+/** The word for each state of a request (SPEC-viewer § Follow the requests 6); in work, the agent's name. */
+const stateWords: Record<Exclude<State, "inWork">, string> = {
   waiting: "Waiting for an agent",
-  inWork: "In work",
   person: "Needs a person",
-  question: "A question for you",
-  result: "Done: check the result",
-  accepted: "Accepted",
+  question: "Question for you",
+  result: "Result to check",
+  accepted: "Done",
   closed: "Closed",
 };
+
+/** The word of a state; in work, the name of the agent. */
+function StateWord({ state, agent }: { state: State | null; agent: string | null }) {
+  if (state === null) return null;
+
+  return <>{state === "inWork" ? (agent ?? "") : stateWords[state]}</>;
+}
 
 /** The popover of a saved request: its number and place, who asked, the text, and its state. */
 function Opened({ canvas, n, list }: { canvas: string; n: number; list: readonly FrameInfo[] }) {
@@ -186,10 +202,9 @@ function Opened({ canvas, n, list }: { canvas: string; n: number; list: readonly
   if (!request) return null;
 
   const frame = list.find((f) => f.id === request.frameId);
-  const word = state === null ? "" : stateWords[state];
 
   return (
-    <section className="e-pop" aria-label={`Request #${n}`}>
+    <section className="e-pop" role="dialog" aria-label={`Request #${n}`}>
       <header className="e-head">
         <span>
           {`#${n} · `}
@@ -206,7 +221,9 @@ function Opened({ canvas, n, list }: { canvas: string; n: number; list: readonly
         <div className="e-field">
           <p className="e-who">{request.author}</p>
           <p>{asked?.text ?? ""}</p>
-          <p className="e-state">{word}</p>
+          <p className="e-state">
+            <StateWord state={state} agent={request.claimedBy} />
+          </p>
         </div>
       </div>
     </section>
@@ -310,9 +327,7 @@ function DraftAt({ d, lost }: { d: Draft; lost: boolean }) {
 
   return (
     <>
-      {gone && box ? (
-        <div className="e-gone" style={{ left: box.x, top: box.y, width: box.w, height: box.h }} />
-      ) : null}
+      <FrameArea gone={gone} place={d.place} />
       <At x={(box?.x ?? 0) + d.place.x} y={(box?.y ?? 0) + d.place.y}>
         <span className="e-pin" data-draft aria-hidden="true">
           ?
@@ -320,6 +335,36 @@ function DraftAt({ d, lost }: { d: Draft; lost: boolean }) {
         <Composer d={d} lost={lost} />
       </At>
     </>
+  );
+}
+
+/** Where the draft's frame is: a dashed area once an agent removed it, else the part's outline. */
+function FrameArea({ gone, place }: { gone: boolean; place: Place }) {
+  const box = place.box;
+  if (!box) return null;
+  if (!gone) return <Outline place={place} at={box} />;
+
+  return (
+    <div className="e-gone" style={{ left: box.x, top: box.y, width: box.w, height: box.h }} />
+  );
+}
+
+/**
+ * The outline of the part a draft is on: the box that the frame's document gave for the place
+ * clicked (`partBox`), on the frame at `at`. None until it answers, or for no part.
+ */
+function Outline({ place, at }: { place: Place; at: { x: number; y: number } }) {
+  const part = useData(partBox);
+  const box =
+    part?.id === place.frameId && part.x === place.x && part.y === place.y ? part.box : null;
+  if (!box) return null;
+
+  return (
+    <div
+      className="e-outline"
+      aria-hidden="true"
+      style={{ left: at.x + box.x, top: at.y + box.y, width: box.w, height: box.h }}
+    />
   );
 }
 

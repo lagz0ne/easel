@@ -246,7 +246,7 @@ function expectCanvasControlsOnly() {
   const buttons = page
     .getByRole("button")
     .elements()
-    .map((b) => b.textContent);
+    .map((b) => b.getAttribute("aria-label") ?? b.textContent);
   expect(buttons.toSorted()).toEqual(["Fit", "Request", "Zoom in", "Zoom out"]);
 }
 
@@ -418,6 +418,9 @@ const passwordBox = () => page.getByLabelText("Password");
 const openButton = () => page.getByRole("button", { name: "Open" });
 const passwordHeading = () => page.getByRole("heading", { name: "This link needs a password" });
 
+const changedHeading = () =>
+  page.getByRole("heading", { name: "The password of this link changed" });
+
 /** Types `password` on the password page and presses Open. */
 async function enter(password: string) {
   await passwordBox().fill(password);
@@ -482,7 +485,7 @@ test("past 5 wrong tries the page says to wait; the right password 20 s later do
   expect(frameList().elements()).toHaveLength(0);
   await expect
     .poll(() => shown.scope.run(gateOf, { input: guarded }))
-    .toEqual({ link: guarded, page: "password", alert: "wait" });
+    .toEqual({ link: guarded, page: "password", alert: "wait", changed: false });
 
   // 20 s into the lock, the right password: the server answers slow with the 40 s left.
   advance(20_000);
@@ -507,19 +510,30 @@ test("past 5 wrong tries the page says to wait; the right password 20 s later do
   await server.close();
 });
 
-test("a password set or changed while the canvas shows takes the tab back to the password page at once; the new password shows the canvas again (s1 to s2, LockPushedAtOnce)", async () => {
+test("a password set or changed while the canvas shows takes the tab back to the password page at once, which says the password changed (E3 S4); a wrong one keeps that; the new password shows the canvas again (s1 to s2, LockPushedAtOnce)", async () => {
   const server = await boot();
   const shown = await tab(server, `/s/${guarded}`);
+  await expect.element(passwordHeading()).toBeVisible();
+  expect(changedHeading().elements()).toHaveLength(0);
   await enter(rightPw);
   await expect.element(frameList().getByText("Home")).toBeVisible();
   const before = callsTo(guarded);
 
   await server.run(changeGuarded, { input: "password" });
-  await expect.element(passwordHeading()).toBeVisible();
+  await expect.element(changedHeading()).toBeVisible();
+  expect(
+    page
+      .getByText("Enter the new password to see the canvas again. Ask the person who shared it.")
+      .elements(),
+  ).toHaveLength(1);
+  expect(passwordHeading().elements()).toHaveLength(0);
   expect(frameList().elements()).toHaveLength(0);
   // It asks; it does not open the link again on its own.
   expect(callsTo(guarded)).toBe(before);
   expect(await shown.scope.run(tabMeta)).not.toHaveProperty("pass");
+  await enter("not the password");
+  await expect.element(page.getByRole("alert")).toHaveTextContent("That password is wrong.");
+  expect(changedHeading().elements()).toHaveLength(1);
 
   await enter(rightPw);
   await expect.element(frameList().getByText("Home")).toBeVisible();

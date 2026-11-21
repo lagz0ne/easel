@@ -10,14 +10,15 @@ import { page, userEvent } from "vite-plus/test/browser/context";
 import { z } from "zod";
 
 import { frames } from "@/frames";
-import { frames as frameCells, framesBoard } from "@/frames/contract";
+import { docs, frames as frameCells, framesBoard } from "@/frames/contract";
 import { passApi, passMeta, shareApi } from "@/frames/share";
 import { queue } from "@/queue";
-import { messages, requests } from "@/queue/cells";
+import { messages, requests, serverClock } from "@/queue/cells";
 import type { Message, Request } from "@/queue/cells";
 import { addInput } from "@/queue/contract";
 import { routeTree } from "@/routes";
 import { nameKey, tabMeta } from "@/viewer/gate";
+import { restMs } from "@/viewer/stage";
 
 // A viewer asks for a change, in a real Chromium, over `memory` (SPEC-viewer.md § Ask for a
 // change, § When the link ends, § When a password is set). The oracle is the viewer-pin-post
@@ -29,6 +30,8 @@ import { nameKey, tabMeta } from "@/viewer/gate";
 // a test points at a new server after the old one closed: the socket drops and comes back.
 
 const live = "a".repeat(32);
+/** The time of the stub server: the board's `serverClock` says it. */
+const serverNow = 1_800_000_000_000;
 /** The frame Home's id. */
 const home = "0123456789ab";
 const pass = "1".repeat(32);
@@ -53,6 +56,8 @@ const store = {
   plan: [] as Plan[],
   /** What every guard refuses now: a link that ended, or a password set or changed. */
   refusal: null as null | { ended: true } | { locked: true },
+  /** Home's document, if the test gives it one: then Home goes live. */
+  doc: null as string | null,
 };
 
 /** The server the tab's `peer` points at now. */
@@ -150,6 +155,47 @@ const save = operation({
   },
 });
 
+/** A request on the board, as the store holds it, with its ask: `n`, its text, and a patch. */
+function stored(n: number, text: string, patch: Partial<Request> = {}) {
+  const row: Request = {
+    canvas: "home",
+    id: `r${n}`,
+    n,
+    frameId: home,
+    version: 1,
+    x: 40 * n,
+    y: 40,
+    author: "Mai",
+    key: `key-${n}`.padEnd(16, "-"),
+    status: "open",
+    claimedBy: null,
+    claimedUntil: null,
+    tries: 0,
+    queuedAt: serverNow - 60_000 * n,
+    acceptedBy: null,
+    created: serverNow - 60_000 * n,
+    updated: serverNow - 60_000 * n,
+    ...patch,
+  };
+  store.keys.set(row.key, n);
+  store.requests.push(row);
+  store.messages.push({
+    canvas: "home",
+    id: `m${n}`,
+    request: row.id,
+    kind: "ask",
+    from: row.author,
+    text,
+    html: null,
+    options: null,
+    option: null,
+    before: null,
+    after: null,
+    created: row.created,
+  });
+  return row;
+}
+
 /** `request.add`: a key seen answers `added` first; then the planned answer; then the save. */
 const add = operation({
   label: "test.requestAdd",
@@ -211,9 +257,13 @@ const seed = operation({
     cells: frameCells.controller,
     rows: requests.controller,
     thread: messages.controller,
+    clocks: serverClock.controller,
+    docCells: docs.controller,
   },
-  run: ({ cells, rows, thread }) => {
+  run: ({ cells, rows, thread, clocks, docCells }) => {
     cells.set({ canvas: "home", id: home, name: "Home", x: 0, y: 0, w: 400, h: 300, version: 1 });
+    clocks.set({ canvas: "home", now: serverNow });
+    if (store.doc !== null) docCells.set({ canvas: "home", id: home, version: 1, html: store.doc });
     for (const row of store.requests) rows.set(row);
     for (const m of store.messages) thread.set(m);
   },
@@ -273,7 +323,8 @@ async function serve() {
   return server;
 }
 
-async function boot() {
+/** A fresh store; `fill` puts requests on it before the server seeds the board. */
+async function boot(fill?: () => void) {
   localStorage.removeItem(nameKey);
   store.names.clear();
   store.named.length = 0;
@@ -284,6 +335,8 @@ async function boot() {
   store.adds.length = 0;
   store.plan.length = 0;
   store.refusal = null;
+  store.doc = null;
+  fill?.();
 
   return serve();
 }
@@ -399,7 +452,7 @@ test("the first Send asks the name; share.name names the pass, the browser keeps
   expect(store.requests.map((r) => r.author)).toEqual(["Mai"]);
 
   // The popover shows the new request, waiting, and Request is off.
-  const shown = page.getByRole("region", { name: "Request #1" });
+  const shown = page.getByRole("dialog", { name: "Request #1" });
   await expect.element(shown.getByText("Waiting for an agent")).toBeVisible();
   expect(shown.getByText("Add a short FAQ here.").elements()).toHaveLength(1);
   expect(shown.getByText("#1 · On Home").elements()).toHaveLength(1);
@@ -408,6 +461,34 @@ test("the first Send asks the name; share.name names the pass, the browser keeps
   // Another tab on the canvas shows the pin too: two pins, one in each tab.
   await tab(server);
   await expect.poll(() => pin(1).elements().length).toBe(2);
+});
+
+test("the dock at the bottom centre holds the canvas tools as icons, named: Request (Ask for a change), Zoom out, the zoom, Zoom in and Fit; Request shows pressed while request mode is on (The page 2)", async () => {
+  const server = await boot();
+  await tab(server);
+
+  const dock = page.getByRole("toolbar", { name: "Canvas" });
+  const names = dock
+    .getByRole("button")
+    .elements()
+    .map((b) => b.getAttribute("aria-label"));
+  expect(names).toEqual(["Request", "Zoom out", "Zoom in", "Fit"]);
+  expect(dock.getByRole("status", { name: "Zoom" }).elements()).toHaveLength(1);
+  expect(requestButton().element()).toHaveAttribute("title", "Ask for a change");
+  expect(requestButton().element().querySelector("svg")).not.toBeNull();
+
+  // At the bottom centre of the canvas.
+  const box = dock.element().getBoundingClientRect();
+  const view = frameList().element().getBoundingClientRect();
+  expect(Math.abs(box.left + box.width / 2 - (view.left + view.width / 2))).toBeLessThan(2);
+  expect(view.bottom - box.bottom).toBeGreaterThan(8);
+  expect(view.bottom - box.bottom).toBeLessThan(24);
+
+  expect(requestButton().element()).toHaveAttribute("aria-pressed", "false");
+  await requestButton().click();
+  expect(requestButton().element()).toHaveAttribute("aria-pressed", "true");
+  await requestButton().click();
+  expect(requestButton().element()).toHaveAttribute("aria-pressed", "false");
 });
 
 test("a browser that kept a name sends it at open, so its first Send asks nothing; Enter sends (E3 V4)", async () => {
@@ -456,7 +537,7 @@ test("a click out of all frames asks about the whole canvas: frameId and version
   await expect.element(pin(1)).toBeVisible();
   expect(store.adds[0]).toMatchObject({ frameId: null, version: null });
   await expect
-    .element(page.getByRole("region", { name: "Request #1" }).getByText("#1 · On the whole canvas"))
+    .element(page.getByRole("dialog", { name: "Request #1" }).getByText("#1 · On the whole canvas"))
     .toBeVisible();
 });
 
@@ -619,7 +700,10 @@ test("a server fault: not known yet if it saved, no Escape; Send sends it again 
 
 const kept = () => page.getByRole("region", { name: "Your request" });
 const endedHeading = () => page.getByRole("heading", { name: "This link does not work" });
-const passwordHeading = () => page.getByRole("heading", { name: "This link needs a password" });
+
+/** The password page after a password change ended the pass: it says so (E3 S4, frame UEKzhvtyYt). */
+const passwordHeading = () =>
+  page.getByRole("heading", { name: "The password of this link changed" });
 
 test("the link ends while the text is typed: the ended page keeps it to copy, and says it was not sent (s3 to s6, NoTextLost, EndedPageOnly)", async () => {
   const server = await boot();
@@ -715,14 +799,85 @@ test("a press on a pin opens its request; a pin goes with its removed frame; a r
   // Escape closes the popover of #2; a press on the pin of #1 opens its own.
   await userEvent.keyboard("{Escape}");
   await expect
-    .poll(() => page.getByRole("region", { name: "Request #2" }).elements().length)
+    .poll(() => page.getByRole("dialog", { name: "Request #2" }).elements().length)
     .toBe(0);
   await pin(1).click();
-  const first = page.getByRole("region", { name: "Request #1" });
+  const first = page.getByRole("dialog", { name: "Request #1" });
   await expect.element(first.getByText("Add a short FAQ here.")).toBeVisible();
   expect(pin(1).element()).toHaveAttribute("aria-pressed", "true");
 
   server.run(agent, { input: "delete" });
   await expect.poll(() => pin(1).elements().length).toBe(0);
   expect(pin(2).elements()).toHaveLength(1);
+});
+
+test("the popover of a saved request names its state with the words of § Follow the requests 6: Waiting for an agent, the agent's name in work, Question for you, Result to check, Needs a person", async () => {
+  const server = await boot(() => {
+    stored(1, "Make the logo bigger.");
+    stored(2, "Add a short FAQ here.", {
+      claimedBy: "claude-1",
+      claimedUntil: serverNow + 300_000,
+      tries: 1,
+    });
+    stored(3, "Use our brand blue.", { status: "asking" });
+    stored(4, "Make the Team plan stand out.", { status: "resolved" });
+    stored(5, "Add the coupon field.", { status: "person" });
+  });
+  await tab(server);
+
+  const words = [
+    "Waiting for an agent",
+    "claude-1",
+    "Question for you",
+    "Result to check",
+    "Needs a person",
+  ];
+  for (const [i, word] of words.entries()) {
+    await pin(i + 1).click();
+    await expect
+      .element(
+        page.getByRole("dialog", { name: `Request #${i + 1}` }).getByText(word, { exact: true }),
+      )
+      .toBeVisible();
+  }
+});
+
+/** The outline's box on the canvas, as its style places it; null with no outline. */
+function outlineBox() {
+  const outline = document.querySelector<HTMLElement>(".e-outline");
+  if (!outline) return null;
+  const { left, top, width, height } = outline.style;
+  return { left, top, width, height };
+}
+
+test("in request mode, a click on a part of a live frame outlines that part: the frame's own script gives the box of the element there, and the frame stays sandboxed with scripts only (Ask for a change 2, judged rule 4)", async () => {
+  const server = await boot(() => {
+    store.doc =
+      '<!doctype html><html><body style="margin:0"><div style="position:absolute;left:20px;top:40px;width:100px;height:50px;background:#ccc"></div></body></html>';
+  });
+  localStorage.setItem(nameKey, "Mai");
+  const at = await tab(server);
+
+  // The canvas rests, and Home goes live; its document paints.
+  at.clock.advance(restMs);
+  const card = () => frameOf("Home").element().querySelector<HTMLElement>(".e-card");
+  await expect.poll(() => card()?.hidden, { timeout: 5_000 }).toBe(true);
+  const frame = frameOf("Home").element().querySelector("iframe");
+  expect(frame?.getAttribute("sandbox")).toBe("allow-scripts");
+
+  await openOnHome();
+  await expect
+    .poll(outlineBox)
+    .toEqual({ left: "20px", top: "40px", width: "100px", height: "50px" });
+
+  // A click on the page's own body is on no part: no outline, the pin shows the place.
+  await frameOf("Home").click({ position: { x: 300, y: 200 } });
+  await expect.poll(outlineBox).toBeNull();
+  expect(textbox().elements()).toHaveLength(1);
+
+  // Escape closes the textbox, and its outline with it.
+  await frameOf("Home").click({ position: { x: 50, y: 60 } });
+  await expect.poll(outlineBox).not.toBeNull();
+  await userEvent.keyboard("{Escape}");
+  await expect.poll(outlineBox).toBeNull();
 });

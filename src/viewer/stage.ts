@@ -60,11 +60,39 @@ export const zoomShown = data({ label: "viewer.zoomShown", initial: 100 });
  * The script the stage adds at the end of each document it gives an iframe (fact rule 8). Once
  * the page has loaded and its fonts settled (at most 1.5 s), and two animation frames passed, it
  * posts `{ easel: "painted", v }` to the viewer. `__V__` is the document's version.
+ * It also answers the viewer's `{ easel: "part", x, y }` (a click at that place of the frame, in
+ * request mode) with the box of the element there, `{ easel: "part", x, y, box }`, or `box: null`
+ * on the page's own body. The viewer draws the outline from that box. The frame gets a place and
+ * gives a box: the sandbox stays as it is (judged rule 4), as the comment overlays of Figma and
+ * Vercel get an element's box from a script in the frame.
  */
-export const paintScript = `<script>(()=>{const v=__V__;const post=()=>requestAnimationFrame(()=>requestAnimationFrame(()=>parent.postMessage({easel:"painted",v},"*")));const settle=()=>Promise.race([document.fonts?document.fonts.ready:null,new Promise(r=>setTimeout(r,1500))]).then(post,post);if(document.readyState==="complete")settle();else addEventListener("load",settle,{once:true});})()</script>`;
+export const paintScript = `<script>(()=>{const v=__V__;const post=()=>requestAnimationFrame(()=>requestAnimationFrame(()=>parent.postMessage({easel:"painted",v},"*")));const settle=()=>Promise.race([document.fonts?document.fonts.ready:null,new Promise(r=>setTimeout(r,1500))]).then(post,post);if(document.readyState==="complete")settle();else addEventListener("load",settle,{once:true});addEventListener("message",(e)=>{const d=e.data;if(e.source!==parent||!d||d.easel!=="part")return;const el=document.elementFromPoint(d.x,d.y);const r=el&&el!==document.body&&el!==document.documentElement?el.getBoundingClientRect():null;parent.postMessage({easel:"part",x:d.x,y:d.y,box:r&&{x:r.left,y:r.top,w:r.width,h:r.height}},"*")});})()</script>`;
 
 /** What a document's paint script posts. */
 const paintPost = z.object({ easel: z.literal("painted"), v: z.number() });
+
+/** A box on a frame, from its top left. */
+const partArea = z.object({ x: z.number(), y: z.number(), w: z.number(), h: z.number() });
+
+/** What a document's script answers to a click at `x`, `y`: the box of the part there. */
+const partPost = z.object({
+  easel: z.literal("part"),
+  x: z.number(),
+  y: z.number(),
+  box: partArea.nullable(),
+});
+
+/**
+ * The part of a frame that the last click in request mode is on: the place asked, and the box of
+ * the element there (null until the frame's document answers, or when it has no element there,
+ * or no live document). The draft draws its outline from it.
+ */
+export const partBox = data<{
+  id: string;
+  x: number;
+  y: number;
+  box: z.infer<typeof partArea> | null;
+} | null>({ label: "viewer.partBox", initial: null });
 
 /** A frame's box on the canvas, read from its shell's data attributes. */
 const box = z.object({
@@ -88,8 +116,13 @@ type Shell = { el: HTMLElement; label: HTMLElement | null; box: Box; hidden: boo
 export const stage = resource({
   label: "viewer.stage",
   target: "scope",
-  depends: { live: liveSet.controller, paints: painted.controller, zoom: zoomShown.controller },
-  factory: ({ live, paints, zoom }, ctx) => {
+  depends: {
+    live: liveSet.controller,
+    paints: painted.controller,
+    zoom: zoomShown.controller,
+    part: partBox.controller,
+  },
+  factory: ({ live, paints, zoom, part }, ctx) => {
     let cam = { x: 0, y: 0, z: 1 };
     let view = { w: 0, h: 0, left: 0, top: 0 };
     let vp: HTMLElement | null = null;
@@ -361,11 +394,51 @@ export const stage = resource({
       /** A paint post counts only from the iframe it names, for the version that iframe holds. */
       onMessage: (event: MessageEvent) => {
         const post = paintPost.safeParse(event.data);
-        if (!post.success) return;
+        if (!post.success) return at.onPart(event);
         for (const [id, frame] of docs) {
           if (frame.contentWindow !== event.source) continue;
           if (Number(frame.dataset.version) === post.data.v) at.markPainted(id, post.data.v);
         }
+      },
+
+      /**
+       * A part's box counts only from the iframe of the frame asked, for the place asked. It is
+       * cut to the frame's box: a document cannot draw the outline out of its frame.
+       */
+      onPart: (event: MessageEvent) => {
+        const post = partPost.safeParse(event.data);
+        const asked = part.get();
+        if (!post.success || !asked || !at.fromAsked(asked.id, event)) return;
+
+        const { x, y, box } = post.data;
+        if (x === asked.x && y === asked.y && box) at.showPart(asked, box);
+      },
+
+      /** The part's box, cut to its frame: a document cannot draw the outline out of its frame. */
+      showPart: (asked: { id: string; x: number; y: number }, b: z.infer<typeof partArea>) => {
+        const shell = shells.get(asked.id);
+        if (!shell) return;
+
+        const left = Math.max(b.x, 0);
+        const top = Math.max(b.y, 0);
+        const w = Math.min(b.x + b.w, shell.box.w) - left;
+        const h = Math.min(b.y + b.h, shell.box.h) - top;
+        if (w > 0 && h > 0) part.set({ ...asked, box: { x: left, y: top, w, h } });
+      },
+
+      /** Whether a post came from the live document of frame `id`. */
+      fromAsked: (id: string, event: MessageEvent) => {
+        const frame = docs.get(id);
+        return frame !== undefined && frame.contentWindow === event.source;
+      },
+
+      /**
+       * A click in request mode at `x`, `y` on frame `id`: the frame's live document is asked for
+       * the box of the part there. A frame with no live document draws no outline.
+       */
+      askPart: (id: string, x: number, y: number) => {
+        part.set({ id, x, y, box: null });
+        docs.get(id)?.contentWindow?.postMessage({ easel: "part", x, y }, "*");
       },
 
       /** Text in an element that takes its own pointer can be selected; no other. */

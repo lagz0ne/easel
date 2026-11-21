@@ -8,7 +8,7 @@ import { maxPicturePixels, picturePrefix } from "@/frames/contract";
 import type { FrameInfo } from "@/frames/contract";
 
 import "./canvas.css";
-import { escapeKey, pickPlace, resendOnBack } from "./draft";
+import { escapeKey, pickPlace, requestMode, resendOnBack } from "./draft";
 import { RequestButton, Requests } from "./request";
 import { liveSet, painted, paintScript, stage, zoomShown } from "./stage";
 
@@ -67,7 +67,11 @@ function Empty({ canvas, ready, lost }: { canvas: string; ready: boolean; lost: 
 /** The page's status: the zoom, in steps. */
 function Zoom() {
   const pct = useData(zoomShown);
-  return <output aria-label="Zoom">{pct}%</output>;
+  return (
+    <output className="e-dock-zoom" aria-label="Zoom">
+      {pct}%
+    </output>
+  );
 }
 
 /** A live frame's document: the board's version of it, with the paint script at its end. */
@@ -194,6 +198,64 @@ const Shell = memo(function Shell({
   );
 });
 
+/** A dock button's icon: 16 px, a line drawing in the current colour (the library's Dock). */
+export function Icon({ d }: { d: string }) {
+  return (
+    <svg className="e-icon" viewBox="0 0 24 24" aria-hidden="true">
+      <path d={d} />
+    </svg>
+  );
+}
+
+/** The icons of the dock's camera buttons, as the library's Dock draws them. */
+const icons = {
+  zoomOut: "M5 12h14",
+  zoomIn: "M5 12h14M12 5v14",
+  fit: "M3 7V5a2 2 0 0 1 2-2h2M17 3h2a2 2 0 0 1 2 2v2M21 17v2a2 2 0 0 1-2 2h-2M7 21H5a2 2 0 0 1-2-2v-2",
+} as const;
+
+/**
+ * The dock at the bottom centre of the canvas (SPEC-viewer § The page 2; the library's Dock): the
+ * button `Request`, then `Zoom out`, the zoom status, `Zoom in` and `Fit`. The buttons show
+ * icons; their names are their accessible names and their tooltips.
+ */
+function Dock({ at }: { at: Stage }) {
+  return (
+    <div className="e-dock" role="toolbar" aria-label="Canvas">
+      <RequestButton />
+      <span className="e-dock-sep" aria-hidden="true" />
+      <button
+        type="button"
+        className="e-dock-btn"
+        aria-label="Zoom out"
+        title="Zoom out"
+        onClick={() => at.zoomOut()}
+      >
+        <Icon d={icons.zoomOut} />
+      </button>
+      <Zoom />
+      <button
+        type="button"
+        className="e-dock-btn"
+        aria-label="Zoom in"
+        title="Zoom in"
+        onClick={() => at.zoomIn()}
+      >
+        <Icon d={icons.zoomIn} />
+      </button>
+      <button
+        type="button"
+        className="e-dock-btn"
+        aria-label="Fit"
+        title="Fit"
+        onClick={() => at.fit()}
+      >
+        <Icon d={icons.fit} />
+      </button>
+    </div>
+  );
+}
+
 /** The connection: `Reconnecting` while the tab may be behind, or an alert on a fault. */
 function Status({ lost, fault }: { lost: boolean; fault: boolean }) {
   if (lost) return <p role="status">Reconnecting</p>;
@@ -215,6 +277,7 @@ export function Canvas({ canvas, opening }: { canvas: string; opening: React.Rea
   useResource(resendOnBack);
   useResource(escapeKey);
   const pick = useRun(pickPlace);
+  const asking = useData(requestMode);
   if (state?.status === "fault" && ended.safeParse(state.fault.payload).success) return opening;
 
   return (
@@ -226,7 +289,10 @@ export function Canvas({ canvas, opening }: { canvas: string; opening: React.Rea
         onClick={(event) => {
           const spot = at.pick(event.nativeEvent);
           if (!spot) return;
+
           const frame = spot.frame ? list.find((f) => f.id === spot.frame?.id) : undefined;
+          if (frame && asking) at.askPart(frame.id, spot.x - frame.x, spot.y - frame.y);
+
           const place = frame
             ? {
                 frameId: frame.id,
@@ -250,20 +316,10 @@ export function Canvas({ canvas, opening }: { canvas: string; opening: React.Rea
       {list.length === 0 ? (
         <Empty canvas={canvas} ready={state?.status === "ready"} lost={lost} />
       ) : null}
-      <div className="e-toolbar" role="toolbar" aria-label="Canvas">
-        <RequestButton />
-        <button type="button" onClick={() => at.zoomOut()}>
-          Zoom out
-        </button>
-        <Zoom />
-        <button type="button" onClick={() => at.zoomIn()}>
-          Zoom in
-        </button>
-        <button type="button" onClick={() => at.fit()}>
-          Fit
-        </button>
+      <div className="e-top">
         <Status lost={lost} fault={state?.status === "fault"} />
       </div>
+      <Dock at={at} />
     </main>
   );
 }
