@@ -128,6 +128,8 @@ export default defineMain(async ({ env, args, signal, stdout, stderr, exit }) =>
     table: {
       "GET /api/health": health,
       "GET /api/version": release.version,
+      // The install script of the command line: no sign-in (SPEC-cli.md § Get the command line).
+      "GET /install.sh": release.install,
       "GET /api/ready": ready,
       "POST /api/telemetry": tabs,
       // A frame's picture: its key is the right to it, no user and no pass (SPEC-frames § Pictures).
@@ -142,6 +144,8 @@ export default defineMain(async ({ env, args, signal, stdout, stderr, exit }) =>
         pages,
         websocket: door,
         handlers: [table],
+        // Bun routes only /api/* and /rpc to the handlers; the install script is at the root.
+        paths: ["/install.sh"],
         development: env.NODE_ENV !== "production",
         stdout,
       }),
@@ -179,7 +183,8 @@ export default defineMain(async ({ env, args, signal, stdout, stderr, exit }) =>
       dispatchServer({ fetch }),
       queue.channels({ implement: channelOps, onStart: [user, owner] }),
       // The build that runs: the image sets GIT_SHA and BUILD.
-      release({ commit: set.GIT_SHA, build: Number(set.BUILD) }),
+      // The install script names the public address, or the one it was asked at.
+      release({ commit: set.GIT_SHA, build: Number(set.BUILD), origin: auth.origin }),
       // The error groups, readiness and the fixer's stamp, kept in EASEL_DB.
       opsServer({ database: auth.file }),
       ops.user({ implement: opsUserOps, onStart: [user] }),

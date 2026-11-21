@@ -59,7 +59,8 @@ run, E4.5) signs in from the env (epics R2, A8). Prior art:
    against the `SHA256SUMS` file of the release. It puts the binary in `~/.local/bin/easel`, or in
    `$EASEL_BIN_DIR`, and prints the next step: `easel login https://<easel> --name <name>`.
 3. On another system, or when the sum is wrong, the script installs nothing, and says why. A
-   download that fails installs nothing too.
+   download that fails installs nothing too. An old `easel` there stays as it was. An easel that
+   runs from source (build 0) has no release: its script says so, and installs nothing.
 4. The deploy workflow builds the three binaries (`bun build --compile --target`) and the sums for
    each build, and puts them on the release before the image goes live. The server image does not
    carry them.
@@ -141,7 +142,9 @@ A waiting command that prints a pending answer first takes its exit code from it
 ([queue](SPEC-queue.md)).
 
 `GET /install.sh` (no sign-in) answers the script of "Get the command line", as
-`text/x-shellscript`, with the `PUBLIC_ORIGIN` and the `BUILD` of the server in it.
+`text/x-shellscript`, with the `PUBLIC_ORIGIN` and the `BUILD` of the server in it. With no
+`PUBLIC_ORIGIN`, the script names the address that the request came to. All the steps of the script
+are in one function that its last line calls, so a download that stops early runs nothing.
 
 ## Rules
 
