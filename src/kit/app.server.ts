@@ -88,7 +88,7 @@ const stateFix =
   "keep each state in a Tinker cell of logic: data() and operation() in logic, useData() and useRun() in View; a text field that keeps each key uses defaultValue";
 
 const shapeFix =
-  "export const logic = frameLogic({ cells, ops }) and export function View(), and no other name; keep the other names in the file, not exported";
+  "export function View() with export const logic = frameLogic({ cells, ops }), or a capsule frame: export const View = resource({ ... }) and, if the frame has its own capsule, export const frame = capsule({ ... }); export no other name, and keep the other names in the file";
 
 const moduleShape = z.custom<EcmaScriptModule>();
 
@@ -159,13 +159,17 @@ const exportTold = operation({
     if (entry.moduleRequest) return `the names of "${entry.moduleRequest.value}"`;
     if (entry.exportName.kind === "Default") return "a default";
     if (entry.localName.name !== entry.exportName.name) {
-      return `${entry.localName.name ?? ""} as ${entry.exportName.name ?? ""}: export logic and View by their own names`;
+      return `${entry.localName.name ?? ""} as ${entry.exportName.name ?? ""}: export View, logic and frame by their own names`;
     }
     return `the ${entry.isType ? "type " : ""}name ${entry.exportName.name ?? ""}`;
   },
 });
 
-/** `kit/shape`: each export other than `logic` and `View`, and each of the two that is missing. */
+/**
+ * `kit/shape`: each export other than `View`, `logic` and `frame`, and `View` when it is missing.
+ * A frame of the first form exports `View` and `logic`; a capsule frame exports `View` (a
+ * resource) and, if it has one, its own capsule `frame` (SPEC-kit.md § The capsules).
+ */
 export const shapeFindings = operation({
   label: "kit.shapeFindings",
   input: moduleShape,
@@ -180,7 +184,7 @@ export const shapeFindings = operation({
         !entry.moduleRequest,
         !entry.isType,
         entry.localName.name === name,
-        ["logic", "View"].includes(name),
+        ["logic", "View", "frame"].includes(name),
         !exported.has(name),
       ].every(Boolean);
       if (own) {
@@ -188,13 +192,17 @@ export const shapeFindings = operation({
         continue;
       }
 
-      const what = `the frame exports ${exportTold.run({ input: entry })}: an app frame exports logic and View, and only them`;
+      const what = `the frame exports ${exportTold.run({ input: entry })}: an app frame exports View, and logic or frame, and no other name`;
       found.push({ at: entry.start, rule: "kit/shape", what, fix: shapeFix });
     }
 
-    for (const name of ["logic", "View"].filter((one) => !exported.has(one))) {
-      const what = `the frame does not export ${name}`;
-      found.push({ at: 0, rule: "kit/shape", what, fix: shapeFix });
+    if (!exported.has("View")) {
+      found.push({
+        at: 0,
+        rule: "kit/shape",
+        what: "the frame does not export View",
+        fix: shapeFix,
+      });
     }
     return found;
   },

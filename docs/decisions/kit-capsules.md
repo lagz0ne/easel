@@ -1,7 +1,7 @@
 # The kit as Tinker capsules: the look, the copy, the pieces and each frame
 
-Date: 2026-11-22. Status: proposed; a proof of concept is in `src/kit/capsules/` and
-`tests/kit-capsules.test.ts`. Nothing links to it yet. It changes how an app frame of
+Date: 2026-11-22. Status: proposed; the capsules are in `src/kit/capsules/` and
+`tests/kit-capsules.test.ts`, and a capsule frame draws in its iframe (`tests/frames-app.test.ts`). It changes how an app frame of
 [frame-apps](frame-apps.md) gets the look, its texts and its data. The make step, the K5 check and
 the kit versions of [kit-on-tailwind](kit-on-tailwind.md) stay.
 
@@ -99,6 +99,16 @@ Each part (the pieces of the kit, each frame) declares its texts in each locale,
 A component depends on another component in the same way as on the pieces
 (`depends: { PlanCard }`), so the graph also holds the tree of components.
 
+### In the frame's iframe
+
+The kit's capsules are in the runtime of each kit version as `@easel/kit`, so their code is kept
+with the kit version (K11). A capsule frame exports `View` (a resource) and, if it has one, its
+own capsule `frame`. The mount of `@easel/frame` installs
+`[look({ values, css }), copy({ locale }), ui(), frame(config)]` in a new scope, from the look in
+the document and the axes in the document (SPEC-kit § The capsules, "A capsule frame"). A
+refused start draws its kind and payload in place of the View. A first-form frame (`logic` and a
+View component) draws as before.
+
 ## The proof
 
 `tests/kit-capsules.test.ts` (8 tests) shows:
@@ -124,9 +134,6 @@ A component depends on another component in the same way as on the pieces
 
 ## Open
 
-- **The runtime of frames.** The kit capsules must go into the runtime of a kit version (as
-  `@easel/kit`), with their version kept with the kit version (K11). The mount then creates the
-  scope from the frame's install list.
 - **The file of a frame.** A frame that has more than one file needs a form for `frame.put`: one
   TSX file with the parts, or a folder.
 - **The MCP.** `kit.capsules` and `easel kit capsules` are built (SPEC-kit § The capsules). The

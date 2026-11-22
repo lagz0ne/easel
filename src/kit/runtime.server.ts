@@ -33,6 +33,20 @@ export const kitRuntime = tag<BuiltRuntime | null>({ label: "kit.runtime", defau
 /** The packages with no ESM build: their entry names each export, so the bundle has them all. */
 const commonJs = new Set<string>(["react", "react/jsx-runtime", "react-dom", "react-dom/client"]);
 
+/**
+ * The entries of easel's own names, from the files beside this one: `@easel/frame` (the helper and
+ * the mount) and `@easel/kit` (the kit's capsules, SPEC-kit.md § The capsules). The mount imports
+ * the same capsule files, so the bundle keeps one copy of each in a shared chunk, and the `copy`
+ * that a frame imports is the `copy` that the mount installs.
+ */
+const easelEntries = new Map<string, string>([
+  ["@easel/frame", 'export * from "./easel-frame.ts";'],
+  [
+    "@easel/kit",
+    'export * from "./capsules/look.ts";\nexport * from "./capsules/copy.ts";\nexport * from "./capsules/ui.tsx";',
+  ],
+]);
+
 /** The entry file of a name: `@tinkered/core` is `tinkered__core.js`. */
 const fileOf = z.string().transform((name) => `${name.replace(/^@/, "").replaceAll("/", "__")}.js`);
 
@@ -43,8 +57,9 @@ export const runtimeEntries = operation({
     const entries: Record<string, string> = {};
     for (const name of runtimeNames) {
       const file = fileOf.parse(name);
-      if (name === "@easel/frame") {
-        entries[file] = 'export * from "./easel-frame.ts";';
+      const own = easelEntries.get(name);
+      if (own) {
+        entries[file] = own;
         continue;
       }
       if (!commonJs.has(name)) {

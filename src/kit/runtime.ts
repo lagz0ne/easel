@@ -23,6 +23,7 @@ export const runtimeNames = [
   "class-variance-authority",
   "tailwind-merge",
   "@easel/frame",
+  "@easel/kit",
 ] as const;
 
 /** Where the files of a runtime are: `/api/runtime/<kit version>/<sha-256>/<file>`. */

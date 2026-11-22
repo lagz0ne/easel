@@ -440,9 +440,10 @@ items 2 to 6 need. The board worker (item 7) comes later: only its place is told
 
 **The file.** An app frame is one TSX module in UTF-8, of at most 256 KiB (262144 bytes; a larger
 one is `tooBig`, see SPEC-frames). The limit is less than the 1 MiB of an HTML frame because the
-parse of 1 MiB of TSX alone takes 40 to 50 ms, all of the speed budget. It exports two names, and
-only these two, each by its own name (`export const logic`, `export function View`; not
-`export { a as logic }`), so that the composed document can mount them:
+parse of 1 MiB of TSX alone takes 40 to 50 ms, all of the speed budget. It exports `View`, and
+`logic` or `frame`, and no other name, each by its own name (`export const logic`,
+`export function View`; not `export { a as logic }`), so that the composed document can mount
+them. A frame of the first form exports these two:
 
 - `logic`: the frame's Tinker cells and operations, as `frameLogic({ cells, ops })` of
   `@easel/frame` gives them. Each state of the frame is a Tinker cell (decision 10).
@@ -453,7 +454,8 @@ only these two, each by its own name (`export const logic`, `export function Vie
   must keep each key uses `defaultValue`.
 
 So a review, a test and the check see each state and each operation of a frame in one place,
-with no browser.
+with no browser. A capsule frame exports `View` as a resource, and its own capsule as `frame` if it
+has one (§ The capsules, "A capsule frame"). Only `View` is required (`kit/shape`).
 
 **Where `logic` runs.** In build order items 2 to 6, `logic` runs in the frame's own Tinker scope,
 in its iframe. When a frame's state must stay after the frame closes, or frames share it (a flow of
@@ -465,14 +467,16 @@ written now works in the worker later. Item 7 tells how a frame asks for the wor
 (build order item 3). Its packages, for the first kit version, each pinned exactly in
 package.json: `react` and `react-dom` 19.3.1, `@tinkered/core` and `@tinkered/react` 0.30.1, `zod`
 4.6.7, `radix-ui` 1.8.1, `lucide-react` 1.77.0, `clsx` 2.1.1, `class-variance-authority` 0.7.1,
-`tailwind-merge` 3.7.1, and `@easel/frame` (easel's own helper, `src/kit/easel-frame.ts`:
-`frameLogic`, `cn`, and the mount). A new package comes with a new kit version; no package that
+`tailwind-merge` 3.7.1, `@easel/frame` (easel's own helper, `src/kit/easel-frame.ts`:
+`frameLogic`, `cn`, and the mount), and `@easel/kit` (the kit's capsules, the exports of
+`src/kit/capsules/look.ts`, `copy.ts` and `ui.tsx`: `look`, `copy`, `ui`, `locales`, `textGaps`). A new package comes with a new kit version; no package that
 brings its own CSS. An app frame imports only the names of its kit version's runtime: these
 packages, and the subpaths `react/jsx-runtime` and `react-dom/client`. Another import, a relative
 import, an address, or a dynamic `import()` is the finding `kit/import`, and it refuses the put.
-`@easel/frame` mounts the app: it makes the frame's scope (a scope with no capsules starts at
-once) and renders `View` into `document.body` in one synchronous step (`flushSync`), so the first
-render is in the document before its `load` event.
+`@easel/frame` mounts the app. A View component gets a scope with no capsules (it starts at once),
+and the mount renders it into `document.body` in one synchronous step (`flushSync`). A capsule
+frame renders after the start of its scope, which runs no timer, so its first render is in the
+document before the `load` event too (a browser test reads the body at `load`).
 
 - **The build** (`src/kit/runtime.server.ts`, `buildRuntime`): one `Bun.build` for the browser,
   with React's production build, minified, with one entry file for each name (`react.js`,
@@ -504,7 +508,7 @@ immutable` and `Access-Control-Allow-Origin: *`. It needs no user and no pass: a
   names of the runtime that this easel will give it. `kit.check` writes no runtime.
 - Measured on 2026-11-22 (this host, Bun 1.4.4): 22 files, 1 895 107 bytes minified, 513 495
   bytes gzip (`lucide-react.js` 862 KB of it, `zod.js` 368 KB, `radix-ui.js` 267 KB). A build
-  takes 116 to 156 ms. The bytes and the SHA-256 are the same in each build, after a restart, and
+  takes 116 to 156 ms. With `@easel/kit`: 25 files, 1 911 353 bytes, 520 790 bytes gzip, 161 ms. The bytes and the SHA-256 are the same in each build, after a restart, and
   in the compiled binary.
 
 **The class rule before a put.** An agent has the easel CLI only, and the Oxlint plugin of
@@ -573,7 +577,9 @@ write) takes 5 to 7 ms at p50 and 7 to 10 ms at p95, in 30 puts after the first.
 **compose of an app frame** (`composeApp`, built with item 4; the viewer uses it in item 5).
 `compose` gives `<!doctype html>`, the three `<style>` elements of an HTML frame, an import map
 that names the runtime of the frame version's kit version, and the frame's JS as a module script,
-then `mount({ logic, View })` of `@easel/frame`. The body is empty: the mount renders into it. In
+then `mount({ View, frame, axes })` of `@easel/frame` (`frame` is undefined in a file that does not
+declare it; `axes` is the locale and the data state of a capsule frame, `{}` by default). The body
+is empty: the mount renders into it. In
 the JS, `</script` is written `<\/script` and `<!--` is written `<\!--`, and in the import map `<`
 is `\u003c`, so no stored text ends its element. A browser test loads one composed app frame in a
 sandboxed `srcdoc` iframe (`allow-scripts` only, so its origin is `null`) from the runtime's
@@ -648,6 +654,30 @@ type Start = { kind: "started" } | { kind: "refused"; refused: string; payload: 
 
 `easel kit capsules` prints the list for a person (a schema as a short type, such as
 `"en" | "vi"`); with `--json`, the answer as it is. The MCP tool `kit_capsules` gives the answer.
+
+**A capsule frame.** The file exports `View`, a `resource` whose factory gives a React component,
+and, if the frame has entities or data states, its own capsule `frame`. The mount installs
+`[look({ values, css }), copy({ locale }), ui(), frame(config)]` in a new scope, then renders the
+View of that scope:
+
+- `values` are the custom properties of the `:root` rule of the frame's `easel-look` sheet, and
+  `css` is the text of `easel-kit`. So the scope has the look that the document shows.
+- `locale` and `config` are the frame's axes: `composeApp` writes them into the document. The
+  locale is `en` by default, and each config key has the default of its tag. Another locale or
+  another data state is another document, so another scope.
+- A start that is refused (`CopyGaps`, `LookFailsK8`, `SampleInvalid`, `CapsuleMissing`, ...)
+  draws an alert in place of the View: `This frame does not start: <kind>.` and the payload. The
+  alert has `data-easel-refused="<kind>"`.
+- A kit message (K7) replaces the two styles, then the frame draws in a new scope with that look.
+  Its cells start again from the data state.
+- Each draw and the close run one after the other. So `closed` comes after the close of each scope
+  that the frame made, and the chart [kit-app-frame](docs/statecharts/kit-app-frame.md) holds: the
+  messages of the frame and the page do not change.
+- `@easel/kit` and the mount import the same modules, and the runtime keeps them in one shared
+  chunk. So the `copy` that a frame imports is the `copy` that the mount installs.
+- A kit version that has no runtime yet gets the runtime with `@easel/kit` at its first use. A kit
+  version that has a runtime with no `@easel/kit` keeps it (K11), and so does each change of its
+  look: an import of `@easel/kit` in its frames is `kit/import`.
 
 **Why the list comes from the graph.** The list is the same graph that a frame of the kit version
 gets. So it cannot be older than the kit, and an agent learns each part before it writes code:

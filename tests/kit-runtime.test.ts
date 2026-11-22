@@ -272,7 +272,7 @@ test(
     });
     expect(
       tsx.kind === "checked" && tsx.findings.map((f) => `${f.line}:${f.col} ${f.rule}`),
-    ).toEqual(["1:1 kit/shape", "1:19 kit/import"]);
+    ).toEqual(["1:19 kit/import"]);
     // A check writes no runtime: the kit version still has none.
     expect(await srv.server.run(runtimeNamesOf, { input: 1 })).toEqual([...runtimeNames]);
 

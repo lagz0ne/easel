@@ -284,17 +284,21 @@ test("the module of an app frame: kit/import, kit/react-state and kit/shape, eac
   expect(classes.findings).toEqual([]);
 });
 
-test("an app frame with no logic or View is kit/shape at its first line", async () => {
+test("an app frame with no View is kit/shape at its first line; logic and frame are each optional", async () => {
   const scope = await open();
   const got = await scope.run(checkApp, {
     input: { tsx: "const a = 1;", kit: await testKit(), names: ["react"] },
   });
 
-  expect(at(got.findings)).toEqual(["1:1 kit/shape", "1:1 kit/shape"]);
-  expect(got.findings.map((f) => f.what)).toEqual([
-    "the frame does not export logic",
-    "the frame does not export View",
-  ]);
+  expect(at(got.findings)).toEqual(["1:1 kit/shape"]);
+  expect(got.findings.map((f) => f.what)).toEqual(["the frame does not export View"]);
+
+  // A capsule frame: View (a resource) and its own capsule, frame.
+  const capsuleFrame = "export const View = 1;\nexport const frame = 2;";
+  const both = await scope.run(checkApp, {
+    input: { tsx: capsuleFrame, kit: await testKit(), names: ["react"] },
+  });
+  expect(both.findings).toEqual([]);
 });
 
 test("the usual app frame passes the check of its module with the names of the runtime", async () => {
@@ -318,9 +322,8 @@ test("logic and View are exported by their own names, so the composed document c
   const got = await scope.run(checkApp, { input: { tsx, kit: await testKit(), names: [] } });
 
   expect(got.findings.map((f) => f.what)).toEqual([
-    "the frame does not export logic",
     "the frame does not export View",
-    "the frame exports a as logic: export logic and View by their own names: an app frame exports logic and View, and only them",
-    "the frame exports V as View: export logic and View by their own names: an app frame exports logic and View, and only them",
+    "the frame exports a as logic: export View, logic and frame by their own names: an app frame exports View, and logic or frame, and no other name",
+    "the frame exports V as View: export View, logic and frame by their own names: an app frame exports View, and logic or frame, and no other name",
   ]);
 });

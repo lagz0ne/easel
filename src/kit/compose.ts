@@ -54,14 +54,25 @@ export const compose = operation({
 const scriptEnd = /<(\/script|!--)/gi;
 
 /**
+ * The axes of a capsule frame (SPEC-kit.md § The capsules, "A capsule frame"): the locale and the
+ * config of the frame's own capsule (its data state). Another pick is another document, so the
+ * frame draws in a new scope.
+ */
+export const frameAxes = z.object({
+  locale: z.string().optional(),
+  config: z.record(z.string(), z.unknown()).optional(),
+});
+
+/**
  * `compose` of an app frame (SPEC-kit.md § App frames, "compose of an app frame"; fact rule 3):
  * `<!doctype html>`, the three `<style>` elements of an HTML frame (the look, the kit's made CSS,
  * the frame version's made CSS), an import map that points each name of the runtime to its file
  * at `runtime.address`, and the frame's JS as one module script that mounts its `View`
- * (`@easel/frame`): the check holds that the JS exports `logic` and `View` by their own names
- * (`kit/shape`). The body is empty: the mount renders into it. In the JS and the import map, `</script`
- * is written `<\/script` and `<!--` is written `<\!--`: the same text in a string, a template or
- * a regular expression, so no stored text can end its element.
+ * (`@easel/frame`): the check holds that the JS exports `View`, and `logic` or `frame`, by their
+ * own names (`kit/shape`). A capsule frame draws with its `axes`. The body is empty: the mount
+ * renders into it. In the JS and the import map, `</script` is written `<\/script` and `<!--` is
+ * written `<\!--`: the same text in a string, a template or a regular expression, so no stored
+ * text can end its element.
  */
 export const composeApp = operation({
   label: "kit.composeApp",
@@ -70,8 +81,9 @@ export const composeApp = operation({
     css: z.string(),
     kit: composeKit,
     runtime: runtimeLink,
+    axes: frameAxes.optional(),
   }),
-  run: (_, { input: { js, css, kit, runtime } }) => {
+  run: (_, { input: { js, css, kit, runtime, axes } }) => {
     const [look, made, own] = [kit.look, kit.css, css].map((text) =>
       text.replace(styleEnd, "<\\/$1"),
     );
@@ -81,8 +93,11 @@ export const composeApp = operation({
     );
     // In JSON, `<` is `\u003c`, so the map cannot end its element.
     const map = JSON.stringify({ imports }).replaceAll("<", "\\u003c");
+    // A capsule frame can export its own capsule `frame`; a frame of the first form has none.
     const mount =
-      `import { mount as __easelMount } from "@easel/frame";\n` + "__easelMount({ logic, View });";
+      `import { mount as __easelMount } from "@easel/frame";\n` +
+      `__easelMount({ View, frame: typeof frame === "undefined" ? undefined : frame, ` +
+      `axes: ${JSON.stringify(axes ?? {})} });`;
     const code = `${js}\n${mount}`.replace(scriptEnd, (_, end: string) =>
       end === "!--" ? "<\\!--" : "<\\/script",
     );
