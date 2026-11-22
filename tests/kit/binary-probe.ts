@@ -1,10 +1,17 @@
-// The probe of the binary test (tests/kit-binary.test.ts): compiled with the flags of
-// `build:server`, it reads { html, kit } on stdin and prints the result of makeFrame as JSON.
+// The probe of the binary test (tests/kit-binary.test.ts): compiled by scripts/build-binary.ts,
+// as dist/server is, it reads { html, kit } or { tsx, kit } on stdin and prints the result of
+// makeFrame, or of makeApp (oxc-parser and its native file in the binary), as JSON.
 import { createScope } from "@tinkered/core";
 
-import { makeFrame } from "@/kit/make.server";
+import { makeApp, makeFrame } from "@/kit/make.server";
 
 const input = await new Response(Bun.stdin.stream()).json();
 const scope = createScope();
-process.stdout.write(JSON.stringify(await scope.run(makeFrame, { input })));
+
+const made =
+  typeof input.tsx === "string"
+    ? await scope.run(makeApp, { input })
+    : await scope.run(makeFrame, { input });
+
+process.stdout.write(JSON.stringify(made));
 await scope.close();

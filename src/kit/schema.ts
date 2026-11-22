@@ -2,7 +2,11 @@ import { z } from "zod";
 
 // The shapes of the kit module (SPEC-kit.md § Contract) that the make step and the check use.
 
-/** The rule of a finding. `kit/script`: a frame script writes a class (judged rule 12). */
+/**
+ * The rule of a finding. `kit/script`: a frame script writes a class (judged rule 12).
+ * `kit/class-built`: code builds a class in a class place of an app frame; `kit/parse`: an app
+ * frame does not parse (SPEC-kit.md § App frames).
+ */
 export const ruleShape = z.enum([
   "look/color",
   "look/size",
@@ -10,6 +14,8 @@ export const ruleShape = z.enum([
   "kit/class",
   "kit/piece",
   "kit/script",
+  "kit/class-built",
+  "kit/parse",
 ]);
 
 export type Rule = z.infer<typeof ruleShape>;

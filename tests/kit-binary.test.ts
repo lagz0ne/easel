@@ -6,56 +6,69 @@ import { expect, test } from "vite-plus/test";
 
 import { testKit } from "./kit/fixture";
 
-// The kit in the compiled binary: Tailwind and the native build of Lightning CSS
-// (src/kit/lightningcss.server.ts) go into a binary that `bun build --compile` makes with the
-// flags of `build:server`. The binary runs from an empty folder, so it reads nothing from
-// node_modules: it makes CSS, and the Lightning CSS check finds a color in a style attribute.
+// The kit in the compiled binary: Tailwind, and the native builds of Lightning CSS
+// (src/kit/lightningcss.server.ts) and of oxc-parser (the plugin of scripts/build-binary.ts), go
+// into a binary that scripts/build-binary.ts makes, as it makes dist/server. The binary runs from
+// an empty folder, so it reads nothing from node_modules: it makes CSS, the Lightning CSS check
+// finds a color in a style attribute, and oxc-parser reads a TSX frame.
 
 const root = new URL("..", import.meta.url).pathname;
 
-test("a compiled binary makes the CSS of a frame and checks it", { timeout: 120_000 }, async () => {
-  const dir = await mkdtemp(join(tmpdir(), "easel-kit-binary-"));
-  const empty = await mkdtemp(join(dir, "run-"));
+test(
+  "a compiled binary makes the CSS of a frame and of an app frame, and checks both",
+  {
+    timeout: 120_000,
+  },
+  async () => {
+    const dir = await mkdtemp(join(tmpdir(), "easel-kit-binary-"));
+    const empty = await mkdtemp(join(dir, "run-"));
+    const kit = await testKit();
+    const run = (input: object) => {
+      const ran = Bun.spawnSync([join(dir, "probe")], {
+        cwd: empty,
+        stdin: new TextEncoder().encode(JSON.stringify(input)),
+        stdout: "pipe",
+        stderr: "pipe",
+      });
+      expect(ran.stderr.toString()).toBe("");
+      expect(ran.exitCode).toBe(0);
+      return JSON.parse(ran.stdout.toString());
+    };
+    const places = (made: { findings: Array<{ line: number; col: number }> }) =>
+      made.findings.map((f) => `${f.line}:${f.col}`);
 
-  try {
-    const build = Bun.spawnSync(
-      [
-        "bun",
-        "build",
-        "tests/kit/binary-probe.ts",
-        "--compile",
-        "--bytecode",
-        "--format=esm",
-        "--minify",
-        "--define",
-        `process.env.NODE_ENV="production"`,
-        "--outfile",
-        join(dir, "probe"),
-      ],
-      { cwd: root, stdout: "pipe", stderr: "pipe" },
-    );
-    expect(build.stderr.toString()).not.toContain("error");
-    expect(build.exitCode).toBe(0);
+    try {
+      const build = Bun.spawnSync(
+        [
+          "bun",
+          "scripts/build-binary.ts",
+          "--entry",
+          "tests/kit/binary-probe.ts",
+          "--outfile",
+          join(dir, "probe"),
+        ],
+        { cwd: root, stdout: "pipe", stderr: "pipe" },
+      );
+      expect(build.stderr.toString()).not.toContain("error");
+      expect(build.exitCode).toBe(0);
 
-    const html = `<p class="p-4 text-red-500" style="color:#f00">a</p>`;
-    const run = Bun.spawnSync([join(dir, "probe")], {
-      cwd: empty,
-      stdin: new TextEncoder().encode(JSON.stringify({ html, kit: await testKit() })),
-      stdout: "pipe",
-      stderr: "pipe",
-    });
-    expect(run.stderr.toString()).toBe("");
-    expect(run.exitCode).toBe(0);
+      const html = run({ html: `<p class="p-4 text-red-500" style="color:#f00">a</p>`, kit });
+      expect(html.kind).toBe("made");
+      expect(html.css).toContain(".p-4");
+      expect(html.css).not.toContain("red-500");
+      expect(places(html)).toEqual(["1:15", "1:36"]);
 
-    const made = JSON.parse(run.stdout.toString());
-    expect(made.kind).toBe("made");
-    expect(made.css).toContain(".p-4");
-    expect(made.css).not.toContain("red-500");
-    expect(made.findings.map((f: { line: number; col: number }) => `${f.line}:${f.col}`)).toEqual([
-      "1:15",
-      "1:36",
-    ]);
-  } finally {
-    await rm(dir, { recursive: true, force: true });
-  }
-});
+      const tsx = run({
+        tsx: 'export function View() {\n  return <p className={cn("p-4", `bg-${x}`, "text-red-500")} />;\n}',
+        kit,
+      });
+      expect(tsx.kind).toBe("made");
+      expect(tsx.css).toContain(".p-4");
+      expect(tsx.css).toContain("var(--destructive)");
+      expect(places(tsx)).toEqual(["2:34", "2:46"]);
+      expect(tsx.fixed).toContain('"text-destructive"');
+    } finally {
+      await rm(dir, { recursive: true, force: true });
+    }
+  },
+);

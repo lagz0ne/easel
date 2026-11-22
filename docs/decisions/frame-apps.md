@@ -172,7 +172,10 @@ ships; each ends green.
    that removes the iframe with no `close` and fails.
 2. **The class check on TSX** with oxc-parser: the fixed places, `kit/class-built`, the fixes by
    position, the two-order test, and the static load in the binary with the release script change.
-   The same rule as an Oxlint JS plugin.
+   The same rule as an Oxlint JS plugin. Done on 2026-11-22: `kit.checkApp` and `kit.makeApp`
+   (not yet in `frame.put`), `scripts/build-binary.ts`, and the plugin in `src/kit/lint.server.ts`.
+   Open: how an agent gets the plugin (it is in the repo, not in the binary), and names looked up
+   by their scope.
 3. **The runtime bundle for each kit version**, its versioned address, and the import check.
 4. **frame.put of a TSX frame:** check, JS, CSS, kept with the frame version.
 5. **The live app frame** in the viewer: mount with a Tinker scope, a new look on the port (K7),

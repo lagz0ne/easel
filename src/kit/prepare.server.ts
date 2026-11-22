@@ -16,11 +16,15 @@ import { sources } from "./source.server";
 /** The Tailwind design system of a kit version. Not a stable API of Tailwind: the pin holds it. */
 export type System = Awaited<ReturnType<typeof __unstable__loadDesignSystem>>;
 
-/** What the check says about one class name in one kit version. */
+/**
+ * What the check says about one class name in one kit version. `to`: the class of the look that
+ * a fix by position puts in its place (an app frame, SPEC-kit.md § App frames); with none, the
+ * fix removes the name.
+ */
 export type Verdict =
   | { kind: "make" }
   | { kind: "kit" }
-  | { kind: "finding"; rule: Rule; what: string; fix: string };
+  | { kind: "finding"; rule: Rule; what: string; fix: string; to?: string };
 
 /** All that the check needs of one kit version. */
 export type Prepared = {

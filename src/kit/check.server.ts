@@ -13,7 +13,7 @@ import { type Finding, kitShape, type Rule } from "./schema";
 // Tailwind design system of the kit version; a color in CSS is found by Lightning CSS.
 
 /** A finding at an offset of the document, before its line and column are known. */
-type Found = { at: number; rule: Rule; what: string; fix: string };
+export type Found = { at: number; rule: Rule; what: string; fix: string };
 
 const kitView = z.custom<Prepared>();
 const partList = z.custom<Part[]>();

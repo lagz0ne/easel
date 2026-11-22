@@ -17,6 +17,22 @@ is.
 - easel does not change the Lightning CSS source. Under MPL-2.0, you can
   get the source of the version in the binary at the places above.
 
+## oxc-parser 0.159.0
+
+- What: the parser of the TSX of an app frame. The kit check of an app
+  frame (`src/kit/oxc.server.ts`, `src/kit/app.server.ts`) and the Oxlint
+  rule `easel/class-built` (`src/kit/lint.server.ts`) read the syntax
+  tree that it makes. The binary holds its native build
+  (`@oxc-parser/binding-linux-x64-gnu`, `@oxc-parser/binding-linux-arm64-gnu`
+  or `@oxc-parser/binding-darwin-arm64`, one for each system).
+- Licence: MIT. Copyright (c) 2024-present VoidZero Inc. & Contributors;
+  Copyright (c) 2023 Boshen.
+- Source: <https://github.com/oxc-project/oxc>, the npm package
+  `oxc-parser@0.159.0`.
+- easel does not change the oxc-parser source. The build
+  (`scripts/build-binary.ts`) replaces only how its loader finds its
+  native file, with a static `require` of the same file.
+
 ## Tailwind CSS 4.3.5
 
 - What: the CSS framework that makes the CSS of the kit and of each frame

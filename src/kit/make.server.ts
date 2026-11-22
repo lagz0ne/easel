@@ -2,6 +2,7 @@ import { operation } from "@tinkered/core";
 import { compile } from "tailwindcss";
 import { z } from "zod";
 
+import { checkApp } from "./app.server";
 import { check } from "./check.server";
 import { kitShape } from "./schema";
 import { sources } from "./source.server";
@@ -40,5 +41,24 @@ export const makeFrame = operation({
     const { frame } = sources.run({ input: input.kit });
     const css = await make.run({ input: { source: frame, classNames: checked.classes } });
     return { kind: "made" as const, css, findings: checked.findings };
+  },
+});
+
+/**
+ * The made CSS of an app frame (SPEC-kit.md § App frames): its check first, then the make of
+ * exactly the class names of the fixed text, with the frame source. A TSX that does not parse
+ * makes nothing.
+ */
+export const makeApp = operation({
+  label: "kit.makeApp",
+  input: z.object({ tsx: z.string(), kit: kitShape }),
+  depends: { checkApp, make, sources },
+  run: async ({ checkApp, make, sources }, { input }) => {
+    const checked = await checkApp.run({ input });
+    if (checked.kind === "unparsed") return checked;
+
+    const { frame } = sources.run({ input: input.kit });
+    const css = await make.run({ input: { source: frame, classNames: checked.classes } });
+    return { kind: "made" as const, css, findings: checked.findings, fixed: checked.fixed };
   },
 });

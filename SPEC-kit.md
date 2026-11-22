@@ -368,6 +368,11 @@ about 3 ms (p50) for a usual frame; for a frame of 1 MiB, 30 ms for the check an
 make. With the step-2 code, all of `frame.put` (the check, the make and the write): 4 ms (p50)
 for a usual frame, 32 to 43 ms for a frame of 1 MiB.
 
+Measured on 2026-11-22 (vibea2, p50), the check of an app frame (`kit.checkApp`: the parse, the
+walk of the class places and the K5 verdicts): 0.8 ms for a usual frame (the pricing frame of
+`tests/kit/frames/`, 4.7 KB), 28 ms for a frame of 256 KiB, 110 ms for a frame of 1 MiB (the
+parse alone is 40 to 50 ms of it). So the limit of an app frame is 256 KiB (§ App frames).
+
 ### compose
 
 The shared module `src/kit/compose.ts` (no `.server.`) holds the pure functions that the page
@@ -418,8 +423,10 @@ elements `easel-look` and `easel-kit`.
 The decision is [frame-apps](docs/decisions/frame-apps.md). This section tells what its build order
 items 2 to 6 need. The board worker (item 7) comes later: only its place is told here.
 
-**The file.** An app frame is one TSX module in UTF-8, with the size limit of `frame.put`. It
-exports two names, and only these two:
+**The file.** An app frame is one TSX module in UTF-8, of at most 256 KiB (262144 bytes; a larger
+one is `tooBig`, see SPEC-frames). The limit is less than the 1 MiB of an HTML frame because the
+parse of 1 MiB of TSX alone takes 40 to 50 ms, all of the speed budget. It exports two names, and
+only these two:
 
 - `logic`: the frame's Tinker cells and operations, as `frameLogic({ cells, ops })` of
   `@easel/frame` gives them. Each state of the frame is a Tinker cell (decision 10).
@@ -559,9 +566,11 @@ The statecharts [kit-piece](docs/statecharts/kit-piece.md), [kit-look](docs/stat
 7. No operation reads the seed except `seedKit`, and `seedKit` writes only when the store has no
    kit version.
 8. The CLI and MCP print the guide from `kit.guide` only. No other text lists the pieces.
-9. The check of an app frame reads the TSX only with the one `oxc-parser` of the pin, and finds
-   each class with the one walk of the class places (`src/kit/places.ts`). The Oxlint rule of
-   `kit/class-built` uses that walk too.
+9. The check of an app frame reads the TSX only with the one `oxc-parser` of the pin
+   (`src/kit/oxc.server.ts`), and finds each class with the one walk of the class places
+   (`src/kit/places.ts`, run by `placesOf`). The Oxlint JS plugin of `kit/class-built`
+   (`src/kit/lint.server.ts`, the rule `easel/class-built`) parses with that `oxc-parser` and runs
+   that `placesOf` too.
 10. The release binary and `dist/server` load the native file of `oxc-parser` with a static
     `require` for each release target, as they load Lightning CSS.
 
@@ -670,7 +679,7 @@ The statecharts [kit-piece](docs/statecharts/kit-piece.md), [kit-look](docs/stat
   of `kit/class-built`, and finds each one at its line and column. A test applies the fixes and
   finds the fixed text parses and has the class names of the look. The two-order test passes on
   TSX frames. A compiled binary checks a TSX frame (`tests/kit-binary.test.ts`).
-- The check of an app frame: a usual TSX frame and a TSX frame of 1 MiB each take less than the
+- The check of an app frame: a usual TSX frame and a TSX frame of 256 KiB each take less than the
   50 ms of the speed budget.
 - A browser test with 12 live app frames: one goes live in less than 150 ms (p95); a new look
   reaches each one in 1 s; a removed frame posts `closed` before its iframe goes.

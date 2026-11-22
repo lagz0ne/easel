@@ -100,6 +100,7 @@ export const paletteVerdict = operation({
       rule: "look/color",
       what: `"${input.name}" is a color of Tailwind's palette, not of the look`,
       fix: gives ? `use ${fix}` : `use a color of the look: ${names}`,
+      to: gives ? fix : undefined,
     };
   },
 });
@@ -149,9 +150,11 @@ export const sizeVerdict = operation({
       kind: "finding",
       rule: "look/size",
       what: `"${input.name}" is a font size that is not in the look`,
-      fix: gives
-        ? `use ${fix}`
-        : `use a size of the look: ${input.kit.sizes.map((s) => `text-${s.name}`).join(", ")}`,
+      ...(gives
+        ? { fix: `use ${fix}`, to: fix }
+        : {
+            fix: `use a size of the look: ${input.kit.sizes.map((s) => `text-${s.name}`).join(", ")}`,
+          }),
     };
   },
 });
@@ -190,6 +193,7 @@ export const colorVerdict = operation({
       rule: "look/color",
       what: `"${input.name}" is a color that is not in the look`,
       fix: gives ? `use ${fix}` : `use var(--${near})`,
+      to: gives ? fix : undefined,
     };
   },
 });

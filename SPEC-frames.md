@@ -165,7 +165,8 @@ Inputs:
   not at all; one without the other is `invalid`, and so is `name` or `size` with `id`. Without
   them, the put makes a frame.
 - An app frame (build order item 4 of [frame-apps](docs/decisions/frame-apps.md); not built yet):
-  `frame.put` takes `tsx` in place of `html`, with the same limit. `easel put` sends a file whose
+  `frame.put` takes `tsx` in place of `html`, of at most 256 KiB: a larger one answers `tooBig`
+  with `maxBytes` 262144 (SPEC-kit § App frames, "The file"). `easel put` sends a file whose
   name ends in `.tsx` as `tsx`. A frame is one kind for each version: a put of the other kind on
   an id is a new version of that frame. A finding of `kit/parse`, `kit/import`,
   `kit/react-state` or `kit/shape` answers `offKit` with its findings and writes nothing. The
