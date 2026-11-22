@@ -38,9 +38,20 @@
 //   S13 the product canvas has the library's tokens, with the same values.
 //   S14 each text colour has WCAG AA contrast (4.5:1) on each surface, in light and dark (E3 S14).
 //   T1 text: … not ..., curly quotes, a no-break space between a number and its unit.
+//
+// E8 (build step 5, the seed look): the variations on page `Work · E8 One look, fast` are
+// frames of a team, made with the kit, not screens of easel, so S1 to S14 do not apply to them.
+// Each one is checked, in any status, by:
+//   K8 the frame holds the look and the kit (easel-look, easel-kit), and each pair of
+//      contrast() (src/kit/compose.ts) passes: text 4.5:1, a field edge and the ring 3:1.
+//   R2 each ID in its name is an E8 ID.
 
 import { Client } from "@modelcontextprotocol/sdk/client/index.js";
 import { StreamableHTTPClientTransport } from "@modelcontextprotocol/sdk/client/streamableHttp.js";
+import { createScope } from "@tinkered/core";
+import type { Scope as TinkerScope } from "@tinkered/core";
+
+import { contrast } from "@/kit/compose";
 
 // easel · Design system: the tokens and the component mains (the library).
 const LIBRARY = "zPdfXgdRrQ";
@@ -158,6 +169,27 @@ const EPICS: ReadonlyArray<{ epic: string; frames: ReadonlyArray<{ id: string; k
 ];
 
 const DESIGN: Array<Frame> = EPICS.flatMap((e) => e.frames.map((f) => ({ ...f, epic: e.epic })));
+
+// The E8 seed look variations (E8.W01 to E8.W15): A Cobalt, B Spruce, C Petrol, each its look
+// values, the form, the list and the dashboard of K3, and a state with focus and an error.
+// After the user picks one, the others are deleted and leave this list.
+const E8_KIT: ReadonlyArray<string> = [
+  "2ChgqgBBcK",
+  "x_s2rZXTvo",
+  "Pwreopoa3W",
+  "0ck0qcqhX-",
+  "9hPIX7B-4t",
+  "6RsK4QfF1U",
+  "yAF01tsSJ7",
+  "gNA8qpMIDR",
+  "nV06LcCsER",
+  "dx4e7YhsLe",
+  "6aldEzLxtz",
+  "LB8Jmy9xMn",
+  "GLuOg8pkdl",
+  "EdS8bQ1JF7",
+  "rNi_0jl3Ut",
+];
 
 // Each frame on these pages of the library is part of the system: always checked.
 const SYSTEM_PAGES = new Set(["1 · Foundations", "2 · Primitives", "3 · Patterns", "4 · Layout"]);
@@ -476,7 +508,7 @@ const loadFrame = async (f: Frame, key: string): Promise<Parsed | undefined> => 
 
 // --- Which frames: E4, the system pages, and frames that ask for sign-off --
 
-type CanvasFrame = { canvas: string; id: string; page: string; status: string };
+type CanvasFrame = { canvas: string; id: string; name: string; page: string; status: string };
 
 const isRecord = (v: unknown): v is Record<string, unknown> => typeof v === "object" && v !== null;
 
@@ -529,6 +561,7 @@ const framesOf = async (client: Client, canvas: string): Promise<Array<CanvasFra
   return listOf(body, "frames").map((f) => ({
     canvas,
     id: field(f, "id"),
+    name: field(f, "name"),
     page: pages.get(field(f, "pageId")) ?? "",
     status: field(f, "approvalStatus"),
   }));
@@ -574,7 +607,7 @@ const chooseFrames = (canvas: Array<CanvasFrame>): Scope => {
     else report(f.id, "IO", `an ${f.epic ?? ""} frame is not on the product canvas`);
   }
 
-  const design = new Set(DESIGN.map((f) => f.id));
+  const design = new Set([...DESIGN.map((f) => f.id), ...E8_KIT]);
   for (const f of canvas.filter((c) => !design.has(c.id))) {
     const kind = kindOf(f);
     if (kind === "ready") scope.ready += 1;
@@ -652,7 +685,7 @@ const checkTokens = (tokens: Doop["tokens"]): void => {
 const printScope = (scope: Scope): void => {
   const mains = scope.frames.filter((f) => f.kind === "main").length;
   console.log(
-    `scope: ${EPICS.map((e) => `${e.frames.length} ${e.epic} frames`).join(", ")}, ${mains} system frames, ${scope.ready} frames that ask for sign-off; ${scope.drafts} drafts not checked\n`,
+    `scope: ${EPICS.map((e) => `${e.frames.length} ${e.epic} frames`).join(", ")}, ${E8_KIT.length} E8 kit frames, ${mains} system frames, ${scope.ready} frames that ask for sign-off; ${scope.drafts} drafts not checked\n`,
   );
 };
 
@@ -1016,6 +1049,73 @@ const checkFrame = (proof: Proof, f: Frame, parsed: Parsed): void => {
   }
 };
 
+// --- E8: the seed look variations, K8 and R2 ---------------------------------
+
+const styleById = (html: string, id: string): string | undefined =>
+  new RegExp(`<style id="${id}">([\\s\\S]*?)</style>`).exec(html)?.[1];
+
+// The look values of a `:root` block, by CSS name.
+const lookValuesOf = (css: string): Record<string, string> =>
+  Object.fromEntries(
+    [...css.matchAll(/(--[a-z0-9-]+):\s*([^;]+);/g)].map((m) => [m[1] ?? "", (m[2] ?? "").trim()]),
+  );
+
+const readE8Ids = async (): Promise<Set<string>> => {
+  const text = await Bun.file("docs/epics.md").text();
+  const start = text.indexOf("## E8:");
+  const end = text.indexOf("\n## E", start + 1);
+  const part = text.slice(start, end === -1 ? undefined : end);
+  return new Set([...part.matchAll(/^\| (K\d+)\s+\|/gm)].flatMap((m) => (m[1] ? [m[1]] : [])));
+};
+
+// R2: the IDs that a frame proves end its name: `E8.W02 A Cobalt: form (K1 K4)`.
+const checkE8Name = (f: CanvasFrame, ids: Set<string>): void => {
+  const claimed = /\(([^()]*)\)\s*$/.exec(f.name)?.[1] ?? "";
+  for (const m of claimed.matchAll(/\b([A-Z]\d{1,2})\b/g)) {
+    if (m[1] !== undefined && !ids.has(m[1])) {
+      report(f.id, "R2", `"${f.name}" names ${m[1]}, not an E8 ID`);
+    }
+  }
+};
+
+// K8: each pair of the frame's own look and kit, measured with the kit's one contrast().
+const checkE8Pairs = (scope: TinkerScope.Handle, id: string, html: string): void => {
+  const look = styleById(html, "easel-look");
+  const kit = styleById(html, "easel-kit");
+  if (look === undefined || kit === undefined) {
+    report(id, "K8", "no easel-look or easel-kit block: the frame is not composed with the kit");
+    return;
+  }
+
+  const pairs = scope.run(contrast, { input: { look: lookValuesOf(look), css: kit } });
+  if (pairs.length < 25) report(id, "K8", `only ${pairs.length} pairs found in the kit`);
+
+  for (const p of pairs.filter((q) => q.ratio < q.min)) {
+    report(id, "K8", `${p.text} on ${p.on} is ${p.ratio}:1, needs ${p.min}:1 (${p.where})`);
+  }
+};
+
+const checkE8 = async (canvas: Array<CanvasFrame>, key: string): Promise<void> => {
+  const ids = await readE8Ids();
+  const byId = new Map(canvas.filter((f) => f.canvas === PRODUCT).map((f) => [f.id, f]));
+  const scope = createScope({});
+
+  for (const id of E8_KIT) {
+    const f = byId.get(id);
+    const res = await fetch(`${API}/${id}/html`, { headers: { Authorization: `Bearer ${key}` } });
+    if (f === undefined || !res.ok) {
+      report(
+        id,
+        "IO",
+        f === undefined ? "an E8 frame is not on the product canvas" : `GET ${res.status}`,
+      );
+      continue;
+    }
+    checkE8Name(f, ids);
+    checkE8Pairs(scope, id, await res.text());
+  }
+};
+
 // --- Canvas: R1, R3, S5 ---------------------------------------------------
 
 const readEpicIds = async (): Promise<Map<string, string>> => {
@@ -1117,6 +1217,7 @@ const main = async (): Promise<number> => {
   );
   for (const { f, parsed } of frames) if (parsed !== undefined) checkFrame(proof, f, parsed);
 
+  await checkE8(doop.frames, key);
   checkTrace(proof);
   checkF1(proof);
   checkRevs(proof);
@@ -1124,5 +1225,3 @@ const main = async (): Promise<number> => {
 };
 
 process.exit(await main());
-
-export {};
