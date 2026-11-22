@@ -32,6 +32,8 @@
         "hello": "A step of mount: it runs in the frame's iframe, outside easel's graph.",
         "refused": "A step of mount: it draws a refused start in the frame's iframe, outside easel's graph.",
         "values": "A step of mount: it reads the look values of the frame's sheet in its iframe, outside easel's graph.",
+        "fieldOf": "A step of mount: it reads a field of a Tinker unit in the frame's iframe, outside easel's graph.",
+        "offerOf": "A step of mount: it lists the axes of a capsule frame in its iframe, outside easel's graph.",
         "draw": "A step of mount: it makes the scope of a capsule frame in its iframe; no easel graph runs it."
       }
     }

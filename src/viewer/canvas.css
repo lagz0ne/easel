@@ -150,6 +150,29 @@
 }
 
 /* A label keeps its screen size: the stage writes its inverse zoom and its width. */
+.e-axis {
+  margin-left: var(--e-1);
+  padding: 0 var(--e-1);
+  color: var(--e-text);
+  font: inherit;
+  background-color: var(--e-bg);
+  border: 1px solid var(--e-line, var(--e-card));
+  border-radius: var(--e-radius);
+  cursor: pointer;
+  pointer-events: auto;
+}
+
+.e-axis:focus-visible {
+  outline: 2px solid var(--e-focus);
+  outline-offset: 2px;
+}
+
+.e-axis-dock {
+  height: 32px;
+  margin-left: 0;
+  border-color: transparent;
+}
+
 .e-label {
   position: absolute;
   bottom: 100%;

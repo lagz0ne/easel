@@ -44,6 +44,14 @@ const madeCss = "#t { color: var(--primary); }";
 const probeJs = (id: string) =>
   `const t=document.body.appendChild(document.createElement("p"));t.id="t";t.textContent=${JSON.stringify(id)};const me=Math.random();addEventListener("message",(e)=>{if(e.source!==parent||!e.data||typeof e.data.probe!=="number")return;parent.postMessage({probe:e.data.probe,id:${JSON.stringify(id)},me,color:getComputedStyle(t).color},"*")});`;
 
+/**
+ * A capsule frame's JS, as `@easel/frame` acts on the port (chart kit-frame-axes): it says hello
+ * each 50 ms until it gets a port, then posts its axes on it. It answers the probe with its axes
+ * (the `easel-axes` JSON of its document) as its color, and the number it drew once.
+ */
+const capsuleJs = (id: string) =>
+  `const me=Math.random();let port=null;const hello=()=>{if(port)return;parent.postMessage({easel:"hello"},"*");setTimeout(hello,50)};addEventListener("message",(e)=>{if(e.source!==parent)return;if(e.ports[0]&&!port){port=e.ports[0];port.postMessage({easel:"axes",locales:["en","vi"],config:{sample:{values:["many","empty"],default:"many"}}})}const d=e.data;if(d&&typeof d.probe==="number")parent.postMessage({probe:d.probe,id:${JSON.stringify(id)},me,color:document.getElementById("easel-axes").textContent},"*")});hello();`;
+
 /** The runtime of an app frame that imports nothing. */
 const noRuntime = { address: "/api/runtime/1/none/", imports: {} };
 
@@ -76,12 +84,15 @@ const put = operation({
     y: z.number(),
     k: z.string().optional(),
     app: z.boolean().optional(),
+    capsule: z.boolean().optional(),
   }),
   depends: { cells: frameCells.controller, invalidate: framesBoard.invalidate },
-  run: async ({ cells, invalidate }, { input: { app, ...input } }) => {
-    const served: ServedDoc = app
-      ? { version: 1, html: "", app: { js: probeJs(input.id), kit: 1, runtime: noRuntime } }
-      : { version: 1, html: probeDoc(input.id) };
+  run: async ({ cells, invalidate }, { input: { app, capsule, ...input } }) => {
+    const js = capsule ? capsuleJs(input.id) : probeJs(input.id);
+    const served: ServedDoc =
+      app || capsule
+        ? { version: 1, html: "", app: { js, kit: 1, runtime: noRuntime } }
+        : { version: 1, html: probeDoc(input.id) };
     htmls.set(input.id, served);
     cells.set({ ...input, canvas, name: `Frame ${input.id}`, w: 320, h: 200, version: 1 });
     await invalidate.run({ input: { docs: { canvas, id: input.id } } });
@@ -97,7 +108,9 @@ const setKit = operation({
     cells.set({ canvas, kit: input, look: looks[input].look, css: "", pieces: [] }),
 });
 
-async function boot(ids: Array<{ id: string; x: number; y: number; k?: string; app?: boolean }>) {
+async function boot(
+  ids: Array<{ id: string; x: number; y: number; k?: string; app?: boolean; capsule?: boolean }>,
+) {
   htmls.clear();
   const server = await createScope({
     capsules: [
@@ -276,6 +289,38 @@ test("an app frame draws its JS in the composed document (composeApp), with the 
   expect(docOf("b")?.srcdoc).toContain('<script type="importmap">');
   expect(await colorOf("b")).toBe(looks[1].rgb);
   expect(await colorOf("a")).toBe(looks[1].rgb);
+});
+
+test("kit-frame-axes: a capsule frame posts its axes; the page offers the locale and its data states; a pick composes it again with them, and the other frame is not drawn again", async () => {
+  const server = await boot([
+    { id: "a", x: 0, y: 0 },
+    { id: "b", x: 400, y: 0, capsule: true },
+  ]);
+  const at = await tab(server);
+  await rested(at, 2);
+
+  // The frame posted its axes: the dock offers the locales, and its label its data states.
+  const locale = page.getByRole("combobox", { name: "Locale" });
+  const sample = page.getByRole("combobox", { name: "sample of Frame b" });
+  await expect.element(locale).toBeInTheDocument();
+  await expect.element(sample).toHaveValue("many");
+  expect(page.getByRole("combobox", { name: /of Frame a$/ }).elements()).toEqual([]);
+  expect(await colorOf("b")).toBe("{}");
+  const [plain, first] = [await drawnOf("a"), await drawnOf("b")];
+
+  // Vietnamese: frame b gets a new document with the locale, in a new scope; frame a stays.
+  await locale.selectOptions("vi");
+  await expect.poll(() => colorOf("b")).toBe('{"locale":"vi","config":{}}');
+  expect(await drawnOf("b")).not.toBe(first);
+  expect(await drawnOf("a")).toBe(plain);
+
+  // The data state empty, then the defaults again: the default values are left out.
+  await sample.selectOptions("empty");
+  await expect.poll(() => colorOf("b")).toBe('{"locale":"vi","config":{"sample":"empty"}}');
+  await locale.selectOptions("en");
+  await sample.selectOptions("many");
+  await expect.poll(() => colorOf("b")).toBe("{}");
+  expect(await drawnOf("a")).toBe(plain);
 });
 
 test("two hellos in flight: the page answers each with a new port and closes the one before; the document takes the newest port, so a later kit message reaches it", async () => {

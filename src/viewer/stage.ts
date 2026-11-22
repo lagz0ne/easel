@@ -87,6 +87,24 @@ export const painted = data<Readonly<Record<string, number>>>({
 });
 
 /**
+ * What a capsule frame posts on its port (SPEC-kit.md § The capsules, "The axes in the viewer";
+ * chart kit-frame-axes): the locales, and the values of each config key that lists them.
+ */
+export const axesPost = z.object({
+  easel: z.literal("axes"),
+  locales: z.array(z.string()),
+  config: z.record(
+    z.string(),
+    z.object({ values: z.array(z.string()), default: z.string().optional() }),
+  ),
+});
+
+/** The axes that a frame version posted, by frame id: the page offers only these values. */
+export const offeredAxes = data<
+  Readonly<Record<string, z.infer<typeof axesPost> & { version: number }>>
+>({ label: "viewer.offeredAxes", initial: {} });
+
+/**
  * The zoom as the status shows it, in percent, rounded down: steps of 10, under 10 steps of 1, under
  * 1 of 0.1.
  */
@@ -173,9 +191,10 @@ export const stage = resource({
     paints: painted.controller,
     zoom: zoomShown.controller,
     part: partBox.controller,
+    offered: offeredAxes.controller,
     popPlace,
   },
-  factory: ({ live, paints, zoom, part, popPlace }, ctx) => {
+  factory: ({ live, paints, zoom, part, offered, popPlace }, ctx) => {
     let cam = { x: 0, y: 0, z: 1 };
     let view = { w: 0, h: 0, left: 0, top: 0 };
     let vp: HTMLElement | null = null;
@@ -530,8 +549,25 @@ export const stage = resource({
           ports.get(id)?.close();
           const channel = new MessageChannel();
           ports.set(id, channel.port1);
+          channel.port1.addEventListener("message", (message) => at.onAxes(frame, message.data));
+          channel.port1.start();
           win.postMessage(kitNow, "*", [channel.port2]);
         }
+      },
+
+      /**
+       * The axes that a live document posted on its port, kept for its frame version (chart
+       * kit-frame-axes). Another post, or a post of an iframe that left, changes nothing.
+       */
+      onAxes: (frame: HTMLIFrameElement, posted: unknown) => {
+        const read = axesPost.safeParse(posted);
+        const id = frame.dataset.id;
+        if (!read.success || id === undefined || docs.get(id) !== frame) return;
+
+        const version = Number(frame.dataset.version);
+        const known = offered.get()[id];
+        if (known?.version === version) return;
+        offered.set({ ...offered.get(), [id]: { ...read.data, version } });
       },
 
       /** A frame's live document left: its port is closed. */

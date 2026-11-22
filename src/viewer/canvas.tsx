@@ -1,4 +1,4 @@
-import { operation, resource, tag } from "@tinkered/core";
+import { data, operation, resource, tag } from "@tinkered/core";
 import { useData, useResource, useRun } from "@tinkered/react";
 import { memo } from "react";
 import { z } from "zod";
@@ -6,7 +6,7 @@ import { z } from "zod";
 import { frames } from "@/frames";
 import { boardDoc } from "@/frames/contract";
 import type { FrameInfo } from "@/frames/contract";
-import { compose, composeApp, composeKit } from "@/kit/compose";
+import { compose, composeApp, composeKit, frameAxes } from "@/kit/compose";
 
 import "./canvas.css";
 import { aimFromLink, openFromLink } from "./act";
@@ -16,7 +16,7 @@ import type { RequestView } from "./follow";
 import { Panel, RequestsButton } from "./panel";
 import { FramePicture } from "./picture";
 import { RequestButton, Requests } from "./request";
-import { liveSet, painted, paintScript, stage, zoomShown } from "./stage";
+import { axesPost, liveSet, offeredAxes, painted, paintScript, stage, zoomShown } from "./stage";
 import type { KitMessage } from "./stage";
 
 // The canvas behind `/s/<link>` (SPEC-viewer.md § See the frames, § Pan and zoom, § Watch an
@@ -85,7 +85,85 @@ function Zoom() {
 const docCanvas = tag<string>({ label: "viewer.docCanvas" });
 const docId = tag<string>({ label: "viewer.docId" });
 
-type Composed = { version: number; html: string };
+/** A live frame's document: its version, the key of its axes, and the composed html. */
+type Composed = { version: number; key: string; html: string };
+
+/** The locale that a capsule frame draws in when none is picked (`@easel/frame`'s default). */
+const defaultLocale = "en";
+
+/**
+ * The picks of this tab (SPEC-kit.md § The capsules, "The axes in the viewer"; chart
+ * kit-frame-axes): one locale for the canvas, and a value of each config key for each frame.
+ */
+export const axesPicked = data<{
+  locale: string | null;
+  config: Readonly<Record<string, Readonly<Record<string, string>>>>;
+}>({ label: "viewer.axesPicked", initial: { locale: null, config: {} } });
+
+/** The person picks a locale for the canvas. */
+export const pickLocale = operation({
+  label: "viewer.pickLocale",
+  input: z.string(),
+  depends: { picked: axesPicked.controller },
+  run: ({ picked }, { input }) => picked.set({ ...picked.get(), locale: input }),
+});
+
+/** The person picks a value of a config key of a frame (its data state). */
+export const pickConfig = operation({
+  label: "viewer.pickConfig",
+  input: z.object({ id: z.string(), key: z.string(), value: z.string() }),
+  depends: { picked: axesPicked.controller },
+  run: ({ picked }, { input: { id, key, value } }) => {
+    const now = picked.get();
+    const config = { ...now.config, [id]: { ...now.config[id], [key]: value } };
+    picked.set({ ...now, config });
+  },
+});
+
+/** The picks of a frame's config keys that its version posted, other than their defaults. */
+const configPicks = operation({
+  label: "viewer.configPicks",
+  input: z.object({
+    axes: axesPost.shape.config,
+    mine: z.record(z.string(), z.string()).optional(),
+  }),
+  run: (_, { input: { axes, mine = {} } }) =>
+    Object.fromEntries(
+      Object.entries(axes).flatMap(([key, axis]) => {
+        const value = mine[key];
+        const good = value !== undefined && value !== axis.default && axis.values.includes(value);
+        return good ? [[key, value]] : [];
+      }),
+    ),
+});
+
+/**
+ * The axes to compose a frame version with: the picks, once that version posted its axes, and
+ * only the values that it posted. A value equal to its default is left out, so a frame with no
+ * pick, or with no axes, gets null and is not composed again (APlainFrameIgnoresThePicks).
+ */
+export const axesFor = operation({
+  label: "viewer.axesFor",
+  input: z.object({
+    id: z.string(),
+    version: z.number(),
+    offer: axesPost.extend({ version: z.number() }).optional(),
+    picked: z.object({
+      locale: z.string().nullable(),
+      config: z.record(z.string(), z.record(z.string(), z.string())),
+    }),
+  }),
+  depends: { configPicks },
+  run: ({ configPicks }, { input: { id, version, offer, picked } }) => {
+    if (offer?.version !== version) return null;
+
+    const pick = picked.locale;
+    const known = pick !== null && pick !== defaultLocale && offer.locales.includes(pick);
+    const config = configPicks.run({ input: { axes: offer.config, mine: picked.config[id] } });
+    const some = known || Object.keys(config).length > 0;
+    return some ? { ...(known ? { locale: pick } : {}), config } : null;
+  },
+});
 
 /**
  * The document that a live frame was composed with, for its version, while the frame is live. A
@@ -104,12 +182,18 @@ const docMemo = resource({
  */
 const composeDoc = operation({
   label: "viewer.composeDoc",
-  input: z.object({ doc: boardDoc, kit: composeKit }),
+  input: z.object({ doc: boardDoc, kit: composeKit, axes: frameAxes.nullable() }),
   depends: { compose, composeApp },
-  run: ({ compose, composeApp }, { input: { doc, kit } }) =>
+  run: ({ compose, composeApp }, { input: { doc, kit, axes } }) =>
     doc.app
       ? composeApp.run({
-          input: { js: doc.app.js, css: doc.css ?? "", kit, runtime: doc.app.runtime },
+          input: {
+            js: doc.app.js,
+            css: doc.css ?? "",
+            kit,
+            runtime: doc.app.runtime,
+            ...(axes ? { axes } : {}),
+          },
         })
       : compose.run({ input: { html: doc.html, css: doc.css, kit } }),
 });
@@ -118,7 +202,8 @@ const composeDoc = operation({
  * A live frame's document as it shows: `composeDoc` of the board's version of it, its made CSS
  * and the canvas's kit (fact rule 8: the look, the kit and the piece script come only from
  * `compose`). Null until the document, and the kit that it needs, have come. A version is
- * composed once, with the kit of that moment; a later kit goes on the document's port.
+ * composed once for each pick of its axes (`axesFor`), with the kit of that moment; a later kit
+ * goes on the document's port. Another pick is another document, so another scope.
  */
 const liveDoc = resource({
   label: "viewer.liveDoc",
@@ -127,18 +212,27 @@ const liveDoc = resource({
     doc: frames.board.docs.of({ canvas: c.canvas, id: c.id }),
     kit: frames.board.kit.of({ canvas: c.canvas }),
     memo: docMemo({ canvas: c.canvas, id: c.id }),
+    offered: offeredAxes,
+    picked: axesPicked,
+    axesFor,
     composeDoc,
   }),
-  factory: ({ doc, kit, memo, composeDoc }) => {
+  factory: ({ doc, kit, memo, offered, picked, axesFor, composeDoc }, ctx) => {
     const at = doc.get();
     const look = kit.get() ?? null;
     const kept = memo.get();
     if (!at || (at.css !== null && look === null)) return null;
-    if (kept.shown?.version === at.version) return kept.shown;
+
+    const offer = offered[ctx.config.id];
+    const axes = axesFor.run({
+      input: { id: ctx.config.id, version: at.version, offer, picked },
+    });
+    const key = `${at.version}:${JSON.stringify(axes)}`;
+    if (kept.shown?.key === key) return kept.shown;
 
     const shown = look ?? { look: "", css: "" };
-    const html = composeDoc.run({ input: { doc: at, kit: shown } });
-    kept.shown = { version: at.version, html };
+    const html = composeDoc.run({ input: { doc: at, kit: shown, axes } });
+    kept.shown = { version: at.version, key, html };
     return kept.shown;
   },
 });
@@ -176,7 +270,7 @@ function LiveDoc({
 
   return (
     <iframe
-      key={doc.version}
+      key={doc.key}
       ref={attach}
       className="e-doc"
       title={frame.name}
@@ -224,6 +318,7 @@ const Shell = memo(function Shell({
     >
       <div className="e-label" data-label>
         {frame.name}
+        <FrameAxes frame={frame} />
       </div>
       {live ? <LiveDoc canvas={canvas} frame={frame} attach={at.doc} /> : null}
       <div className="e-card" hidden={live && shown === frame.version}>
@@ -238,6 +333,75 @@ const Shell = memo(function Shell({
     </div>
   );
 });
+
+/**
+ * The picks of a frame's own axes, after its name: one select for each config key that the live
+ * version posted (its data state). A frame that posted none shows none (chart kit-frame-axes).
+ */
+function FrameAxes({ frame }: { frame: FrameInfo }) {
+  const offer = useData(offeredAxes, (all) => all[frame.id]);
+  const mine = useData(axesPicked, (p) => p.config[frame.id]);
+  const pick = useRun(pickConfig);
+  if (offer?.version !== frame.version) return null;
+
+  const keys = Object.entries(offer.config);
+  return (
+    <>
+      {keys.map(([key, axis]) => (
+        <select
+          key={key}
+          className="e-axis"
+          data-own-pointer
+          aria-label={`${key} of ${frame.name}`}
+          title={key}
+          value={mine?.[key] ?? axis.default ?? axis.values[0]}
+          onChange={(event) =>
+            pick.run({ input: { id: frame.id, key, value: event.currentTarget.value } })
+          }
+        >
+          {axis.values.map((value) => (
+            <option key={value} value={value}>
+              {value}
+            </option>
+          ))}
+        </select>
+      ))}
+    </>
+  );
+}
+
+/**
+ * The locale of the canvas's capsule frames, in the dock: the locales that the live frames
+ * posted. With no capsule frame live yet, it is not shown.
+ */
+function LocalePick() {
+  const locales = useData(offeredAxes, (all) =>
+    [...new Set(Object.values(all).flatMap((offer) => offer.locales))].join(" "),
+  );
+  const locale = useData(axesPicked, (p) => p.locale) ?? defaultLocale;
+  const pick = useRun(pickLocale);
+  if (locales === "") return null;
+
+  return (
+    <>
+      <span className="e-dock-sep" aria-hidden="true" />
+      <select
+        className="e-axis e-axis-dock"
+        aria-label="Locale"
+        title="Locale"
+        value={locale}
+        onChange={(event) => pick.run({ input: event.currentTarget.value })}
+      >
+        {locales.split(" ").map((code) => (
+          <option key={code} value={code}>
+            {/* The name of the locale in its own language: `vi` is "Tiếng Việt". */}
+            {new Intl.DisplayNames([code], { type: "language" }).of(code) ?? code}
+          </option>
+        ))}
+      </select>
+    </>
+  );
+}
 
 /** A dock button's icon: 16 px, a line drawing in the current colour (the library's Dock). */
 export function Icon({ d }: { d: string }) {
@@ -265,6 +429,7 @@ function Dock({ at, canvas }: { at: Stage; canvas: string }) {
     <div className="e-dock" role="toolbar" aria-label="Canvas">
       <RequestButton />
       <RequestsButton canvas={canvas} />
+      <LocalePick />
       <span className="e-dock-sep" aria-hidden="true" />
       <button
         type="button"

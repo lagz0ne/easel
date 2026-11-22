@@ -318,7 +318,10 @@ const parentPage = (html: string) => `<!doctype html>
   window.told = [];
   const frame = document.querySelector("iframe");
   const channel = new MessageChannel();
-  channel.port1.onmessage = (event) => window.told.push(event.data.easel);
+  channel.port1.onmessage = (event) => {
+    window.told.push(event.data.easel);
+    if (event.data.easel === "axes") window.offer = event.data;
+  };
   addEventListener("message", (event) => {
     if (event.source !== frame.contentWindow) return;
     window.told.push(event.data.easel);
@@ -391,6 +394,8 @@ test(
     await page.evaluate(() => Reflect.get(window, "closeFrame")());
     await expect.poll(() => page.evaluate(() => Reflect.get(window, "told"))).toContain("closed");
     expect(await frame.locator("main").count()).toBe(0);
+    // A frame with no capsule posts no axes: the page offers it no pick.
+    expect(await page.evaluate(() => Reflect.get(window, "told"))).not.toContain("axes");
     expect(errors).toEqual([]);
   },
 );
@@ -546,6 +551,14 @@ test(
     await page.goto(`http://127.0.0.1:${web.port}/?doc=0`);
     await expect.poll(told, { timeout: 20_000 }).toContainEqual(expect.stringMatching(/^load:/));
     expect(await told()).toContainEqual("load:People3 peopleAnnRemoveBinhRemoveChiRemove");
+    // With its port, the frame posts its axes: the locales, and the values of its config's enum.
+    await expect
+      .poll(() => page.evaluate((): unknown => Reflect.get(window, "offer")))
+      .toEqual({
+        easel: "axes",
+        locales: ["en", "vi"],
+        config: { sample: { values: ["empty", "one", "many", "bad"], default: "many" } },
+      });
     await frame.getByRole("button", { name: "Remove" }).first().click();
     await expect.poll(() => frame.getByText("2 people").count()).toBe(1);
 

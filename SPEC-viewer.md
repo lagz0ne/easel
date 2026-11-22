@@ -56,6 +56,10 @@ this spec wins, and the screen gets a fix.
    When an app frame leaves the live set (out of view at rest, deleted, or a new version), the
    page posts `close` to it and waits for `closed`, at most 200 ms, before it removes the iframe
    (the chart [kit-app-frame](docs/statecharts/kit-app-frame.md)).
+   A capsule frame posts its axes on its port. Then the dock offers a locale for the canvas,
+   and the frame's label offers its data states. A pick composes the frame again in a new scope
+   ([kit](SPEC-kit.md) § The capsules, "The axes in the viewer"; the chart
+   [kit-frame-axes](docs/statecharts/kit-frame-axes.md)).
 3. A frame far out of view draws nothing.
 4. With pictures off (no Chromium on the server), a shell shows a plain card. The name sits on a
    label above the card, as Figma and tldraw show frame names, not on the card.

@@ -58,6 +58,7 @@ Each chart's page has the chart, its rules in plain words, and what the model le
 | [kit-look-hello-once](kit-look-hello-once.md)       | kit    | Why the piece script says hello again: one hello before the page listens is lost           |
 | [kit-app-frame](kit-app-frame.md)                   | kit    | An app frame: live, the hello and the port, a new look, close, closed, removed             |
 | [kit-app-frame-no-close](kit-app-frame-no-close.md) | kit    | Why the page posts close first: an iframe removed at once never runs the app's ends        |
+| [kit-frame-axes](kit-frame-axes.md)                 | kit    | The locale and data state picks of capsule frames: posted, offered, composed again         |
 
 `queue-two-step`, `frames-writes-two-step`, `fixer-claim-unsafe`, `kit-look-unbound`,
 `kit-look-hello-once` and `kit-app-frame-no-close` break on purpose. Each shows the bug that a

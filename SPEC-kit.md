@@ -704,6 +704,24 @@ View of that scope:
   version that has a runtime with no `@easel/kit` keeps it (K11), and so does each change of its
   look: an import of `@easel/kit` in its frames is `kit/import`.
 
+**The axes in the viewer** (the chart [kit-frame-axes](docs/statecharts/kit-frame-axes.md)). A
+capsule frame tells the page what it can show. On each new port, the mount posts
+`{ easel: "axes", locales, config }`: the locales of the kit, and each config key of the frame's
+own capsule whose schema lists its values (a `z.enum`), with its values and its default
+(`offerOf`). A frame with no capsule posts nothing. The page keeps the axes of each frame version
+(`offeredAxes`) and offers only those values:
+
+- **The locale is one pick for the canvas**, in the dock (Storybook's toolbar globals). It shows
+  once a live frame posted its axes.
+- **A config key is a pick for each frame**, after the frame's name (Storybook's args): its data
+  state.
+- **A pick is another document.** The page composes the frame version again with the axes that it
+  posted and that differ from their defaults (`axesFor`), so the frame draws in a new scope. A
+  frame with no axes, or with no pick, is not composed again.
+- The picks are the tab's own: another tab, and the picture of a frame, show the defaults.
+- After a new version, the frame draws once with its defaults, then with the picks when it posted
+  its axes: a new version can drop a value.
+
 **Why the list comes from the graph.** The list is the same graph that a frame of the kit version
 gets. So it cannot be older than the kit, and an agent learns each part before it writes code:
 what exists, how to install it, a line that uses it, what it depends on, and the texts that it can

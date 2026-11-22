@@ -70,6 +70,33 @@ const refused = (error: unknown) => {
   );
 };
 
+/** A field of a unit of Tinker (a tag, an edge of a config key), or undefined. */
+const fieldOf = (unit: unknown, key: string): unknown =>
+  (typeof unit === "object" || typeof unit === "function") && unit !== null
+    ? Reflect.get(unit, key)
+    : undefined;
+
+/**
+ * The axes that a capsule frame can show (SPEC-kit.md § The capsules, "The axes in the viewer"):
+ * the locales of the kit, and each config key of its own capsule whose schema lists its values
+ * (an enum), with its default. The page offers only these values.
+ */
+const offerOf = (frame: FrameCapsule | undefined) => {
+  const config: Record<string, { values: unknown[]; default?: unknown }> = {};
+  const keys = z.record(z.string(), z.unknown()).catch({}).parse(fieldOf(frame, "config"));
+  for (const [key, entry] of Object.entries(keys)) {
+    // A required key is an edge ({ kind: "required", target: tag }); a key with a default, the tag.
+    const tag = fieldOf(entry, "kind") === undefined ? entry : fieldOf(entry, "target");
+    const parse = fieldOf(tag, "parse");
+    const values = fieldOf(parse instanceof z.ZodType ? z.toJSONSchema(parse) : null, "enum");
+    if (!Array.isArray(values)) continue;
+    config[key] = fieldOf(tag, "hasDefault")
+      ? { values, default: fieldOf(tag, "def") }
+      : { values };
+  }
+  return { easel: "axes", locales: [...locales], config };
+};
+
 /**
  * Mounts the app of a frame (SPEC-kit.md § App frames, "The runtime", "The hello and the port",
  * "Close before the iframe goes"; § The capsules, "A capsule frame"). It renders into
@@ -79,7 +106,8 @@ const refused = (error: unknown) => {
  * each 50 ms until its parent gives it a port. A kit message replaces the text of the styles
  * `easel-look` and `easel-kit`; a capsule frame then draws in a new scope with that look. On
  * `close` it unmounts the View, closes the scope (each deferred end runs), then posts `closed`. It
- * answers only its parent, and sends only the hello and `closed`.
+ * answers only its parent, and sends only the hello, the axes of a capsule frame (on each new
+ * port) and `closed`.
  */
 export const mount = (app: MountApp) => {
   let port: MessagePort | null = null;
@@ -175,6 +203,8 @@ export const mount = (app: MountApp) => {
       port = given;
       port.addEventListener("message", (on) => take(on.data));
       port.start();
+      // A capsule frame tells the page what it can show, on each new port (chart kit-frame-axes).
+      if (typeof app.View !== "function") port.postMessage(offerOf(app.frame));
     }
     take(event.data);
   });

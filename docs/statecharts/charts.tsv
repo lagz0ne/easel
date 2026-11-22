@@ -30,3 +30,4 @@ kit-look-unbound	models/kit/Kit.tla	models/kit/KitLookUnbound.cfg	models/kit/Kit
 kit-look-hello-once	models/kit/Kit.tla	models/kit/KitLookHelloOnce.cfg	models/kit/Kit.view.mjs	breaks
 kit-app-frame	models/kit/AppFrame.tla	models/kit/AppFrame.cfg	models/kit/AppFrame.view.mjs	holds
 kit-app-frame-no-close	models/kit/AppFrame.tla	models/kit/AppFrameNoClose.cfg	models/kit/AppFrame.view.mjs	breaks
+kit-frame-axes	models/kit/FrameAxes.tla	models/kit/FrameAxes.cfg	models/kit/FrameAxes.view.mjs	holds
