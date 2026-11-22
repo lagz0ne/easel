@@ -806,6 +806,12 @@ export const seenWhileOpen = resource({
 /** The panel `Requests` is open (step 2). */
 export const panelOpen = data({ label: "viewer.panelOpen", initial: false });
 
+/**
+ * The frame whose panel `Controls` is open (SPEC-kit.md § The capsules, "The controls in the
+ * viewer"), or null. It shares the side of the page with `Requests`: one closes the other.
+ */
+export const controlsFor = data<string | null>({ label: "viewer.controlsFor", initial: null });
+
 /** The list the panel shows: `Open` or `Done`. */
 export const panelList = data<"open" | "done">({ label: "viewer.panelList", initial: "open" });
 
@@ -815,9 +821,10 @@ export const listMenu = data({ label: "viewer.listMenu", initial: false });
 /** You press `Requests` in the dock: the panel opens, or closes. */
 export const togglePanel = operation({
   label: "viewer.togglePanel",
-  depends: { open: panelOpen.controller, menu: listMenu.controller },
-  run: ({ open, menu }) => {
+  depends: { open: panelOpen.controller, menu: listMenu.controller, ctl: controlsFor.controller },
+  run: ({ open, menu, ctl }) => {
     menu.set(false);
+    ctl.set(null);
     open.set(!open.get());
   },
 });

@@ -7,11 +7,12 @@ import { frames } from "@/frames";
 import { boardDoc } from "@/frames/contract";
 import type { FrameInfo } from "@/frames/contract";
 import { compose, composeApp, composeKit, frameAxes } from "@/kit/compose";
+import type { ControlShown } from "@/kit/controls";
 
 import "./canvas.css";
 import { aimFromLink, openFromLink } from "./act";
 import { escapeKey, openRequest, pickPlace, requestMode, resendOnBack } from "./draft";
-import { clockTicker, panelOpen, requestPlaces } from "./follow";
+import { clockTicker, controlsFor, panelOpen, requestPlaces } from "./follow";
 import type { RequestView } from "./follow";
 import { Panel, RequestsButton } from "./panel";
 import { FramePicture } from "./picture";
@@ -24,6 +25,7 @@ import {
   offeredAxes,
   painted,
   paintScript,
+  shownControls,
   stage,
   zoomShown,
 } from "./stage";
@@ -375,6 +377,7 @@ const Shell = memo(function Shell({
       <div className="e-label" data-label>
         {frame.name}
         <FrameAxes frame={frame} />
+        <ControlsButton frame={frame} />
       </div>
       {live || held ? <LiveDoc canvas={canvas} frame={frame} at={at} /> : null}
       <div className="e-card" hidden={live && shown === frame.version}>
@@ -426,6 +429,198 @@ function FrameAxes({ frame }: { frame: FrameInfo }) {
   );
 }
 
+/** You press `Controls` on a frame's label: its panel opens, or closes; `Requests` closes. */
+const toggleControls = operation({
+  label: "viewer.toggleControls",
+  input: z.string(),
+  depends: { ctl: controlsFor.controller, requests: panelOpen.controller },
+  run: ({ ctl, requests }, { input }) => {
+    requests.set(false);
+    ctl.set(ctl.get() === input ? null : input);
+  },
+});
+
+/** A person runs a control in the panel: it goes to the frame's current document. */
+const runControl = operation({
+  label: "viewer.runControl",
+  input: z.object({ id: z.string(), key: z.string(), value: z.unknown().optional() }),
+  depends: { at: stage },
+  run: ({ at }, { input }) => at.sendControl(input.id, input.key, input.value),
+});
+
+/**
+ * The button `Controls` after a frame's name, once its current document posted controls (SPEC-kit
+ * § The capsules, "The controls in the viewer"). It shows pressed while their panel is open.
+ */
+function ControlsButton({ frame }: { frame: FrameInfo }) {
+  const has = useData(shownControls, (all) => frame.id in all);
+  const open = useData(controlsFor, (id) => id === frame.id);
+  const toggle = useRun(toggleControls);
+  if (!has) return null;
+
+  return (
+    <button
+      type="button"
+      className="e-axis e-ctl-open"
+      data-own-pointer
+      aria-label={`Controls of ${frame.name}`}
+      aria-pressed={open}
+      title="Controls"
+      onClick={() => toggle.run({ input: frame.id })}
+    >
+      <Icon d={icons.controls} />
+    </button>
+  );
+}
+
+type FieldProps = { id: string; control: ControlShown; value: unknown };
+
+/** An action: a button that runs its operation. */
+function ActionField({ id, control }: FieldProps) {
+  const run = useRun(runControl);
+  return (
+    <button
+      type="button"
+      className="e-ctl-action"
+      onClick={() => run.run({ input: { id, key: control.key } })}
+    >
+      {control.label}
+    </button>
+  );
+}
+
+/** A boolean value: a switch. */
+function SwitchField({ id, control, value }: FieldProps) {
+  const run = useRun(runControl);
+  return (
+    <label className="e-ctl-field">
+      {control.label}
+      <input
+        type="checkbox"
+        role="switch"
+        checked={value === true}
+        onChange={(event) =>
+          run.run({ input: { id, key: control.key, value: event.currentTarget.checked } })
+        }
+      />
+    </label>
+  );
+}
+
+/** A value of a list: a select of the values that the frame posted. */
+function SelectField({ id, control, value }: FieldProps) {
+  const run = useRun(runControl);
+  return (
+    <label className="e-ctl-field">
+      {control.label}
+      <select
+        value={typeof value === "string" ? value : ""}
+        onChange={(event) =>
+          run.run({ input: { id, key: control.key, value: event.currentTarget.value } })
+        }
+      >
+        {control.values?.map((one) => (
+          <option key={one} value={one}>
+            {one}
+          </option>
+        ))}
+      </select>
+    </label>
+  );
+}
+
+/**
+ * A number or a text: a field that keeps each key (`defaultValue`) and runs its operation when it
+ * loses the focus (Enter takes the focus away). A new value from the frame draws it again.
+ */
+function TypedField({ id, control, value }: FieldProps) {
+  const run = useRun(runControl);
+  const number = control.kind === "number";
+
+  return (
+    <label className="e-ctl-field">
+      {control.label}
+      <input
+        key={String(value)}
+        type={number ? "number" : "text"}
+        min={control.min}
+        max={control.max}
+        defaultValue={typeof value === "number" || typeof value === "string" ? value : ""}
+        onBlur={(event) => {
+          const field = event.currentTarget;
+          const next = number ? field.valueAsNumber : field.value;
+          if (next === value || Number.isNaN(next)) return;
+
+          run.run({ input: { id, key: control.key, value: next } });
+        }}
+        onKeyDown={(event) => (event.key === "Enter" ? event.currentTarget.blur() : undefined)}
+      />
+    </label>
+  );
+}
+
+const fields = {
+  action: ActionField,
+  switch: SwitchField,
+  select: SelectField,
+  number: TypedField,
+  text: TypedField,
+} as const;
+
+/**
+ * The panel `Controls` at the right edge, for one frame: each control of its current document,
+ * with the value that the document posted last, and the kind of a refused run. While the frame
+ * has no live document, it says so. `Requests` takes the place when it opens.
+ */
+function ControlsPanel({ list }: { list: readonly FrameInfo[] }) {
+  const id = useData(controlsFor);
+  const requests = useData(panelOpen);
+  const now = useData(shownControls, (all) => (id === null ? undefined : all[id]));
+  const toggle = useRun(toggleControls);
+  if (id === null || requests) return null;
+
+  const name = list.find((f) => f.id === id)?.name ?? "";
+  return (
+    <aside className="e-panel" aria-label="Controls">
+      <header className="e-panel-head">
+        <h2>Controls</h2>
+        <span className="e-ctl-frame">{name}</span>
+        <button
+          type="button"
+          className="e-ctl-close"
+          aria-label="Close the controls"
+          title="Close"
+          onClick={() => toggle.run({ input: id })}
+        >
+          <Icon d={icons.close} />
+        </button>
+      </header>
+      <div className="e-panel-body">
+        {now ? (
+          <ul className="e-ctl-list">
+            {now.controls.map((control) => {
+              const Field = fields[control.kind];
+              const failed = now.failed[control.key];
+              return (
+                <li key={control.key} className="e-ctl-row">
+                  <Field id={id} control={control} value={now.values[control.key]} />
+                  {failed ? (
+                    <p className="e-ctl-failed" role="alert">
+                      The frame refused it: {failed}.
+                    </p>
+                  ) : null}
+                </li>
+              );
+            })}
+          </ul>
+        ) : (
+          <p className="e-none">The frame is not live. Move it into view to use its controls.</p>
+        )}
+      </div>
+    </aside>
+  );
+}
+
 /**
  * The locale of the canvas's capsule frames, in the dock: the locales that the live frames
  * posted. With no capsule frame live yet, it is not shown.
@@ -473,6 +668,9 @@ const icons = {
   zoomOut: "M5 12h14",
   zoomIn: "M5 12h14M12 5v14",
   fit: "M3 7V5a2 2 0 0 1 2-2h2M17 3h2a2 2 0 0 1 2 2v2M21 17v2a2 2 0 0 1-2 2h-2M7 21H5a2 2 0 0 1-2-2v-2",
+  // Lucide's sliders-horizontal and x.
+  controls: "M21 4h-7M10 4H3M21 12h-9M8 12H3M21 20h-5M12 20H3M14 2v4M8 10v4M16 18v4",
+  close: "M18 6 6 18M6 6l12 12",
 } as const;
 
 /**
@@ -655,6 +853,7 @@ export function Canvas({ canvas, opening }: { canvas: string; opening: React.Rea
       </div>
       <Dock at={at} canvas={canvas} />
       <PanelAt at={at} canvas={canvas} list={list} />
+      <ControlsPanel list={list} />
     </main>
   );
 }

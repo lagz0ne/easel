@@ -321,6 +321,9 @@ const parentPage = (html: string) => `<!doctype html>
   channel.port1.onmessage = (event) => {
     window.told.push(event.data.easel);
     if (event.data.easel === "axes") window.offer = event.data;
+    if (event.data.easel === "controls") window.controls = event.data.controls;
+    if (event.data.easel === "values") window.values = event.data.values;
+    if (event.data.easel === "ran") window.ran = event.data;
   };
   addEventListener("message", (event) => {
     if (event.source !== frame.contentWindow) return;
@@ -332,6 +335,7 @@ const parentPage = (html: string) => `<!doctype html>
   });
   window.closeFrame = () => window.port.postMessage({ easel: "close" });
   window.sendKit = (look, css) => window.port.postMessage({ easel: "kit", look, css });
+  window.control = (key, value) => window.port.postMessage({ easel: "control", key, value });
   frame.srcdoc = ${JSON.stringify(html).replaceAll("<", "\\u003c")};
 </script>`;
 
@@ -561,6 +565,32 @@ test(
       });
     await frame.getByRole("button", { name: "Remove" }).first().click();
     await expect.poll(() => frame.getByText("2 people").count()).toBe(1);
+
+    // Its controls (chart kit-frame-controls): each kind from the input of its operation, and the
+    // value of each value control. A control runs in the live scope: the state goes on from here.
+    const read = (name: string) => page.evaluate((key): unknown => Reflect.get(window, key), name);
+    await expect
+      .poll(() => read("controls"))
+      .toEqual([
+        { key: "add", label: "Add a person", kind: "action" },
+        { key: "clear", label: "Remove all", kind: "action" },
+        { key: "capitals", label: "Names in capitals", kind: "switch" },
+      ]);
+    await expect.poll(() => read("values")).toEqual({ capitals: false });
+    const control = (key: string, value?: unknown) =>
+      page.evaluate(([k, v]) => Reflect.get(window, "control")(k, v), [key, value] as const);
+    await control("add");
+    await expect.poll(() => frame.getByText("3 people").count()).toBe(1);
+    expect(await frame.getByText("Person 3").count()).toBe(1);
+    await control("capitals", true);
+    await expect.poll(() => read("values")).toEqual({ capitals: true });
+    expect(await frame.getByText("BINH").count()).toBe(1);
+    // A value that the operation's input refuses changes nothing: the page gets the refusal.
+    await control("capitals", "yes");
+    await expect.poll(() => read("ran")).toMatchObject({ easel: "ran", key: "capitals" });
+    expect(await read("values")).toEqual({ capitals: true });
+    await control("clear");
+    await expect.poll(() => frame.getByText("0 people").count()).toBe(1);
 
     // A kit message: the frame draws in a new scope with that look, so its state starts again.
     await page.evaluate(({ look, css }) => Reflect.get(window, "sendKit")(look, css), {

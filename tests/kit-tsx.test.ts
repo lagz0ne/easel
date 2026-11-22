@@ -321,7 +321,7 @@ test("the usual app frame passes the check of its module with the names of the r
   expect(got.js).toContain('import{mount}from"@easel/frame"');
   expect(got.js).not.toContain("type Period");
   expect(got.js).not.toMatch(/\bexport\b/);
-  expect(got.js).toMatch(/mount\(\{View(:\w+)?,frame:undefined\}\);\s*$/);
+  expect(got.js).toMatch(/mount\(\{View(:\w+)?,frame:undefined,controls:undefined\}\);\s*$/);
 });
 
 test("a folder frame: an import of its own files, by a path with no extension; each finding names its file; only the entry has kit/shape", async () => {
@@ -387,7 +387,7 @@ test("logic, View and frame can be exported by another name, or from another fil
 
   expect(got.findings.map((f) => f.what)).toEqual([
     'the frame imports "./parts": no file of the frame has this path',
-    'the frame exports all the names of "./more": an app frame exports View, and logic or frame, and no other name',
+    'the frame exports all the names of "./more": an app frame exports View, and logic or frame, and controls, and no other name',
     'the frame imports "./more": no file of the frame has this path',
   ]);
 });

@@ -34,7 +34,12 @@
         "values": "A step of mount: it reads the look values of the frame's sheet in its iframe, outside easel's graph.",
         "fieldOf": "A step of mount: it reads a field of a Tinker unit in the frame's iframe, outside easel's graph.",
         "offerOf": "A step of mount: it lists the axes of a capsule frame in its iframe, outside easel's graph.",
-        "draw": "A step of mount: it makes the scope of a capsule frame in its iframe; no easel graph runs it."
+        "draw": "A step of mount: it makes the scope of a capsule frame in its iframe; no easel graph runs it.",
+        "frameControls": "@easel/frame's API for frame code (SPEC-kit \u00a7 The capsules, \"The controls in the viewer\"): a frame calls it as a plain function at module level; no easel graph runs it.",
+        "controlsOf": "A step of mount: it lists the controls that the panel can draw, in the frame's iframe, outside easel's graph.",
+        "told": "A step of mount: it posts the values of the controls on the port, in the frame's iframe, outside easel's graph.",
+        "watch": "A step of mount: it watches the value cells of the scope on screen, in the frame's iframe, outside easel's graph.",
+        "runControl": "A step of mount: it runs a control's operation in the scope on screen, in the frame's iframe, outside easel's graph."
       }
     }
   },

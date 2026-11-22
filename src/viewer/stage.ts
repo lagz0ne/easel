@@ -1,6 +1,9 @@
 import { data, operation, resource } from "@tinkered/core";
 import { z } from "zod";
 
+import { controlsPost, ranPost, valuesPost } from "@/kit/controls";
+import type { ControlShown } from "@/kit/controls";
+
 // The canvas's stage (SPEC-viewer.md § Pan and zoom, § Numbers; the viewer-canvas chart): the
 // camera, the shells' cull, the live set and the paint signal. It owns the DOM: React draws the
 // shells once per change of the board, and the stage writes the world's transform, each shell's
@@ -93,6 +96,25 @@ export const closeDone = data<Readonly<Record<string, true>>>({
   label: "viewer.closeDone",
   initial: {},
 });
+
+/**
+ * The controls of each frame's current document, by frame id (SPEC-kit.md § The capsules, "The
+ * controls in the viewer"; chart kit-frame-controls): what it posted, the values it posted last,
+ * and the kind of each control's last refused run. A new document, or none, clears them. Only the
+ * stage writes it.
+ */
+export const shownControls = data<
+  Readonly<
+    Record<
+      string,
+      {
+        controls: readonly ControlShown[];
+        values: Readonly<Record<string, unknown>>;
+        failed: Readonly<Record<string, string>>;
+      }
+    >
+  >
+>({ label: "viewer.shownControls", initial: {} });
 
 /** How long the page waits for the `closed` of an app frame before it removes the iframe. */
 export const closeWaitMs = 200;
@@ -217,9 +239,10 @@ export const stage = resource({
     zoom: zoomShown.controller,
     part: partBox.controller,
     offered: offeredAxes.controller,
+    shown: shownControls.controller,
     popPlace,
   },
-  factory: ({ live, hold, done, paints, zoom, part, offered, popPlace }, ctx) => {
+  factory: ({ live, hold, done, paints, zoom, part, offered, shown, popPlace }, ctx) => {
     let cam = { x: 0, y: 0, z: 1 };
     let view = { w: 0, h: 0, left: 0, top: 0 };
     let vp: HTMLElement | null = null;
@@ -595,10 +618,57 @@ export const stage = resource({
         }
       },
 
-      /** A post on a document's port: its axes, or its `closed`. */
+      /** A post on a document's port: its axes, its controls and values, or its `closed`. */
       onPort: (frame: HTMLIFrameElement, posted: unknown) => {
         if (closedPost.safeParse(posted).success) return closing.get(frame)?.();
+        const id = frame.dataset.id;
+        // Only the current document counts (chart kit-frame-controls).
+        if (id !== undefined && docs.get(id) === frame) at.onControls(id, posted);
         at.onAxes(frame, posted);
+      },
+
+      /** The controls of a frame's current document, its values, or a refused run of one. */
+      onControls: (id: string, posted: unknown) => {
+        const [told, values, ran] = [
+          controlsPost.safeParse(posted),
+          valuesPost.safeParse(posted),
+          ranPost.safeParse(posted),
+        ];
+        const now = shown.get()[id];
+        if (told.success) {
+          const next = { controls: told.data.controls, values: {}, failed: {} };
+          shown.set({ ...shown.get(), [id]: next });
+        }
+        if (values.success && now) {
+          shown.set({ ...shown.get(), [id]: { ...now, values: values.data.values } });
+        }
+        if (ran.success && now) {
+          const failed = { ...now.failed, [ran.data.key]: ran.data.failed };
+          shown.set({ ...shown.get(), [id]: { ...now, failed } });
+        }
+      },
+
+      /** A frame's document is no longer the current one: its controls go. */
+      dropControls: (id: string) => {
+        if (closed || !(id in shown.get())) return;
+        shown.set(Object.fromEntries(Object.entries(shown.get()).filter(([key]) => key !== id)));
+      },
+
+      /**
+       * A person runs a control in the panel: the message goes on the port of the frame's
+       * current document, and the control's last refusal goes.
+       */
+      sendControl: (id: string, key: string, value?: unknown) => {
+        const frame = docs.get(id);
+        const port = frame ? ports.get(frame) : undefined;
+        const now = shown.get()[id];
+        if (!port || !now) return;
+
+        port.postMessage({ easel: "control", key, ...(value === undefined ? {} : { value }) });
+        if (key in now.failed) {
+          const failed = Object.fromEntries(Object.entries(now.failed).filter(([k]) => k !== key));
+          shown.set({ ...shown.get(), [id]: { ...now, failed } });
+        }
       },
 
       /**
@@ -732,6 +802,7 @@ export const stage = resource({
 
         live.set([]);
         hold.set([]);
+        shown.set({});
         paints.set({});
         zoom.set(100);
       },
@@ -808,6 +879,9 @@ export const stage = resource({
         const id = el?.dataset.id;
         const version = Number(el?.dataset.version);
         if (!el || id === undefined) return;
+
+        // A new current document: the controls of the one before it go (chart kit-frame-controls).
+        at.dropControls(id);
         docs.set(id, el);
         const cap = new AbortController();
         ctx.clock.sleep(paintCapMs, AbortSignal.any([cap.signal, ctx.signal])).then(
@@ -821,8 +895,10 @@ export const stage = resource({
           // this commit. React detaches it before a deleted frame's shell, so it holds the frame.
           if (el.dataset.app === undefined) at.dropPort(el);
           else if (!closed && !hold.get().includes(id)) hold.set([...hold.get(), id]);
+
           if (docs.get(id) !== el) return;
           docs.delete(id);
+          at.dropControls(id);
           at.unpaint(id);
         };
       },

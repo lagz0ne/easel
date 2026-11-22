@@ -215,6 +215,111 @@
   pointer-events: none;
 }
 
+/* The controls of a frame (SPEC-kit.md § The capsules, "The controls in the viewer"): a button
+   after its name, and the panel `Controls` in the place of `Requests`. */
+.e-ctl-open {
+  display: inline-grid;
+  place-items: center;
+  height: 1.5em;
+  vertical-align: bottom;
+}
+
+.e-ctl-open .e-icon {
+  width: 12px;
+  height: 12px;
+}
+
+.e-ctl-open[aria-pressed="true"] {
+  color: var(--e-bg);
+  background-color: var(--e-text);
+}
+
+.e-ctl-frame {
+  flex: 1;
+  overflow: hidden;
+  color: var(--e-muted);
+  font-size: var(--e-size-1);
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+.e-ctl-close {
+  display: grid;
+  place-items: center;
+  width: 28px;
+  height: 28px;
+  padding: 0;
+  color: var(--e-muted);
+  background: none;
+  border: 0;
+  border-radius: var(--e-radius);
+  cursor: pointer;
+}
+
+.e-ctl-close:hover {
+  color: var(--e-text);
+  background-color: var(--e-hover);
+}
+
+.e-ctl-list {
+  display: flex;
+  flex-direction: column;
+  gap: var(--e-3);
+  margin: 0;
+  padding: var(--e-4);
+  list-style: none;
+}
+
+.e-ctl-field {
+  display: flex;
+  gap: var(--e-2);
+  align-items: center;
+  justify-content: space-between;
+  font-size: var(--e-size-2);
+}
+
+.e-ctl-field select,
+.e-ctl-field input:not([type="checkbox"]) {
+  box-sizing: border-box;
+  width: 50%;
+  padding: var(--e-1) var(--e-2);
+  color: var(--e-text);
+  font: inherit;
+  background-color: var(--e-bg);
+  border: 1px solid var(--e-line, var(--e-card));
+  border-radius: var(--e-radius);
+}
+
+.e-ctl-action {
+  width: 100%;
+  padding: var(--e-2) var(--e-3);
+  color: var(--e-text);
+  font: inherit;
+  font-size: var(--e-size-2);
+  text-align: left;
+  background-color: var(--e-bg);
+  border: 1px solid var(--e-line, var(--e-card));
+  border-radius: var(--e-radius);
+  cursor: pointer;
+}
+
+.e-ctl-action:hover {
+  background-color: var(--e-hover);
+}
+
+.e-ctl-close:focus-visible,
+.e-ctl-action:focus-visible,
+.e-ctl-field :focus-visible {
+  outline: 2px solid var(--e-focus);
+  outline-offset: 2px;
+}
+
+.e-ctl-failed {
+  margin: var(--e-1) 0 0;
+  color: var(--e-danger);
+  font-size: var(--e-size-1);
+}
+
 /* An app document that is closing: it stays until its app posts `closed`, but shows nothing. */
 .e-doc-closing {
   visibility: hidden;

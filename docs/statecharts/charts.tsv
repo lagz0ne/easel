@@ -31,3 +31,4 @@ kit-look-hello-once	models/kit/Kit.tla	models/kit/KitLookHelloOnce.cfg	models/ki
 kit-app-frame	models/kit/AppFrame.tla	models/kit/AppFrame.cfg	models/kit/AppFrame.view.mjs	holds
 kit-app-frame-no-close	models/kit/AppFrame.tla	models/kit/AppFrameNoClose.cfg	models/kit/AppFrame.view.mjs	breaks
 kit-frame-axes	models/kit/FrameAxes.tla	models/kit/FrameAxes.cfg	models/kit/FrameAxes.view.mjs	holds
+kit-frame-controls	models/kit/FrameControls.tla	models/kit/FrameControls.cfg	models/kit/FrameControls.view.mjs	holds

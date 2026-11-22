@@ -5,7 +5,7 @@ import { makeTestClock, memory } from "@tinkered/core/testing";
 import { ScopeProvider } from "@tinkered/react";
 import { createRoot } from "react-dom/client";
 import { expect, onTestFinished, test } from "vite-plus/test";
-import { page } from "vite-plus/test/browser/context";
+import { page, userEvent } from "vite-plus/test/browser/context";
 import { z } from "zod";
 
 import { frames } from "@/frames";
@@ -60,6 +60,24 @@ const capsuleJs = (id: string) =>
 const closerJs = (id: string) =>
   `let port=null;const hello=()=>{if(port)return;parent.postMessage({easel:"hello"},"*");setTimeout(hello,50)};const take=(d,via)=>{if(!d||d.easel!=="close")return;parent.postMessage({seen:"close",id:${JSON.stringify(id)},via},"*");setTimeout(()=>port?port.postMessage({easel:"closed"}):parent.postMessage({easel:"closed"},"*"),300)};addEventListener("message",(e)=>{if(e.source!==parent)return;if(e.ports[0]&&!port){port=e.ports[0];port.onmessage=(m)=>take(m.data,"port")}take(e.data,"window");if(e.data&&typeof e.data.probe==="number")parent.postMessage({probe:e.data.probe,id:${JSON.stringify(id)},me:0,color:port?"port":"none"},"*")});hello();`;
 
+/**
+ * An app frame's JS with controls, as `@easel/frame` posts them (chart kit-frame-controls): on its
+ * port, its controls and their values; on each `control`, it changes its state, then posts its
+ * values. The key `bad` is refused. It tells the test each control that reaches it.
+ */
+const controlsJs = (id: string) =>
+  `let port=null;const s={on:false,size:"s",count:0};const hello=()=>{if(port)return;parent.postMessage({easel:"hello"},"*");setTimeout(hello,50)};const values=()=>port.postMessage({easel:"values",values:{on:s.on,size:s.size,count:s.count}});addEventListener("message",(e)=>{if(e.source!==parent)return;if(e.ports[0]&&!port){port=e.ports[0];port.onmessage=(m)=>{const d=m.data;if(!d||d.easel!=="control")return;parent.postMessage({seen:"control",id:${JSON.stringify(id)},key:d.key,value:d.value},"*");if(d.key==="bad"){port.postMessage({easel:"ran",key:"bad",failed:"Nope"});return}if(d.key==="add")s.count+=1;else s[d.key]=d.value;values()};port.postMessage({easel:"controls",controls:[{key:"add",label:"Add one",kind:"action"},{key:"on",label:"On",kind:"switch"},{key:"size",label:"Size",kind:"select",values:["s","m","l"]},{key:"count",label:"Count",kind:"number",min:0},{key:"bad",label:"Fail",kind:"action"}]});values()}});hello();`;
+
+/** The JS of a put's app frame: a frame with controls, a closer, a capsule frame, or the probe. */
+const appJs = (id: string, kind: { capsule?: boolean; closer?: boolean; controls?: boolean }) =>
+  kind.controls
+    ? controlsJs(id)
+    : kind.closer
+      ? closerJs(id)
+      : kind.capsule
+        ? capsuleJs(id)
+        : probeJs(id);
+
 /** The runtime of an app frame that imports nothing. */
 const noRuntime = { address: "/api/runtime/1/none/", imports: {} };
 
@@ -94,16 +112,17 @@ const put = operation({
     app: z.boolean().optional(),
     capsule: z.boolean().optional(),
     closer: z.boolean().optional(),
+    controls: z.boolean().optional(),
     version: z.number().optional(),
   }),
   depends: { cells: frameCells.controller, invalidate: framesBoard.invalidate },
   run: async (
     { cells, invalidate },
-    { input: { app, capsule, closer, version = 1, ...input } },
+    { input: { app, capsule, closer, controls, version = 1, ...input } },
   ) => {
-    const js = closer ? closerJs(input.id) : capsule ? capsuleJs(input.id) : probeJs(input.id);
+    const js = appJs(input.id, { capsule, closer, controls });
     const served: ServedDoc =
-      app || capsule || closer
+      app || capsule || closer || controls
         ? { version, html: "", app: { js, kit: 1, runtime: noRuntime } }
         : { version, html: probeDoc(input.id) };
     htmls.set(input.id, served);
@@ -142,6 +161,7 @@ async function boot(
     app?: boolean;
     capsule?: boolean;
     closer?: boolean;
+    controls?: boolean;
   }>,
 ) {
   htmls.clear();
@@ -438,6 +458,94 @@ test("kit-app-frame: a deleted app frame: its shell goes from the canvas at once
   await expect.poll(() => old?.isConnected).toBe(false);
   expect(region().querySelectorAll(".e-shell").length).toBe(1);
   expect(docs().map((d) => d.dataset.id)).toEqual(["b"]);
+});
+
+const seenControl = z.object({
+  seen: z.literal("control"),
+  id: z.string(),
+  key: z.string(),
+  value: z.unknown().optional(),
+});
+
+/** Each control that reached a frame's document, with its value. */
+function controlsSeen() {
+  const seen: Array<{ key: string; value?: unknown }> = [];
+  const listen = (event: MessageEvent) => {
+    const read = seenControl.safeParse(event.data);
+    if (!read.success) return;
+    const { key, value } = read.data;
+    seen.push(value === undefined ? { key } : { key, value });
+  };
+  addEventListener("message", listen);
+  onTestFinished(() => removeEventListener("message", listen));
+  return seen;
+}
+
+test("kit-frame-controls: an app frame posts its controls; the panel draws them with its values; each change goes to the live document and shows its new values; a new document starts them again", async () => {
+  const seen = controlsSeen();
+  const server = await boot([
+    { id: "a", x: 0, y: 0, controls: true },
+    { id: "b", x: 400, y: 0 },
+  ]);
+  const at = await tab(server);
+  await rested(at, 2);
+
+  // Only the frame that posted controls has the button; it opens the panel for that frame.
+  const button = page.getByRole("button", { name: "Controls of Frame a" });
+  await expect.element(button).toBeInTheDocument();
+  expect(page.getByRole("button", { name: "Controls of Frame b" }).elements()).toEqual([]);
+  await button.click();
+  const panel = page.getByRole("complementary", { name: "Controls" });
+  await expect.element(panel.getByText("Frame a", { exact: true })).toBeInTheDocument();
+  await expect.element(button).toHaveAttribute("aria-pressed", "true");
+  const iframe = docOf("a");
+
+  // Each kind of control, with the values that the document posted.
+  const on = panel.getByRole("switch", { name: "On" });
+  const size = panel.getByRole("combobox", { name: "Size" });
+  const count = panel.getByRole("spinbutton", { name: "Count" });
+  await expect.element(on).not.toBeChecked();
+  await expect.element(size).toHaveValue("s");
+  await expect.element(count).toHaveValue(0);
+
+  // A change goes on the port, runs in the same document, and the panel shows its new values.
+  await panel.getByRole("button", { name: "Add one" }).click();
+  await expect.element(count).toHaveValue(1);
+  await on.click();
+  await expect.element(on).toBeChecked();
+  await size.selectOptions("l");
+  await expect.element(size).toHaveValue("l");
+  await count.fill("7");
+  await userEvent.keyboard("{Enter}");
+  await expect
+    .poll(() => seen)
+    .toEqual([
+      { key: "add" },
+      { key: "on", value: true },
+      { key: "size", value: "l" },
+      { key: "count", value: 7 },
+    ]);
+  await expect.element(count).toHaveValue(7);
+  expect(docOf("a")).toBe(iframe);
+
+  // A refused run says its kind under the control.
+  await panel.getByRole("button", { name: "Fail" }).click();
+  await expect.element(panel.getByRole("alert")).toHaveTextContent("The frame refused it: Nope.");
+
+  // A new version: a new document, whose values start again; the old one gets no control.
+  await server.run(put, { input: { id: "a", x: 0, y: 0, controls: true, version: 2 } });
+  await expect.poll(() => docOf("a")?.dataset.version).toBe("2");
+  await expect.element(size).toHaveValue("s");
+  await expect.element(count).toHaveValue(0);
+  expect(panel.getByRole("alert").elements()).toEqual([]);
+  await panel.getByRole("button", { name: "Add one" }).click();
+  await expect.element(count).toHaveValue(1);
+  await expect.poll(() => seen.length).toBe(6);
+
+  // Requests takes the side of the page: the panel Controls closes.
+  await page.getByRole("button", { name: "Requests" }).click();
+  await expect.element(panel).not.toBeInTheDocument();
+  await expect.element(button).toHaveAttribute("aria-pressed", "false");
 });
 
 test("two hellos in flight: the page answers each with a new port and closes the one before; the document takes the newest port, so a later kit message reaches it", async () => {

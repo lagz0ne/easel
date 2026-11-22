@@ -4,7 +4,7 @@ import { resource } from "@tinkered/core";
 import { useData, useRun } from "@tinkered/react";
 
 import { text } from "./copy";
-import { people, remove } from "./entities";
+import { capitals, people, remove } from "./entities";
 
 export const View = resource({
   label: "people.View",
@@ -12,6 +12,7 @@ export const View = resource({
   factory: ({ ui: { Button, Card, Empty }, t }) =>
     function People() {
       const list = useData(people);
+      const upper = useData(capitals);
       const drop = useRun(remove);
       return (
         <main className="p-6">
@@ -20,7 +21,7 @@ export const View = resource({
             {list.length === 0 ? <Empty /> : null}
             {list.map((one) => (
               <div key={one.id} className="flex items-center gap-2">
-                <span>{one.name}</span>
+                <span>{upper ? one.name.toUpperCase() : one.name}</span>
                 <Button tone="ghost" small onClick={() => drop.run({ input: one.id })}>
                   {t("people.remove")}
                 </Button>

@@ -1,11 +1,22 @@
 // A capsule frame in a folder (SPEC-kit.md § App frames, "A folder"; § The capsules, "A capsule
 // frame"): its entity and data states (entities.ts), its texts (copy.ts), its View (view.tsx), and
-// its own capsule `frame` here, whose config is the data state. The mount draws it in a scope of
-// the kit's capsules.
+// its own capsule `frame` here, whose config is the data state, and its `controls` for the
+// viewer's panel. The mount draws it in a scope of the kit's capsules.
+import { frameControls } from "@easel/frame";
 import { capsule } from "@tinkered/core";
 import { z } from "zod";
 
-import { person, people, remove, sample, samples } from "./entities";
+import {
+  addPerson,
+  capitals,
+  person,
+  people,
+  remove,
+  removeAll,
+  sample,
+  samples,
+  setCapitals,
+} from "./entities";
 import { View } from "./view";
 
 export { View } from "./view";
@@ -24,4 +35,10 @@ export const frame = capsule({
       await next();
     },
   },
+});
+
+export const controls = frameControls({
+  add: { label: "Add a person", run: addPerson },
+  clear: { label: "Remove all", run: removeAll },
+  capitals: { label: "Names in capitals", run: setCapitals, value: capitals },
 });

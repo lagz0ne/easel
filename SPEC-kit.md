@@ -739,6 +739,49 @@ own capsule whose schema lists its values (a `z.enum`), with its values and its 
 - After a new version, the frame draws once with its defaults, then with the picks when it posted
   its axes: a new version can drop a value.
 
+**The controls in the viewer** (the chart [kit-frame-controls](docs/statecharts/kit-frame-controls.md)).
+A data state is a snapshot: another one is another document. A control changes the state of the
+document that shows, as React Cosmos's fixture inputs and Storybook's Controls (with `useArgs`) do.
+The entry file of an app frame, of either form, can export `controls`, made with `frameControls`
+of `@easel/frame`. Each control has a `label` and `run`, an operation of the frame. A control can
+also have `value`, a cell of the frame, whose value it shows. A write goes through the operation,
+as Tinker asks of code outside a capsule. The input schema of `run` gives the control:
+
+| The input of `run` | The control                          |
+| ------------------ | ------------------------------------ |
+| none               | a button                             |
+| `z.boolean()`      | a switch                             |
+| `z.enum([...])`    | a select of its values               |
+| `z.number()`       | a number field, with its min and max |
+| `z.string()`       | a text field                         |
+
+Another input (an object, a union) has no control: the panel leaves it out.
+
+- **The frame tells the page.** On each new port, the mount posts
+  `{ easel: "controls", controls }` after its axes, and `{ easel: "values", values }`: the value of
+  each value control in the scope on screen. It posts the values again after each draw, each run of
+  a control, and each change of a value cell (the View's own buttons too). A frame with no controls
+  posts none.
+- **The page runs a control.** `{ easel: "control", key, value }` goes on the port of the frame's
+  current document. The mount runs the operation in the scope on screen (`settle`, with `value` as
+  its raw input), after the draws before it. A refused run posts `{ easel: "ran", key, failed }`,
+  with the kind of the refusal; the panel says `The frame refused it: <kind>.` under the control.
+- **Only the current document counts.** The page keeps the controls and the values of the frame's
+  current document (`shownControls`), and takes a post only from it. A new document, or none,
+  clears them. The port of an old document closes, so a control on the way to it is lost.
+- **The panel.** A frame whose current document posted controls has a button `Controls` after its
+  name. It opens the panel `Controls` at the right edge, in the place of `Requests`: one closes
+  the other. The panel shows the frame's name and its controls, with the values that the document
+  posted last. While the frame has no live document, it says
+  `The frame is not live. Move it into view to use its controls.`
+- **A change is not composed.** A control runs in the live scope, so the frame does not load
+  again. A new document (a new version, another pick of the axes, a return into view, a kit
+  message) starts again from the start of its scope. The picture of a frame, and another tab, show
+  that start.
+- **The runtime keeps its mount (K11).** The controls need the mount of this easel. A kit version
+  that has a runtime from before keeps it: its frames post no controls until the kit version has a
+  new runtime ("accept the new kit", below).
+
 **Why the list comes from the graph.** The list is the same graph that a frame of the kit version
 gets. So it cannot be older than the kit, and an agent learns each part before it writes code:
 what exists, how to install it, a line that uses it, what it depends on, and the texts that it can
