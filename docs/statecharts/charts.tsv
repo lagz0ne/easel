@@ -28,3 +28,5 @@ kit-piece	models/kit/Kit.tla	models/kit/KitPiece.cfg	models/kit/Kit.view.mjs	hol
 kit-look	models/kit/Kit.tla	models/kit/KitLook.cfg	models/kit/Kit.view.mjs	holds
 kit-look-unbound	models/kit/Kit.tla	models/kit/KitLookUnbound.cfg	models/kit/Kit.view.mjs	breaks
 kit-look-hello-once	models/kit/Kit.tla	models/kit/KitLookHelloOnce.cfg	models/kit/Kit.view.mjs	breaks
+kit-app-frame	models/kit/AppFrame.tla	models/kit/AppFrame.cfg	models/kit/AppFrame.view.mjs	holds
+kit-app-frame-no-close	models/kit/AppFrame.tla	models/kit/AppFrameNoClose.cfg	models/kit/AppFrame.view.mjs	breaks

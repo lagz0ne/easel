@@ -24,6 +24,11 @@ the first day, and the frames of a team do not look generic (epic
   the frame version. When easel shows a frame, or draws its picture, it composes the document from
   the look, the kit's made CSS, the frame's made CSS and the frame. A change of the look changes
   only the values of the variables, so it reaches each frame with no make and no write.
+- A frame is an **HTML frame** (one HTML document, as above) or an **app frame**: a TSX module,
+  a React and Tinker app in its own sandboxed iframe (decision
+  [frame-apps](docs/decisions/frame-apps.md)). An app frame writes its class names only in fixed
+  places, so the check reads each class from the syntax tree, and the make step gets exactly those
+  classes. § App frames tells the rest.
 - Each change of the look or of a piece makes a new **kit version**. A kit version and a frame
   version never change, and their made CSS is kept with them. What a viewer saw is a frame version
   and a kit version, so the Before of a result still shows the look of that time.
@@ -42,6 +47,9 @@ Terms of this spec:
 | finding     | One place in a document that is not in the look or the kit, with the fix.                                                  |
 | guide       | The text that tells an agent how to make a frame. easel makes it from the look and the pieces.                             |
 | compose     | To make the document that a frame shows: the frame's document with the look, the made CSS and the piece script added.      |
+| app frame   | A frame that is a TSX module: it exports `logic` (its Tinker cells and operations) and `View` (React). § App frames.       |
+| class place | A place in an app frame where a class name can be: the `className` attribute, and the arguments of `cn`, `clsx` and `cva`. |
+| runtime     | The runtime bundle of a kit version: the packages that an app frame can import, built one time for each kit version.       |
 
 Prior art:
 
@@ -55,7 +63,16 @@ Prior art:
   (`@theme`; `--color-*: initial` turns the palette off; `inline reference` maps a class to a
   variable that the theme does not define).
 - The decision, the measures and the other engines are in
-  [docs/decisions/kit-on-tailwind.md](docs/decisions/kit-on-tailwind.md).
+  [docs/decisions/kit-on-tailwind.md](docs/decisions/kit-on-tailwind.md). The app frames are in
+  [docs/decisions/frame-apps.md](docs/decisions/frame-apps.md).
+- Claude artifacts, CodeSandbox and StackBlitz run each preview as a full app in its own
+  sandboxed iframe; Claude artifacts allow a fixed list of libraries: the app frame and its
+  runtime.
+- Tailwind's docs ("Dynamic class names") ask for each class name whole in the source, and the
+  lint rules eslint-plugin-better-tailwindcss and oxlint-tailwindcss read classes from attributes
+  and from listed callees (`cn`, `clsx`, `cva`): the class places.
+- Chromatic and the Storybook test runner take the picture of a component in a real browser: the
+  picture of an app frame.
 - 11ty WebC and Enhance expand a short tag to plain HTML in the light DOM, with slots: the element
   pieces.
 - Figma libraries and Lovable design systems keep versions: a file keeps its version until the
@@ -82,6 +99,52 @@ Prior art:
 5. A frame that is not a screen of the product (a diagram, a mood board) holds
    `<meta name="easel-kit" content="off">`. easel then adds nothing to it, makes no CSS for it,
    and finds nothing.
+
+### Make an app frame (E8.1)
+
+1. An agent needs state or the React ecosystem in a frame (tabs, a dialog, a flow of steps). It
+   runs `easel kit`; the guide also tells the shape of an app frame and the packages of the
+   runtime.
+2. It writes one file, `page.tsx`:
+
+   ```tsx
+   import { data, operation } from "@tinkered/core";
+   import { useData, useRun } from "@tinkered/react";
+   import { cn, frameLogic } from "@easel/frame";
+   import { z } from "zod";
+
+   const period = data<"month" | "year">({ label: "pricing.period", initial: "month" });
+   const pick = operation({
+     label: "pricing.pick",
+     input: z.enum(["month", "year"]),
+     depends: { period: period.controller },
+     run: ({ period }, { input }) => period.set(input),
+   });
+
+   export const logic = frameLogic({ cells: { period }, ops: { pick } });
+
+   const tone = { month: "bg-primary text-primary-foreground", year: "bg-muted" };
+
+   export function View() {
+     const now = useData(logic.cells.period);
+     const { run } = useRun(logic.ops.pick);
+     return (
+       <main className="flex flex-col gap-4 p-8">
+         <button type="button" className={cn("btn", tone[now])} onClick={() => run({ input: "year" })}>
+           Per year
+         </button>
+       </main>
+     );
+   }
+   ```
+
+3. `easel put <canvas> page.tsx` puts it (build order item 4 of the decision). easel checks it,
+   makes its JS and its CSS, and saves them with the frame version. The answer holds the findings,
+   as for an HTML frame. A class that code builds (`` `bg-${tone}` ``) is the finding
+   `kit/class-built`, with the fix: a map of whole names, as `tone` above.
+4. A file that does not parse, imports a package that is not in the runtime, keeps state in React,
+   or does not export `logic` and `View`, answers `offKit` with its findings. Nothing is saved.
+5. `easel kit check page.tsx` runs the same check and writes nothing.
 
 ### Change the look (E8.2)
 
@@ -148,6 +211,7 @@ type PieceInfo = { name: string; kind: "class" | "element"; doc: string; use: st
 type Piece = PieceInfo & { file: string }            // the piece file: comments, template, style
 type Finding = { line: number; col: number; rule: Rule; what: string; fix: string }
 type Rule = "look/color" | "look/size" | "look/override" | "kit/class" | "kit/piece" | "kit/script"
+          | "kit/class-built" | "kit/parse" | "kit/import" | "kit/react-state" | "kit/shape"   // app frames
 type Pair = { text: string; on: string; ratio: number; min: number; where: string }
 
 "kit.guide": { kind: "found"; kit: number; text: string }
@@ -188,7 +252,8 @@ Inputs:
   `<slot>` takes the children with no `slot` attribute; `<slot name="x">` takes the children with
   `slot="x"`; `data-if="attr"` keeps an element only when the attribute is there, `data-if-not`
   only when it is not. There is nothing else: no loops, no expressions.
-- `kit.check` takes `{ html }`, with the size limit of `frame.put`.
+- `kit.check` takes `{ html }` or `{ tsx }` (an app frame, build order item 4), with the size
+  limit of `frame.put`. For a `tsx` that does not parse, the findings are the `kit/parse` ones.
 - `look.set` takes `{ look, base }`. `look` is DTCG JSON, merged into the stored look as a JSON
   Merge Patch of values only. The look's names and types are fixed (`src/kit/shape.ts`, the names
   of the seed), so the contract's shape checks a patch before it is sent. A name that the look
@@ -348,11 +413,136 @@ for the current kit. Each later kit message goes on that port. A kit message is
 `{ easel: "kit", kit, look, css }`; the piece script then replaces the text of the two `<style>`
 elements `easel-look` and `easel-kit`.
 
+### App frames
+
+The decision is [frame-apps](docs/decisions/frame-apps.md). This section tells what its build order
+items 2 to 6 need. The board worker (item 7) comes later: only its place is told here.
+
+**The file.** An app frame is one TSX module in UTF-8, with the size limit of `frame.put`. It
+exports two names, and only these two:
+
+- `logic`: the frame's Tinker cells and operations, as `frameLogic({ cells, ops })` of
+  `@easel/frame` gives them. Each state of the frame is a Tinker cell (decision 10).
+- `View`: a React component with no props. It only reads cells (`useData`) and runs operations
+  (`useRun`). It holds no React state and no effect: no `useState`, `useReducer`,
+  `useActionState`, `useOptimistic`, `useSyncExternalStore`, `useEffect`, `useLayoutEffect` or
+  `useInsertionEffect` in the file (`kit/react-state`, as `tinker/react-state`). A text field that
+  must keep each key uses `defaultValue`.
+
+So a review, a test and the check see each state and each operation of a frame in one place,
+with no browser.
+
+**Where `logic` runs.** In build order items 2 to 6, `logic` runs in the frame's own Tinker scope,
+in its iframe. When a frame's state must stay after the frame closes, or frames share it (a flow of
+frames), its `logic` will run in the board worker (item 7, not built): one dedicated Worker for
+each board and tab, with an origin of `null`. The file is the same in both places, so a frame
+written now works in the worker later. Item 7 tells how a frame asks for the worker.
+
+**The runtime.** Each kit version has one runtime bundle, made one time with the kit version and
+kept with it (K11), as its made CSS (build order item 3). Its packages, for the first kit version:
+`react`, `react-dom`, `@tinkered/core`, `@tinkered/react`, `zod`, `radix-ui`, `lucide-react`,
+`clsx`, `class-variance-authority`, `tailwind-merge`, and `@easel/frame` (easel's own helper:
+`frameLogic`, `cn`, and the mount). A new package comes with a new kit version; no package that
+brings its own CSS. An app frame imports only these names (and their subpaths that the bundle
+has); another import, a relative import, an address, or a dynamic `import()` is the finding
+`kit/import`, and it refuses the put. `@easel/frame` mounts the app: it makes the frame's scope,
+waits for it, and renders `View` into `document.body` in one synchronous step (`flushSync`), so
+the first render is in the document before its `load` event.
+
+**Class places** (decision 5). The check reads the TSX with `oxc-parser` (MIT, pinned exactly),
+which gives each literal with its offset. A class name is a whole string in a class place:
+
+- the `className` (or `class`) attribute of a JSX element: a string, or an expression of the forms
+  below;
+- each argument of a call of `cn`, `clsx` or `cva`, and the forms below in it;
+- the forms: a string; a template with no `${}`; `cond && <form>` (only its right side is a place);
+  `a ? <form> : <form>` (not its test); `a || <form>` and `a ?? <form>` (both sides); an array of
+  forms; in `cn` and `clsx`, an object whose keys are class names (its values are conditions);
+- in `cva(base, config)`: `base`, each value of each variant in `config.variants`, and the `class`
+  or `className` of each item of `config.compoundVariants`;
+- a component's own `className` prop that it passes on (an identifier or a member named
+  `className`): the call site gives the literal;
+- a `const` name of the same file whose value is a form (`const base = "flex gap-2"`), or a call of
+  a `const` that `cva` made (`buttonVariants({ size })`);
+- a map of whole names: `tone[now]` or `tone.month`, where `tone` is a `const` object of the same
+  file whose values are forms. Each value is a class place.
+
+`null`, `undefined`, `false` and `true` in a place give no class. Anything else in a class place is
+the finding `kit/class-built`: a template with a value in it (`` `bg-${tone}` ``), a `+` of strings,
+a call of another function, or a name that is not one of the above. Its `what` names what is there;
+its fix is: "write each class name whole: a map of whole names, as
+const tone = { info: "bg-info", danger: "bg-destructive" } and className={tone[kind]}". A name is
+looked up by its text in the file, not by its scope (a known limit).
+
+Each class name of each place goes through the K5 check of an HTML frame (judged rule 12): the
+same verdicts, in the same kit version. The check also finds, as in an HTML frame:
+
+- a color or a look value in the string values of a `style` object (`style={{ color: "#f00" }}`),
+  and in the string `fill`, `stroke` and `stopColor` attributes;
+- a write of a class from code (`kit/script`): `classList.add`, `remove`, `toggle` or `replace`, an
+  assignment to `className`, or `setAttribute("class", ...)`.
+
+The walk reads each kind of place with its own reader. A second kind of place (the visible texts
+of E9) is one more reader, with no change to the walk.
+
+**Fixes by position.** The check answers the findings, the class names to make, and the fixed
+text: the TSX with each fix applied at the offset of its class. A class of `kit/class` is removed
+(with one space next to it). A color or a font size whose fix is a class of the look
+(`text-red-500` gives `text-destructive`, `bg-[#f00]` gives `bg-destructive`, `text-[13px]` gives
+`text-sm`) is replaced by that class. A `kit/class-built` place stays as it is: it gets no CSS.
+The make step gets exactly the class names of the fixed text, so the CSS has no class that a scan
+guessed. The two-order test of the make step holds for this path too.
+
+**The put** (build order item 4). A frame version of an app frame keeps the TSX as the agent wrote
+it, its JS (Bun.Transpiler, from the fixed text), its made CSS, and its kit version. A finding of
+`kit/parse`, `kit/import`, `kit/react-state` or `kit/shape` (no `logic` or `View`, or another
+export) refuses the put with `offKit`; the other findings do not stop it. An app frame always has
+the kit: `<meta name="easel-kit" content="off">` is for HTML frames only.
+
+**compose of an app frame** (build order item 5). `compose` gives `<!doctype html>`, the three
+`<style>` elements of an HTML frame, an import map that names the runtime of the frame version's
+kit version, and the frame's JS as a module script. The runtime's address holds the kit version
+and the SHA-256 of its bytes; it answers with `Cache-Control: public, max-age=31536000,
+immutable` and `Access-Control-Allow-Origin: *` (the frame's origin is `null`).
+
+**The hello and the port.** `@easel/frame` says hello as the piece script does (§ compose), each
+50 ms until it gets a port, and takes a port only from its parent. A kit message on the port
+replaces the two style texts, as in an HTML frame (K7). The port also carries `close` and
+`closed`.
+
+**Close before the iframe goes** (decision 9). In an iframe that the page removes, the async
+`scope.close()` does not end, so the deferred ends of the frame's scope do not run. So the page
+posts `{ easel: "close" }` to the frame (on its port; to its window when it has no port yet), and
+waits for `{ easel: "closed" }`, at most 200 ms. The frame closes its scope (each deferred end
+runs), then posts `closed`. Then the page removes the iframe. A frame that does not answer in
+200 ms (a long loop) is removed all the same. When it removes the iframe, the page ends its own
+work on the port: it sends no more kit messages there, and it ends each subscription that crosses
+the port. The chart [kit-app-frame](docs/statecharts/kit-app-frame.md) holds this life; the chart
+[kit-app-frame-no-close](docs/statecharts/kit-app-frame-no-close.md) shows that an iframe removed
+with no `close` never runs the frame's ends. A synchronous close in Tinker would remove this step
+(a request to the library author).
+
+**The picture of an app frame** (build order item 5). The draw loads the composed app document in
+Chromium, as for an HTML frame (frames § Pictures). Chromium reaches the network only through the
+egress proxy, which refuses easel's own address. So the draw answers each request for the runtime
+of the kit version from its stored bytes (Puppeteer's request interception), and sends each other
+request to the proxy as now. The mount renders in one step before `load`, so the draw takes the
+first render, after the fonts are ready, as now. Reasons, and the option that is refused:
+
+- The picture is the same document that a tab shows: the same runtime bytes, the same JS, the same
+  CSS. So it shows what a viewer sees, Radix and layout included.
+- `react-dom/server` is refused. It would run the frame's code in the server process, out of each
+  sandbox, with the server's files, database and secrets. Chromium in its container is the
+  boundary that frames already have (frames, known risk). It also gives no layout, and its HTML is
+  not the document of the tab.
+
 ## Rules
 
 The statecharts [kit-piece](docs/statecharts/kit-piece.md), [kit-look](docs/statecharts/kit-look.md),
-[kit-look-unbound](docs/statecharts/kit-look-unbound.md) and
-[kit-look-hello-once](docs/statecharts/kit-look-hello-once.md) check these rules.
+[kit-look-unbound](docs/statecharts/kit-look-unbound.md),
+[kit-look-hello-once](docs/statecharts/kit-look-hello-once.md),
+[kit-app-frame](docs/statecharts/kit-app-frame.md) and
+[kit-app-frame-no-close](docs/statecharts/kit-app-frame-no-close.md) check these rules.
 
 ### Fact rules (the code graph decides)
 
@@ -369,6 +559,11 @@ The statecharts [kit-piece](docs/statecharts/kit-piece.md), [kit-look](docs/stat
 7. No operation reads the seed except `seedKit`, and `seedKit` writes only when the store has no
    kit version.
 8. The CLI and MCP print the guide from `kit.guide` only. No other text lists the pieces.
+9. The check of an app frame reads the TSX only with the one `oxc-parser` of the pin, and finds
+   each class with the one walk of the class places (`src/kit/places.ts`). The Oxlint rule of
+   `kit/class-built` uses that walk too.
+10. The release binary and `dist/server` load the native file of `oxc-parser` with a static
+    `require` for each release target, as they load Lightning CSS.
 
 ### Judged rules (need reading the code)
 
@@ -422,6 +617,17 @@ The statecharts [kit-piece](docs/statecharts/kit-piece.md), [kit-look](docs/stat
 13. The guide lists how to style, the color names of the look, and each piece of the current kit
     version in name order, from its `doc:` and `use:` lines. It also tells that the sandbox of a
     frame never fires `submit`: a button of a form uses `type="button"` and a click handler.
+14. In an app frame, the check takes class names only from the class places (§ App frames), and
+    finds each other expression in a class place as `kit/class-built`. Each class name gets the
+    verdict of judged rule 12. The make step gets only the class names of the fixed text.
+15. A fix by position changes only the text of its class name (and one space next to a removed
+    one). The fixed text parses, and its class places are the same places.
+16. An app frame imports only the packages of its kit version's runtime. Each state of a frame is
+    a Tinker cell; its `View` holds no React state and no effect.
+17. The page removes the iframe of an app frame only after its `closed`, or after 200 ms with no
+    `closed`. Then it ends its own work on that frame's port (the chart kit-app-frame).
+18. The picture of an app frame is drawn in Chromium from the document that a tab gets. No frame
+    code runs in the server process.
 
 ## Success Criteria
 
@@ -459,7 +665,15 @@ The statecharts [kit-piece](docs/statecharts/kit-piece.md), [kit-look](docs/stat
 - The speed budget: a test makes the 3 reference screens and a frame of 1 MiB, and each chain
   takes less than 50 ms.
 - K14: a test makes two `kit.put` calls on one revision; the second answers `stale`.
-- Each rule of the four statecharts is reached by a test that replays its path.
+- Each rule of the six statecharts is reached by a test that replays its path.
+- App frames: a test reads a TSX frame with each form of each class place, and with each form
+  of `kit/class-built`, and finds each one at its line and column. A test applies the fixes and
+  finds the fixed text parses and has the class names of the look. The two-order test passes on
+  TSX frames. A compiled binary checks a TSX frame (`tests/kit-binary.test.ts`).
+- The check of an app frame: a usual TSX frame and a TSX frame of 1 MiB each take less than the
+  50 ms of the speed budget.
+- A browser test with 12 live app frames: one goes live in less than 150 ms (p95); a new look
+  reaches each one in 1 s; a removed frame posts `closed` before its iframe goes.
 
 ## Out of Scope (Deferred)
 

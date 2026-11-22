@@ -150,8 +150,13 @@ oxc-transform makes JS from the 8.7 KB frame in 0.14 ms (Bun.Transpiler: 0.19 ms
   turn it off, so the earlier spikes showed a stop. So desktop Chrome needs no second site. Firefox
   and Safari are not measured; if a team uses them and a frame stops the page, serve frame
   documents from a second site, as Claude artifacts and CodePen do.
-- **Pictures of an app frame.** The picture of a version must show the app's first paint.
-  `react-dom/server` gives HTML with no script; the step 4 spec decides.
+- **Pictures of an app frame.** Decided on 2026-11-22 in
+  [SPEC-kit § App frames](../../SPEC-kit.md#app-frames): Chromium draws the document that a tab
+  gets, and the draw answers the runtime from its stored bytes. `react-dom/server` is refused: it
+  would run the frame's code in the server process.
+- **The package list.** The spec adds three names to the list of decision 3: `zod` (the schema
+  library of decision 11), `tailwind-merge` (the `cn` of shadcn/ui, so that a utility on a piece
+  wins over the piece), and `@easel/frame` (easel's helper: `frameLogic`, `cn`, the mount).
 - **Charts.** A chart library takes colors as props, which the class places do not cover. Add one
   with a kit version when a team asks for charts, with a check of color props.
 
@@ -160,7 +165,8 @@ oxc-transform makes JS from the 8.7 KB frame in 0.14 ms (Bun.Transpiler: 0.19 ms
 Step 4 of E8. It replaces the step "Pieces (`k-`)" of kit-on-tailwind. Each item is one or more
 ships; each ends green.
 
-1. **Spec and model first.** SPEC-kit and SPEC-viewer get the app frame, with the `logic` and
+1. **Spec and model first.** Done on 2026-11-22: SPEC-kit § App frames, and the charts
+   kit-app-frame and kit-app-frame-no-close. SPEC-kit and SPEC-viewer get the app frame, with the `logic` and
    `View` shape. A TLA+ model of the app
    frame's life (going live, the hello, a new look, `close`, `closed`, removed), with a variant
    that removes the iframe with no `close` and fails.

@@ -56,12 +56,14 @@ Each chart's page has the chart, its rules in plain words, and what the model le
 | [kit-look](kit-look.md)                             | kit    | The look: a change, a refused unreadable look, one step back, and what a viewer saw        |
 | [kit-look-unbound](kit-look-unbound.md)             | kit    | Why a request keeps its kit version: with the frame version only, its Before is wrong      |
 | [kit-look-hello-once](kit-look-hello-once.md)       | kit    | Why the piece script says hello again: one hello before the page listens is lost           |
+| [kit-app-frame](kit-app-frame.md)                   | kit    | An app frame: live, the hello and the port, a new look, close, closed, removed             |
+| [kit-app-frame-no-close](kit-app-frame-no-close.md) | kit    | Why the page posts close first: an iframe removed at once never runs the app's ends        |
 
-`queue-two-step`, `frames-writes-two-step`, `fixer-claim-unsafe`, `kit-look-unbound` and
-`kit-look-hello-once` break on purpose. Each shows the bug that a design prevents: one write for a
-claim or a save, the fixer's two guards (the process-group stop and the check again before the
-push), a request that keeps its kit version, and a piece script that says hello until it gets a
-port. Its row in `charts.tsv` says `breaks`.
+`queue-two-step`, `frames-writes-two-step`, `fixer-claim-unsafe`, `kit-look-unbound`,
+`kit-look-hello-once` and `kit-app-frame-no-close` break on purpose. Each shows the bug that a
+design prevents: one write for a claim or a save, the fixer's two guards (the process-group stop
+and the check again before the push), a request that keeps its kit version, a piece script that
+says hello until it gets a port, and a page that posts `close` before it removes an app frame. Its row in `charts.tsv` says `breaks`.
 
 ## Files
 

@@ -49,7 +49,13 @@ this spec wins, and the screen gets a fix.
    iframe titled with the frame's name). The iframe gets `compose` of the frame's document, its
    made CSS and the current kit version ([kit](SPEC-kit.md)), so it shows in the look of the team.
    The viewer adds a small paint script to the end of that document; inside the sandbox, the script posts once the document has painted. Until
-   then, its picture stays on top, so the viewer never sees a blank white box.
+   then, its picture stays on top, so the viewer never sees a blank white box. An app frame
+   ([kit](SPEC-kit.md) § App frames) goes live in the same way: its iframe gets `compose` of its
+   JS, its made CSS and its kit version's runtime, and its app mounts in its own Tinker scope
+   before the paint post (build order item 5 of [frame-apps](docs/decisions/frame-apps.md)).
+   When an app frame leaves the live set (out of view at rest, deleted, or a new version), the
+   page posts `close` to it and waits for `closed`, at most 200 ms, before it removes the iframe
+   (the chart [kit-app-frame](docs/statecharts/kit-app-frame.md)).
 3. A frame far out of view draws nothing.
 4. With pictures off (no Chromium on the server), a shell shows a plain card. The name sits on a
    label above the card, as Figma and tldraw show frame names, not on the card.
@@ -311,6 +317,8 @@ width and height, added on each side of it.
 | Rest                   | 120 ms with no pan or zoom                                            |
 | Going live             | one new iframe per animation frame, nearest the view's centre first   |
 | Paint wait             | the picture stays on top until the paint post, or 1.5 s               |
+| Going live, app frame  | under 150 ms p95 with 12 live app frames (measured: 48.6 / 71.9 ms)   |
+| Close wait             | an app frame's `closed`, or 200 ms; then the iframe goes              |
 | Zoom                   | 0.1% to 400%; a button or a wheel notch is ×1.25                      |
 | Fit                    | a 40 px edge; never past 100%                                         |
 | Zoom status            | rounded down: steps of 10%; under 10% of 1%; under 1% of 0.1%         |
@@ -400,7 +408,13 @@ camera controls.
 11. The changed mark reads and writes only `localStorage`. It sends nothing to the server.
 12. The page answers a hello only when its `event.source` is the window of one of its own live
     iframes, and sends kit messages only on the port that it gave that iframe. A frame's piece
-    script takes a port only from its parent. The sandbox of judged rule 4 stays as it is.
+    script, and the runtime of an app frame, take a port only from their parent. The sandbox of
+    judged rule 4 stays as it is, for HTML frames and app frames.
+13. The page removes the iframe of an app frame only after its `closed`, or after 200 ms with no
+    `closed`. Then it ends its own work on the frame's port: no kit message goes there after, and
+    each subscription that crosses the port ends. The deadline is the one exception to judged
+    rule 2: a frame that an agent deletes leaves the live set at once, and its iframe goes after
+    `closed` or 200 ms.
 
 ### Accepted risk
 

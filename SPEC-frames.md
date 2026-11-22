@@ -6,7 +6,8 @@ Module `frames` of [SPEC.md](SPEC.md). Depends on [access](SPEC-access.md), [ops
 ## Objective
 
 Hold the canvases, their frames and their share links. A canvas is an endless plane, and a frame
-is one HTML document an agent wrote, shown at its own size and place. Agents make and change frames
+is one HTML document an agent wrote, or one app (a TSX module, [kit](SPEC-kit.md) § App frames),
+shown at its own size and place. Agents make and change frames
 through the CLI ([cli](SPEC-cli.md)). Every open tab sees each change live
 ([viewer](SPEC-viewer.md)). A frame can be drawn as a picture, as a browser would draw it, for the
 viewer's shells and for agents. A user shares a canvas by a link, with an optional password. A
@@ -126,6 +127,7 @@ type Frame = FrameInfo & { html: string }
                   findings: Finding[]; more: number }                  // Finding: SPEC-kit
               | { kind: "stale"; id: string; version: number } | { kind: "gone" }
               | { kind: "tooBig"; maxBytes: number }                  // a document over 1 MiB
+              | { kind: "offKit"; findings: Finding[]; more: number } // an app frame, refused
 "frame.move":   { kind: "moved" } | { kind: "gone" }
 "frame.delete": { kind: "deleted" } | { kind: "gone" }
 "frame.shot":   { kind: "ready"; url: string; version: number; kit: number } | { kind: "off" }
@@ -162,6 +164,13 @@ Inputs:
 - `frame.put` takes `{ canvas, html, name?, size?, id?, base? }`. `id` and `base` come together or
   not at all; one without the other is `invalid`, and so is `name` or `size` with `id`. Without
   them, the put makes a frame.
+- An app frame (build order item 4 of [frame-apps](docs/decisions/frame-apps.md); not built yet):
+  `frame.put` takes `tsx` in place of `html`, with the same limit. `easel put` sends a file whose
+  name ends in `.tsx` as `tsx`. A frame is one kind for each version: a put of the other kind on
+  an id is a new version of that frame. A finding of `kit/parse`, `kit/import`,
+  `kit/react-state` or `kit/shape` answers `offKit` with its findings and writes nothing. The
+  frame version keeps the TSX as written, its JS, its made CSS and its kit version. `frame.get`
+  answers the TSX as `tsx`.
 - `tooBig` is measured on the document's encoded size, its UTF-8 bytes, not its string length.
   The made CSS is not counted; it is at most 256 KiB, and a document whose CSS would be more
   answers `tooBig` too, with `maxBytes` 262144. The
@@ -223,7 +232,8 @@ The board (`easel.board`, read by the viewer) has the cells `frames`, `docs`, `k
 canvas, and the cell `kit` of [kit](SPEC-kit.md). A document in the cell `docs` is
 `{ html, css, version }`: `css` is the made CSS of that frame version, as stored. It is null for a
 document that turns the kit off, and for a version stored before the kit; the page shows that
-document as it is.
+document as it is. The document of an app frame is `{ js, css, kit, version }`: its JS, its made
+CSS, and the kit version of its runtime (build order item 5).
 A frame on the board carries its picture key `k`. The cell `kept` carries the key of each kept
 view (§ Pictures). The cell `removed` keeps each removed frame: `{ canvas, id, name, x, y, w, h,
 removed }`, its name and its last box, and when it was removed, so the viewer shows the requests
@@ -237,7 +247,10 @@ No call here waits on the server: each answers at once, except a draw, which sto
 
 A picture is `GET /api/pictures/<canvas>/<id>/<version>?s=<scale>&k=<key>&kit=<kit version>`, with
 `&r=x,y,w,h` for a region. The draw composes the document of that version with that kit version
-(`compose`, [kit](SPEC-kit.md)), so it needs no network for the look and the kit.
+(`compose`, [kit](SPEC-kit.md)), so it needs no network for the look and the kit. For an app
+frame, the draw also answers each request for the runtime of that kit version from its stored
+bytes, and takes the picture after the first render ([kit](SPEC-kit.md) § App frames, "The
+picture of an app frame").
 
 A **kept view** is a kept version with the kit version that a request or a message refers to: the
 kit version of the tab when the viewer asked, at the claim, or at the result
@@ -308,7 +321,7 @@ number or section.
 
 ### Judged rules (need reading the code)
 
-1. A `stale`, `gone`, `taken`, `tooBig` or `unchanged` answer writes nothing.
+1. A `stale`, `gone`, `taken`, `tooBig`, `offKit` or `unchanged` answer writes nothing.
 2. A put on an id is one conditional write. One statement checks the base, compares the document
    and raises the version (`UPDATE … WHERE version = :base AND html IS NOT :html`), with no await
    between the check and the write. When it changes no row, the same transaction reads the row to
@@ -321,7 +334,9 @@ number or section.
    one. If the row write throws, the cell is unchanged. A delete drops the row and the cell
    together.
 5. A document drawn for a picture may load only `https` from public hosts, and `data:`. It may not
-   load `http`, `file:`, or a loopback, private or link-local address.
+   load `http`, `file:`, or a loopback, private or link-local address. The one exception is the
+   runtime of an app frame's kit version: the draw answers it from its stored bytes, and it does
+   not go to the network.
 6. No picture is larger than 8 megapixels or 16000 px on a side.
 7. A picture answer is the drawing of the version and the kit version that its address names. The server takes that
    version and its document in one read, draws them, and checks the frame and the key again before
@@ -364,7 +379,8 @@ number or section.
     version that it refers to is kept too ([kit](SPEC-kit.md), judged rule 4). A put
     that replaces a kept version saves the old document first, in the same transaction. A frame
     delete keeps the kept versions of the frame. Nothing else keeps an old version.
-17. A put saves the document as the agent wrote it, and its made CSS beside it, in one row. The
+17. A put saves the document as the agent wrote it, and its made CSS beside it, in one row. An
+    app frame's version also keeps its JS, made from the fixed text of the check, in that row. The
     make step runs before the conditional write, never between its check and its write. The look
     and the kit are never written into the document: only `compose` adds them, when easel shows
     or draws the frame. The made CSS of a stored frame version is never made again.
