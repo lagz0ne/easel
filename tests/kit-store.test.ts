@@ -175,6 +175,22 @@ test("K5: each seed fixture finds nothing at its put", async () => {
   }
 });
 
+test("K5 fixes in the seed look: a palette red or green gives the semantic color (destructive, success), not a chart color; a yellow, with no semantic color near it, gives chart-4", async () => {
+  const { agent } = await easel();
+  const html =
+    '<p class="text-red-500">a</p><p class="bg-green-600">b</p><p class="text-yellow-400">c</p>' +
+    '<p style="color: #ef4444">d</p>';
+  const answer = await put(agent, html);
+  if (answer.kind !== "created") throw new Error(`not created: ${answer.kind}`);
+
+  expect(answer.findings.map((f) => f.fix)).toEqual([
+    "use text-destructive",
+    "use bg-success",
+    "use text-chart-4",
+    "use var(--destructive)",
+  ]);
+});
+
 // ---- The seed: DTCG 2025.10, K8, and the model's Init
 
 test("the seed is kit version 1: a DTCG 2025.10 look with revision 1, from shadcn/ui, that passes K8", async () => {

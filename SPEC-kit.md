@@ -406,7 +406,10 @@ The statecharts [kit-piece](docs/statecharts/kit-piece.md), [kit-look](docs/stat
       `look/size`); arbitrary layout values (`w-[420px]`, `grid-cols-[2fr_1fr]`) are allowed;
     - a color literal (hex, `rgb()`, `hsl()`, `hwb()`, `lab()`, `lch()`, `oklab()`, `oklch()`,
       `color()`, or a named color) in a `<style>`, a `style` attribute, or an SVG `fill`,
-      `stroke` or `stop-color`, with the nearest look color by OKLab distance as the fix;
+      `stroke` or `stop-color`, with the nearest look color by OKLab distance as the fix. In
+      each color fix, the distance to a chart color (`chart-1` to `chart-5`) counts 2.5 times:
+      the chart colors are for data, so a semantic color (`destructive`, `success`, ...) wins when
+      the distances are near (`text-red-500` gives `text-destructive`);
     - a frame rule that sets a look value (`look/override`);
     - a `k-` element that is not in the kit (`kit/piece`);
     - a write of a class in a frame script or an `on*` attribute: `classList.add`, `remove`,

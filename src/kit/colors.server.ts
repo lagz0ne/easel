@@ -242,7 +242,18 @@ export const oklab = operation({
   },
 });
 
-/** The name of the look color nearest to a color, by distance in OKLab. */
+/**
+ * A chart color is for data: as a fix it counts this many times as far as it is, so the
+ * semantic colors (primary, destructive, warning, success, muted, ...) win when the distances are
+ * close. `text-red-500` gives `text-destructive`, not `text-chart-1`; a yellow still gives
+ * `chart-4`, as no semantic color is near it.
+ */
+export const chartWeight = 2.5;
+
+/**
+ * The name of the look color nearest to a color, by distance in OKLab, where a chart color's
+ * distance counts `chartWeight` times.
+ */
 export const nearestColor = operation({
   label: "kit.nearestColor",
   input: z.object({
@@ -256,7 +267,8 @@ export const nearestColor = operation({
     let least = Infinity;
 
     for (const { name, lab } of input.colors) {
-      const distance = (from.l - lab.l) ** 2 + (from.a - lab.a) ** 2 + (from.b - lab.b) ** 2;
+      const weight = /^chart-\d+$/.test(name) ? chartWeight : 1;
+      const distance = weight * Math.hypot(from.l - lab.l, from.a - lab.a, from.b - lab.b);
       if (distance < least) {
         least = distance;
         best = name;

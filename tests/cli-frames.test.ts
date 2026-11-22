@@ -339,7 +339,7 @@ test("put prints each finding on stderr as file:line:col rule what. Fix: fix, at
   expect(await a.run({ kind: "put", canvas: "flow", file })).toBe(0);
   expect(a.out.join("")).toMatch(/^created [0-9a-f]{12} v1\n$/);
   expect(a.err.splice(0)).toEqual([
-    `${file}:1:15 look/color "text-red-500" is a color of Tailwind's palette, not of the look. Fix: use text-chart-1\n`,
+    `${file}:1:15 look/color "text-red-500" is a color of Tailwind's palette, not of the look. Fix: use text-destructive\n`,
     `${file}:2:11 kit/class "bgg-primary" is not a class of the kit or of the look. Fix: use bg-primary\n`,
   ]);
 
