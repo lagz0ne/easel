@@ -794,10 +794,23 @@ Another input (an object, a union) has no control: the panel leaves it out.
 - **Only the current document counts.** The page keeps the controls and the values of the frame's
   current document (`shownControls`), and takes a post only from it. A new document, or none,
   clears them. The port of an old document closes, so a control on the way to it is lost.
-- **The panel.** A frame whose current document posted controls has a button `Controls` after its
-  name. It opens the panel `Controls` at the right edge, in the place of `Requests`: one closes
-  the other. The panel shows the frame's name and its controls, with the values that the document
-  posted last. While the frame has no live document, it says
+- **The place of a control** (built on 2026-11-22). A control can also have `place`: `panel` (the
+  default), `top`, `left` or `right`. The frame registers it, so its author decides what is always
+  at hand. Storybook puts its global controls in a toolbar on top, and its Controls in a panel
+  docked to the side, in the same way.
+  - `top`: in the frame's label row, after its name and the picks of its data state, as small as
+    those picks.
+  - `left`, `right`: in a column docked to that edge of the frame, outside it, 8 px from it, with
+    its top at the top of the frame. The column keeps its screen size at each zoom, as the label
+    and the pins do, and it stacks over the frames beside it.
+  - Each place reads the same values of the current document (`shownControls`), so the chart
+    holds for each place. While the frame has no live document, the docked controls are not
+    shown. A refused run says its kind beside the control. A runtime from before the places posts
+    no `place`: each of its controls goes in the panel.
+- **The panel.** A frame whose current document posted a control with the place `panel` has a
+  button `Controls` after its name. It opens the panel `Controls` at the right edge, in the place
+  of `Requests`: one closes the other. The panel shows the frame's name and its `panel` controls,
+  with the values that the document posted last. While the frame has no live document, it says
   `The frame is not live. Move it into view to use its controls.`
 - **A change is not composed.** A control runs in the live scope, so the frame does not load
   again. A new document (a new version, another pick of the axes, a return into view, a kit

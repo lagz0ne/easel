@@ -5,10 +5,22 @@ import { z } from "zod";
 // frame's port. `@easel/frame` (in the frame's iframe) and the viewer's stage (in the page) both
 // read them here, so this file imports only zod.
 
-/** What the panel draws for a control: its kind, from the input schema of its operation. */
+/**
+ * Where the viewer draws a control: in the panel `Controls`, in the frame's label row (`top`), or
+ * in a column docked to the frame's left or right edge.
+ */
+export const controlPlace = z.enum(["panel", "top", "left", "right"]);
+
+export type ControlPlace = z.infer<typeof controlPlace>;
+
+/**
+ * What the viewer draws for a control: its kind, from the input schema of its operation, and its
+ * place. A frame of a runtime from before the places posts none: its controls go in the panel.
+ */
 export const controlShown = z.object({
   key: z.string(),
   label: z.string(),
+  place: controlPlace.default("panel"),
   kind: z.enum(["action", "switch", "select", "number", "text"]),
   values: z.array(z.string()).optional(),
   min: z.number().optional(),

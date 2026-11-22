@@ -360,10 +360,14 @@ const Shell = memo(function Shell({
   const held = useData(holding, (ids) => ids.includes(frame.id));
   const shown = useData(painted, (p) => p[frame.id]);
   const kitNow = useData(frames.board.kit.of({ canvas }))?.kit ?? null;
+  const docked = useData(shownControls, (all) =>
+    Boolean(all[frame.id]?.controls.some((c) => c.place === "left" || c.place === "right")),
+  );
 
   return (
     <div
       className="e-shell"
+      data-docked={docked || undefined}
       {...(frame.gone
         ? { hidden: true }
         : { ref: at.shell, role: "group", "aria-label": frame.name })}
@@ -377,8 +381,11 @@ const Shell = memo(function Shell({
       <div className="e-label" data-label>
         {frame.name}
         <FrameAxes frame={frame} />
+        <DockedControls frame={frame} place="top" />
         <ControlsButton frame={frame} />
       </div>
+      <DockedControls frame={frame} place="left" />
+      <DockedControls frame={frame} place="right" />
       {live || held ? <LiveDoc canvas={canvas} frame={frame} at={at} /> : null}
       <div className="e-card" hidden={live && shown === frame.version}>
         <FramePicture
@@ -453,7 +460,9 @@ const runControl = operation({
  * § The capsules, "The controls in the viewer"). It shows pressed while their panel is open.
  */
 function ControlsButton({ frame }: { frame: FrameInfo }) {
-  const has = useData(shownControls, (all) => frame.id in all);
+  const has = useData(shownControls, (all) =>
+    Boolean(all[frame.id]?.controls.some((c) => c.place === "panel")),
+  );
   const open = useData(controlsFor, (id) => id === frame.id);
   const toggle = useRun(toggleControls);
   if (!has) return null;
@@ -567,6 +576,71 @@ const fields = {
   text: TypedField,
 } as const;
 
+type RowProps = {
+  id: string;
+  control: ControlShown;
+  values: Readonly<Record<string, unknown>>;
+  failed: Readonly<Record<string, string>>;
+};
+
+/** One control: its field, with the value posted last, and the kind of a refused run after it. */
+function ControlRow({ id, control, values, failed }: RowProps) {
+  const Field = fields[control.kind];
+  const refused = failed[control.key];
+  return (
+    <>
+      <Field id={id} control={control} value={values[control.key]} />
+      {refused ? (
+        <span className="e-ctl-failed" role="alert">
+          The frame refused it: {refused}.
+        </span>
+      ) : null}
+    </>
+  );
+}
+
+const placeWords = { top: "Top", left: "Left", right: "Right" } as const;
+
+/**
+ * The controls of a frame's current document that it placed at `top` (in its label row, after
+ * its name) or docked to its `left` or `right` edge (a column outside the frame, at screen size).
+ * They read the same values as the panel. While the frame has no live document, they are not shown.
+ */
+function DockedControls({ frame, place }: { frame: FrameInfo; place: keyof typeof placeWords }) {
+  const now = useData(shownControls, (all) => all[frame.id]);
+  const mine = now?.controls.filter((c) => c.place === place) ?? [];
+  if (!now || mine.length === 0) return null;
+
+  const label = `${placeWords[place]} controls of ${frame.name}`;
+  const rows = mine.map((control) => (
+    <ControlRow
+      key={control.key}
+      id={frame.id}
+      control={control}
+      values={now.values}
+      failed={now.failed}
+    />
+  ));
+  if (place === "top") {
+    return (
+      <span className="e-ctl-top" role="group" aria-label={label} data-own-pointer>
+        {rows}
+      </span>
+    );
+  }
+  return (
+    <div className={`e-ctl-dock e-ctl-${place}`} role="group" aria-label={label} data-own-pointer>
+      <ul className="e-ctl-list">
+        {rows.map((row) => (
+          <li key={row.key} className="e-ctl-row">
+            {row}
+          </li>
+        ))}
+      </ul>
+    </div>
+  );
+}
+
 /**
  * The panel `Controls` at the right edge, for one frame: each control of its current document,
  * with the value that the document posted last, and the kind of a refused run. While the frame
@@ -598,20 +672,13 @@ function ControlsPanel({ list }: { list: readonly FrameInfo[] }) {
       <div className="e-panel-body">
         {now ? (
           <ul className="e-ctl-list">
-            {now.controls.map((control) => {
-              const Field = fields[control.kind];
-              const failed = now.failed[control.key];
-              return (
+            {now.controls
+              .filter((control) => control.place === "panel")
+              .map((control) => (
                 <li key={control.key} className="e-ctl-row">
-                  <Field id={id} control={control} value={now.values[control.key]} />
-                  {failed ? (
-                    <p className="e-ctl-failed" role="alert">
-                      The frame refused it: {failed}.
-                    </p>
-                  ) : null}
+                  <ControlRow id={id} control={control} values={now.values} failed={now.failed} />
                 </li>
-              );
-            })}
+              ))}
           </ul>
         ) : (
           <p className="e-none">The frame is not live. Move it into view to use its controls.</p>

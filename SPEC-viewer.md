@@ -60,9 +60,10 @@ this spec wins, and the screen gets a fix.
    and the frame's label offers its data states. A pick composes the frame again in a new scope
    ([kit](SPEC-kit.md) § The capsules, "The axes in the viewer"; the chart
    [kit-frame-axes](docs/statecharts/kit-frame-axes.md)).
-   An app frame can also post its controls. Then its label has a button `Controls`, which opens
-   the panel `Controls` in the place of `Requests`. A control changes the state of the live
-   document, with no new document ([kit](SPEC-kit.md) § The capsules, "The controls in the
+   An app frame can also post its controls, each at its place. A `top` control is in the label
+   row, and a `left` or `right` control is in a column at that edge of the frame. For `panel`
+   controls, the label has a button `Controls`, which opens the panel `Controls` in the place of
+   `Requests`. A control changes the state of the live document, with no new document ([kit](SPEC-kit.md) § The capsules, "The controls in the
    viewer"; the chart [kit-frame-controls](docs/statecharts/kit-frame-controls.md)).
 3. A frame far out of view draws nothing.
 4. With pictures off (no Chromium on the server), a shell shows a plain card. The name sits on a

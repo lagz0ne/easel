@@ -16,7 +16,7 @@ import { z } from "zod";
 import { copy, locales } from "./capsules/copy";
 import { look } from "./capsules/look";
 import { ui } from "./capsules/ui";
-import { controlPost, controlShown } from "./controls";
+import { type ControlPlace, controlPost, controlShown } from "./controls";
 
 // `@easel/frame`: easel's helper for an app frame (SPEC-kit.md § App frames; frame-apps decision
 // 10). It is in the runtime of each kit version (`runtime.server.ts`), and runs only in a frame's
@@ -43,16 +43,18 @@ export const frameLogic = <
 export const cn = (...inputs: ClassValue[]) => twMerge(clsx(inputs));
 
 /**
- * A control of the viewer's panel (SPEC-kit.md § The capsules, "The controls in the viewer"; the
- * chart kit-frame-controls): its label, the operation that it runs in the frame's live scope, and,
- * for a value, the cell whose value it shows. The input schema of `run` gives the control: none
- * is a button, `z.boolean()` a switch, `z.enum()` a select, `z.number()` a number field, and
- * `z.string()` a text field.
+ * A control of the frame in the viewer (SPEC-kit.md § The capsules, "The controls in the viewer";
+ * the chart kit-frame-controls): its label, the operation that it runs in the frame's live scope,
+ * for a value the cell whose value it shows, and its place. The input schema of `run` gives the
+ * control: none is a button, `z.boolean()` a switch, `z.enum()` a select, `z.number()` a number
+ * field, and `z.string()` a text field. The place is `panel` (the default: the panel `Controls`),
+ * `top` (the frame's label row), `left` or `right` (a column docked to that edge of the frame).
  */
 export type FrameControl = {
   readonly label: string;
   readonly run: Operation.Handle<unknown, unknown>;
   readonly value?: Data.Cell<unknown>;
+  readonly place?: ControlPlace;
 };
 
 /**
@@ -154,6 +156,7 @@ const controlsOf = (controls: Readonly<Record<string, FrameControl>>) =>
     const shown = controlShown.safeParse({
       key,
       label: control.label,
+      place: control.place,
       kind,
       values,
       min: fieldOf(json, "minimum"),

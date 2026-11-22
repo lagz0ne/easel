@@ -60,18 +60,39 @@ const capsuleJs = (id: string) =>
 const closerJs = (id: string) =>
   `let port=null;const hello=()=>{if(port)return;parent.postMessage({easel:"hello"},"*");setTimeout(hello,50)};const take=(d,via)=>{if(!d||d.easel!=="close")return;parent.postMessage({seen:"close",id:${JSON.stringify(id)},via},"*");setTimeout(()=>port?port.postMessage({easel:"closed"}):parent.postMessage({easel:"closed"},"*"),300)};addEventListener("message",(e)=>{if(e.source!==parent)return;if(e.ports[0]&&!port){port=e.ports[0];port.onmessage=(m)=>take(m.data,"port")}take(e.data,"window");if(e.data&&typeof e.data.probe==="number")parent.postMessage({probe:e.data.probe,id:${JSON.stringify(id)},me:0,color:port?"port":"none"},"*")});hello();`;
 
+/** The controls of the frame with controls, as a runtime from before the places posts them. */
+const plainControls = [
+  { key: "add", label: "Add one", kind: "action" },
+  { key: "on", label: "On", kind: "switch" },
+  { key: "size", label: "Size", kind: "select", values: ["s", "m", "l"] },
+  { key: "count", label: "Count", kind: "number", min: 0 },
+  { key: "bad", label: "Fail", kind: "action" },
+];
+
+/** The same controls, each at a place: the label row, each edge, and the panel. */
+const placedControls = [
+  { key: "add", label: "Add one", kind: "action", place: "right" },
+  { key: "on", label: "On", kind: "switch", place: "top" },
+  { key: "size", label: "Size", kind: "select", values: ["s", "m", "l"], place: "left" },
+  { key: "count", label: "Count", kind: "number", min: 0, place: "panel" },
+  { key: "bad", label: "Fail", kind: "action", place: "right" },
+];
+
 /**
  * An app frame's JS with controls, as `@easel/frame` posts them (chart kit-frame-controls): on its
  * port, its controls and their values; on each `control`, it changes its state, then posts its
  * values. The key `bad` is refused. It tells the test each control that reaches it.
  */
-const controlsJs = (id: string) =>
-  `let port=null;const s={on:false,size:"s",count:0};const hello=()=>{if(port)return;parent.postMessage({easel:"hello"},"*");setTimeout(hello,50)};const values=()=>port.postMessage({easel:"values",values:{on:s.on,size:s.size,count:s.count}});addEventListener("message",(e)=>{if(e.source!==parent)return;if(e.ports[0]&&!port){port=e.ports[0];port.onmessage=(m)=>{const d=m.data;if(!d||d.easel!=="control")return;parent.postMessage({seen:"control",id:${JSON.stringify(id)},key:d.key,value:d.value},"*");if(d.key==="bad"){port.postMessage({easel:"ran",key:"bad",failed:"Nope"});return}if(d.key==="add")s.count+=1;else s[d.key]=d.value;values()};port.postMessage({easel:"controls",controls:[{key:"add",label:"Add one",kind:"action"},{key:"on",label:"On",kind:"switch"},{key:"size",label:"Size",kind:"select",values:["s","m","l"]},{key:"count",label:"Count",kind:"number",min:0},{key:"bad",label:"Fail",kind:"action"}]});values()}});hello();`;
+const controlsJs = (id: string, placed: boolean) =>
+  `let port=null;const s={on:false,size:"s",count:0};const hello=()=>{if(port)return;parent.postMessage({easel:"hello"},"*");setTimeout(hello,50)};const values=()=>port.postMessage({easel:"values",values:{on:s.on,size:s.size,count:s.count}});addEventListener("message",(e)=>{if(e.source!==parent)return;if(e.ports[0]&&!port){port=e.ports[0];port.onmessage=(m)=>{const d=m.data;if(!d||d.easel!=="control")return;parent.postMessage({seen:"control",id:${JSON.stringify(id)},key:d.key,value:d.value},"*");if(d.key==="bad"){port.postMessage({easel:"ran",key:"bad",failed:"Nope"});return}if(d.key==="add")s.count+=1;else s[d.key]=d.value;values()};port.postMessage({easel:"controls",controls:${JSON.stringify(placed ? placedControls : plainControls)}});values()}});hello();`;
 
 /** The JS of a put's app frame: a frame with controls, a closer, a capsule frame, or the probe. */
-const appJs = (id: string, kind: { capsule?: boolean; closer?: boolean; controls?: boolean }) =>
+const appJs = (
+  id: string,
+  kind: { capsule?: boolean; closer?: boolean; controls?: true | "placed" },
+) =>
   kind.controls
-    ? controlsJs(id)
+    ? controlsJs(id, kind.controls === "placed")
     : kind.closer
       ? closerJs(id)
       : kind.capsule
@@ -112,7 +133,7 @@ const put = operation({
     app: z.boolean().optional(),
     capsule: z.boolean().optional(),
     closer: z.boolean().optional(),
-    controls: z.boolean().optional(),
+    controls: z.union([z.literal(true), z.literal("placed")]).optional(),
     version: z.number().optional(),
   }),
   depends: { cells: frameCells.controller, invalidate: framesBoard.invalidate },
@@ -161,7 +182,7 @@ async function boot(
     app?: boolean;
     capsule?: boolean;
     closer?: boolean;
-    controls?: boolean;
+    controls?: true | "placed";
   }>,
 ) {
   htmls.clear();
@@ -546,6 +567,62 @@ test("kit-frame-controls: an app frame posts its controls; the panel draws them 
   await page.getByRole("button", { name: "Requests" }).click();
   await expect.element(panel).not.toBeInTheDocument();
   await expect.element(button).toHaveAttribute("aria-pressed", "false");
+});
+
+test("kit-frame-controls places: the frame places each control in its label row, in a column at its left or right edge, or in the panel; each place shows the same live values", async () => {
+  const seen = controlsSeen();
+  const server = await boot([{ id: "a", x: 0, y: 0, controls: "placed" }]);
+  const at = await tab(server);
+  await rested(at, 1);
+
+  const top = page.getByRole("group", { name: "Top controls of Frame a" });
+  const left = page.getByRole("group", { name: "Left controls of Frame a" });
+  const right = page.getByRole("group", { name: "Right controls of Frame a" });
+  const on = top.getByRole("switch", { name: "On" });
+  const size = left.getByRole("combobox", { name: "Size" });
+  await expect.element(on).not.toBeChecked();
+  await expect.element(size).toHaveValue("s");
+  expect(
+    right
+      .getByRole("button")
+      .elements()
+      .map((b) => b.textContent),
+  ).toEqual(["Add one", "Fail"]);
+
+  // The label row holds the top controls; each column sits outside the frame, at its edge.
+  const shell = document.querySelector<HTMLElement>('.e-shell[data-id="a"]');
+  expect(shell?.querySelector("[data-label]")?.contains(on.element())).toBe(true);
+  const frameBox = shell?.getBoundingClientRect();
+  expect(left.element().getBoundingClientRect().right).toBeLessThanOrEqual(frameBox?.left ?? 0);
+  expect(right.element().getBoundingClientRect().left).toBeGreaterThanOrEqual(frameBox?.right ?? 0);
+
+  // A change at one place goes to the live document; the panel shows the new value too.
+  await right.getByRole("button", { name: "Add one" }).click();
+  await on.click();
+  await size.selectOptions("m");
+  await expect.element(on).toBeChecked();
+
+  // A refused run says its kind beside the control, in its column.
+  await right.getByRole("button", { name: "Fail" }).click();
+  await expect.element(right.getByRole("alert")).toHaveTextContent("The frame refused it: Nope.");
+
+  await page.getByRole("button", { name: "Controls of Frame a" }).click();
+  const panel = page.getByRole("complementary", { name: "Controls" });
+  await expect.element(panel.getByRole("spinbutton", { name: "Count" })).toHaveValue(1);
+  expect(
+    panel
+      .getByRole("button")
+      .elements()
+      .map((b) => b.getAttribute("aria-label")),
+  ).toEqual(["Close the controls"]);
+  await expect
+    .poll(() => seen)
+    .toEqual([
+      { key: "add" },
+      { key: "on", value: true },
+      { key: "size", value: "m" },
+      { key: "bad" },
+    ]);
 });
 
 test("two hellos in flight: the page answers each with a new port and closes the one before; the document takes the newest port, so a later kit message reaches it", async () => {

@@ -315,9 +315,85 @@
 }
 
 .e-ctl-failed {
+  display: block;
   margin: var(--e-1) 0 0;
   color: var(--e-danger);
   font-size: var(--e-size-1);
+}
+
+/* The controls that a frame placed at `top`: in its label row, after its name, as small as the
+   picks of its data state. */
+.e-ctl-top {
+  display: inline-flex;
+  gap: var(--e-1);
+  align-items: center;
+  margin-left: var(--e-1);
+  color: var(--e-text);
+  vertical-align: bottom;
+  pointer-events: auto;
+}
+
+.e-ctl-top .e-ctl-action {
+  width: auto;
+  height: 1.5em;
+  padding: 0 var(--e-1);
+  font-size: inherit;
+}
+
+.e-ctl-top .e-ctl-field {
+  gap: var(--e-1);
+  font-size: inherit;
+}
+
+.e-ctl-top .e-ctl-field select,
+.e-ctl-top .e-ctl-field input:not([type="checkbox"]) {
+  width: 8em;
+  padding: 0 var(--e-1);
+}
+
+.e-ctl-top input[type="checkbox"] {
+  margin: 0;
+}
+
+.e-ctl-top .e-ctl-failed {
+  display: inline;
+  margin: 0;
+}
+
+/* The controls that a frame docked to its left or right edge: a column outside the frame, 8 px
+   from it, that keeps its screen size (`--e-unzoom`, as the pins). Its shell stacks over the
+   frames beside it. */
+.e-shell[data-docked] {
+  z-index: 1;
+}
+
+.e-ctl-dock {
+  position: absolute;
+  top: 0;
+  box-sizing: border-box;
+  width: 224px;
+  color: var(--e-text);
+  background-color: var(--e-bg);
+  border: 1px solid var(--e-line, var(--e-card));
+  border-radius: var(--e-radius);
+  cursor: auto;
+}
+
+.e-ctl-left {
+  right: 100%;
+  transform: scale(var(--e-unzoom, 1)) translateX(-8px);
+  transform-origin: 100% 0;
+}
+
+.e-ctl-right {
+  left: 100%;
+  transform: scale(var(--e-unzoom, 1)) translateX(8px);
+  transform-origin: 0 0;
+}
+
+.e-ctl-dock .e-ctl-list {
+  gap: var(--e-2);
+  padding: var(--e-3);
 }
 
 /* An app document that is closing: it stays until its app posts `closed`, but shows nothing. */

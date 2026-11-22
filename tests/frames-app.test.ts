@@ -629,9 +629,9 @@ test(
     await expect
       .poll(() => read("controls"))
       .toEqual([
-        { key: "add", label: "Add a person", kind: "action" },
-        { key: "clear", label: "Remove all", kind: "action" },
-        { key: "capitals", label: "Names in capitals", kind: "switch" },
+        { key: "add", label: "Add a person", place: "right", kind: "action" },
+        { key: "clear", label: "Remove all", place: "panel", kind: "action" },
+        { key: "capitals", label: "Names in capitals", place: "top", kind: "switch" },
       ]);
     await expect.poll(() => read("values")).toEqual({ capitals: false });
     const control = (key: string, value?: unknown) =>
