@@ -1,11 +1,12 @@
-import { resource, tag } from "@tinkered/core";
+import { operation, resource, tag } from "@tinkered/core";
 import { useData, useResource, useRun } from "@tinkered/react";
 import { memo } from "react";
 import { z } from "zod";
 
 import { frames } from "@/frames";
+import { boardDoc } from "@/frames/contract";
 import type { FrameInfo } from "@/frames/contract";
-import { compose } from "@/kit/compose";
+import { compose, composeApp, composeKit } from "@/kit/compose";
 
 import "./canvas.css";
 import { aimFromLink, openFromLink } from "./act";
@@ -98,8 +99,24 @@ const docMemo = resource({
 });
 
 /**
- * A live frame's document as it shows: `compose` of the board's version of it, its made CSS and
- * the canvas's kit (fact rule 8: the look, the kit and the piece script come only from
+ * One version of a frame, composed with a kit: `compose` of its html and made CSS, or, for an app
+ * frame (`app`), `composeApp` of its JS and its runtime (SPEC-kit.md § App frames).
+ */
+const composeDoc = operation({
+  label: "viewer.composeDoc",
+  input: z.object({ doc: boardDoc, kit: composeKit }),
+  depends: { compose, composeApp },
+  run: ({ compose, composeApp }, { input: { doc, kit } }) =>
+    doc.app
+      ? composeApp.run({
+          input: { js: doc.app.js, css: doc.css ?? "", kit, runtime: doc.app.runtime },
+        })
+      : compose.run({ input: { html: doc.html, css: doc.css, kit } }),
+});
+
+/**
+ * A live frame's document as it shows: `composeDoc` of the board's version of it, its made CSS
+ * and the canvas's kit (fact rule 8: the look, the kit and the piece script come only from
  * `compose`). Null until the document, and the kit that it needs, have come. A version is
  * composed once, with the kit of that moment; a later kit goes on the document's port.
  */
@@ -110,9 +127,9 @@ const liveDoc = resource({
     doc: frames.board.docs.of({ canvas: c.canvas, id: c.id }),
     kit: frames.board.kit.of({ canvas: c.canvas }),
     memo: docMemo({ canvas: c.canvas, id: c.id }),
-    compose,
+    composeDoc,
   }),
-  factory: ({ doc, kit, memo, compose }) => {
+  factory: ({ doc, kit, memo, composeDoc }) => {
     const at = doc.get();
     const look = kit.get() ?? null;
     const kept = memo.get();
@@ -120,7 +137,7 @@ const liveDoc = resource({
     if (kept.shown?.version === at.version) return kept.shown;
 
     const shown = look ?? { look: "", css: "" };
-    const html = compose.run({ input: { html: at.html, css: at.css, kit: shown } });
+    const html = composeDoc.run({ input: { doc: at, kit: shown } });
     kept.shown = { version: at.version, html };
     return kept.shown;
   },

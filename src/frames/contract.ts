@@ -128,7 +128,7 @@ export const boardApp = z.object({ js: z.string(), kit: z.number(), runtime: run
  * kit: then the page shows the html as it is. `app` is set for an app frame: then `html` is its
  * TSX, and the page composes the app (`composeApp`) in place of the html.
  */
-const boardDoc = z.object({
+export const boardDoc = z.object({
   canvas: z.string(),
   id: z.string(),
   version: z.number(),

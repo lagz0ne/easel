@@ -37,8 +37,24 @@ const probeDoc = (id: string) =>
 /** The made CSS of each frame version: the only rule is the color of the probe's text. */
 const madeCss = "#t { color: var(--primary); }";
 
+/**
+ * An app frame's JS (SPEC-kit.md § App frames): it draws the probe's text and answers the probe as
+ * `probeDoc` does. It imports nothing, so it needs no runtime file.
+ */
+const probeJs = (id: string) =>
+  `const t=document.body.appendChild(document.createElement("p"));t.id="t";t.textContent=${JSON.stringify(id)};const me=Math.random();addEventListener("message",(e)=>{if(e.source!==parent||!e.data||typeof e.data.probe!=="number")return;parent.postMessage({probe:e.data.probe,id:${JSON.stringify(id)},me,color:getComputedStyle(t).color},"*")});`;
+
+/** The runtime of an app frame that imports nothing. */
+const noRuntime = { address: "/api/runtime/1/none/", imports: {} };
+
+type ServedDoc = {
+  version: number;
+  html: string;
+  app?: { js: string; kit: number; runtime: typeof noRuntime };
+};
+
 /** Each frame's document on the "server", by id. */
-const htmls = new Map<string, { version: number; html: string }>();
+const htmls = new Map<string, ServedDoc>();
 
 const loadDocs = operation({
   label: "test.loadDocs",
@@ -54,10 +70,19 @@ const loadDocs = operation({
 /** An agent's put of a new frame, at its box, with its picture key `k` when pictures are on. */
 const put = operation({
   label: "test.put",
-  input: z.object({ id: z.string(), x: z.number(), y: z.number(), k: z.string().optional() }),
+  input: z.object({
+    id: z.string(),
+    x: z.number(),
+    y: z.number(),
+    k: z.string().optional(),
+    app: z.boolean().optional(),
+  }),
   depends: { cells: frameCells.controller, invalidate: framesBoard.invalidate },
-  run: async ({ cells, invalidate }, { input }) => {
-    htmls.set(input.id, { version: 1, html: probeDoc(input.id) });
+  run: async ({ cells, invalidate }, { input: { app, ...input } }) => {
+    const served: ServedDoc = app
+      ? { version: 1, html: "", app: { js: probeJs(input.id), kit: 1, runtime: noRuntime } }
+      : { version: 1, html: probeDoc(input.id) };
+    htmls.set(input.id, served);
     cells.set({ ...input, canvas, name: `Frame ${input.id}`, w: 320, h: 200, version: 1 });
     await invalidate.run({ input: { docs: { canvas, id: input.id } } });
   },
@@ -72,7 +97,7 @@ const setKit = operation({
     cells.set({ canvas, kit: input, look: looks[input].look, css: "", pieces: [] }),
 });
 
-async function boot(ids: Array<{ id: string; x: number; y: number; k?: string }>) {
+async function boot(ids: Array<{ id: string; x: number; y: number; k?: string; app?: boolean }>) {
   htmls.clear();
   const server = await createScope({
     capsules: [
@@ -238,6 +263,19 @@ test("a document whose hellos the page does not hear at first gets the new look 
   );
   expect(docOf("a")).toBe(iframe);
   expect(await drawnOf("a")).toBe(drawn);
+});
+
+test("an app frame draws its JS in the composed document (composeApp), with the look and its made CSS, and not its text", async () => {
+  const server = await boot([
+    { id: "a", x: 0, y: 0 },
+    { id: "b", x: 400, y: 0, app: true },
+  ]);
+  const at = await tab(server);
+  await rested(at, 2);
+
+  expect(docOf("b")?.srcdoc).toContain('<script type="importmap">');
+  expect(await colorOf("b")).toBe(looks[1].rgb);
+  expect(await colorOf("a")).toBe(looks[1].rgb);
 });
 
 test("two hellos in flight: the page answers each with a new port and closes the one before; the document takes the newest port, so a later kit message reaches it", async () => {
