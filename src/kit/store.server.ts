@@ -14,7 +14,7 @@ import { sources } from "./source.server";
 // needs: the look (DTCG 2025.10, with its revision), the look as a `:root` block, the kit's own
 // CSS, its made CSS (made one time, with `make`, before the write; judged rules 2, 5) and its
 // element pieces (none yet: build order step 4). The newest row is the current kit version. Only
-// `seedKit` writes in this step (fact rule 2). The board's cell `kit` is set at scope after the
+// `seedKit`, `saveLook` and `undoLook` write (fact rule 2). The board's cell `kit` is set at scope after the
 // rows are stored, from the row as stored (judged rule 6).
 
 const schema = `
@@ -73,6 +73,122 @@ export const readKit = operation({
       .query(`SELECT ${columns} FROM kit_versions ORDER BY version DESC LIMIT 1`)
       .get();
     return row === null ? null : versionRow.parse(row);
+  },
+});
+
+/** The kit version `at` as stored; null when it is not. */
+export const readKitAt = operation({
+  label: "kit.readKitAt",
+  input: z.number(),
+  depends: { connection: bunSqlite.connection },
+  run: async ({ connection }, { input: at }) => {
+    const row = connection.db.$client
+      .query(`SELECT ${columns} FROM kit_versions WHERE version = ?`)
+      .get(at);
+    return row === null ? null : versionRow.parse(row);
+  },
+});
+
+/**
+ * After a write of a kit version: the board's cell `kit` of each canvas, from the newest row as
+ * stored (judged rule 6), at scope, so each tab and each session sees it.
+ */
+const showNewest = operation({
+  label: "kit.showNewest",
+  depends: { cells: kit.atScope.controller, readKit },
+  run: async ({ cells, readKit }) => {
+    const row = await readKit.run();
+    if (row === null) throw new Error("kit: no kit version after a write");
+
+    for (const { canvas } of cells.get()) {
+      cells.set({ canvas, kit: row.version, look: row.root, css: row.css, pieces: row.pieces });
+    }
+  },
+});
+
+/** The kit version `kit` and look revision `rev` of the newest row, or of the row written. */
+const revRow = z.object({ kit: z.number(), rev: z.number() });
+
+const newest =
+  "SELECT version AS kit, look_rev AS rev FROM kit_versions ORDER BY version DESC LIMIT 1";
+
+/** The newest kit version, as an SQL value. */
+const top = "(SELECT MAX(version) FROM kit_versions)";
+
+/**
+ * `saveLook`: the one write of a new look (fact rule 2; judged rules 2, 3). One statement checks
+ * the base, compares the look values, raises the revision and writes the next kit version, with
+ * no await between: of two writes on one revision the first wins, and the other answers `stale`
+ * (K14). The new kit version keeps the kit's own CSS, its made CSS and its pieces as stored: a
+ * change of the look makes no CSS (fact rule 4). Then the board's cell `kit` of each canvas.
+ */
+export const saveLook = operation({
+  label: "kit.saveLook",
+  input: z.object({
+    base: z.number(),
+    look: z.record(z.string(), z.unknown()),
+    values: z.record(z.string(), z.string()),
+    root: z.string(),
+  }),
+  depends: { connection: bunSqlite.connection, showNewest },
+  run: async ({ connection, showNewest }, { input, clock }) => {
+    const db = connection.db.$client;
+    const values = JSON.stringify(input.values);
+    const wrote = db
+      .query(
+        `INSERT INTO kit_versions (${columns}, made)
+         SELECT version + 1, look_rev + 1, ?, ?, ?, source, css, pieces, ?
+         FROM kit_versions WHERE version = ${top} AND look_rev = ? AND look_values IS NOT ?
+         RETURNING version AS kit, look_rev AS rev`,
+      )
+      .get(
+        JSON.stringify(input.look),
+        values,
+        input.root,
+        clock.currentTimeMillis(),
+        input.base,
+        values,
+      );
+    if (wrote === null) {
+      const now = revRow.parse(db.query(newest).get());
+      return { kind: now.rev === input.base ? ("unchanged" as const) : ("stale" as const), ...now };
+    }
+
+    await showNewest.run();
+    return { kind: "updated" as const, ...revRow.parse(wrote) };
+  },
+});
+
+/**
+ * `undoLook`: one step back on the revision `base` (fact rule 2; judged rules 2, 8; K9). One
+ * statement writes, as the next kit version, the look, its values and its `:root` block of the
+ * newest kit version of the revision before, with the kit as it is now. So a second step gives
+ * the changed look back. No kit version is removed. Then the board's cell `kit` of each canvas.
+ */
+export const undoLook = operation({
+  label: "kit.undoLook",
+  input: z.number(),
+  depends: { connection: bunSqlite.connection, showNewest },
+  run: async ({ connection, showNewest }, { input: base, clock }) => {
+    const db = connection.db.$client;
+    const wrote = db
+      .query(
+        `INSERT INTO kit_versions (${columns}, made)
+         SELECT n.version + 1, n.look_rev + 1, p.look, p.look_values, p.root,
+                n.source, n.css, n.pieces, ?
+         FROM kit_versions n JOIN kit_versions p
+           ON p.version = (SELECT MAX(version) FROM kit_versions WHERE look_rev = n.look_rev - 1)
+         WHERE n.version = ${top} AND n.look_rev = ?
+         RETURNING version AS kit, look_rev AS rev`,
+      )
+      .get(clock.currentTimeMillis(), base);
+    if (wrote === null) {
+      const now = revRow.parse(db.query(newest).get());
+      return now.rev === base ? { kind: "none" as const } : { kind: "stale" as const, ...now };
+    }
+
+    await showNewest.run();
+    return { kind: "updated" as const, ...revRow.parse(wrote) };
   },
 });
 

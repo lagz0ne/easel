@@ -23,6 +23,8 @@ import { greet } from "@/greet";
 import { greetOps } from "@/greet/greet.server";
 import { issues } from "@/issues";
 import { issueOps, membersOnly, signedIn } from "@/issues/ops.server";
+import { kit } from "@/kit";
+import { kitOps } from "@/kit/ops.server";
 import { ops } from "@/ops";
 import { opsOwnerOps, opsServer, opsUserOps, ready } from "@/ops/ops.server";
 import { observePanics } from "@/ops/panic.server";
@@ -111,6 +113,7 @@ export default defineMain(async ({ env, args, signal, stdout, stderr, exit }) =>
       frames.board,
       frames.viewer,
       frames.pass,
+      kit.api,
       queue.api,
       queue.viewer,
       queue.channels,
@@ -173,6 +176,9 @@ export default defineMain(async ({ env, args, signal, stdout, stderr, exit }) =>
       frames.viewer({ implement: shareOps }),
       // The viewer's name on the pass the tab holds, at the first request: the pass is the proof.
       frames.pass({ implement: passOps, onStart: [mayName] }),
+      // The look and the kit, in EASEL_DB, after frames (their start writes the seed): any
+      // signed-in user may change the look (SPEC-kit fact rule 1).
+      kit.api({ implement: kitOps, onStart: [user] }),
       // Requests and their messages, in EASEL_DB, after frames (SPEC-queue): an agent's calls
       // need a user; a viewer's, a live pass for the canvas or a user (fact rules 1, 3).
       queueServer({ stdout }),

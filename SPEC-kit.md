@@ -158,7 +158,7 @@ type Pair = { text: string; on: string; ratio: number; min: number; where: strin
            | { kind: "gone" } | { kind: "offLook"; findings: Finding[] }
            | { kind: "unreadable"; fails: Pair[] } | { kind: "tooBig"; maxBytes: number }
 "kit.check": { kind: "checked"; kit: number; findings: Finding[]; more: number }
-"look.get":  { kind: "found"; kit: number; rev: number; look: Dtcg }
+"look.get":  { kind: "found"; kit: number; rev: number; look: Dtcg } | { kind: "gone" }
 "look.set":  { kind: "updated" | "unchanged"; rev: number; kit: number }
            | { kind: "stale"; rev: number; kit: number } | { kind: "unreadable"; fails: Pair[] }
 "look.undo": { kind: "updated"; rev: number; kit: number } | { kind: "stale"; rev: number; kit: number }
@@ -177,7 +177,8 @@ type Pair = { text: string; on: string; ratio: number; min: number; where: strin
 Inputs:
 
 - `kit.get` takes `{ name, at? }`; `look.get` takes `{ at? }`. `at` is a kit version: the piece or
-  the look as it was in it. A kit version that is not stored is `invalid`.
+  the look as it was in it. A kit version that is not stored answers `gone`: the server knows
+  which kit versions it has, and `invalid` is only for an input that the contract's shape refuses.
 - `kit.put` takes `{ name, file, base? }`. No `base` adds the piece; a name that is there answers
   `taken`. With `base`, a name that is not there answers `gone`. A name is `[a-z][a-z0-9-]{0,39}`.
   An element piece's name starts with `k-` and its file has a `<template>`; a class piece has a
@@ -189,8 +190,16 @@ Inputs:
   only when it is not. There is nothing else: no loops, no expressions.
 - `kit.check` takes `{ html }`, with the size limit of `frame.put`.
 - `look.set` takes `{ look, base }`. `look` is DTCG JSON, merged into the stored look as a JSON
-  Merge Patch. A name that the stored look does not have, a `$type` that does not match, or an
-  alias to a missing value is `invalid`, with its path. `look.undo` takes `{ base }`.
+  Merge Patch of values only. The look's names and types are fixed (`src/kit/shape.ts`, the names
+  of the seed), so the contract's shape checks a patch before it is sent. A name that the look
+  does not have, a `$type` that does not match, a `null` (a removal in RFC 7386), a value that
+  does not fit its type, a color whose `hex` is not the color of its `components`, or an alias
+  that does not name an earlier look value of the same type (in the order of the look; so no
+  alias makes a loop) is `invalid`, with its path. Each `$value` of the patch replaces the stored
+  `$value` whole; a value is not merged into the old one. A `$type` or `$description` in the patch
+  changes nothing, so the whole file of `look.get` is a patch too. The same look values answer
+  `unchanged`. An old `base` answers `stale` before the pairs are measured. `look.undo` takes
+  `{ base }`.
 - `tooBig`: a piece file over 64 KiB, or a kit whose made CSS and templates would be over 128 KiB,
   in UTF-8 bytes.
 
@@ -349,7 +358,7 @@ The statecharts [kit-piece](docs/statecharts/kit-piece.md), [kit-look](docs/stat
 
 1. Every call above runs the `user` guard first.
 2. Every operation that writes the look, a piece or a kit version calls one store operation:
-   `saveLook`, `savePiece` or `seedKit`.
+   `saveLook`, `undoLook`, `savePiece` or `seedKit`.
 3. The page and the picture draw make the shown document only with `compose`. No other module adds
    the look, the kit or made CSS to a document.
 4. Only `make` makes CSS. `frame.put`, `kit.put` and `seedKit` call it; `look.set`, `look.undo`,

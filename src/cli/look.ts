@@ -1,0 +1,340 @@
+import { readFileSync, writeFileSync } from "node:fs";
+
+import { operation } from "@tinkered/core";
+import { z } from "zod";
+
+import { loginApi } from "@/access/contract";
+import { kit } from "@/kit";
+import { kitSuccessKinds, kitVersion, lookGetOutput, lookSetOutput } from "@/kit/contract";
+import type { KitAddress } from "@/kit/contract";
+import { lookPatch } from "@/kit/shape";
+
+import { callDeadline, exits, faultExit } from "./exit";
+import { stdinText } from "./frames";
+import { say } from "./output";
+
+// `easel look get|set|undo` (SPEC-kit.md § Change the look; SPEC-cli.md § Commands by module).
+// Each prints its answer and exits by the call's success list in kit's contract (SPEC-cli fact
+// rule 3): `found`, `updated` and `unchanged` exit 0; `stale`, `unreadable`, `none` and `gone`
+// exit 1. A kit fault is told as the shell tells any fault (`faultExit`): a patch with a name
+// that the look does not have is `invalid` (65), checked before the call is sent.
+
+/** One look command, as the cmd read it from its flags. `--at` and `--base` as typed. */
+export const lookCommand = z.discriminatedUnion("kind", [
+  z.object({ kind: z.literal("get"), out: z.string().optional(), at: z.string().optional() }),
+  z.object({ kind: z.literal("set"), file: z.string().min(1), base: z.string() }),
+  z.object({ kind: z.literal("undo"), base: z.string() }),
+]);
+
+export type LookCommand = z.infer<typeof lookCommand>;
+
+/** `--base 3` or `--at 3`, as typed: 1 or more. */
+const numberFlag = z.string().regex(/^\d+$/).transform(Number).pipe(kitVersion);
+
+const address = z.enum(["look.get", "look.set", "look.undo"] satisfies KitAddress[]);
+
+/** One call's deadline: after `callDeadline` (60 s) its signal aborts with a `link` fault. */
+const lookDeadline = operation({
+  label: "cli.lookDeadline",
+  input: address,
+  run: (_, { input, clock, signal }) => {
+    const stop = new AbortController();
+    const late = loginApi.fault.make(input, "link", { late: callDeadline }, undefined);
+    clock.sleep(callDeadline, AbortSignal.any([signal, stop.signal])).then(
+      () => stop.abort(late),
+      () => undefined,
+    );
+
+    return stop;
+  },
+});
+
+/** 0 when kit's contract lists the kind as a success, else 1. */
+const lookExitOf = operation({
+  label: "cli.lookExitOf",
+  input: z.object({ address, kind: z.string() }),
+  run: (_, { input }) => {
+    const list: readonly string[] = kitSuccessKinds[input.address];
+    return list.includes(input.kind) ? exits.ok : exits.no;
+  },
+});
+
+/** A call that did not answer, told as the shell tells it: a kit fault is made again as one it knows. */
+const lookFault = operation({
+  label: "cli.lookFault",
+  input: z.unknown(),
+  depends: { faultExit },
+  run: ({ faultExit }, { input: error }) => {
+    const known = kit.api.fault.is(error)
+      ? loginApi.fault.make(
+          error.address,
+          error.fault,
+          error.payload,
+          error.traceId,
+          error.execution,
+        )
+      : error;
+
+    return faultExit.run({ input: known });
+  },
+});
+
+/** Bad flags or a file that is not JSON: the text says what to do, and the run exits 64. */
+const lookUsage = operation({
+  label: "cli.lookUsage",
+  input: z.string(),
+  depends: { say },
+  run: ({ say }, { input: text }) => {
+    say.run({ input: { json: { usage: text }, text, error: true } });
+    return exits.usage;
+  },
+});
+
+/** What `look set` and `look undo` print for a stale base: get the look again. */
+const staleText = operation({
+  label: "cli.lookStale",
+  input: z.object({ rev: z.number(), kit: z.number() }),
+  run: (_, { input: { rev, kit } }) =>
+    `stale: the look is at revision ${rev} (kit version ${kit}): get it again with \`easel look get\`, and make the change on it`,
+});
+
+/** What `easel look get` prints for its answer, and the file it writes with `-o`. */
+const tellGet = operation({
+  label: "cli.lookTellGet",
+  input: z.object({
+    answer: lookGetOutput,
+    out: z.string().optional(),
+    at: z.number().optional(),
+  }),
+  depends: { say },
+  run: ({ say }, { input: { answer, out, at } }) => {
+    if (answer.kind === "gone") {
+      say.run({ input: { json: answer, text: `no kit version ${at} is stored`, error: true } });
+      return;
+    }
+
+    const file = `${JSON.stringify(answer.look, null, 2)}\n`;
+    const line = `look revision ${answer.rev}, kit version ${answer.kit}`;
+    if (out === undefined) {
+      say.run({ input: { json: answer, text: `${file}${line}` } });
+      return;
+    }
+
+    writeFileSync(out, file);
+    const json = { kind: answer.kind, kit: answer.kit, rev: answer.rev, file: out };
+    say.run({ input: { json, text: `${line} written to ${out}` } });
+  },
+});
+
+/**
+ * `easel look get [-o <file>] [--at <kit version>]` (`look.get`): the look as DTCG JSON, and its
+ * revision and kit version. With `-o`, the file gets the JSON, and the line says where.
+ */
+export const lookGet = operation({
+  label: "cli.lookGet",
+  input: lookCommand.options[0],
+  depends: {
+    tellGet,
+    usage: lookUsage,
+    exitOf: lookExitOf,
+    fault: lookFault,
+    deadline: lookDeadline,
+    call: kit.api["look.get"],
+  },
+  run: async ({ tellGet, usage, exitOf, fault, deadline, call }, { input }) => {
+    const at = numberFlag.optional().safeParse(input.at);
+    if (!at.success) return usage.run({ input: "--at takes a kit version, 1 or more" });
+
+    const stop = deadline.run({ input: "look.get" });
+    const reply = await call.settle({ input: { at: at.data }, signal: stop.signal });
+    stop.abort();
+    if (reply.status === "cancelled") return fault.run({ input: reply.reason });
+    if (reply.status === "failed") return fault.run({ input: reply.error });
+
+    tellGet.run({ input: { answer: reply.value, out: input.out, at: at.data } });
+    return exitOf.run({ input: { address: "look.get", kind: reply.value.kind } });
+  },
+});
+
+/** A patch file: its text from the path, or stdin for `-`; null when it cannot be read. */
+const readPatch = operation({
+  label: "cli.readPatch",
+  input: z.string(),
+  depends: { stdin: stdinText },
+  run: async ({ stdin }, { input: file }) => {
+    if (file === "-") return stdin ? await stdin() : null;
+    try {
+      return readFileSync(file, "utf8");
+    } catch {
+      return null;
+    }
+  },
+});
+
+/** A text as JSON; null when it is not JSON. */
+const jsonOf = z.string().transform((text, ctx): unknown => {
+  try {
+    return JSON.parse(text);
+  } catch {
+    ctx.addIssue({ code: "custom", message: "not JSON" });
+    return z.NEVER;
+  }
+});
+
+/** The words of `look set`, read: its patch and base, or the exit of the one line that says what is wrong. */
+const readSet = operation({
+  label: "cli.lookReadSet",
+  input: lookCommand.options[1],
+  depends: { say, usage: lookUsage, readPatch },
+  run: async ({ say, usage, readPatch }, { input }) => {
+    const base = numberFlag.safeParse(input.base);
+    if (!base.success) {
+      const text = "--base takes the look's revision, 1 or more: `easel look get` prints it";
+      return { ok: false as const, exit: usage.run({ input: text }) };
+    }
+    const text = await readPatch.run({ input: input.file });
+    if (text === null) {
+      return { ok: false as const, exit: usage.run({ input: `cannot read ${input.file}` }) };
+    }
+    const json = jsonOf.safeParse(text);
+    if (!json.success) {
+      return { ok: false as const, exit: usage.run({ input: `${input.file} is not JSON` }) };
+    }
+
+    // As rpc checks it before it sends: a name that the look does not have is `invalid` (65).
+    const patch = lookPatch.safeParse(json.data);
+    if (patch.success) return { ok: true as const, input: { look: patch.data, base: base.data } };
+
+    const issues = patch.error.issues.map((i) => ({ path: i.path.join("."), message: i.message }));
+    const told = issues.map((i) => `${i.path}: ${i.message}`).join("; ");
+    const shown = { json: { invalid: issues }, text: `not a change of the look: ${told}` };
+    say.run({ input: { ...shown, error: true } });
+    return { ok: false as const, exit: exits.invalid };
+  },
+});
+
+/** What `easel look set` prints for its answer: `unreadable` with each failing pair, a line each. */
+const tellSet = operation({
+  label: "cli.lookTellSet",
+  input: lookSetOutput,
+  depends: { say, staleText },
+  run: ({ say, staleText }, { input: answer }) => {
+    switch (answer.kind) {
+      case "updated":
+      case "unchanged": {
+        const text = `${answer.kind}: look revision ${answer.rev}, kit version ${answer.kit}`;
+        return say.run({ input: { json: answer, text } });
+      }
+      case "stale":
+        return say.run({
+          input: { json: answer, text: staleText.run({ input: answer }), error: true },
+        });
+      case "unreadable": {
+        const lines = answer.fails.map(
+          (p) => `${p.text} on ${p.on}: ${p.ratio}:1, needs ${p.min}:1 (${p.where})`,
+        );
+        const head = "unreadable: nothing is saved; each pair needs WCAG AA";
+        return say.run({ input: { json: answer, text: [head, ...lines].join("\n"), error: true } });
+      }
+    }
+  },
+});
+
+/**
+ * `easel look set <file|-> --base <rev>` (`look.set`): a JSON Merge Patch of the look's values.
+ * `unreadable` prints each failing pair on stderr, one a line, as
+ * `primary-foreground on primary: 1.53:1, needs 4.5:1 (the kit rule .btn-primary)`.
+ */
+export const lookSet = operation({
+  label: "cli.lookSet",
+  input: lookCommand.options[1],
+  depends: {
+    readSet,
+    tellSet,
+    exitOf: lookExitOf,
+    fault: lookFault,
+    deadline: lookDeadline,
+    call: kit.api["look.set"],
+  },
+  run: async ({ readSet, tellSet, exitOf, fault, deadline, call }, { input }) => {
+    const read = await readSet.run({ input });
+    if (!read.ok) return read.exit;
+
+    const stop = deadline.run({ input: "look.set" });
+    const reply = await call.settle({ input: read.input, signal: stop.signal });
+    stop.abort();
+    if (reply.status === "cancelled") return fault.run({ input: reply.reason });
+    if (reply.status === "failed") return fault.run({ input: reply.error });
+
+    tellSet.run({ input: reply.value });
+    return exitOf.run({ input: { address: "look.set", kind: reply.value.kind } });
+  },
+});
+
+/** `easel look undo --base <rev>` (`look.undo`): one step back, as a new kit version. */
+export const lookUndo = operation({
+  label: "cli.lookUndo",
+  input: lookCommand.options[2],
+  depends: {
+    say,
+    usage: lookUsage,
+    exitOf: lookExitOf,
+    fault: lookFault,
+    deadline: lookDeadline,
+    staleText,
+    call: kit.api["look.undo"],
+  },
+  run: async ({ say, usage, exitOf, fault, deadline, staleText, call }, { input }) => {
+    const base = numberFlag.safeParse(input.base);
+    if (!base.success) {
+      return usage.run({
+        input: "--base takes the look's revision, 1 or more: `easel look get` prints it",
+      });
+    }
+
+    const stop = deadline.run({ input: "look.undo" });
+    const reply = await call.settle({ input: { base: base.data }, signal: stop.signal });
+    stop.abort();
+    if (reply.status === "cancelled") return fault.run({ input: reply.reason });
+    if (reply.status === "failed") return fault.run({ input: reply.error });
+
+    const answer = reply.value;
+    switch (answer.kind) {
+      case "updated":
+        say.run({
+          input: {
+            json: answer,
+            text: `updated: look revision ${answer.rev}, kit version ${answer.kit}`,
+          },
+        });
+        break;
+      case "stale":
+        say.run({ input: { json: answer, text: staleText.run({ input: answer }), error: true } });
+        break;
+      case "none":
+        say.run({
+          input: { json: answer, text: "none: the look has no change to undo", error: true },
+        });
+        break;
+    }
+
+    return exitOf.run({ input: { address: "look.undo", kind: answer.kind } });
+  },
+});
+
+/** Runs one `easel look` command; answers its exit code. */
+export const lookRun = operation({
+  label: "cli.look",
+  input: lookCommand,
+  depends: { lookGet, lookSet, lookUndo },
+  run: (ops, { input }) => {
+    switch (input.kind) {
+      case "get":
+        return ops.lookGet.run({ input });
+      case "set":
+        return ops.lookSet.run({ input });
+      case "undo":
+        return ops.lookUndo.run({ input });
+    }
+  },
+});

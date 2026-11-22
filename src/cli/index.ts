@@ -8,6 +8,7 @@ import { channelCommand, channelRun } from "./channels";
 import { framesCommand, framesRun, shareCommand, shareRun } from "./frames";
 import { entryOf, envToken, hostsPath, server } from "./hosts";
 import { login, waitLogin } from "./login";
+import { lookCommand, lookRun } from "./look";
 import {
   errorsHandOff,
   errorsLs,
@@ -60,13 +61,14 @@ const shellCommand = z.discriminatedUnion("kind", [
   z.object({ kind: z.literal("errors"), act: errorsCommand }),
 ]);
 
-/** One command, as the cmd read it from its flags: the shell's, a frames, share, queue or channel one. */
+/** One command, as the cmd read it from its flags: the shell's, a frames, share, queue, channel or look one. */
 export const command = z.discriminatedUnion("kind", [
   ...shellCommand.options,
   z.object({ kind: z.literal("frames"), act: framesCommand }),
   z.object({ kind: z.literal("share"), act: shareCommand }),
   z.object({ kind: z.literal("queue"), act: queueCommand }),
   z.object({ kind: z.literal("channel"), act: channelCommand }),
+  z.object({ kind: z.literal("look"), act: lookCommand }),
 ]);
 
 export type Command = z.infer<typeof command>;
@@ -140,12 +142,14 @@ const shell = operation({
 const run = operation({
   label: "cli.run",
   input: command,
-  depends: { shell, framesRun, shareRun, queueRun, channelRun },
-  run: ({ shell, framesRun, shareRun, queueRun, channelRun }, { input }) => {
+  depends: { shell, framesRun, shareRun, queueRun, channelRun, lookRun },
+  run: ({ shell, framesRun, shareRun, queueRun, channelRun, lookRun }, { input }) => {
     if (input.kind === "frames") return framesRun.run({ input: input.act });
     if (input.kind === "share") return shareRun.run({ input: input.act });
     if (input.kind === "queue") return queueRun.run({ input: input.act });
     if (input.kind === "channel") return channelRun.run({ input: input.act });
+
+    if (input.kind === "look") return lookRun.run({ input: input.act });
     return shell.run({ input });
   },
 });

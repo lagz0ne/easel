@@ -1,44 +1,15 @@
 import { operation } from "@tinkered/core";
 import { z } from "zod";
 
+import { alias, lookPaths, lookType, valueOf } from "./shape";
+
 // The look in the DTCG format 2025.10 (SPEC-kit.md § Objective) and its CSS: each look value is a
 // CSS custom property. A color's name drops its group (`color.primary` is `--primary`); the
 // others join their path with `-` (`text.sm` is `--text-sm`, `spacing` is `--spacing`). An alias
 // (`{font.sans}`) takes the value that it names. A type is the token's own `$type`, or that of the
 // nearest group that has one.
 
-const dimension = z.object({ value: z.number(), unit: z.enum(["px", "rem"]) });
-
-const color = z.object({
-  colorSpace: z.literal("srgb"),
-  components: z.tuple([z.number(), z.number(), z.number()]),
-  alpha: z.number().min(0).max(1).optional(),
-  hex: z
-    .string()
-    .regex(/^#[0-9a-f]{6}$/i)
-    .optional(),
-});
-
-const shadowLayer = z.object({
-  color,
-  offsetX: dimension,
-  offsetY: dimension,
-  blur: dimension,
-  spread: dimension,
-  inset: z.boolean().optional(),
-});
-
-const alias = z.string().regex(/^\{[^{}]+\}$/);
-
-/** A look value's `$value`, by its type. */
-const valueOf = {
-  color,
-  dimension,
-  fontFamily: z.union([z.string().min(1), z.array(z.string().min(1)).min(1)]),
-  shadow: z.union([shadowLayer, z.array(shadowLayer).min(1)]),
-};
-
-const lookType = z.enum(["color", "dimension", "fontFamily", "shadow"]);
+const { color, dimension } = valueOf;
 
 /** A DTCG file: groups and look values. Each key that starts with `$` is a property. */
 export const dtcg = z.record(z.string(), z.unknown());
@@ -212,4 +183,32 @@ export const rootBlock = operation({
     `:root {\n${Object.entries(input)
       .map(([name, value]) => `  ${name}: ${value};\n`)
       .join("")}}\n`,
+});
+
+/** A part of a DTCG file as an object: `{}` when it is none. */
+const asNode = z.record(z.string(), z.unknown()).catch({});
+
+/**
+ * The stored look with a patch merged in (RFC 7386, of values only; SPEC-kit § Change the look,
+ * step 2): each `$value` of the patch replaces the stored `$value` whole, as a value is not
+ * merged into the old one. The stored `$type` and `$description` stay. The patch was checked
+ * against the look's names (`lookPatch`), so it holds no other key.
+ */
+export const mergeLook = operation({
+  label: "kit.mergeLook",
+  input: z.object({ look: dtcg, patch: dtcg }),
+  run: (_, { input: { look, patch } }) => {
+    const merged: Dtcg = { ...look };
+    for (const { path } of lookPaths) {
+      const [first = "", second] = path.split(".");
+      const group = asNode.parse(merged[first]);
+      const given = asNode.parse(second ? asNode.parse(patch[first])[second] : patch[first]);
+      if (!("$value" in given)) continue;
+
+      merged[first] = second
+        ? { ...group, [second]: { ...asNode.parse(group[second]), $value: given.$value } }
+        : { ...group, $value: given.$value };
+    }
+    return merged;
+  },
 });

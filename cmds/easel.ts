@@ -15,6 +15,7 @@ import { pictureFetch, stdinText } from "@/cli/frames";
 import { hostsAt } from "@/cli/hosts";
 import { since } from "@/cli/ops";
 import { frames } from "@/frames";
+import { kit } from "@/kit";
 import { ops } from "@/ops";
 import { queue } from "@/queue";
 
@@ -56,6 +57,9 @@ const help = `easel: the canvas CLI. Every command takes --json (one JSON value 
   easel unshare <canvas>                           end the link; open tabs say it has ended
   easel shot <canvas> <id> -o <file> [--scale 0.25|0.5|1|2] [--region x,y,w,h]
                                                    draw the frame as a browser does; writes a WebP
+  easel look get [-o <file>] [--at <kit>]         the look as DTCG JSON, its revision and its kit version
+  easel look set <file|-> --base <rev>             change values of the look (a JSON Merge Patch); every tab shows it
+  easel look undo --base <rev>                     the look before the last change, as a new kit version
   easel next [--canvas <k>] [--n <n>] [--wait <s>] [--lease <s>]
                                                    claim the oldest waiting request; prints it and its claim
   easel extend <claim> [--lease <s>]               start the lease again (30 to 3600 s, 300 when none)
@@ -114,6 +118,7 @@ const options = {
   label: { type: "string" },
   trigger: { type: "string" },
   "token-file": { type: "string" },
+  at: { type: "string" },
   help: { type: "boolean", short: "h" },
 } as const;
 
@@ -435,6 +440,37 @@ const queueInvocations = [
     })),
 ] as const;
 
+/** The words and flags of `easel look get|set|undo` (SPEC-kit.md § Change the look). */
+const lookInvocations = [
+  z
+    .object({
+      positionals: z.tuple([z.literal("look"), z.literal("get")]),
+      values: z.strictObject({ ...common, out: z.string().optional(), at: z.string().optional() }),
+    })
+    .transform(({ values }): unknown => ({
+      at: values.server,
+      command: { kind: "look", act: { kind: "get", out: values.out, at: values.at } },
+    })),
+  z
+    .object({
+      positionals: z.tuple([z.literal("look"), z.literal("set"), z.string()]),
+      values: z.strictObject({ ...common, base: z.string() }),
+    })
+    .transform(({ positionals: [, , file], values }): unknown => ({
+      at: values.server,
+      command: { kind: "look", act: { kind: "set", file, base: values.base } },
+    })),
+  z
+    .object({
+      positionals: z.tuple([z.literal("look"), z.literal("undo")]),
+      values: z.strictObject({ ...common, base: z.string() }),
+    })
+    .transform(({ values }): unknown => ({
+      at: values.server,
+      command: { kind: "look", act: { kind: "undo", base: values.base } },
+    })),
+] as const;
+
 /** The words and flags of `easel channel set|ls|rm` and `easel deliveries` (SPEC-queue.md). */
 const channelInvocations = [
   z
@@ -582,6 +618,7 @@ const invocation = z.union([
   ...framesInvocations,
   ...queueInvocations,
   ...channelInvocations,
+  ...lookInvocations,
 ]);
 
 /** The words and flags, read by `parseArgs`: `--help` anywhere asks for the help. */
@@ -719,6 +756,7 @@ const main = defineMain(async (ctx) => {
       ops.user({ remote: ws.client }),
       ops.owner({ remote: ws.client }),
       frames.api({ remote: ws.client }),
+      kit.api({ remote: ws.client }),
       queue.api({ remote: ws.client }),
       queue.viewer({ remote: ws.client }),
       queue.channels({ remote: ws.client }),
