@@ -79,8 +79,12 @@ this spec wins, and the screen gets a fix.
    frame would keep its old box for `Fit` and for what shows and goes live. The `frame.move` work
    fixes that, with a test that moves a frame far away and back.
 4. A user changes the look or a piece of the kit ([kit](SPEC-kit.md)). Every open tab shows it.
-   Each live document shows it within 1 s, with no reload: the page posts
-   `{ easel: "kit", kit, look, css }` to it, and its piece script replaces the two style texts. A
+   Each live document shows it within 1 s, with no reload: the page sends
+   `{ easel: "kit", kit, look, css }` on the port of that document, and its piece script replaces
+   the two style texts. A document can start before the page listens, so its piece script says
+   hello to its parent at once and again each 50 ms until it gets a port (as penpal does). The page
+   answers the hello with a port and the current kit at once, so a document composed in an older
+   kit version also shows the new one. A
    live document that uses a changed template reloads, and its picture stays on top until it
    paints. Each frame shell gets the address of the picture in the new kit version; its last
    picture stays until the new one has decoded, so no shell is white. Each frame in view shows the
@@ -394,8 +398,9 @@ camera controls.
 10. A refused viewer call (`wrongState`, `gone`, `full`, `slow`) never clears the typed text: of
     a request, a correction, an answer or a note (E4.1 N10).
 11. The changed mark reads and writes only `localStorage`. It sends nothing to the server.
-12. The page posts the kit message only to its own live iframes. A frame's piece script takes it
-    only from its parent. The sandbox of judged rule 4 stays as it is.
+12. The page answers a hello only when its `event.source` is the window of one of its own live
+    iframes, and sends kit messages only on the port that it gave that iframe. A frame's piece
+    script takes a port only from its parent. The sandbox of judged rule 4 stays as it is.
 
 ### Accepted risk
 

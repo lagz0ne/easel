@@ -175,6 +175,9 @@ easel page. That is the model of Tinker. Tinker lite is ready for easel when it 
    stores made CSS (K11).
 4. A `postMessage` channel for rpc and remote data, which checks the sender (a frame cannot open a
    socket).
+   Each call on it runs in its own request session, as a call on the socket does. A cell write
+   there stays in that session, so state that a document changes (a shared prototype state) lives
+   in a scope resource or in the database (the library author, 2026-11-22).
 5. A rule set for code in a document, which permits small helpers.
 6. A test in CI that runs it in a sandboxed `srcdoc` with an opaque origin.
 
@@ -186,7 +189,12 @@ measure is the frame-script test above.
 
 1. The make step and the K5 check (`make`, `check`), with the two-order test and the pin test.
 2. The look, the kit versions and compose; a frame put with made CSS.
-3. The live change of the look (K7) and the pictures of each kit version (K10).
+3. The live change of the look (K7) and the pictures of each kit version (K10). The piece script
+   says hello each 50 ms until the page gives it a port (as penpal does), and the page answers with
+   the current kit; the TLA+ model of kit-look gets this hello, with a variant that posts only once
+   and misses a document that starts late. The cell `kit` is written at scope, as the cells of
+   frames: a write in the request session of a call stays in that session, and no other tab sees
+   it.
 4. Pieces (`k-`), `put_piece` with its revision (K12, K14).
 5. The seed look: a design ship on Doop that does not look generic (K1).
 
