@@ -184,12 +184,17 @@ test("easel shot writes the current version's picture to the file and exits 0; t
   const a = await ann(srv);
 
   expect(await a.run(shot(a.id, a.file))).toBe(0);
-  expect(readFileSync(a.file, "utf8")).toBe("webp:<p>1</p>");
+  // The draw has the version composed with the current kit version (SPEC-kit compose).
+  expect(readFileSync(a.file, "utf8")).toMatch(
+    /^webp:<!doctype html>\n<style id="easel-look">[\s\S]*\n<p>1<\/p>$/,
+  );
   const printed = a.printed();
   expect(a.lines()).toEqual([{ kind: "ready", version: 1, file: a.file }]);
   expect(printed).not.toMatch(/k=|\/api\/pictures/);
   expect(srv.asked).toEqual([
-    expect.stringMatching(new RegExp(`^${origin}/api/pictures/flow/${a.id}/1\\?s=1&k=[\\w-]{43}$`)),
+    expect.stringMatching(
+      new RegExp(`^${origin}/api/pictures/flow/${a.id}/1\\?s=1&k=[\\w-]{43}&kit=1$`),
+    ),
   ]);
 });
 
@@ -198,7 +203,7 @@ test("easel shot sends --scale and --region with the address, and says what it w
   const a = await ann(srv, { json: false });
 
   expect(await a.run(shot(a.id, a.file, { scale: "0.5", region: "0,0,100,50" }))).toBe(0);
-  expect(srv.asked[0]).toMatch(/\?s=0\.5&k=[\w-]+&r=0,0,100,50$/);
+  expect(srv.asked[0]).toMatch(/\?s=0\.5&k=[\w-]+&kit=1&r=0,0,100,50$/);
   expect(a.out.join("")).toBe(`${a.id} v1 written to ${a.file}\n`);
   expect(a.printed()).not.toMatch(/k=/);
 });
@@ -269,7 +274,10 @@ test("a busy server that draws on the next try: exit 0", async () => {
   });
   expect(await walking(srv, a.run(shot(a.id, a.file)))).toBe(0);
   expect(srv.asked).toHaveLength(3);
-  expect(readFileSync(a.file, "utf8")).toBe("webp:<p>1</p>");
+  // The draw has the version composed with the current kit version (SPEC-kit compose).
+  expect(readFileSync(a.file, "utf8")).toMatch(
+    /^webp:<!doctype html>\n<style id="easel-look">[\s\S]*\n<p>1<\/p>$/,
+  );
 });
 
 test("a Retry-After over 5 s is waited 5 s", async () => {

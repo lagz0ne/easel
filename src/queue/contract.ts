@@ -2,6 +2,7 @@ import { operation, rpc } from "@tinkered/core";
 import { z } from "zod";
 
 import { canvasKey, frame, frameId, frameInfo, version } from "@/frames/contract";
+import { kitVersion } from "@/kit/contract";
 
 import { message, request } from "./cells";
 import { delivery } from "./channels";
@@ -72,13 +73,15 @@ const place = z.number().finite();
 
 /**
  * `request.add`'s input: on a frame (its id and the version the viewer saw), or on the canvas
- * (both `null`).
+ * (both `null`), with the kit version that the viewer saw (SPEC-kit K10). With no `kit` (the
+ * page has not got the kit yet), the request keeps the current kit version.
  */
 export const addInput = z.union([
   z.strictObject({
     canvas: canvasKey,
     frameId,
     version,
+    kit: kitVersion.optional(),
     x: place,
     y: place,
     text,
@@ -88,6 +91,7 @@ export const addInput = z.union([
     canvas: canvasKey,
     frameId: z.null(),
     version: z.null(),
+    kit: kitVersion.optional(),
     x: place,
     y: place,
     text,
@@ -176,8 +180,11 @@ export const queueContracts = {
         messages: z.array(message),
         /** The frame now; `null` for a request on the canvas, or a frame that was removed. */
         frame: frame.nullable(),
-        /** The version that the viewer saw, with its document; `null` when it is not kept. */
-        saw: z.object({ version: z.number(), doc: z.string() }).nullable(),
+        /**
+         * The version and the kit version that the viewer saw, with the document; `null` when it
+         * is not kept.
+         */
+        saw: z.object({ version: z.number(), kit: z.number(), doc: z.string() }).nullable(),
         /** For a request on the canvas: its frames. Else `null`. */
         frames: z.array(frameInfo).nullable(),
         claim: z.string(),

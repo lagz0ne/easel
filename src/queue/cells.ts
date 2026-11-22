@@ -19,6 +19,8 @@ export const request = z.object({
   frameId: z.string().nullable(),
   /** The frame version that the viewer saw; `null` for a request on the canvas. */
   version: z.number().nullable(),
+  /** The kit version that the viewer saw (SPEC-kit K10). */
+  kit: z.number(),
   x: z.number(),
   y: z.number(),
   author: z.string(),
@@ -71,6 +73,9 @@ export const message = z.object({
   /** On a `result` only: the frame version at the claim, and at the resolve. */
   before: z.number().nullable(),
   after: z.number().nullable(),
+  /** On a `result` only: the kit version at the claim, and at the resolve (K10). */
+  beforeKit: z.number().nullable(),
+  afterKit: z.number().nullable(),
   created: z.number(),
 });
 

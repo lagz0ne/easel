@@ -47,6 +47,8 @@ CREATE TABLE IF NOT EXISTS queue_requests (
   claimed_at INTEGER,
   claim_digest TEXT,
   claim_version INTEGER,
+  kit INTEGER,
+  claim_kit INTEGER,
   tries INTEGER NOT NULL,
   queued_at INTEGER NOT NULL,
   accepted_by TEXT,
@@ -68,6 +70,8 @@ CREATE TABLE IF NOT EXISTS queue_messages (
   pick INTEGER,
   before_v INTEGER,
   after_v INTEGER,
+  before_kit INTEGER,
+  after_kit INTEGER,
   created INTEGER NOT NULL
 );
 CREATE INDEX IF NOT EXISTS queue_messages_request ON queue_messages (request, created);
@@ -86,15 +90,30 @@ BEGIN
   VALUES (OLD.canvas, OLD.id, OLD.version, OLD.html, OLD.css, OLD.kit);
 END;`;
 
-/** A request's columns, as the board names them. */
-const requestColumns = `canvas, id, n, frame_id AS frameId, version, x, y, author, key, status,
+/** The columns that a store made before them gets: the time of a claim, and the kit versions. */
+const addedColumns = [
+  ["queue_requests", "claimed_at"],
+  ["queue_requests", "kit"],
+  ["queue_requests", "claim_kit"],
+  ["queue_messages", "before_kit"],
+  ["queue_messages", "after_kit"],
+] as const;
+
+/**
+ * A request's columns, as the board names them. A request or a result stored before the kit
+ * refers to kit version 1, the seed (SPEC-kit judged rule 4).
+ */
+const requestColumns = `canvas, id, n, frame_id AS frameId, version, COALESCE(kit, 1) AS kit, x, y,
+  author, key, status,
   claimed_by AS claimedBy, claimed_until AS claimedUntil, claimed_at AS claimedAt, tries,
   queued_at AS queuedAt,
   accepted_by AS acceptedBy, created, updated`;
 
 /** A message's columns, as the board names them. */
 const messageColumns = `canvas, id, request, kind, sender AS "from", text, html, options,
-  pick AS option, before_v AS before, after_v AS after, created`;
+  pick AS option, before_v AS before, after_v AS after,
+  CASE WHEN kind = 'result' THEN COALESCE(before_kit, 1) END AS beforeKit,
+  CASE WHEN kind = 'result' THEN COALESCE(after_kit, 1) END AS afterKit, created`;
 
 /** A message's row: its options are kept as JSON. */
 const messageRow = message.extend({
@@ -112,12 +131,14 @@ const waitingIn = `status = 'open' AND (claimed_until IS NULL OR claimed_until <
  * The claim, one statement (judged rule 6, SQS's visibility timeout; a job queue's
  * `UPDATE … WHERE id = (SELECT …) RETURNING`): it finds the first waiting request in queue order
  * and writes its claim. SQLite runs one statement alone, so nothing comes between the find and
- * the write. `tries` goes up by one (judged rule 11); `claim_version` is the frame's version now.
+ * the write. `tries` goes up by one (judged rule 11); `claim_version` is the frame's version now,
+ * and `claim_kit` the current kit version: the `before` and `beforeKit` of a result.
  */
 export const claimSql = `UPDATE queue_requests SET claimed_by = $me, claimed_until = $until,
   claimed_at = $now, claim_digest = $digest, tries = tries + 1, updated = $now,
   claim_version = (SELECT f.version FROM frames_frames f
-    WHERE f.canvas = queue_requests.canvas AND f.id = queue_requests.frame_id)
+    WHERE f.canvas = queue_requests.canvas AND f.id = queue_requests.frame_id),
+  claim_kit = (SELECT MAX(version) FROM kit_versions)
 WHERE id = (SELECT id FROM queue_requests WHERE ${waitingIn}
   ORDER BY queued_at, canvas, n LIMIT 1)
 RETURNING ${requestColumns}, claim_version AS claimVersion`;
@@ -185,6 +206,7 @@ const addWrite = z.object({
   id: z.string(),
   frameId: z.string().nullable(),
   version: z.number().nullable(),
+  kit: z.number().optional(),
   x: z.number(),
   y: z.number(),
   text: z.string(),
@@ -208,7 +230,9 @@ const plainMessage = `INSERT INTO queue_messages (id, canvas, request, kind, sen
  * 5, 13). A key seen on the canvas answers `added` with its `n`, and writes nothing; a frame or a
  * canvas that is not there answers `gone`; 200 open answers `full`. Else `n` is one more than the
  * highest of the canvas, in the insert's own statement, so two at once never share one. A new
- * request is `open`, with no claim and no tries, at the back of the queue.
+ * request is `open`, with no claim and no tries, at the back of the queue. Its `kit` is the kit
+ * version that the viewer saw. None, or one past the current kit version, is saved as the
+ * current one: no tab shows a kit version that is not stored yet.
  */
 export const saveRequest = operation({
   label: "queue.saveRequest",
@@ -247,9 +271,10 @@ export const saveRequest = operation({
       const row = request.parse(
         db
           .query(
-            `INSERT INTO queue_requests (id, canvas, n, frame_id, version, x, y, author, key, status,
-               tries, queued_at, created, updated)
-             SELECT $id, $canvas, COALESCE(MAX(n), 0) + 1, $frame, $version, $x, $y, $author, $key,
+            `INSERT INTO queue_requests (id, canvas, n, frame_id, version, kit, x, y, author, key,
+               status, tries, queued_at, created, updated)
+             SELECT $id, $canvas, COALESCE(MAX(n), 0) + 1, $frame, $version,
+               MIN(COALESCE($kit, $past), (SELECT MAX(version) FROM kit_versions)), $x, $y, $author, $key,
                'open', 0, $now, $now, $now
              FROM queue_requests WHERE canvas = $canvas
              RETURNING ${requestColumns}`,
@@ -259,6 +284,8 @@ export const saveRequest = operation({
             $id: input.id,
             $frame: input.frameId,
             $version: input.version,
+            $kit: input.kit ?? null,
+            $past: Number.MAX_SAFE_INTEGER,
             $x: input.x,
             $y: input.y,
             $author: input.author,
@@ -568,18 +595,22 @@ const tryMessage = operation({
     write: endWrite,
     claimVersion: z.number().nullable(),
     current: z.number().nullable(),
+    claimKit: z.number().nullable(),
+    kitNow: z.number().nullable(),
   }),
-  run: (_, { input: { write, claimVersion, current } }) => {
+  run: (_, { input: { write, claimVersion, current, claimKit, kitNow } }) => {
     const none = { html: null, options: null, before: null, after: null };
+    const noKits = { beforeKit: null, afterKit: null };
     switch (write.kind) {
       case "extend":
         return null;
       case "release":
       case "decline":
-        return { kind: write.kind, ...none, text: write.reason };
+        return { kind: write.kind, ...none, ...noKits, text: write.reason };
       case "ask":
         return {
           ...none,
+          ...noKits,
           kind: "question" as const,
           text: write.text,
           html: write.html,
@@ -593,23 +624,30 @@ const tryMessage = operation({
           html: write.html,
           before: claimVersion,
           after: current,
+          beforeKit: claimKit,
+          afterKit: kitNow,
         };
     }
   },
 });
 
-/** The row of a call of the holder, with the version at the claim and the frame's version now. */
+/**
+ * The row of a call of the holder, with the version and the kit version at the claim, and the
+ * frame's version and the kit version now.
+ */
 const heldRow = request.extend({
   claimVersion: z.number().nullable(),
   current: z.number().nullable(),
+  claimKit: z.number().nullable(),
+  kitNow: z.number().nullable(),
 });
 
 /**
  * Each call of the holder of a claim, as one conditional write with its message (judged rules 8,
  * 10): the request must be `open`, hold this handle, and have a live lease. When it changes no
  * row, the same transaction reads the row and answers `gone`, `wrongState` or `lost`
- * (`missedTry`); a refusal writes nothing. A result's `before` is the version at the claim; its
- * `after` is the frame's version now.
+ * (`missedTry`); a refusal writes nothing. A result's `before` and `beforeKit` are the version
+ * and the kit version at the claim; its `after` and `afterKit` are those of now (K10).
  */
 export const endTry = operation({
   label: "queue.endTry",
@@ -635,7 +673,8 @@ export const endTry = operation({
            WHERE id = $id AND status = 'open' AND claim_digest = $digest AND claimed_until > $now
            RETURNING ${requestColumns}, claim_version AS claimVersion,
              (SELECT f.version FROM frames_frames f
-               WHERE f.canvas = queue_requests.canvas AND f.id = queue_requests.frame_id) AS current`,
+               WHERE f.canvas = queue_requests.canvas AND f.id = queue_requests.frame_id) AS current,
+             COALESCE(claim_kit, 1) AS claimKit, (SELECT MAX(version) FROM kit_versions) AS kitNow`,
         )
         .get({
           $id: input.id,
@@ -650,16 +689,19 @@ export const endTry = operation({
         return missedTry.run({ input: { row: request.nullable().parse(now), now: input.now } });
       }
 
-      const { claimVersion, current, ...row } = heldRow.parse(changed);
-      const fields = tryMessage.run({ input: { write: input, claimVersion, current } });
+      const { claimVersion, current, claimKit, kitNow, ...row } = heldRow.parse(changed);
+      const fields = tryMessage.run({
+        input: { write: input, claimVersion, current, claimKit, kitNow },
+      });
       const note =
         fields &&
         messageRow.parse(
           db
             .query(
               `INSERT INTO queue_messages (id, canvas, request, kind, sender, text, html, options,
-                 before_v, after_v, created)
-               VALUES ($id, $canvas, $request, $kind, $from, $text, $html, $options, $before, $after, $now)
+                 before_v, after_v, before_kit, after_kit, created)
+               VALUES ($id, $canvas, $request, $kind, $from, $text, $html, $options, $before, $after,
+                 $beforeKit, $afterKit, $now)
                RETURNING ${messageColumns}`,
             )
             .get({
@@ -673,6 +715,8 @@ export const endTry = operation({
               $options: fields.options && JSON.stringify(fields.options),
               $before: fields.before,
               $after: fields.after,
+              $beforeKit: fields.beforeKit,
+              $afterKit: fields.afterKit,
               $now: input.now,
             }),
         );
@@ -741,9 +785,36 @@ export const readClaimed = operation({
           .get({ $canvas: row.canvas, $id: row.frameId, $version: row.version }),
       );
     const doc = frame && frame.version === row.version ? frame.html : (kept?.html ?? null);
-    const saw = row.version !== null && doc !== null ? { version: row.version, doc } : null;
+    const saw =
+      row.version !== null && doc !== null ? { version: row.version, kit: row.kit, doc } : null;
     return { messages: thread, frame, saw, frames: null };
   },
+});
+
+/**
+ * Whether a request or a message refers to a frame version in a kit version (a kept view,
+ * SPEC-frames § Pictures): the request (what the viewer saw, or the claim), or a result's
+ * `before` or `after`, each with its own kit version (K10).
+ */
+export const seenView = operation({
+  label: "queue.seenView",
+  input: z.object({ canvas: z.string(), id: z.string(), version: z.number(), kit: z.number() }),
+  depends: { connection: bunSqlite.connection },
+  run: async ({ connection }, { input }) =>
+    z.object({ seen: z.number() }).parse(
+      connection.db.$client
+        .query(
+          `SELECT EXISTS (SELECT 1 FROM queue_requests r
+               WHERE r.canvas = $canvas AND r.frame_id = $id
+                 AND ((r.version = $version AND COALESCE(r.kit, 1) = $kit)
+                   OR (r.claim_version = $version AND COALESCE(r.claim_kit, 1) = $kit)))
+             OR EXISTS (SELECT 1 FROM queue_messages m JOIN queue_requests r ON r.id = m.request
+               WHERE r.canvas = $canvas AND r.frame_id = $id AND m.kind = 'result'
+                 AND ((m.before_v = $version AND COALESCE(m.before_kit, 1) = $kit)
+                   OR (m.after_v = $version AND COALESCE(m.after_kit, 1) = $kit))) AS seen`,
+        )
+        .get({ $canvas: input.canvas, $id: input.id, $version: input.version, $kit: input.kit }),
+    ).seen === 1,
 });
 
 /** At start: the tables and triggers, then the cells from the rows it read, and only from them. */
@@ -758,10 +829,12 @@ const load = operation({
   run: async ({ connection, requestCells, messageCells, out }) => {
     const db = connection.db.$client;
     db.exec(schema);
-    // A store made before `claimed_at` gets the column, null in each row.
-    const columns = db.query("PRAGMA table_info(queue_requests)").all();
-    if (!columns.some((c) => z.object({ name: z.literal("claimed_at") }).safeParse(c).success)) {
-      db.exec("ALTER TABLE queue_requests ADD COLUMN claimed_at INTEGER");
+    // A store made before them gets the columns, null in each row.
+    for (const [table, column] of addedColumns) {
+      const columns = db.query(`PRAGMA table_info(${table})`).all();
+      if (!columns.some((c) => z.object({ name: z.literal(column) }).safeParse(c).success)) {
+        db.exec(`ALTER TABLE ${table} ADD COLUMN ${column} INTEGER`);
+      }
     }
 
     const requestRows = db.query(`SELECT ${requestColumns} FROM queue_requests`).all();

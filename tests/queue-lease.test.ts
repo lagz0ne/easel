@@ -76,7 +76,7 @@ test("an agent runs next and gets it: claimed, with the request, its messages, t
   expect(got.claim.startsWith(got.request.id)).toBe(true);
   expect(got.messages.map((m) => [m.kind, m.from, m.text])).toEqual([["ask", "Bo", "Request 1."]]);
   expect(got.frame).toMatchObject({ id, name: "Home", version: 1, html: "<p>1</p>" });
-  expect(got.saw).toEqual({ version: 1, doc: "<p>1</p>" });
+  expect(got.saw).toEqual({ version: 1, kit: 1, doc: "<p>1</p>" });
   expect(got.frames).toBeNull();
 
   await until(() => tab.requests()[0]?.claimedBy === "ann");
@@ -115,7 +115,7 @@ test("next gives the version that the viewer saw, also after the frame changed: 
   const got = await a.next();
   if (got.kind !== "claimed") throw new Error(got.kind);
   expect(got.frame).toMatchObject({ version: 2, html: "<p>2</p>" });
-  expect(got.saw).toEqual({ version: 1, doc: "<p>1</p>" });
+  expect(got.saw).toEqual({ version: 1, kit: 1, doc: "<p>1</p>" });
 });
 
 test("next on a request whose frame was removed gives no frame and the kept version the viewer saw (judged rule 17)", async () => {
@@ -126,7 +126,7 @@ test("next on a request whose frame was removed gives no frame and the kept vers
   const got = await a.next();
   if (got.kind !== "claimed") throw new Error(got.kind);
   expect(got.frame).toBeNull();
-  expect(got.saw).toEqual({ version: 1, doc: "<p>1</p>" });
+  expect(got.saw).toEqual({ version: 1, kit: 1, doc: "<p>1</p>" });
 });
 
 // ---- The order (TheOldestRequestIsTakenFirst) and the scope (rule 21)
@@ -369,6 +369,9 @@ test("the holder resolves: resolved, the lease ends, and the result holds the te
     html,
     before: 1,
     after: 2,
+    // The kit versions at the claim and at the resolve (K10): no change of the look, the seed.
+    beforeKit: 1,
+    afterKit: 1,
   });
   expect(await stateIn(a, srv, 1)).toBe("result");
 });

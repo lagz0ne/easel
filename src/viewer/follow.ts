@@ -65,8 +65,15 @@ export type Line =
     }
   | { key: string; kind: "step"; who: string | null; what: string; at: number | null };
 
-/** One side of a switch: its word, and the version of the frame (null: the frame was removed). */
-const pane = z.object({ label: z.string(), version: z.number().nullable() });
+/**
+ * One side of a switch: its word, the version of the frame (null: the frame was removed), and
+ * the kit version it shows in (null: the current one; SPEC-kit K10).
+ */
+const pane = z.object({
+  label: z.string(),
+  version: z.number().nullable(),
+  kit: z.number().nullable(),
+});
 
 export type Pane = z.infer<typeof pane>;
 
@@ -418,8 +425,9 @@ const resultProof = operation({
     if (m.kind !== "result" || frameId === null) return null;
     if (m.before === null || m.after === null) return null;
 
-    const left = { label: "Before", version: m.before };
-    return { id: frameId, left, right: { label: "After", version: m.after }, show: "right", opens };
+    const left = { label: "Before", version: m.before, kit: m.beforeKit };
+    const right = { label: "After", version: m.after, kit: m.afterKit };
+    return { id: frameId, left, right, show: "right", opens };
   },
 });
 
@@ -434,11 +442,11 @@ const askProof = operation({
     if (m.kind !== "ask" || o === null || o.cause === "old") return null;
     if (r.frameId === null || r.version === null) return null;
 
-    const left = { label: "When asked", version: r.version };
+    const left = { label: "When asked", version: r.version, kit: r.kit };
     return {
       id: r.frameId,
       left,
-      right: { label: "Now", version: o.now },
+      right: { label: "Now", version: o.now, kit: null },
       show: "left",
       opens: true,
     };

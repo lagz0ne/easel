@@ -33,8 +33,9 @@ export const pickSide = operation({
 });
 
 /**
- * The picture of a version of a frame, at the frame's box, or the box it had before it was
- * removed. A version that is not current has its key in the board's `kept`.
+ * The picture of a version of a frame in a kit version, at the frame's box, or the box it had
+ * before it was removed. A version that is not current has its key in the board's `kept`. A pane
+ * with no kit version shows the current one.
  */
 function PanePicture({
   canvas,
@@ -43,9 +44,10 @@ function PanePicture({
 }: {
   canvas: string;
   id: string;
-  pane: { label: string; version: number };
+  pane: { label: string; version: number; kit: number | null };
 }) {
   const frame = useData(frames.board.frames.of({ canvas, id }));
+  const now = useData(frames.board.kit.of({ canvas }));
   const held = useData(frames.board.kept.of({ canvas, id, version: pane.version }));
   const gone = useData(frames.board.removed.of({ canvas, id }));
   const box = frame ?? gone;
@@ -58,6 +60,7 @@ function PanePicture({
       frame={box}
       version={pane.version}
       k={k}
+      kit={pane.kit ?? now?.kit}
       alt={`${pane.label}: ${box.name}`}
       card={16 / 10}
     />

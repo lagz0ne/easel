@@ -50,10 +50,10 @@ const loadDocs = operation({
   },
 });
 
-/** An agent's put of a new frame, at its box. */
+/** An agent's put of a new frame, at its box, with its picture key `k` when pictures are on. */
 const put = operation({
   label: "test.put",
-  input: z.object({ id: z.string(), x: z.number(), y: z.number() }),
+  input: z.object({ id: z.string(), x: z.number(), y: z.number(), k: z.string().optional() }),
   depends: { cells: frameCells.controller, invalidate: framesBoard.invalidate },
   run: async ({ cells, invalidate }, { input }) => {
     htmls.set(input.id, { version: 1, html: probeDoc(input.id) });
@@ -71,7 +71,7 @@ const setKit = operation({
     cells.set({ canvas, kit: input, look: looks[input].look, css: "", pieces: [] }),
 });
 
-async function boot(ids: Array<{ id: string; x: number; y: number }>) {
+async function boot(ids: Array<{ id: string; x: number; y: number; k?: string }>) {
   htmls.clear();
   const server = await createScope({
     capsules: [
@@ -296,4 +296,43 @@ test("K7: with 20 frames in view, each live document shows a new color.primary w
   expect(Math.max(...times)).toBeLessThan(1_000);
   expect(docs()).toEqual(iframes);
   expect(await Promise.all(live.map((id) => drawnOf(id)))).toEqual(drawn);
+});
+
+test("K7: each frame in view that is not live asks for the picture of the new kit version in the same img, so its last picture stays until the new one comes; no frame is written", async () => {
+  const grid = Array.from({ length: 20 }, (_, i) => ({
+    id: `f${String(i).padStart(2, "0")}`,
+    x: (i % 5) * 340,
+    y: Math.floor(i / 5) * 220,
+    k: `key-${i}`,
+  }));
+  const server = await boot(grid);
+  const at = await tab(server);
+  await rested(at, 20, 12);
+  const live = new Set(docs().map((d) => d.dataset.id ?? ""));
+  const shown = grid.filter((f) => !live.has(f.id));
+  const cards = shown.map((f) => f.id);
+  const picOf = (id: string) =>
+    region().querySelector<HTMLImageElement>(`[data-id="${id}"] .e-card img.e-pic`);
+  expect(cards).toHaveLength(8);
+  const imgs = cards.map((id) => picOf(id));
+  expect(imgs.map((img) => img?.getAttribute("src"))).toEqual(
+    shown.map((f) => `/api/pictures/${canvas}/${f.id}/1?s=0.5&k=${f.k}&kit=1`),
+  );
+
+  await server.run(setKit, { input: 2 });
+  await expect
+    .poll(() => cards.map((id) => picOf(id)?.getAttribute("src")?.endsWith("&kit=2")), {
+      timeout: 1_000,
+    })
+    .toEqual(cards.map(() => true));
+  // The same img, and its card shows: the browser keeps the last picture until the new one has
+  // come, so no frame shows a white box.
+  expect(cards.map((id) => picOf(id))).toEqual(imgs);
+  for (const id of cards) {
+    expect(region().querySelector(`[data-id="${id}"] .e-card`)?.hasAttribute("hidden")).toBe(false);
+  }
+  // No frame is written: each frame is at its first version.
+  expect(cards.map((id) => picOf(id)?.getAttribute("src")?.split("?")[0])).toEqual(
+    cards.map((id) => `/api/pictures/${canvas}/${id}/1`),
+  );
 });

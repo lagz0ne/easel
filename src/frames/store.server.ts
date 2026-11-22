@@ -433,8 +433,9 @@ export const bumpKeys = operation({
 /**
  * A picture's one read (judged rule 7), in one statement, so the document drawn is the version
  * read: the frame's current version (`null`: removed), the canvas's key generation, and `doc`:
- * the document of the version asked (the current one, or a kept one) with the box to draw it in
- * (the frame's, or the removed frame's last one), or `null` when either is not there.
+ * the document of the version asked (the current one, or a kept one), its made CSS, and the box
+ * to draw it in (the frame's, or the removed frame's last one), or `null` when either is not
+ * there.
  */
 export const readPicture = operation({
   label: "frames.readPicture",
@@ -447,12 +448,13 @@ export const readPicture = operation({
         w: z.number().nullable(),
         h: z.number().nullable(),
         html: z.string().nullable(),
+        css: z.string().nullable(),
         gen: z.number(),
       })
-      .transform(({ current, w, h, html, gen }) => ({
+      .transform(({ current, w, h, html, css, gen }) => ({
         current,
         gen,
-        doc: html !== null && w !== null && h !== null ? { html, w, h } : null,
+        doc: html !== null && w !== null && h !== null ? { html, css, w, h } : null,
       }))
       .parse(
         connection.db.$client
@@ -461,6 +463,9 @@ export const readPicture = operation({
                CASE WHEN f.version = $version THEN f.html
                  ELSE (SELECT html FROM frames_kept
                    WHERE canvas = $canvas AND id = $id AND version = $version) END AS html,
+               CASE WHEN f.version = $version THEN f.css
+                 ELSE (SELECT css FROM frames_kept
+                   WHERE canvas = $canvas AND id = $id AND version = $version) END AS css,
                COALESCE((SELECT gen FROM frames_keygen WHERE canvas = $canvas), 0) AS gen
              FROM (SELECT 1)
                LEFT JOIN frames_frames f ON f.canvas = $canvas AND f.id = $id

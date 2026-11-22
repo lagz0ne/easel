@@ -38,7 +38,12 @@ import {
   slotWaitMs,
 } from "@/frames/pictures.server";
 import { bumpKeys, framesServer } from "@/frames/store.server";
-import { queueServer, saveRequest } from "@/queue/store.server";
+import { compose } from "@/kit/compose";
+import { makeFrame } from "@/kit/make.server";
+import { lookSet, lookUndo } from "@/kit/ops.server";
+import { frameKit, readKitAt } from "@/kit/store.server";
+import { messages as messageCells } from "@/queue/cells";
+import { claimRequest, endTry, queueServer, saveRequest } from "@/queue/store.server";
 
 import { localChromium } from "./support/chromium";
 
@@ -144,6 +149,14 @@ const boardKept = operation({
   }),
 });
 
+/** The board's messages of a canvas, on the server. */
+const boardMessages = operation({
+  label: "test.boardMessages",
+  input: z.object({ canvas: z.string() }),
+  depends: { cells: messageCells.atScope.controller },
+  run: ({ cells }, { input }) => cells.where(input).get(),
+});
+
 let requestKeys = 0;
 
 type Boot = {
@@ -217,10 +230,27 @@ async function boot(options: Boot = {}) {
       if (!got) throw new Error(`no member ${canvas}/${id}`);
       return got;
     },
-    /** The address a tab builds from the board: `s=0.5` and the member's key. */
-    address: async (canvas: string, id: string, query = "s=0.5") => {
+    /**
+     * The address a tab builds from the board: `s=0.5`, the member's key and the kit version (the
+     * current one, or `kit`).
+     */
+    address: async (canvas: string, id: string, query = "s=0.5", kit?: number) => {
       const got = server.run(boardMember, { input: { canvas, id } });
-      return `/api/pictures/${canvas}/${id}/${got?.version}?${query}&k=${got?.k}`;
+      kit ??= (await server.run(frameKit)).version;
+      return `/api/pictures/${canvas}/${id}/${got?.version}?${query}&k=${got?.k}&kit=${kit}`;
+    },
+    /**
+     * What the test draw answers for a document with no class names: `drawn:` and the document
+     * composed with its made CSS and kit version `kit` (the current one by default).
+     */
+    drawnAs: async (html: string, kit?: number) => {
+      const shape = await server.run(frameKit);
+      const made = await server.run(makeFrame, { input: { html, kit: shape } });
+      const row = await server.run(readKitAt, { input: kit ?? shape.version });
+      if (made.kind !== "made" || row === null) throw new Error("no made CSS, or no kit version");
+
+      const look = { look: row.root, css: row.css };
+      return `drawn:${server.run(compose, { input: { html, css: made.css, kit: look } })}`;
     },
     keyFor: (canvas: string, id: string, version: number, gen: number) =>
       server.run(pictureKey, { input: { canvas, id, version, gen } }),
@@ -247,12 +277,12 @@ async function boot(options: Boot = {}) {
     },
     /** The kept versions and removed frames that the board carries for a canvas. */
     kept: (canvas: string) => server.run(boardKept, { input: { canvas } }),
-    /** The address of a kept version, from the board's key for it. */
-    keptAddress: (canvas: string, id: string, version: number, query = "s=0.5") => {
+    /** The address of a kept view, from the board's key for its version, in kit version `kit`. */
+    keptAddress: (canvas: string, id: string, version: number, query = "s=0.5", kit = 1) => {
       const got = server
         .run(boardKept, { input: { canvas } })
         .kept.find((v) => v.id === id && v.version === version);
-      return `/api/pictures/${canvas}/${id}/${version}?${query}&k=${got?.k}`;
+      return `/api/pictures/${canvas}/${id}/${version}?${query}&k=${got?.k}&kit=${kit}`;
     },
   };
 }
@@ -308,9 +338,15 @@ test("the tab asks for its address; the server takes that version's document; th
   expect(answer.headers.get("content-type")).toBe("image/webp");
   expect(answer.headers.get("cache-control")).toBe(pictureCache);
   expect(pictureCache).toBe("private, max-age=31536000, immutable");
-  expect(await text(answer)).toBe("drawn:<p>1</p>");
+  expect(await text(answer)).toBe(await srv.drawnAs("<p>1</p>"));
   expect(srv.draws.seen.map((d) => d.input)).toEqual([
-    { html: "<p>1</p>", w: 400, h: 300, scale: 0.5, region: { x: 0, y: 0, w: 400, h: 300 } },
+    {
+      html: (await srv.drawnAs("<p>1</p>")).slice("drawn:".length),
+      w: 400,
+      h: 300,
+      scale: 0.5,
+      region: { x: 0, y: 0, w: 400, h: 300 },
+    },
   ]);
 });
 
@@ -371,14 +407,14 @@ test("an agent writes the frame; the tab asks for its old address; the server re
   expect(answer.headers.get("cache-control")).toBe("no-store");
   const now = await srv.member("flow", srv.id);
   expect(answer.headers.get("location")).toBe(
-    `/api/pictures/flow/${srv.id}/2?s=2&k=${now.k}&r=1,2,3,4`,
+    `/api/pictures/flow/${srv.id}/2?s=2&k=${now.k}&kit=1&r=1,2,3,4`,
   );
   expect(srv.draws.seen).toEqual([]);
 
   // The browser follows it: the current version, drawn.
   const followed = await srv.get(answer.headers.get("location") ?? "");
   expect(followed.status).toBe(200);
-  expect(await text(followed)).toBe("drawn:<p>2</p>");
+  expect(await text(followed)).toBe(await srv.drawnAs("<p>2</p>"));
 });
 
 test("the board shows the current address: a write gives the member the new version's key", async () => {
@@ -405,7 +441,7 @@ test("a write that lands during the draw: the picture sent is still the version 
   const answer = await asked;
   expect(answer.status).toBe(200);
   expect(answer.headers.get("cache-control")).toBe(pictureCache);
-  expect(await text(answer)).toBe("drawn:<p>1</p>");
+  expect(await text(answer)).toBe(await srv.drawnAs("<p>1</p>"));
 });
 
 // ---- ADeletedFramesPictureIsSentOnlyIfKept
@@ -454,7 +490,7 @@ test("a request refers to an old version; the tab asks for its kept address; the
   const answer = await srv.get(srv.keptAddress("flow", srv.id, 1));
   expect(answer.status).toBe(200);
   expect(answer.headers.get("cache-control")).toBe(pictureCache);
-  expect(await text(answer)).toBe("drawn:<p>1</p>");
+  expect(await text(answer)).toBe(await srv.drawnAs("<p>1</p>"));
   expect(srv.draws.seen.map((d) => [d.input.w, d.input.h])).toEqual([[400, 300]]);
 
   // A version no request refers to is not kept: its address still redirects.
@@ -490,7 +526,7 @@ test("an agent deletes the frame: its kept versions are still drawn, at the box 
   ]);
   const one = await srv.get(srv.keptAddress("flow", srv.id, 2, "s=1"));
   expect(one.status).toBe(200);
-  expect(await text(one)).toBe("drawn:<p>2</p>");
+  expect(await text(one)).toBe(await srv.drawnAs("<p>2</p>"));
   expect(srv.draws.seen.map((d) => [d.input.w, d.input.h])).toEqual([[400, 300]]);
   // Version 3 was current at the delete, and no request refers to it.
   await refused(await srv.get(three), 404);
@@ -509,7 +545,7 @@ test("a delete that lands during the draw of a kept version: the picture still g
 
   const answer = await asked;
   expect(answer.status).toBe(200);
-  expect(await text(answer)).toBe("drawn:<p>1</p>");
+  expect(await text(answer)).toBe(await srv.drawnAs("<p>1</p>"));
 });
 
 test("the link ends: each kept version gets its key again, and a key from before answers 404", async () => {
@@ -547,6 +583,115 @@ test("with pictures off, a kept version is on the board with no key", async () =
   await srv.refer("flow", srv.id, 1);
   await srv.write("flow", srv.id, 1, "<p>2</p>");
   expect(srv.kept("flow").kept).toEqual([{ canvas: "flow", id: srv.id, version: 1 }]);
+});
+
+// ---- Kit versions (SPEC-frames § Pictures, SPEC-kit K10)
+
+/** A color as DTCG sRGB, from `#rrggbb`. */
+const srgb = (hex: string) => ({
+  colorSpace: "srgb" as const,
+  components: [1, 3, 5].map((at) => Number.parseInt(hex.slice(at, at + 2), 16) / 255),
+});
+
+/** A change of `color.primary` on look revision `base`, as `look.set` runs it on the server. */
+async function setPrimary(srv: Server, base: number, hex: string) {
+  const look = { color: { primary: { $value: srgb(hex) } } };
+  const answer = await srv.server.run(lookSet, { input: { look, base } });
+  expect(answer).toMatchObject({ kind: "updated" });
+}
+
+test("the address names the kit version: none, an older one or one not stored yet is redirected to the current one; a malformed one answers 404; nothing is drawn", async () => {
+  const srv = await withFrame();
+  await setPrimary(srv, 1, "#3b2fc9");
+  const now = await srv.address("flow", srv.id, "s=1");
+  expect(now).toMatch(/&kit=2$/);
+
+  for (const kit of ["", "&kit=1", "&kit=3"]) {
+    const answer = await srv.get(now.replace("&kit=2", kit));
+    expect(answer.status).toBe(307);
+    expect(answer.headers.get("cache-control")).toBe("no-store");
+    expect(answer.headers.get("location")).toBe(now);
+  }
+  for (const kit of ["&kit=0", "&kit=two", "&kit=02"]) {
+    await refused(await srv.get(now.replace("&kit=2", kit)), 404);
+  }
+  expect(srv.draws.seen).toEqual([]);
+
+  // The current version in the current kit version: drawn in its look, the new primary.
+  const answer = await srv.get(now);
+  expect(answer.status).toBe(200);
+  expect(await text(answer)).toBe(await srv.drawnAs("<p>1</p>", 2));
+  expect(await text(await srv.get(now))).toContain("--primary: #3b2fc9;");
+});
+
+test("K10: a viewer asks in kit version 1; the look changes; the agent claims in kit version 2, changes the look and resolves in 3; after an undo (4), When asked, Before and After each show their own kit version", async () => {
+  const srv = await withFrame();
+  expect(await srv.drawnAs("<p>1</p>", 1)).toContain("--primary: #171717;");
+  await srv.refer("flow", srv.id, 1);
+  await setPrimary(srv, 1, "#3b2fc9");
+
+  const claim = { canvas: null, n: null, me: "claude", digest: "d".repeat(64) };
+  const now = srv.clock.currentTimeMillis();
+  const claimed = await srv.server.run(claimRequest, {
+    input: { ...claim, until: now + 60_000, now },
+  });
+  expect(claimed?.row).toMatchObject({ version: 1, kit: 1 });
+
+  // The agent changes the look (kit version 3) and resolves with no change of the frame.
+  await setPrimary(srv, 2, "#1d4ed8");
+  const resolved = await srv.server.run(endTry, {
+    input: {
+      kind: "resolve",
+      id: claimed?.row.id ?? "",
+      digest: claim.digest,
+      from: "claude",
+      message: "msg-resolved1",
+      now,
+      text: "A darker blue primary.",
+      html: null,
+    },
+  });
+  expect(resolved.kind).toBe("done");
+  const result = srv.server
+    .run(boardMessages, { input: { canvas: "flow" } })
+    .find((m) => m.kind === "result");
+  expect(result).toMatchObject({ before: 1, after: 1, beforeKit: 2, afterKit: 3 });
+
+  // K9: the undo is a new kit version, 4, with the look of 2.
+  expect(await srv.server.run(lookUndo, { input: { base: 3 } })).toMatchObject({
+    kind: "updated",
+    kit: 4,
+  });
+
+  // When asked (kit version 1), Before (2), After (3) and the frame now (4): each drawn in its
+  // own look, not redirected.
+  const looks = [
+    [1, "#171717"],
+    [2, "#3b2fc9"],
+    [3, "#1d4ed8"],
+    [4, "#3b2fc9"],
+  ] as const;
+  for (const [kit, primary] of looks) {
+    const answer = await srv.get(await srv.address("flow", srv.id, "s=0.5", kit));
+    expect(answer.status).toBe(200);
+    expect(answer.headers.get("cache-control")).toBe(pictureCache);
+
+    const drawn = await text(answer);
+    expect(drawn).toBe(await srv.drawnAs("<p>1</p>", kit));
+    expect(drawn).toContain(`--primary: ${primary};`);
+  }
+  expect(await srv.address("flow", srv.id)).toMatch(/&kit=4$/);
+
+  // A new version of the frame: version 1 is kept, and drawn only in the kit versions that a
+  // request or a message refers to. In kit version 4, which none refers to, it is redirected.
+  await srv.write("flow", srv.id, 1, "<p>2</p>");
+  for (const kit of [1, 2, 3]) {
+    const answer = await srv.get(srv.keptAddress("flow", srv.id, 1, "s=0.5", kit));
+    expect(await text(answer)).toBe(await srv.drawnAs("<p>1</p>", kit));
+  }
+  const other = await srv.get(srv.keptAddress("flow", srv.id, 1, "s=0.5", 4));
+  expect(other.status).toBe(307);
+  expect(other.headers.get("location")).toBe(await srv.address("flow", srv.id));
 });
 
 // ---- The bump (AnEndedViewerSeesNoNewerPicture)
@@ -724,7 +869,8 @@ test("the requests that wait for a slot draw in the order they came", async () =
     srv.draws.seen[i]?.go();
   }
   await Promise.all(asked);
-  expect(srv.draws.seen.map((draw) => draw.input.html)).toEqual([
+  // Each draws the composed document: its own text is at its end.
+  expect(srv.draws.seen.map((draw) => draw.input.html.slice(-8))).toEqual([
     "<p>a</p>",
     "<p>b</p>",
     "<p>c</p>",
@@ -849,21 +995,23 @@ test("frame.shot answers the current version's address with the board's key, and
   await srv.write("flow", srv.id, 1, "<p>2</p>");
   const k = (await srv.member("flow", srv.id)).k;
 
-  const whole = srv.server.run(shotFrame, {
+  const whole = await srv.server.run(shotFrame, {
     input: { canvas: "flow", id: srv.id, scale: 0.25 },
   });
   expect(whole).toEqual({
     kind: "ready",
-    url: `/api/pictures/flow/${srv.id}/2?s=0.25&k=${k}`,
+    url: `/api/pictures/flow/${srv.id}/2?s=0.25&k=${k}&kit=1`,
     version: 2,
+    kit: 1,
   });
-  const part = srv.server.run(shotFrame, {
+  const part = await srv.server.run(shotFrame, {
     input: { canvas: "flow", id: srv.id, scale: 2, region: { x: 1, y: 2, w: 3, h: 4 } },
   });
   expect(part).toEqual({
     kind: "ready",
-    url: `/api/pictures/flow/${srv.id}/2?s=2&k=${k}&r=1,2,3,4`,
+    url: `/api/pictures/flow/${srv.id}/2?s=2&k=${k}&kit=1&r=1,2,3,4`,
     version: 2,
+    kit: 1,
   });
   expect(picturePath.safeParse(whole.kind === "ready" ? whole.url : "").success).toBe(true);
   expect(srv.draws.seen).toEqual([]);
@@ -873,7 +1021,7 @@ test("frame.shot answers the current version's address with the board's key, and
 
 test("frame.shot on a frame that is not there answers gone", async () => {
   const srv = await withFrame();
-  const answer = srv.server.run(shotFrame, {
+  const answer = await srv.server.run(shotFrame, {
     input: { canvas: "flow", id: "000000000000", scale: 1 },
   });
   expect(answer).toEqual({ kind: "gone" });
@@ -889,7 +1037,9 @@ test("with no EASEL_CHROMIUM, pictures are off: no keys on the board, every pict
   // A key made with the server's secret still opens nothing.
   const k = srv.keyFor("flow", srv.id, 1, 0);
   await refused(await srv.get(`/api/pictures/flow/${srv.id}/1?s=1&k=${k}`), 404);
-  expect(srv.server.run(shotFrame, { input: { canvas: "flow", id: srv.id, scale: 1 } })).toEqual({
+  expect(
+    await srv.server.run(shotFrame, { input: { canvas: "flow", id: srv.id, scale: 1 } }),
+  ).toEqual({
     kind: "off",
   });
   expect(await srv.server.run(chromiumCheck)).toEqual({
@@ -902,7 +1052,9 @@ test("with no EASEL_CHROMIUM, pictures are off: no keys on the board, every pict
 test("EASEL_CHROMIUM naming no Chromium: pictures are off, and readiness fails", async () => {
   const srv = await withFrame({ chromium: "/nonexistent/chromium" });
   expect((await srv.member("flow", srv.id)).k).toBeUndefined();
-  expect(srv.server.run(shotFrame, { input: { canvas: "flow", id: srv.id, scale: 1 } })).toEqual({
+  expect(
+    await srv.server.run(shotFrame, { input: { canvas: "flow", id: srv.id, scale: 1 } }),
+  ).toEqual({
     kind: "off",
   });
   expect(await srv.server.run(chromiumCheck)).toEqual({
@@ -1188,6 +1340,40 @@ test("a real Chromium draws a WebP at the scale and region asked, and readiness 
 
   expect(await srv.server.run(chromiumCheck)).toEqual({ ok: true, detail: "Chromium runs" });
 }, 30_000);
+
+test("K7, speed: after a change of the look, a real Chromium draws the 20 frames in view in the new kit version, asked all at once as a tab asks, in well under 10 s and under the 5 s slot wait", async () => {
+  const chromium = localChromium();
+  expect(chromium).not.toBeNull();
+  const srv = await boot({ chromium, real: true });
+  await srv.canvas("Twenty");
+  const ids: string[] = [];
+  for (let i = 0; i < 20; i++) {
+    const html = `<div class="bg-primary text-primary-foreground p-4 rounded-lg">Plan ${i}</div>`;
+    ids.push((await srv.put({ canvas: "twenty", html, size: { w: 320, h: 200 } })).id);
+  }
+  // A first picture of each, as the tab had them before the change; Chromium is warm.
+  for (const id of ids) expect((await srv.get(await srv.address("twenty", id))).status).toBe(200);
+
+  await setPrimary(srv, 1, "#3b2fc9");
+  const sent = performance.now();
+  const addresses = await Promise.all(ids.map((id) => srv.address("twenty", id)));
+  expect(addresses.every((a) => a.endsWith("&kit=2"))).toBe(true);
+  const times = await Promise.all(
+    addresses.map(async (address) => {
+      const answer = await srv.get(address);
+      expect(answer.status).toBe(200);
+      await answer.arrayBuffer();
+      return performance.now() - sent;
+    }),
+  );
+
+  const most = Math.max(...times);
+  console.log(
+    `speed: K7 20 frames in view drawn in the new kit version in ${most.toFixed(0)} ms (the first in ${Math.min(...times).toFixed(0)} ms), 2 draws at once`,
+  );
+  // The test clock never ends a slot wait: under 5 s, no request of a real server waits past it.
+  expect(most).toBeLessThan(5_000);
+}, 60_000);
 
 test("a real draw does not reach this machine: a document's http, https, ws, wss, worker, frame and image loads to loopback are refused", async () => {
   const hits: string[] = [];

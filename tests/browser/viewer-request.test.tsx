@@ -119,6 +119,7 @@ const save = operation({
       n,
       frameId: input.frameId,
       version: input.version,
+      kit: input.kit ?? 1,
       x: input.x,
       y: input.y,
       author: store.names.get(pass) ?? "",
@@ -145,6 +146,8 @@ const save = operation({
       option: null,
       before: null,
       after: null,
+      beforeKit: null,
+      afterKit: null,
       created: 1,
     };
     store.requests.push(row);
@@ -164,6 +167,7 @@ function stored(n: number, text: string, patch: Partial<Request> = {}) {
     n,
     frameId: home,
     version: 1,
+    kit: 1,
     x: 40 * n,
     y: 40,
     author: "Mai",
@@ -193,6 +197,8 @@ function stored(n: number, text: string, patch: Partial<Request> = {}) {
     option: null,
     before: null,
     after: null,
+    beforeKit: null,
+    afterKit: null,
     created: row.created,
   });
   return row;

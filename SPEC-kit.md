@@ -438,7 +438,10 @@ The statecharts [kit-piece](docs/statecharts/kit-piece.md), [kit-look](docs/stat
 - K6: on a board of 200 frames from the kit, the viewer still meets `docs/canvas-speed.md`. A
   browser test loads 12 live documents from the kit and finds each painted within the paint cap.
 - K7, K13: a browser test changes `color.primary` and finds the new color in each live document
-  within 1 s, with no new iframe. A test changes a piece's template and finds each live document
+  within 1 s, with no new iframe. A browser test finds that each other frame in view asks for the
+  picture of the new kit version in the same img. A test with a real Chromium draws the 20
+  pictures of the new kit version, asked at once, in less than 5 s. (Measure of 2026-11-22: 12
+  live documents of 20 in view in 21 ms; the 20 pictures in 1 s.) A test changes a piece's template and finds each live document
   that uses it reloaded, with its picture on top until it paints.
 - K8: a test sets a look that fails each kind of pair and reads `unreadable` with that pair; the
   seed passes.

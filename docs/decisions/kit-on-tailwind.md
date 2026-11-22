@@ -1,7 +1,7 @@
 # The kit on Tailwind (A+T), made by Tailwind v4 compile()
 
 Date: 2026-11-21. Status: accepted; specified in [SPEC-kit.md](../SPEC-kit.md). Build order steps 1
-and 2 are built. It closes the design of E8 "One look, fast" ([epics](../epics.md#e8-one-look-fast)).
+to 3 are built. It closes the design of E8 "One look, fast" ([epics](../epics.md#e8-one-look-fast)).
 
 ## What the user said
 
@@ -200,7 +200,12 @@ measure is the frame-script test above.
    the current kit; the TLA+ model of kit-look gets this hello, with a variant that posts only once
    and misses a document that starts late. The cell `kit` is written at scope, as the cells of
    frames: a write in the request session of a call stays in that session, and no other tab sees
-   it.
+   it. Built on 2026-11-22: the hello and the port (the kit-look chart, 250 states; the variant
+   kit-look-hello-once breaks K7), `look.get`, `look.set` and `look.undo` with
+   `easel look get|set|undo`, a picture address with `&kit=` drawn from the composed document of
+   that kit version, and the kit versions that a request and a result keep (`kit`, `beforeKit`,
+   `afterKit`). Measured on this host: 12 live documents of 20 in view show a new look 21 ms after
+   the write; a real Chromium draws the 20 pictures of the new kit version in 1 s, 2 at once.
 4. Pieces (`k-`), `put_piece` with its revision (K12, K14).
 5. The seed look: a design ship on Doop that does not look generic (K1).
 

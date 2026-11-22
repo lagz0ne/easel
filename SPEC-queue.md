@@ -190,7 +190,7 @@ Prior art:
 // pass, { name: true } when the pass has no name, { signIn: true } with no pass and no live
 // token). The page asks the name at the first Send, and gives it to the pass
 // ([frames](SPEC-frames.md)).
-// request.add { canvas, frameId: string | null, version: number | null, kit: number, x, y, text, key }
+// request.add { canvas, frameId: string | null, version: number | null, kit?: number, x, y, text, key }
 "request.add":     { kind: "added"; n: number } | { kind: "gone" } | { kind: "full" }
                  | { kind: "slow"; retryIn: number }
 // request.edit { canvas, n, text }; answer { canvas, n, text, option? }; accept { canvas, n };
@@ -265,8 +265,10 @@ tries, queuedAt, acceptedBy, created, updated }`.
 - `frameId` is `null` for a request on the canvas. Then `x` and `y` are on the canvas. Else they
   are relative to the top left of the frame.
 - `version` is the frame version that the viewer saw, or `null` for a request on the canvas.
-- `kit` is the kit version that the viewer saw ([kit](SPEC-kit.md)). A kit version that is not
-  stored is `invalid`.
+- `kit` is the kit version that the viewer saw ([kit](SPEC-kit.md)). A page that has not got the
+  kit yet sends none. No kit version, or one past the current one, is saved as the current one:
+  no tab can show a kit version that is not stored, and no kit version is removed. A request
+  stored before the kit has kit version 1.
 - `claimedBy` is the name of the user. Only the agent that claimed holds the claim handle. The
   server keeps its digest.
 - `claimedAt` is the time of the claim. The claim writes it in its one write; `extend` keeps it.

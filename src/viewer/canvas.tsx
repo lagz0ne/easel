@@ -176,7 +176,8 @@ function LiveDoc({
  * document when it is live. The card stays on top until the document of this version painted. The
  * picture is drawn at half size, or a quarter when half is over 8 megapixels; with no key (pictures
  * are off), or a frame too big even at a quarter, the card is plain. An img decodes off the main
- * thread, and the card's color shows until it has.
+ * thread, and the card's color shows until it has. The picture is of the canvas's kit version: a
+ * new one gives a new address, and the img shows the last picture until the new one has come.
  */
 const Shell = memo(function Shell({
   canvas,
@@ -189,6 +190,7 @@ const Shell = memo(function Shell({
 }) {
   const live = useData(liveSet, (ids) => ids.includes(frame.id));
   const shown = useData(painted, (p) => p[frame.id]);
+  const kitNow = useData(frames.board.kit.of({ canvas }))?.kit ?? null;
 
   return (
     <div
@@ -208,7 +210,13 @@ const Shell = memo(function Shell({
       </div>
       {live ? <LiveDoc canvas={canvas} frame={frame} attach={at.doc} /> : null}
       <div className="e-card" hidden={live && shown === frame.version}>
-        <FramePicture canvas={canvas} frame={frame} version={frame.version} k={frame.k} />
+        <FramePicture
+          canvas={canvas}
+          frame={frame}
+          version={frame.version}
+          k={frame.k}
+          kit={kitNow}
+        />
       </div>
     </div>
   );
@@ -316,7 +324,7 @@ export function Canvas({ canvas, opening }: { canvas: string; opening: React.Rea
   const asking = useData(requestMode);
   const panel = useData(panelOpen);
   useData(clockTicker({ canvas }));
-  useData(kitFeed({ canvas }));
+  const kitNow = useData(kitFeed({ canvas }));
   useData(openFromLink({ canvas }));
   useData(aimFromLink({ canvas }));
   if (state?.status === "fault" && ended.safeParse(state.fault.payload).success) return opening;
@@ -339,11 +347,20 @@ export function Canvas({ canvas, opening }: { canvas: string; opening: React.Rea
                 frameId: frame.id,
                 frameName: frame.name,
                 version: frame.version,
+                kit: kitNow,
                 x: spot.x - frame.x,
                 y: spot.y - frame.y,
                 box: { x: frame.x, y: frame.y, w: frame.w, h: frame.h },
               }
-            : { frameId: null, frameName: null, version: null, x: spot.x, y: spot.y, box: null };
+            : {
+                frameId: null,
+                frameName: null,
+                version: null,
+                kit: kitNow,
+                x: spot.x,
+                y: spot.y,
+                box: null,
+              };
           pick.run({ input: { canvas, place } });
         }}
       >

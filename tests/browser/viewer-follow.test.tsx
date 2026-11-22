@@ -75,6 +75,7 @@ function stored(n: number, text: string, patch: Partial<Request> = {}) {
     n,
     frameId: home,
     version: 1,
+    kit: 1,
     x: 30 * n,
     y: 40,
     author: "Mai",
@@ -109,6 +110,8 @@ function said(r: Request, kind: Message["kind"], from: string, text: string | nu
     option: null,
     before: null,
     after: null,
+    beforeKit: null,
+    afterKit: null,
     created: at,
   };
   return m;

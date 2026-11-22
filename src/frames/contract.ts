@@ -259,7 +259,7 @@ export const maxPictureSide = 16_000;
 export const picturePath = z
   .string()
   .regex(
-    /^\/api\/pictures\/[a-z0-9-]+\/[0-9a-f]{12}\/[1-9]\d*\?s=[0-9.]+&k=[\w-]+(&r=\d+,\d+,\d+,\d+)?$/,
+    /^\/api\/pictures\/[a-z0-9-]+\/[0-9a-f]{12}\/[1-9]\d*\?s=[0-9.]+&k=[\w-]+&kit=[1-9]\d*(&r=\d+,\d+,\d+,\d+)?$/,
     "not a picture's path",
   );
 
@@ -307,8 +307,8 @@ export const framesApi = rpc({
     input: one,
     output: z.discriminatedUnion("kind", [z.object({ kind: z.literal("deleted") }), gone]),
   },
-  // The picture's address for the current version; it draws nothing (fact rule 3). `off`: the
-  // server has no Chromium.
+  // The picture's address for the current version in the current kit version; it draws nothing
+  // (fact rule 3). `off`: the server has no Chromium.
   "frame.shot": {
     input: z.strictObject({
       canvas: canvasKey,
@@ -317,7 +317,12 @@ export const framesApi = rpc({
       region: pictureRegion.optional(),
     }),
     output: z.discriminatedUnion("kind", [
-      z.object({ kind: z.literal("ready"), url: picturePath, version: z.number() }),
+      z.object({
+        kind: z.literal("ready"),
+        url: picturePath,
+        version: z.number(),
+        kit: z.number(),
+      }),
       z.object({ kind: z.literal("off") }),
       gone,
     ]),

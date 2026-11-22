@@ -11,9 +11,9 @@ import { keepName, keptName } from "./gate";
 // password is set; the viewer-pin-post and viewer-pin-link charts). The button `Request` puts the
 // canvas in request mode; a click on a frame, or on the canvas out of all frames, opens a textbox
 // there, with a client key made once for this request (judged rule 6). `Send` sends `request.add`
-// with that key and the frame version the page shows. The first `Send` of a browser that kept no
-// name asks the name in the same popover: `share.name` sets it on the pass this tab holds, and the
-// browser keeps it. A refused send keeps the text and says why. A send that faults keeps the text
+// with that key, and the frame version and the kit version the page shows. The first `Send` of a
+// browser that kept no name asks the name in the same popover: `share.name` sets it on the pass
+// this tab holds, and the browser keeps it. A refused send keeps the text and says why. A send that faults keeps the text
 // and says it is not known yet whether it saved: no Escape, no Cancel. When the socket is back
 // the tab sends it again with the same key, so the server saves it once.
 
@@ -23,6 +23,8 @@ const place = z.object({
   /** The frame's name and the version the page showed; null on the canvas. */
   frameName: z.string().nullable(),
   version: z.number().nullable(),
+  /** The kit version the page showed; null before the kit came (the server takes the current one). */
+  kit: z.number().nullable(),
   /** On the frame, from its top left; or on the canvas. */
   x: z.number(),
   y: z.number(),
@@ -220,16 +222,19 @@ export const nameFault = z.object({
 /** A call that the socket dropped. */
 export const linkFault = z.object({ fault: z.literal("link") });
 
-/** `request.add`'s input for a draft: on its frame, with the version the page showed; or on the canvas. */
+/**
+ * `request.add`'s input for a draft: on its frame, with the version the page showed; or on the
+ * canvas. Each with the kit version the page showed, once the kit came.
+ */
 const addInputOf = operation({
   label: "viewer.addInputOf",
   input: draft,
   run: (_, { input: d }) => {
     const { canvas, place: p, text, key } = d;
-    if (p.frameId === null || p.version === null) {
-      return { canvas, frameId: null, version: null, x: p.x, y: p.y, text, key };
-    }
-    return { canvas, frameId: p.frameId, version: p.version, x: p.x, y: p.y, text, key };
+    const at = { canvas, x: p.x, y: p.y, text, key, ...(p.kit === null ? {} : { kit: p.kit }) };
+    if (p.frameId === null || p.version === null) return { ...at, frameId: null, version: null };
+
+    return { ...at, frameId: p.frameId, version: p.version };
   },
 });
 

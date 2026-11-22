@@ -250,15 +250,18 @@ kit version of the tab when the viewer asked, at the claim, or at the result
   then. So the keys a viewer held stop working
   when their pass does.
 - For the current version and the current kit version, it answers a WebP of them with
-  `Cache-Control: private, max-age=31536000, immutable`. The board's frame cell names the current
-  kit version with the key, so a change of the kit version gives each frame a new address.
+  `Cache-Control: private, max-age=31536000, immutable`. The board's cell `kit` names the current
+  kit version, and the tab puts it in the address with the frame's key, so a change of the kit
+  version gives each frame a new address. The key does not name the kit version.
 - For a kept view, it answers a WebP of that version in that kit version, as for the current
   version, also after its frame was removed. It draws it at the
   frame's box, or at the last box of a removed frame. The board carries a key for each kept
-  view in the cell `kept`: `{ canvas, id, version, kit, k }`. The current version is not there:
-  its key is on the frame.
-- For another older version, or another kit version, it answers `307` to the address of the
-  current version and kit version, with its key and `Cache-Control: no-store`.
+  version in the cell `kept`: `{ canvas, id, version, k }`. The kit version of a kept view is in
+  the request or the message that refers to it. The current version is not there: its key is on
+  the frame.
+- For another older version, or another kit version, or an address with no kit version, it
+  answers `307` to the address of the current version and kit version, with its key and
+  `Cache-Control: no-store`. A kit version that is not a number from 1 answers 404.
 - A wrong key, a version not yet made, or a deleted frame with no kept version at that address
   answers 404. A scale outside
   0.25, 0.5, 1 and 2 answers 400, and so does a region off the frame or a picture over the limits

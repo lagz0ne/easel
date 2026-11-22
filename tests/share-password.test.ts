@@ -243,7 +243,7 @@ test("a password set or changed, and an unshare, end the old picture links: the 
   if (made.kind !== "created") throw new Error(made.kind);
   const address = () => {
     const member = srv.server.run(boardMember, { input: { canvas: "flow", id: made.id } });
-    return `/api/pictures/flow/${made.id}/${member?.version}?s=0.5&k=${member?.k}`;
+    return `/api/pictures/flow/${made.id}/${member?.version}?s=0.5&k=${member?.k}&kit=1`;
   };
   const before = address();
   expect(await srv.get(before)).toBe(200);

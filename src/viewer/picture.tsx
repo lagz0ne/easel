@@ -4,8 +4,10 @@ import { useResource } from "@tinkered/react";
 import { maxPicturePixels, picturePrefix } from "@/frames/contract";
 
 // A frame's picture (SPEC-viewer.md § Numbers): the shell's card, and the switch of a request's
-// popover. The address names the canvas, the frame, the version and its key `k`; the server draws
-// the current version, or a kept one (SPEC-frames.md § Pictures).
+// popover. The address names the canvas, the frame, the version, its key `k` and the kit version;
+// the server draws the current version, or a kept one, in that kit version (SPEC-frames.md §
+// Pictures). A new kit version gives a new address: the img keeps its last picture until the new
+// one has come, so a change of the look shows no white box (SPEC-kit K7).
 
 /** A picture that failed (a busy server answers 503) is asked again after 1, 2 and 4 s, no more. */
 export const picRetryMs = [1_000, 2_000, 4_000] as const;
@@ -39,17 +41,28 @@ const picRetry = resource({
 });
 
 /**
- * A picture. An img decodes off the main thread, and the card's colour shows until it has.
- * `wide`: the frame is wider than its card, so the card shows all of its width.
+ * A picture: its address `src`, with the kit version `kit` when the page has it. An img decodes
+ * off the main thread, and the card's colour shows until it has. `wide`: the frame is wider than
+ * its card, so the card shows all of its width.
  */
-function Picture({ src, alt, wide }: { src: string; alt: string; wide: boolean }) {
+function Picture({
+  src,
+  kit,
+  alt,
+  wide,
+}: {
+  src: string;
+  kit: number | null | undefined;
+  alt: string;
+  wide: boolean;
+}) {
   const retry = useResource(picRetry);
 
   return (
     <img
       className="e-pic"
       data-wide={wide}
-      src={src}
+      src={typeof kit === "number" ? `${src}&kit=${kit}` : src}
       alt={alt}
       decoding="async"
       draggable={false}
@@ -59,15 +72,17 @@ function Picture({ src, alt, wide }: { src: string; alt: string; wide: boolean }
 }
 
 /**
- * The picture of version `version` of a frame, at half size, or a quarter when half is over 8
- * megapixels. Nothing with no key `k` (pictures are off, or the version is not kept), or for a
- * frame too big even at a quarter: the card under it is plain.
+ * The picture of version `version` of a frame in kit version `kit`, at half size, or a quarter
+ * when half is over 8 megapixels. Nothing with no key `k` (pictures are off, or the version is
+ * not kept), or for a frame too big even at a quarter: the card under it is plain. With no kit
+ * version yet (the kit has not come), the address has none, and the server sends the current one.
  */
 export function FramePicture({
   canvas,
   frame,
   version,
   k,
+  kit,
   alt,
   card = 0,
 }: {
@@ -75,6 +90,7 @@ export function FramePicture({
   frame: { id: string; name: string; w: number; h: number };
   version: number;
   k: string | undefined;
+  kit: number | null | undefined;
   alt?: string;
   /** The width over the height of the card it shows on; 0: the card has the frame's own size. */
   card?: number;
@@ -86,6 +102,7 @@ export function FramePicture({
   return (
     <Picture
       src={`${picturePrefix}${canvas}/${frame.id}/${version}?s=${scale}&k=${k}`}
+      kit={kit}
       alt={alt ?? frame.name}
       wide={card > 0 && frame.w / frame.h > card}
     />

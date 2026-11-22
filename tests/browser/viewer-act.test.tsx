@@ -121,6 +121,7 @@ function stored(n: number, text: string, patch: Partial<Request> = {}) {
     n,
     frameId: home,
     version: 1,
+    kit: 1,
     x: 60 * n,
     y: 40,
     author: "Mai",
@@ -153,6 +154,8 @@ function said(r: Request, m: Partial<Message> & Pick<Message, "kind" | "from">, 
     option: null,
     before: null,
     after: null,
+    beforeKit: null,
+    afterKit: null,
     created: at,
     ...m,
   };
@@ -650,9 +653,12 @@ const compare = (n: number) => {
   return { group, side, pictures };
 };
 
-/** The address of a picture of Home at a version, with its key. */
-const homePicture = (version: number, k: string) =>
-  `/api/pictures/home/${home}/${version}?s=0.5&k=${k}`;
+/**
+ * The address of a picture of Home at a version, with its key, and the kit version when the pane
+ * keeps one (the board here has no kit cell: a pane of now has none).
+ */
+const homePicture = (version: number, k: string, kit?: number) =>
+  `/api/pictures/home/${home}/${version}?s=0.5&k=${k}${kit === undefined ? "" : `&kit=${kit}`}`;
 
 test("a result: one picture, the switch Before | After on its top edge, open on After; folded after a decision and while a note is written (Follow the requests 13, E4.2 M11, M12, M17)", async () => {
   const server = await boot(() => {
@@ -665,7 +671,16 @@ test("a result: one picture, the switch Before | After on its top edge, open on 
     });
     said(
       r,
-      { kind: "result", from: "claude-1", text: "Done.", before: 2, after: 3 },
+      // The look changed during the work: kit version 4 at the claim, 5 at the resolve (K10).
+      {
+        kind: "result",
+        from: "claude-1",
+        text: "Done.",
+        before: 2,
+        after: 3,
+        beforeKit: 4,
+        afterKit: 5,
+      },
       r.created + minute,
     );
   });
@@ -676,7 +691,7 @@ test("a result: one picture, the switch Before | After on its top edge, open on 
   await expect.element(group).toBeVisible();
   expect(side("After").element()).toHaveAttribute("aria-checked", "true");
   expect(side("Before").element()).toHaveAttribute("aria-checked", "false");
-  expect(pictures()).toEqual([{ alt: "After: Home", src: homePicture(3, "kh3") }]);
+  expect(pictures()).toEqual([{ alt: "After: Home", src: homePicture(3, "kh3", 5) }]);
   // The switch sits on the top edge of the picture.
   const edge = dialog(1).element().querySelector(".e-cmpr-pic")?.getBoundingClientRect();
   const top = group.element().getBoundingClientRect();
@@ -684,7 +699,7 @@ test("a result: one picture, the switch Before | After on its top edge, open on 
   expect(top.bottom).toBeGreaterThan(edge?.top ?? 0);
 
   await side("Before").click();
-  expect(pictures()).toEqual([{ alt: "Before: Home", src: homePicture(2, "kh2") }]);
+  expect(pictures()).toEqual([{ alt: "Before: Home", src: homePicture(2, "kh2", 4) }]);
   expect(side("Before").element()).toHaveAttribute("aria-checked", "true");
 
   // While the note is written, only the switch shows; a click on a side opens it.
@@ -693,17 +708,17 @@ test("a result: one picture, the switch Before | After on its top edge, open on 
   expect(side("After").element()).toHaveAttribute("aria-checked", "false");
   expect(side("Before").element()).toHaveAttribute("aria-checked", "false");
   await side("After").click();
-  expect(pictures()).toEqual([{ alt: "After: Home", src: homePicture(3, "kh3") }]);
+  expect(pictures()).toEqual([{ alt: "After: Home", src: homePicture(3, "kh3", 5) }]);
   // Cancel: the picture is as it was before the note.
   await dialog(1).getByRole("button", { name: "Cancel" }).click();
-  expect(pictures()).toEqual([{ alt: "Before: Home", src: homePicture(2, "kh2") }]);
+  expect(pictures()).toEqual([{ alt: "Before: Home", src: homePicture(2, "kh2", 4) }]);
 
   // After a decision, only the switch shows.
   await dialog(1).getByRole("button", { name: "Accept" }).click();
   await expect.poll(() => mark(1)).toBe("Done");
   expect(pictures()).toEqual([]);
   await side("Before").click();
-  expect(pictures()).toEqual([{ alt: "Before: Home", src: homePicture(2, "kh2") }]);
+  expect(pictures()).toEqual([{ alt: "Before: Home", src: homePicture(2, "kh2", 4) }]);
 });
 
 test("a picture with no key is the plain card; a result on the whole canvas has no switch (Follow the requests 13)", async () => {
@@ -783,7 +798,7 @@ test("a waiting request that may be outdated: the dotted mark, the switch When a
   expect(outdated?.getAttribute("aria-label")).toBe("May be outdated: the frame changed");
   const { side, pictures } = compare(1);
   expect(side("When asked").element()).toHaveAttribute("aria-checked", "true");
-  expect(pictures()).toEqual([{ alt: "When asked: Home", src: homePicture(1, "kh1") }]);
+  expect(pictures()).toEqual([{ alt: "When asked: Home", src: homePicture(1, "kh1", 1) }]);
   await side("Now").click();
   expect(pictures()).toEqual([{ alt: "Now: Home", src: homePicture(3, "kh3") }]);
   expect(lines(1).at(-1)).toBe("The Home frame changed 2 times since Mai asked");
@@ -809,7 +824,7 @@ test("a waiting request of a removed frame: Now says Frame removed, and the step
   const outdated = dialog(1).element().querySelector('.e-sb[data-state="outdated"]');
   expect(outdated?.getAttribute("aria-label")).toBe("May be outdated: the frame was removed");
   const { side, pictures } = compare(1);
-  expect(pictures()).toEqual([{ alt: "When asked: Home", src: homePicture(1, "kh1") }]);
+  expect(pictures()).toEqual([{ alt: "When asked: Home", src: homePicture(1, "kh1", 1) }]);
   await side("Now").click();
   expect(pictures()).toEqual([]);
   expect(dialog(1).element().querySelector(".e-cmpr-pic")?.textContent).toBe("Frame removed");

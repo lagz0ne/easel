@@ -7,7 +7,10 @@ import puppeteer from "puppeteer-core";
 import type { Browser } from "puppeteer-core";
 import { z } from "zod";
 
+import { compose } from "@/kit/compose";
+import { readKit, readKitAt } from "@/kit/store.server";
 import { readiness } from "@/ops/registry";
+import { seenView } from "@/queue/store.server";
 
 import { frames, framesApi, maxPicturePixels, maxPictureSide, picturePrefix } from "./contract";
 import {
@@ -21,12 +24,14 @@ import {
 import { readPicture, readStill } from "./store.server";
 
 // Pictures (SPEC-frames.md § Pictures; the frames-pictures chart). `GET /api/pictures/<canvas>/
-// <id>/<version>?s=&k=&r=` needs no user and no pass: its key is the right to it (fact rule 4).
-// The route takes the version and its document in one read, draws them through the one
-// `pictures.render` (fact rule 3), and checks the frame and the key again before it sends (judged
-// rule 7). The version is the current one, or a kept one: an old version that a request refers
-// to, also of a removed frame, drawn at the frame's last box. A Chromium from `EASEL_CHROMIUM` draws, through puppeteer-core; with none, pictures
-// are off: the board carries no keys, every picture is 404, and `frame.shot` answers `off`.
+// <id>/<version>?s=&k=&kit=&r=` needs no user and no pass: its key is the right to it (fact rule
+// 4). The route takes the version and its document in one read, composes it with the kit version
+// (`compose`, SPEC-kit fact rule 3), draws it through the one `pictures.render` (fact rule 3), and
+// checks the frame and the key again before it sends (judged rule 7). The version is the current
+// one in the current kit version, or a kept view: a version and a kit version that a request or a
+// message refers to, also of a removed frame, drawn at the frame's last box (K10). A Chromium from
+// `EASEL_CHROMIUM` draws, through puppeteer-core; with none, pictures are off: the board carries
+// no keys, every picture is 404, and `frame.shot` answers `off`.
 
 /** At most 2 draws at once; a request waits at most 5 s for a slot, and a draw runs at most 20 s. */
 export const drawsAtOnce = 2;
@@ -498,6 +503,7 @@ const routeInput = z.object({
   version: z.string(),
   s: z.string().optional(),
   k: z.string().optional(),
+  kit: z.string().optional(),
   r: z.string().optional(),
 });
 
@@ -518,10 +524,11 @@ const pictureAddress = operation({
     version: z.number(),
     s: z.string().optional(),
     k: z.string(),
+    kit: z.number(),
     r: z.string().optional(),
   }),
   run: (_, { input: at }) =>
-    `${picturePrefix}${at.canvas}/${at.id}/${at.version}?s=${at.s ?? ""}&k=${at.k}${at.r === undefined ? "" : `&r=${at.r}`}`,
+    `${picturePrefix}${at.canvas}/${at.id}/${at.version}?s=${at.s ?? ""}&k=${at.k}&kit=${at.kit}${at.r === undefined ? "" : `&r=${at.r}`}`,
 });
 
 /** A refusal: no body, never stored; a 503 says when to try again. */
@@ -578,47 +585,156 @@ const pictureBox = operation({
   },
 });
 
+/** A version or a kit version as the address writes it: 1 to 999999999, no other spelling. */
+const numberQuery = /^[1-9]\d{0,8}$/;
+
+/** The current kit version; the store has one from the first start (`kitStart`). */
+const kitNow = operation({
+  label: "pictures.kitNow",
+  depends: { readKit },
+  run: async ({ readKit }) => {
+    const now = await readKit.run();
+    if (now === null) throw new Error("pictures: no kit version: kitStart runs first");
+
+    return now;
+  },
+});
+
 /**
- * The version a picture address names, when its key is good and the version is the current one
- * or a kept one: its document and the box to draw it in. Else 404 with pictures off, a malformed
- * or future version, a missing frame or a wrong key, or a removed frame's version that is not
- * kept; 307 to the current version's address for an older one that is not kept.
+ * The kit version to draw a stored version in: the one asked, when it is the current kit version
+ * and the version is the current one, or when a request or a message refers to the two (a kept
+ * view). Else null: no kit version asked, or another one.
  */
-const findPicture = operation({
-  label: "pictures.find",
-  input: routeInput,
-  depends: { state: pictureState, readPicture, pictureKey, keyMatches, pictureAddress, refusal },
-  run: async (
-    { state, readPicture, pictureKey, keyMatches, pictureAddress, refusal },
-    { input },
-  ) => {
-    if (state.current.chromium === null || !/^[1-9]\d{0,8}$/.test(input.version)) {
-      return refusal.run({ input: 404 });
-    }
+const viewKit = operation({
+  label: "pictures.viewKit",
+  input: z.object({
+    canvas: z.string(),
+    id: z.string(),
+    version: z.number(),
+    current: z.number().nullable(),
+    kit: z.number().nullable(),
+    now: z.number(),
+  }),
+  depends: { seenView },
+  run: async ({ seenView }, { input }) => {
+    const { kit, ...at } = input;
+    if (kit === null || kit > input.now) return null;
+    if (input.version === input.current && kit === input.now) return kit;
 
-    const asked = Number(input.version);
-    const row = await readPicture.run({
-      input: { canvas: input.canvas, id: input.id, version: asked },
-    });
+    const seen = await seenView.run({ input: { ...at, kit } });
+    return seen ? kit : null;
+  },
+});
 
-    const at = { canvas: input.canvas, id: input.id, gen: row.gen };
-    const want = pictureKey.run({ input: { ...at, version: asked } });
-    if (!keyMatches.run({ input: { sent: input.k ?? "", want } })) {
-      return refusal.run({ input: 404 });
-    }
+/** A version and a kit version as the address writes them; null when either is malformed. */
+const addressed = operation({
+  label: "pictures.addressed",
+  input: z.object({ version: z.string(), kit: z.string().optional() }),
+  run: (_, { input }) => {
+    if (!numberQuery.test(input.version) || !numberQuery.test(input.kit ?? "1")) return null;
 
+    return {
+      version: Number(input.version),
+      kit: input.kit === undefined ? null : Number(input.kit),
+    };
+  },
+});
+
+/**
+ * The look to draw a version in (`viewKit`), as stored, or null; and the current kit version, for
+ * a redirect.
+ */
+const viewLook = operation({
+  label: "pictures.viewLook",
+  input: z.object({
+    canvas: z.string(),
+    id: z.string(),
+    version: z.number(),
+    current: z.number().nullable(),
+    kit: z.number().nullable(),
+  }),
+  depends: { kitNow, viewKit, readKitAt },
+  run: async ({ kitNow, viewKit, readKitAt }, { input }) => {
+    const now = await kitNow.run();
+    const shown = await viewKit.run({ input: { ...input, now: now.version } });
+    if (shown === null || shown === now.version) return { now: now.version, look: shown && now };
+
+    return { now: now.version, look: await readKitAt.run({ input: shown }) };
+  },
+});
+
+/** A picture's version, read with its canvas's key generation: as `readPicture` answers it. */
+const readRow = z.object({
+  current: z.number().nullable(),
+  gen: z.number(),
+  doc: z
+    .object({ html: z.string(), css: z.string().nullable(), w: z.number(), h: z.number() })
+    .nullable(),
+});
+
+/**
+ * Where a picture address with a good key goes: the document to draw, with its made CSS, the kit
+ * version's look and CSS, and the box, when the version is stored and the two are the current
+ * ones or a kept view. Else 404 for a removed frame or a version not yet made; 307 to the address
+ * of the current version in the current kit version for any other version or kit version.
+ */
+const placePicture = operation({
+  label: "pictures.place",
+  input: routeInput.extend({ asked: z.number(), kit: z.number().nullable(), row: readRow }),
+  depends: { viewLook, pictureKey, pictureAddress, refusal },
+  run: async ({ viewLook, pictureKey, pictureAddress, refusal }, { input }) => {
+    const { asked, row, ...at } = input;
     const { current, doc, gen } = row;
-    if (doc) return { ...doc, gen, version: asked };
+    const view = await viewLook.run({
+      input: { canvas: at.canvas, id: at.id, version: asked, current, kit: at.kit },
+    });
+    if (doc && view.look) {
+      return { ...doc, look: view.look.root, kitCss: view.look.css, gen, version: asked };
+    }
     if (current === null || asked > current) return refusal.run({ input: 404 });
 
-    const k = pictureKey.run({ input: { ...at, version: current } });
-    const location = pictureAddress.run({ input: { ...input, version: current, k } });
+    const k = pictureKey.run({ input: { canvas: at.canvas, id: at.id, gen, version: current } });
+    const location = pictureAddress.run({ input: { ...at, version: current, k, kit: view.now } });
     return new Response(null, { status: 307, headers: { ...noStore, Location: location } });
   },
 });
 
 /**
- * Draws the box of the frame: 400 off the frame or past the limits; 503 with no slot or past
+ * The version and the kit version a picture address names, when its key is good (`placePicture`).
+ * Else 404 with pictures off, a malformed version or kit version, a missing frame or a wrong key.
+ */
+const findPicture = operation({
+  label: "pictures.find",
+  input: routeInput,
+  depends: {
+    state: pictureState,
+    addressed,
+    readPicture,
+    pictureKey,
+    keyMatches,
+    placePicture,
+    refusal,
+  },
+  run: async (units, { input }) => {
+    const { state, readPicture, pictureKey, keyMatches, refusal } = units;
+    const asked = units.addressed.run({ input });
+    if (state.current.chromium === null || asked === null) return refusal.run({ input: 404 });
+
+    const at = { canvas: input.canvas, id: input.id };
+    const row = await readPicture.run({ input: { ...at, version: asked.version } });
+    const want = pictureKey.run({ input: { ...at, gen: row.gen, version: asked.version } });
+    if (!keyMatches.run({ input: { sent: input.k ?? "", want } })) {
+      return refusal.run({ input: 404 });
+    }
+
+    return units.placePicture.run({
+      input: { ...input, asked: asked.version, kit: asked.kit, row },
+    });
+  },
+});
+
+/**
+ * Draws the box of the frame, composed with the kit version (`compose`): 400 off the frame or past the limits; 503 with no slot or past
  * 20 s; 404 when the version is not there any more (its frame was deleted and it is not kept) or
  * its keys changed during the draw; else the picture.
  */
@@ -629,19 +745,24 @@ const drawPicture = operation({
     id: z.string(),
     version: z.number(),
     html: z.string(),
+    css: z.string().nullable(),
+    look: z.string(),
+    kitCss: z.string(),
     w: z.number(),
     h: z.number(),
     gen: z.number(),
     scale: z.number(),
     region: box.nullable(),
   }),
-  depends: { readStill, render, pictureBox, refusal },
-  run: async ({ readStill, render, pictureBox, refusal }, { input }) => {
+  depends: { readStill, render, pictureBox, refusal, compose },
+  run: async ({ readStill, render, pictureBox, refusal, compose }, { input }) => {
     const region = pictureBox.run({ input });
     if (region === null) return refusal.run({ input: 400 });
 
+    const kit = { look: input.look, css: input.kitCss };
+    const html = compose.run({ input: { html: input.html, css: input.css, kit } });
     const drawn = await render.run({
-      input: { html: input.html, w: input.w, h: input.h, scale: input.scale, region },
+      input: { html, w: input.w, h: input.h, scale: input.scale, region },
     });
     switch (drawn.kind) {
       case "busy":
@@ -665,9 +786,10 @@ const drawPicture = operation({
 /**
  * `GET /api/pictures/{canvas}/{id}/{version}`: the picture (SPEC-frames § Pictures). A scale
  * outside the four, a malformed region, or a region off the frame or past 8 MP or 16000 px a
- * side is 400. With pictures off, a wrong key, a missing frame, or a version not yet made, 404.
- * A kept version is drawn as the current one is. Another older version: 307 to the current one,
- * with its key; of a removed frame, 404. No slot in 5 s, or a draw past 20 s:
+ * side is 400. With pictures off, a wrong key, a missing frame, a version not yet made, or a
+ * malformed kit version, 404. A kept view is drawn as the current one is, in its own kit version.
+ * Another version or kit version, or none: 307 to the current one, with its key; of a removed
+ * frame, 404. No slot in 5 s, or a draw past 20 s:
  * 503 with `Retry-After: 1`. A frame deleted or a link ended during the draw: 404.
  */
 export const pictureRoute = operation({
@@ -687,23 +809,25 @@ export const pictureRoute = operation({
 });
 
 /**
- * `frame.shot`: the address of the frame's current version, with the key the board carries for
- * it. It draws nothing (fact rule 3). `off`: the server has no Chromium; `gone`: no such frame.
+ * `frame.shot`: the address of the frame's current version in the current kit version, with the
+ * key the board carries for it. It draws nothing (fact rule 3). `off`: the server has no
+ * Chromium; `gone`: no such frame.
  */
 export const shotFrame = operation({
   label: "frame.shot.do",
   input: framesApi["frame.shot"].input,
-  depends: { state: pictureState, cells: frames.atScope.controller, pictureAddress },
-  run: ({ state, cells, pictureAddress }, { input }) => {
+  depends: { state: pictureState, cells: frames.atScope.controller, pictureAddress, kitNow },
+  run: async ({ state, cells, pictureAddress, kitNow }, { input }) => {
     if (state.current.chromium === null) return { kind: "off" as const };
     const frame = cells.of({ canvas: input.canvas, id: input.id }).get();
     if (frame?.k === undefined) return { kind: "gone" as const };
 
+    const kit = (await kitNow.run()).version;
     const r =
       input.region && `${input.region.x},${input.region.y},${input.region.w},${input.region.h}`;
-    const at = { ...input, version: frame.version, s: `${input.scale}`, k: frame.k, r };
+    const at = { ...input, version: frame.version, s: `${input.scale}`, k: frame.k, kit, r };
     const url = pictureAddress.run({ input: at });
-    return { kind: "ready" as const, url, version: frame.version };
+    return { kind: "ready" as const, url, version: frame.version, kit };
   },
 });
 
