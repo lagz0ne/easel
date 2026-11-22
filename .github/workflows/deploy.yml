@@ -104,7 +104,8 @@ jobs:
       # The Bun of the Dockerfile and of gates, from npm as gates gets it.
       - name: Bun 1.4.4
         run: npm install --global --allow-scripts=bun bun@1.4.4
-      - run: bun install --frozen-lockfile
+      # The optional packages of all systems: each binary holds its own Lightning CSS build.
+      - run: bun install --frozen-lockfile --os='*' --cpu='*'
       - run: bun run build:client
       - name: The three binaries and SHA256SUMS
         run: bash scripts/release-binaries.sh "$RUNNER_TEMP/release"

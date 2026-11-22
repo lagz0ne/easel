@@ -10,6 +10,11 @@
 # and SHA256SUMS, in the format of `sha256sum`, which `sha256sum -c` and `shasum -a 256 -c` read.
 # linux-x64 is Bun's baseline build: it runs on a CPU with no AVX2 too (Bun's own installer picks
 # it for such a CPU). The CLI does not need the speed of the other build.
+#
+# Each binary holds the native build of Lightning CSS for its own system
+# (src/kit/lightningcss.server.ts). A plain `bun install` installs only the build of this host, so
+# the build for another target cannot resolve its file ("Could not resolve"). The script first
+# installs the optional packages of all systems, from the lock file as it is.
 set -euo pipefail
 
 out="${1:?usage: scripts/release-binaries.sh <dir>}"
@@ -17,6 +22,7 @@ root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 cd "$root"
 [[ -s dist/client/index.html ]] || { echo "release-binaries: no client: run bun run build:client first" >&2; exit 1; }
 mkdir -p "$out"
+bun install --frozen-lockfile --os='*' --cpu='*'
 
 for pair in darwin-arm64:bun-darwin-arm64 linux-x64:bun-linux-x64-baseline linux-arm64:bun-linux-arm64; do
   name="easel-${pair%%:*}"
