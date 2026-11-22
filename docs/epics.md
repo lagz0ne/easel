@@ -14,19 +14,21 @@ it with the skill `writing-requirements`.
 ## Story map
 
 The main story is E1, E2, E3, then E4. E8 makes each frame fast to make and like the others, from
-the first day. E5 gives the same actions through MCP. E6 and E7 keep the easel of each team healthy.
+the first day. E5 gives the same actions through MCP. E6 and E7 keep the easel of each team healthy. E9 does for the
+words what E8 does for the look.
 Round 1 (below) holds E1, E2, E3, E4, E6 and E8. E5 and E7 are deferred.
 
-| ID  | Epic                      | Outcome                                                                  | Actors                  | Journeys                                                                                                                              | Status                                                                                                                  | Review |
-| --- | ------------------------- | ------------------------------------------------------------------------ | ----------------------- | ------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------- | ------ |
-| E1  | Get in                    | A person or an agent gets a token when an owner approves it.             | team lead, owner, agent | [access](../SPEC-access.md#journeys), [cli](../SPEC-cli.md#journeys)                                                                  | Built                                                                                                                   | ready  |
-| E2  | Make frames               | An agent puts HTML frames on a canvas and changes them safely.           | agent                   | [frames](../SPEC-frames.md#make-a-canvas): make a canvas, make and change frames                                                      | Built, except `frame.move`                                                                                              | ready  |
-| E3  | Share and look            | A person opens a link and sees the frames change at once.                | agent, viewer           | [frames](../SPEC-frames.md#share-a-canvas): share, open; [viewer](../SPEC-viewer.md#journeys) 7; [design](../SPEC-design.md#journeys) | Built                                                                                                                   | ready  |
-| E4  | Comment and get a change  | A viewer asks for a change. An agent makes it and replies.               | viewer, agent           | [queue](../SPEC-queue.md#journeys) 3; [viewer](../SPEC-viewer.md#ask-for-a-change): ask for a change, follow the requests             | Built; a GitHub run can get the CLI and sign in ([cli](../SPEC-cli.md#sign-in-with-no-file)), but no real run is proven | active |
-| E5  | Work through MCP          | An agent with no shell does all of E2, E3 and E4.                        | agent                   | [mcp](../SPEC-mcp.md#journeys) 3                                                                                                      | Not built                                                                                                               | active |
-| E6  | Watch production          | The company sees the health, the errors and the copies of each easel.    | company                 | [ops](../SPEC-ops.md#journeys) 5                                                                                                      | Built, except backups                                                                                                   | ready  |
-| E7  | Fix errors with no person | An agent fixes a production error and proves the fix.                    | fixer, tick, probe      | [fixer](../SPEC-fixer.md#journeys) 5                                                                                                  | Not built                                                                                                               | to do  |
-| E8  | One look, fast            | Agents make frames fast, and all frames of a team look like one product. | agent, user             | [kit](../SPEC-kit.md#journeys) 3                                                                                                      | Specified                                                                                                               | to do  |
+| ID  | Epic                      | Outcome                                                                                     | Actors                  | Journeys                                                                                                                              | Status                                                                                                                  | Review |
+| --- | ------------------------- | ------------------------------------------------------------------------------------------- | ----------------------- | ------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------- | ------ |
+| E1  | Get in                    | A person or an agent gets a token when an owner approves it.                                | team lead, owner, agent | [access](../SPEC-access.md#journeys), [cli](../SPEC-cli.md#journeys)                                                                  | Built                                                                                                                   | ready  |
+| E2  | Make frames               | An agent puts HTML frames on a canvas and changes them safely.                              | agent                   | [frames](../SPEC-frames.md#make-a-canvas): make a canvas, make and change frames                                                      | Built, except `frame.move`                                                                                              | ready  |
+| E3  | Share and look            | A person opens a link and sees the frames change at once.                                   | agent, viewer           | [frames](../SPEC-frames.md#share-a-canvas): share, open; [viewer](../SPEC-viewer.md#journeys) 7; [design](../SPEC-design.md#journeys) | Built                                                                                                                   | ready  |
+| E4  | Comment and get a change  | A viewer asks for a change. An agent makes it and replies.                                  | viewer, agent           | [queue](../SPEC-queue.md#journeys) 3; [viewer](../SPEC-viewer.md#ask-for-a-change): ask for a change, follow the requests             | Built; a GitHub run can get the CLI and sign in ([cli](../SPEC-cli.md#sign-in-with-no-file)), but no real run is proven | active |
+| E5  | Work through MCP          | An agent with no shell does all of E2, E3 and E4.                                           | agent                   | [mcp](../SPEC-mcp.md#journeys) 3                                                                                                      | Not built                                                                                                               | active |
+| E6  | Watch production          | The company sees the health, the errors and the copies of each easel.                       | company                 | [ops](../SPEC-ops.md#journeys) 5                                                                                                      | Built, except backups                                                                                                   | ready  |
+| E7  | Fix errors with no person | An agent fixes a production error and proves the fix.                                       | fixer, tick, probe      | [fixer](../SPEC-fixer.md#journeys) 5                                                                                                  | Not built                                                                                                               | to do  |
+| E8  | One look, fast            | Agents make frames fast, and all frames of a team look like one product.                    | agent, user             | [kit](../SPEC-kit.md#journeys) 3                                                                                                      | Specified                                                                                                               | to do  |
+| E9  | One voice                 | All frames of a team say one thing in one way, and one change of a text reaches each frame. | agent, user, person     | not specified                                                                                                                         | Not built                                                                                                               | to do  |
 
 ## Round 1: Get started
 
@@ -70,6 +72,8 @@ Decided:
 - On 2026-11-21, the user moved E8 into Round 1: easel is agent first, so frames must be fast to
   make and alike from the first day.
 - Deferred: E5, work through MCP. Add it when a team has an agent that cannot run a shell.
+- Deferred: E9, one voice. Add it when the frames of a team name one thing in two ways, or a team
+  asks to review or translate its words.
 - Deferred: E7, fix errors with no person. Add it when the errors of all teams take a person of the
   company more than 1 hour a day.
 - Deferred: moving a frame (E2). Add it when a team asks for it.
@@ -795,3 +799,107 @@ The specs close each gap: [kit](../SPEC-kit.md) (K1 to K14), the kit commands an
 [cli](../SPEC-cli.md) and [mcp](../SPEC-mcp.md) (K2), made CSS and kit versions in picture
 addresses in [frames](../SPEC-frames.md) (K7, K10, K13), the kit version of a request in
 [queue](../SPEC-queue.md) (K10), and section 18 of [canvas-speed](canvas-speed.md) (K6).
+
+## E9: One voice
+
+The kit governs how the frames of a team look (E8). The words in the frames need the same: each
+agent writes its own words, so two frames name one action in two ways, and a change of a name
+means a change to each frame. So each easel keeps the words of the team in one place, next to the
+look, and each agent makes its frames from them. The same place is where a person of the team
+reviews the words, and, later, where they are translated.
+
+| ID   | Journey                          | Actor  | Design        | Review |
+| ---- | -------------------------------- | ------ | ------------- | ------ |
+| E9.1 | Make a frame in the team's words | agent  | not specified | to do  |
+| E9.2 | Change the words                 | user   | not specified | to do  |
+| E9.3 | Review the words                 | person | not specified | to do  |
+
+Decided:
+
+- On 2026-11-22, the user asked for the kit to govern the words and the look at the same time:
+  "centralized copy later can be reviewed and translated for i18n".
+- One set of words for each easel, as one look (E8).
+- The words come after E8's app frames ([frame-apps](decisions/frame-apps.md)): text that is only
+  in fixed places of a frame is what makes the words of a frame possible to find and to check.
+- Prior art for the need: Ditto and Frontitude (the words of a product in one place, shared by
+  design and code, each with a name), the content guides of GOV.UK and Shopify Polaris (the rules
+  of the words are part of the design system), and Vale (a check of written rules: banned terms,
+  capitals).
+- Deferred: a second language. Add it when a team asks for its frames in a second language. The
+  words are already kept apart from the frames, so a language adds no change to a frame.
+- Deferred: rules of tone beyond a list of terms (for example "no passive voice"). Add it when a
+  team writes a voice rule that a list of terms cannot hold.
+- Deferred: take the words from a design file or a strings file. Add it when the words of a team
+  take more than 10 minutes to set.
+
+### E9.1 Make a frame in the team's words
+
+- **Actor:** agent.
+- **Need:** write the text of a frame fast, in the words of the team, so that the frames of all
+  agents say one thing in one way.
+- **Trigger:** the agent has a screen to show.
+- **Success end:** the frame shows on the canvas, and each text in it comes from the words of the
+  team.
+- **Failure end:** the frame has a text that is not in the words of the team, or that breaks a
+  rule of the team. The agent knows at once where and how to fix it.
+
+| ID  | Requirement                                                                | Fit criterion                                                                                                                                                                                                                                            |
+| --- | -------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| L1  | The frames of several agents use the same words for the same thing.        | On a canvas of 10 frames from 3 agents, a person finds no action or thing that has two different names.                                                                                                                                                  |
+| L2  | The agent knows at once when a text does not follow the words of the team. | A frame with a visible text that is not in the words of the team, a term that the team banned, or a term in a form that the team does not use (its capitals), is found when the agent writes it. The agent is told the line, what is there, and the fix. |
+| L3  | A new text is added one time, and each agent then uses it.                 | After one agent adds "Start free trial", a second agent makes a frame with that action and uses the same text, with no new one.                                                                                                                          |
+| L4  | The words do not make a frame slower to make.                              | With the reference agent and the 3 reference screens of K3, the median time to write a frame is at most 10% more than with the kit alone.                                                                                                                |
+
+### E9.2 Change the words
+
+- **Actor:** user (an agent or a person of the team).
+- **Need:** change a name or a text in all frames with one change, and lose nothing that people
+  saw before.
+- **Trigger:** the team renames a thing, or a viewer asks for a change of words (E4).
+- **Success end:** each frame of the easel shows the new words, and no agent changed a frame.
+- **Failure end:** another user changed the same text first. Nothing is written, and the user gets
+  the newest text.
+
+| ID  | Requirement                                                              | Fit criterion                                                                                                                                                                                                                         |
+| --- | ------------------------------------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| L5  | One change of a text reaches each frame.                                 | After one change of a text, each live document in each open tab shows the new text within 1 second, with no reload. Each other frame in view shows it within 10 seconds on a canvas with 20 frames in view. No agent changed a frame. |
+| L6  | The user can go back to the words before.                                | One step gives each frame the words that it had before the last change. The step is a change too, so a second step gives the words back.                                                                                              |
+| L7  | A change of the words does not change what a viewer saw when they asked. | After the change, the Before of each result, and the When asked picture of each request, show the frame with the words that the viewer saw (E4).                                                                                      |
+| L8  | A change made on an old text does not remove a newer change.             | When two users change one text at the same time, the second is refused and told. No change is lost (as K14).                                                                                                                          |
+
+### E9.3 Review the words
+
+- **Actor:** person of the team (a writer, a reviewer, or the team lead).
+- **Need:** read and correct all the words of the product in one place, for example before a
+  release or a translation.
+- **Trigger:** the team prepares a release, a translation, or a change of its voice.
+- **Success end:** the person has read each text, has seen where each is used, and has changed
+  the texts that were wrong (E9.2).
+- **Failure end:** a text is used in no frame. The person sees it, and can remove it.
+
+| ID  | Requirement                                           | Fit criterion                                                                                                   |
+| --- | ----------------------------------------------------- | --------------------------------------------------------------------------------------------------------------- |
+| L9  | A person sees all the words of the team in one place. | A person of the team, with easel only, sees each visible text of each frame in one place, with no text missing. |
+| L10 | A person sees where a text is used.                   | For a text there, the person opens each frame that shows it within 1 minute.                                    |
+| L11 | A person sees the texts that no frame uses.           | A text that no frame shows is marked as not used where the person reviews the words.                            |
+
+### E9 walk of the slice
+
+On 2026-11-22, E9 was read as a team lead: get the easel, see the first frames in the words of the
+seed, set the name of the product and the names of its main actions, see each frame change, ask a
+writer to review all the words, rename one action, see each frame change, open an old request and
+see the words that the viewer saw. Then it was read as an agent: make a frame, be told of a text
+that is not in the words of the team, add a new text, change a text that another user changed
+first. The walk added L4 (the words must not make frames slow to make, or agents work around
+them), L7 (the Before of a result after a change of the words) and L11 (texts that no frame uses,
+which a review must find before a translation).
+
+#### Design changes that E9 needs
+
+| Req.   | Gap in the design now                                                          | Spec                  |
+| ------ | ------------------------------------------------------------------------------ | --------------------- |
+| L1–L11 | No spec keeps the words of a team.                                             | SPEC-kit              |
+| L2     | The kit check reads the classes of a frame, not its visible text.              | SPEC-kit              |
+| L5     | The port of a live document carries a new look only.                           | SPEC-viewer           |
+| L7     | A request and a result keep the kit version that the viewer saw, but no words. | SPEC-queue            |
+| L9–L11 | No page or command shows the words of a team.                                  | SPEC-viewer, SPEC-cli |
