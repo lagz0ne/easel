@@ -2,7 +2,7 @@ import { operation } from "@tinkered/core";
 import { compile } from "tailwindcss";
 import { z } from "zod";
 
-import { appJs, checkApp } from "./app.server";
+import { appBundle, checkApp } from "./app.server";
 import { check } from "./check.server";
 import { kitShape } from "./schema";
 import { sources } from "./source.server";
@@ -45,22 +45,43 @@ export const makeFrame = operation({
 });
 
 /**
- * The made CSS and the JS of an app frame (SPEC-kit.md § App frames): its check first, then the
- * make of exactly the class names of the fixed text, with the frame source, and the JS of the
- * fixed text (Bun.Transpiler). With `names` (the runtime's), the findings of the module too. A TSX
- * that does not parse makes nothing.
+ * The made CSS and the JS of an app frame (SPEC-kit.md § App frames): the check of each of its
+ * files first (`files`: one TSX is `{ "index.tsx": tsx }`), then the make of exactly the class
+ * names of the fixed files, with the frame source, and the JS of the fixed files (`appBundle`).
+ * With `names` (the runtime's), the findings of each module too. In a frame of more than one
+ * file, each finding names its file. A file that does not parse makes nothing.
  */
 export const makeApp = operation({
   label: "kit.makeApp",
-  input: z.object({ tsx: z.string(), kit: kitShape, names: z.array(z.string()).optional() }),
-  depends: { checkApp, make, sources, appJs },
-  run: async ({ checkApp, make, sources, appJs }, { input }) => {
-    const checked = await checkApp.run({ input });
-    if (checked.kind === "unparsed") return checked;
+  input: z.object({
+    files: z.record(z.string(), z.string()),
+    kit: kitShape,
+    names: z.array(z.string()).optional(),
+  }),
+  depends: { checkApp, make, sources, appBundle },
+  run: async ({ checkApp, make, sources, appBundle }, { input: { files, kit, names } }) => {
+    const paths = Object.keys(files).sort();
+    const named = paths.length > 1;
+    const checked = [];
+    for (const path of paths) {
+      const tsx = files[path] ?? "";
+      const one = await checkApp.run({ input: { tsx, kit, names, path, paths } });
+      checked.push({
+        path,
+        ...one,
+        findings: one.findings.map((f) => (named ? { ...f, file: path } : f)),
+      });
+    }
 
-    const { frame } = sources.run({ input: input.kit });
-    const css = await make.run({ input: { source: frame, classNames: checked.classes } });
-    const js = appJs.run({ input: checked.fixed });
-    return { kind: "made" as const, css, js, findings: checked.findings, fixed: checked.fixed };
+    const findings = checked.flatMap((one) => one.findings);
+    const parsed = checked.flatMap((one) => (one.kind === "checked" ? [one] : []));
+    if (parsed.length < checked.length) return { kind: "unparsed" as const, findings };
+
+    const { frame } = sources.run({ input: kit });
+    const classNames = [...new Set(parsed.flatMap((one) => one.classes))].sort();
+    const css = await make.run({ input: { source: frame, classNames } });
+    const fixed = Object.fromEntries(parsed.map((one) => [one.path, one.fixed]));
+    const js = await appBundle.run({ input: fixed });
+    return { kind: "made" as const, css, js, findings, fixed };
   },
 });

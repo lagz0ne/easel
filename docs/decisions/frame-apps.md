@@ -100,7 +100,10 @@ oxc-transform makes JS from the 8.7 KB frame in 0.14 ms (Bun.Transpiler: 0.19 ms
    puts the nearest look color for an arbitrary color. The make step gets exactly these classes, so
    the CSS has no class that a scan guessed. The same rule is an Oxlint JS plugin for an agent's
    own files, in the way that the Tinker rules are.
-7. **JS from TSX:** Bun.Transpiler, built into Bun. No second native module is needed for it.
+7. **JS from TSX:** Bun.Transpiler, built into Bun. No second native module is needed for it. Changed on 2026-11-22
+   ([kit-capsules](kit-capsules.md)): `Bun.build` in memory, also built into Bun, makes one module
+   from the files of a frame, with an entry that calls the mount. A frame can now have more than
+   one file, and a bundler can rename the names of a file (SPEC-kit § App frames, "The JS").
 8. **oxc-parser in the release binary** needs the same work as Lightning CSS: its loader finds the
    `.node` file by a name that it makes at run time. A `Bun.build` plugin replaces the loader with
    a static `require` for each target (tested on linux-x64 in a compiled binary). The release

@@ -1,4 +1,5 @@
-import { readFileSync, writeFileSync } from "node:fs";
+import { mkdirSync, readdirSync, readFileSync, statSync, writeFileSync } from "node:fs";
+import { dirname, join } from "node:path";
 
 import { operation, tag } from "@tinkered/core";
 import { z } from "zod";
@@ -23,7 +24,7 @@ import {
 } from "@/frames/contract";
 import type { FramesAddress } from "@/frames/contract";
 import { sharePassword } from "@/frames/share";
-import { maxAppBytes } from "@/kit/schema";
+import { entryFile, type FrameFiles, frameFiles, maxAppBytes } from "@/kit/schema";
 
 import { callDeadline, exits, faultExit } from "./exit";
 import { server } from "./hosts";
@@ -263,15 +264,48 @@ export const canvasLs = operation({
   },
 });
 
-/** The document of `easel put`: the file's text, or stdin's for `-`. Null: it cannot be read. */
+/**
+ * The files of a folder frame (SPEC-cli.md § Frames): each `.ts` and `.tsx` file in the folder and
+ * in its folders, by its path from the folder, with `/` between the parts. A folder whose name
+ * starts with `.`, and `node_modules`, are left out. `bad` says why the files are not a frame.
+ */
+const readFolder = operation({
+  label: "cli.readFolder",
+  input: z.string(),
+  run: (_, { input: dir }) => {
+    const paths = readdirSync(dir, { recursive: true, encoding: "utf8" })
+      .map((path) => path.split("\\").join("/"))
+      .filter((path) => /\.tsx?$/.test(path))
+      .filter(
+        (path) => !path.split("/").some((part) => part.startsWith(".") || part === "node_modules"),
+      )
+      .sort();
+    const files = Object.fromEntries(
+      paths.map((path) => [path, readFileSync(join(dir, path), "utf8")]),
+    );
+    const read = frameFiles.safeParse(files);
+    if (read.success) return { kind: "files" as const, files: read.data };
+
+    const issue = read.error.issues[0];
+    const where = issue?.path.length ? `${String(issue.path[0])}: ` : "";
+    const bad = `${dir} is not a frame: ${where}${issue?.message ?? "no files"}`;
+    return { kind: "bad" as const, bad };
+  },
+});
+
+/**
+ * The document of `easel put`: the file's text, stdin's for `-`, or the files of a folder. Null:
+ * it cannot be read.
+ */
 const readDocument = operation({
   label: "cli.readDocument",
   input: z.string(),
-  depends: { stdin: stdinText },
-  run: async ({ stdin }, { input: file }) => {
-    if (file === "-") return stdin ? { text: await stdin() } : null;
+  depends: { stdin: stdinText, readFolder },
+  run: async ({ stdin, readFolder }, { input: file }) => {
+    if (file === "-") return stdin ? { kind: "text" as const, text: await stdin() } : null;
     try {
-      return { text: readFileSync(file, "utf8") };
+      if (statSync(file).isDirectory()) return readFolder.run({ input: file });
+      return { kind: "text" as const, text: readFileSync(file, "utf8") };
     } catch {
       return null;
     }
@@ -384,26 +418,53 @@ const putText = operation({
  */
 const putFindings = operation({
   label: "cli.putFindings",
-  input: z.object({ file: z.string(), answer: putOutput }),
+  input: z.object({ file: z.string(), folder: z.boolean(), answer: putOutput }),
   depends: { stderr: stderr.required, asJson: json },
-  run: ({ stderr, asJson }, { input: { file, answer } }) => {
+  run: ({ stderr, asJson }, { input: { file, folder, answer } }) => {
     if (asJson || !("findings" in answer)) return;
 
     for (const f of answer.findings) {
-      stderr.write(`${file}:${f.line}:${f.col} ${f.rule} ${f.what}. Fix: ${f.fix}\n`);
+      // In a folder, a finding names its file; with one file in the folder, it is the entry.
+      const at = folder ? join(file, f.file ?? entryFile) : file;
+      stderr.write(`${at}:${f.line}:${f.col} ${f.rule} ${f.what}. Fix: ${f.fix}\n`);
     }
     if (answer.more > 0) stderr.write(`and ${answer.more} more\n`);
   },
 });
 
-/** The document as `frame.put` takes it: `{ html }`, or `{ tsx }` for an app frame, and its limit. */
+/** The document of a put as `frame.put` takes it: `{ html }`, `{ tsx }` or `{ files }`. */
+const putDoc = z.union([
+  z.object({ html: z.string() }),
+  z.object({ tsx: z.string() }),
+  z.object({ files: z.custom<FrameFiles>() }),
+]);
+
+/** The document of a put from what `readDocument` read: the files, the TSX, or the html. */
+const docOf = operation({
+  label: "cli.docOf",
+  input: z.object({
+    read: z.union([
+      z.object({ kind: z.literal("text"), text: z.string() }),
+      z.object({ kind: z.literal("files"), files: z.custom<FrameFiles>() }),
+    ]),
+    app: z.boolean(),
+  }),
+  run: (_, { input: { read, app } }): z.infer<typeof putDoc> => {
+    if (read.kind === "files") return { files: read.files };
+    return app ? { tsx: read.text } : { html: read.text };
+  },
+});
+
+/** The UTF-8 bytes of a document, and its limit: 1 MiB, or 256 KiB for the files of an app frame. */
 const sentDoc = operation({
   label: "cli.sentDoc",
-  input: z.object({ text: z.string(), app: z.boolean() }),
-  run: (_, { input: { text, app } }) =>
-    app
-      ? { doc: { tsx: text }, maxBytes: maxAppBytes }
-      : { doc: { html: text }, maxBytes: maxDocBytes },
+  input: putDoc,
+  run: (_, { input: doc }) => {
+    if ("html" in doc) return { bytes: Buffer.byteLength(doc.html, "utf8"), maxBytes: maxDocBytes };
+    const texts = "tsx" in doc ? [doc.tsx] : Object.values(doc.files);
+    const bytes = texts.reduce((sum, text) => sum + Buffer.byteLength(text, "utf8"), 0);
+    return { bytes, maxBytes: maxAppBytes };
+  },
 });
 
 /**
@@ -421,15 +482,14 @@ const sendPut = operation({
       id: frameId.optional(),
       base: version.optional(),
     }),
-    html: z.string(),
-    /** An app frame: the document goes as `tsx`, with its own limit of 256 KiB. */
-    app: z.boolean(),
+    /** An app frame goes as `tsx` or `files`, with its own limit of 256 KiB. */
+    doc: putDoc,
   }),
   depends: { framesFault, deadline: framesDeadline, putCall: frames.api["frame.put"], sentDoc },
-  run: async ({ framesFault, deadline, putCall, sentDoc }, { input: { command, html, app } }) => {
-    const { doc, maxBytes } = sentDoc.run({ input: { text: html, app } });
-    const sentBytes = Buffer.byteLength(JSON.stringify(html), "utf8");
-    if (Buffer.byteLength(html, "utf8") > maxBytes || sentBytes > maxSentDocBytes) {
+  run: async ({ framesFault, deadline, putCall, sentDoc }, { input: { command, doc } }) => {
+    const { bytes, maxBytes } = sentDoc.run({ input: doc });
+    const sentBytes = Buffer.byteLength(JSON.stringify(doc), "utf8");
+    if (bytes > maxBytes || sentBytes > maxSentDocBytes) {
       return { answered: true as const, answer: { kind: "tooBig" as const, maxBytes } };
     }
 
@@ -467,38 +527,42 @@ export const put = operation({
     putUsage,
     putFlags,
     readDocument,
+    docOf,
     sendPut,
     putText,
     putFindings,
     exitOf: framesExitOf,
   },
-  run: async (
-    { say, usage, putUsage, putFlags, readDocument, sendPut, putText, putFindings, exitOf },
-    { input },
-  ) => {
+  run: async (units, { input }) => {
+    const { say, usage, putUsage, putFlags, readDocument, docOf, sendPut } = units;
+    const { putText, putFindings, exitOf } = units;
     const bad = putUsage.run({ input });
     if (bad !== null) return usage.run({ input: bad });
 
     const flags = putFlags.run({ input });
     if (flags.bad !== null) return usage.run({ input: flags.bad });
 
-    const doc = await readDocument.run({ input: input.file });
-    if (!doc) {
+    const read = await readDocument.run({ input: input.file });
+    if (!read) {
       const text = input.file === "-" ? "stdin cannot be read" : `cannot read ${input.file}`;
       return usage.run({ input: text });
     }
+    if (read.kind === "bad") return usage.run({ input: read.bad });
 
     const { size, id, base } = flags;
     const command = { canvas: input.canvas, name: input.name, size, id, base };
-    // A file whose name ends in `.tsx` is an app frame (SPEC-frames § Contract).
-    const app = input.file.endsWith(".tsx");
-    const sent = await sendPut.run({ input: { command, html: doc.text, app } });
+    // A folder is an app frame of its files; a file whose name ends in `.tsx` is an app frame
+    // (SPEC-frames § Contract).
+    const folder = read.kind === "files";
+    const app = folder || input.file.endsWith(".tsx");
+    const doc = docOf.run({ input: { read, app } });
+    const sent = await sendPut.run({ input: { command, doc } });
     if (!sent.answered) return sent.exit;
 
     const { answer } = sent;
     const told = putText.run({ input: { canvas: input.canvas, id: input.id, answer, app } });
     say.run({ input: { json: answer, ...told } });
-    putFindings.run({ input: { file: input.file, answer } });
+    putFindings.run({ input: { file: input.file, folder, answer } });
     return exitOf.run({ input: { address: "frame.put", kind: answer.kind } });
   },
 });
@@ -544,18 +608,72 @@ export const ls = operation({
   },
 });
 
-/** A frame from `frame.get`: the document as it was written (the html, or the TSX of an app frame), and the rest. */
+/**
+ * A frame from `frame.get`: the document as it was written (the html, the TSX of an app frame, or
+ * the files of a folder frame), and the rest.
+ */
 const writtenOf = operation({
   label: "cli.writtenOf",
   input: frame,
   run: (_, { input }) => {
+    if ("files" in input) {
+      const { files, ...info } = input;
+      return { html: null, files, info };
+    }
     if ("tsx" in input) {
       const { tsx, ...info } = input;
-      return { html: tsx, info };
+      return { html: tsx, files: null, info };
     }
 
     const { html, ...info } = input;
-    return { html, info };
+    return { html, files: null, info };
+  },
+});
+
+/**
+ * The files of a folder frame, written in the folder `out`, each at its path; the folders that a
+ * path needs are made. A file of the folder that the frame does not have stays.
+ */
+const writeFolder = operation({
+  label: "cli.writeFolder",
+  input: z.object({ out: z.string(), files: frameFiles }),
+  run: (_, { input: { out, files } }) => {
+    for (const [path, text] of Object.entries(files)) {
+      mkdirSync(dirname(join(out, path)), { recursive: true });
+      writeFileSync(join(out, path), text);
+    }
+  },
+});
+
+/**
+ * What `easel get` prints for a frame it found, after it writes `out`: with no `out`, the
+ * document (each file of a folder after a line `==> <path> <==`, as `head` prints files); with
+ * `out`, the file, or for a folder frame the folder, and the version.
+ */
+const gotOut = operation({
+  label: "cli.gotOut",
+  input: z.object({
+    answer: z.object({ kind: z.literal("found"), frame }),
+    out: z.string().optional(),
+  }),
+  depends: { writtenOf, writeFolder },
+  run: ({ writtenOf, writeFolder }, { input: { answer, out } }) => {
+    const { html, files, info } = writtenOf.run({ input: answer.frame });
+    const entries = Object.entries(files ?? {});
+    if (out === undefined) {
+      const text = files
+        ? entries.map(([path, one]) => `==> ${path} <==\n${one}`).join("\n")
+        : html;
+      return { json: answer, text: text ?? "" };
+    }
+
+    if (files) writeFolder.run({ input: { out, files } });
+    else writeFileSync(out, html ?? "");
+    const where = files ? `${join(out, "/")} (${entries.length} files)` : out;
+    return {
+      json: { kind: answer.kind, frame: info, file: out },
+      text: `${info.id} v${info.version} written to ${where}`,
+    };
   },
 });
 
@@ -572,9 +690,9 @@ export const get = operation({
     framesFault,
     deadline: framesDeadline,
     getCall: frames.api["frame.get"],
-    writtenOf,
+    gotOut,
   },
-  run: async ({ say, exitOf, framesFault, deadline, getCall, writtenOf }, { input }) => {
+  run: async ({ say, exitOf, framesFault, deadline, getCall, gotOut }, { input }) => {
     const stop = deadline.run({ input: "frame.get" });
     const reply = await getCall.settle({
       input: { canvas: input.canvas, id: input.id },
@@ -586,21 +704,9 @@ export const get = operation({
 
     const answer = reply.value;
     switch (answer.kind) {
-      case "found": {
-        const { html, info } = writtenOf.run({ input: answer.frame });
-        if (input.out === undefined) {
-          say.run({ input: { json: answer, text: html } });
-          break;
-        }
-        writeFileSync(input.out, html);
-        say.run({
-          input: {
-            json: { kind: answer.kind, frame: info, file: input.out },
-            text: `${info.id} v${info.version} written to ${input.out}`,
-          },
-        });
+      case "found":
+        say.run({ input: gotOut.run({ input: { answer, out: input.out } }) });
         break;
-      }
       case "gone":
         say.run({
           input: { json: answer, text: `no frame ${input.id} on ${input.canvas}`, error: true },

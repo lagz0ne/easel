@@ -1,4 +1,7 @@
 import { createHash, randomBytes } from "node:crypto";
+import { mkdtempSync, rmSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 
 import { bunSqlite } from "@tinkered/bun/sqlite";
 import { exits } from "@tinkered/cli/test";
@@ -37,7 +40,14 @@ afterEach(async () => {
 });
 
 const pricing = () => Bun.file(new URL("kit/frames/pricing.tsx", import.meta.url)).text();
-const people = () => Bun.file(new URL("kit/frames/people.tsx", import.meta.url)).text();
+
+/** The folder frame `people`: each file, by its path in the folder. */
+const people = async () => {
+  const dir = new URL("kit/frames/people/", import.meta.url);
+  const paths = ["index.tsx", "entities.ts", "copy.ts", "view.tsx"];
+  const texts = await Promise.all(paths.map((path) => Bun.file(new URL(path, dir)).text()));
+  return Object.fromEntries(paths.map((path, i) => [path, texts[i] ?? ""]));
+};
 
 /** A runtime that a test gives the server in place of a build: each name, one small file each. */
 function fakeRuntime(): BuiltRuntime {
@@ -52,7 +62,7 @@ function fakeRuntime(): BuiltRuntime {
  * One server: SQLite, access, frames and a memory transport, as cmds/server.ts wires them. With
  * `runtime: null` the scope builds the real runtime, as in dev.
  */
-async function boot(options: { runtime?: BuiltRuntime | null } = {}) {
+async function boot(options: { runtime?: BuiltRuntime | null; file?: string } = {}) {
   const clock = makeTestClock({ now: 1_800_000_000_000 });
   const out: string[] = [];
   const stdout = { write: (chunk: string) => out.push(chunk) };
@@ -62,7 +72,7 @@ async function boot(options: { runtime?: BuiltRuntime | null } = {}) {
     clock,
     capsules: [
       exits({ file: process.env.TINKER_EXITS }),
-      bunSqlite({ file: ":memory:" }),
+      bunSqlite({ file: options.file ?? ":memory:" }),
       accessServer({ mode: "approve", origin: null, stdout, trusted: [], durable: false }),
       framesServer({
         stdout,
@@ -140,7 +150,7 @@ test("a put of a TSX frame checks it, fixes it, and keeps its TSX, JS and CSS wi
   const [doc] = await srv.server.run(loadDocs, { input: { canvas: "flow", id: made.id } });
   if (!doc?.app) throw new Error("no app");
   expect(doc.app.js).toContain('"btn w-full text-destructive"');
-  expect(doc.app.js).toContain('from "react/jsx-runtime"');
+  expect(doc.app.js).toContain('from"react/jsx-runtime"');
   expect(doc.css).toContain(".text-destructive");
   expect(doc.app.kit).toBe(1);
   expect(doc.app.runtime.address).toBe(`/api/runtime/1/${fakeRuntime().sha}/`);
@@ -260,8 +270,15 @@ test("the composed document of an app frame: the look, the CSS, the import map o
   const map = /<script type="importmap">(.*?)<\/script>/.exec(html)?.[1] ?? "";
   expect(JSON.parse(map).imports.react).toBe(`${doc.app.runtime.address}react.js`);
   expect(html).toContain('const t = "<\\/script><\\!--";');
-  expect(html).toContain('import { mount as __easelMount } from "@easel/frame";');
-  expect(html.match(/<\/script>/g)?.length).toBe(2);
+  expect(html).toContain('<script type="application/json" id="easel-axes">{}</script>');
+  expect(html).toContain('import{mount}from"@easel/frame"');
+  expect(html.match(/<\/script>/g)?.length).toBe(3);
+
+  // The axes of a capsule frame, as JSON that cannot end its element.
+  const axes = srv.server.run(composeApp, {
+    input: { js: "", css: "", kit, runtime: doc.app.runtime, axes: { locale: "</script>" } },
+  });
+  expect(axes).toContain('id="easel-axes">{"locale":"\\u003c/script>"}</script>');
 });
 
 test("speed: a put of a usual TSX frame spends less than 50 ms in the check and the make", async () => {
@@ -381,8 +398,89 @@ test(
 /** Before the composed document: a script that tells the parent the body's text at `load`. */
 const atLoad = `<script>addEventListener("load", () => parent.postMessage({ easel: "load:" + document.body.textContent }, "*"));</script>\n`;
 
+test("a folder frame: frame.put takes its files, keeps them as written, and frame.get answers them; a second put of the same files is unchanged", async () => {
+  const srv = await boot();
+  const ann = await annOn(srv);
+  const files = await people();
+  const made = await ann.put({ canvas: "flow", files });
+  if (made.kind !== "created") throw new Error(`not created: ${made.kind}`);
+  expect(made.findings).toEqual([]);
+
+  const got = await ann.get(made.id);
+  expect(got).toMatchObject({ kind: "found", frame: { version: 1, files } });
+  const [doc] = await srv.server.run(loadDocs, { input: { canvas: "flow", id: made.id } });
+  expect(doc?.app?.js).toContain('import{mount}from"@easel/frame"');
+
+  const same = await ann.put({ canvas: "flow", files, id: made.id, base: 1 });
+  expect(same.kind).toBe("unchanged");
+
+  // A file of the folder with a gap: the finding names its file.
+  const bad = { ...files, "view.tsx": `${files["view.tsx"] ?? ""}\nimport "./none";\n` };
+  const refused = await ann.put({ canvas: "flow", files: bad, id: made.id, base: 1 });
+  expect(refused.kind === "offKit" && refused.findings.map((f) => f.file)).toEqual(["view.tsx"]);
+
+  // No index.tsx, or a path above the folder: rpc refuses the input on the client, and nothing
+  // is sent.
+  const shapes: Array<Record<string, string>> = [
+    { "copy.ts": "export {};" },
+    { "index.tsx": "", "../x.ts": "" },
+  ];
+  for (const files of shapes) {
+    const sent = await Promise.resolve()
+      .then(() => ann.put({ canvas: "flow", files }))
+      .then(
+        () => "sent",
+        (error: unknown) => String(error),
+      );
+    expect(sent).toContain("DataValidationFailed");
+  }
+  expect((await ann.list()).kind === "found" && (await ann.list())).toMatchObject({
+    frames: [{ id: made.id, version: 1 }],
+  });
+});
+
+// Three starts on a database file, each with `synchronous = FULL`: a budget as for the other
+// tests that write to disk.
 test(
-  "a capsule frame draws in a scope of the kit's capsules, with the locale and the data state of its axes, before load; a refused start shows its kind; a kit message draws it in a new scope",
+  "the JS of an app frame made before the JS called the mount gets the old mount line, one time",
+  { timeout: 30_000 },
+  async () => {
+    const dir = mkdtempSync(join(tmpdir(), "easel-mount-old-"));
+    closers.push(() => rmSync(dir, { recursive: true, force: true }));
+    const file = join(dir, "easel.db");
+    const first = await boot({ file });
+    const ann = await annOn(first);
+    const made = await ann.put({ canvas: "flow", tsx: await pricing() });
+    if (made.kind !== "created") throw new Error("not created");
+    // As a store of the week before: transpiled JS with no mount, and no migration recorded.
+    await first.server.run(
+      operation({
+        label: "test.oldStore",
+        depends: { connection: bunSqlite.connection },
+        run: async ({ connection }) => {
+          connection.db.$client.run("UPDATE frames_frames SET js = 'export function View() {}'");
+          connection.db.$client.run("DELETE FROM frames_migrations");
+        },
+      }),
+    );
+    await first.server.close();
+
+    const jsOf = async () => {
+      const srv = await boot({ file });
+      const [doc] = await srv.server.run(loadDocs, { input: { canvas: "flow", id: made.id } });
+      await srv.server.close();
+      return doc?.app?.js ?? "";
+    };
+    const again = await jsOf();
+    expect(again.startsWith("export function View() {}\nimport { mount as __easelMount }")).toBe(
+      true,
+    );
+    expect(await jsOf()).toBe(again);
+  },
+);
+
+test(
+  "a capsule frame in a folder draws in a scope of the kit's capsules, with the locale and the data state of its axes, before load; a refused start shows its kind; a kit message draws it in a new scope",
   { timeout: 90_000 },
   async () => {
     const executablePath = localChromium();
@@ -392,7 +490,7 @@ test(
 
     const srv = await boot({ runtime: null });
     const ann = await annOn(srv);
-    const made = await ann.put({ canvas: "flow", tsx: await people() });
+    const made = await ann.put({ canvas: "flow", files: await people() });
     if (made.kind !== "created") throw new Error(`not created: ${made.kind}`);
     const [doc] = await srv.server.run(loadDocs, { input: { canvas: "flow", id: made.id } });
     if (!doc?.app) throw new Error("no app");

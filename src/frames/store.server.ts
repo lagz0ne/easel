@@ -76,6 +76,10 @@ CREATE TABLE IF NOT EXISTS frames_kept (
   js TEXT,
   PRIMARY KEY (canvas, id, version)
 );
+CREATE TABLE IF NOT EXISTS frames_migrations (
+  name TEXT PRIMARY KEY NOT NULL,
+  ran INTEGER NOT NULL
+);
 CREATE TABLE IF NOT EXISTS frames_removed (
   canvas TEXT NOT NULL,
   id TEXT NOT NULL,
@@ -556,6 +560,38 @@ const addColumns = operation({
 });
 
 /**
+ * The mount line that `composeApp` added to the JS of an app frame before the JS called the
+ * mount itself (SPEC-kit.md § App frames, "The JS").
+ */
+const oldMount =
+  '\nimport { mount as __easelMount } from "@easel/frame";\n' +
+  '__easelMount({ View, frame: typeof frame === "undefined" ? undefined : frame });';
+
+/**
+ * At start, one time: the JS of each app frame made before its JS called the mount gets the mount
+ * line that compose added then. `frames_migrations` records that it ran, in the same transaction,
+ * so no JS gets the line two times.
+ */
+const mountOldJs = operation({
+  label: "frames.mountOldJs",
+  depends: { connection: bunSqlite.connection },
+  run: async ({ connection }, { clock }) => {
+    const db = connection.db.$client;
+    db.transaction(() => {
+      const done = db.query("SELECT 1 FROM frames_migrations WHERE name = 'mount-old-js'").get();
+      if (done !== null) return;
+
+      for (const table of ["frames_frames", "frames_kept"]) {
+        db.query(`UPDATE ${table} SET js = js || ? WHERE js IS NOT NULL`).run(oldMount);
+      }
+      db.query("INSERT INTO frames_migrations (name, ran) VALUES ('mount-old-js', ?)").run(
+        clock.currentTimeMillis(),
+      );
+    })();
+  },
+});
+
+/**
  * At start: make the tables, set `synchronous = FULL` (decision C6: each write is on disk before
  * it answers), and set the cells from the rows it read, and only from them (fact rule 5). A row
  * that does not parse is left out; the log says only how many there were.
@@ -572,16 +608,18 @@ const load = operation({
     boardFrame,
     boardKept,
     addColumns,
+    mountOldJs,
     kitStart,
     showKit,
   },
   run: async (deps) => {
     const { connection, canvasCells, frameCells, keptCells, removedCells, out } = deps;
-    const { boardFrame, boardKept, addColumns, kitStart, showKit } = deps;
+    const { boardFrame, boardKept, addColumns, mountOldJs, kitStart, showKit } = deps;
     const db = connection.db.$client;
     db.exec("PRAGMA synchronous = FULL");
     db.exec(schema);
     await addColumns.run();
+    await mountOldJs.run();
     await kitStart.run();
 
     const canvasRows = db.query("SELECT key, name, created FROM frames_canvases").all();

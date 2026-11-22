@@ -3,7 +3,7 @@ import { z } from "zod";
 
 import { kit } from "@/kit/cells";
 import { runtimeLink } from "@/kit/runtime";
-import { findingShape } from "@/kit/schema";
+import { findingShape, frameFiles } from "@/kit/schema";
 import { messages, requests, serverClock } from "@/queue/cells";
 
 import { sharePassword, sharePath } from "./share";
@@ -99,12 +99,13 @@ export const frameInfo = z.object({
 export type FrameInfo = z.infer<typeof frameInfo>;
 
 /**
- * A frame with its document (decision C1): `html`, or `tsx` for an app frame, as it was written
- * (SPEC-frames § Contract, "An app frame").
+ * A frame with its document (decision C1): `html`, or `tsx` for an app frame, or `files` for a
+ * folder frame, as it was written (SPEC-frames § Contract, "An app frame").
  */
 export const frame = z.union([
   frameInfo.extend({ html: z.string() }),
   frameInfo.extend({ tsx: z.string() }),
+  frameInfo.extend({ files: frameFiles }),
 ]);
 
 export type Frame = z.infer<typeof frame>;
@@ -226,9 +227,10 @@ const written = z.object({
 
 /**
  * `frame.put`'s input: a new frame (`name`, `size`), or a write on an id at the version the agent
- * read (`id` with `base`); each with `html`, or `tsx` for an app frame. The shapes are strict:
- * `id` without `base`, `base` without `id`, `name` or `size` with `id` (decision C5), or both
- * `html` and `tsx` is `invalid`.
+ * read (`id` with `base`); each with `html`, or `tsx` for an app frame, or `files` for an app
+ * frame of more than one file (a folder: `{ "index.tsx": ..., "copy.ts": ... }`). The shapes are
+ * strict: `id` without `base`, `base` without `id`, `name` or `size` with `id` (decision C5), or
+ * two of `html`, `tsx` and `files` is `invalid`.
  */
 export const putInput = z.union([
   z.strictObject({
@@ -245,6 +247,13 @@ export const putInput = z.union([
     size: size.optional(),
   }),
   z.strictObject({ canvas: canvasKey, tsx: z.string(), id: frameId, base: version }),
+  z.strictObject({
+    canvas: canvasKey,
+    files: frameFiles,
+    name: frameName.optional(),
+    size: size.optional(),
+  }),
+  z.strictObject({ canvas: canvasKey, files: frameFiles, id: frameId, base: version }),
 ]);
 
 export type PutInput = z.infer<typeof putInput>;

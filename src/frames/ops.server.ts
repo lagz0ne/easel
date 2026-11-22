@@ -4,7 +4,15 @@ import { z } from "zod";
 import { user } from "@/access/guards.server";
 import { makeApp, makeFrame } from "@/kit/make.server";
 import { runtimeAddress, runtimeOf } from "@/kit/runtime.server";
-import { maxAppBytes, refusingRules, utf8Bytes } from "@/kit/schema";
+import {
+  entryFile,
+  folderOf,
+  folderText,
+  type FrameFiles,
+  maxAppBytes,
+  refusingRules,
+  utf8Bytes,
+} from "@/kit/schema";
 import { frameKit } from "@/kit/store.server";
 
 import {
@@ -157,15 +165,15 @@ const makeDoc = operation({
  */
 const makeAppDoc = operation({
   label: "frames.makeAppDoc",
-  input: z.string(),
+  input: z.custom<FrameFiles>(),
   depends: { frameKit, runtimeOf, makeApp },
-  run: async ({ frameKit, runtimeOf, makeApp }, { input: tsx }) => {
+  run: async ({ frameKit, runtimeOf, makeApp }, { input: files }) => {
     const kit = await frameKit.run();
     const runtime = await runtimeOf.run({ input: kit.version });
     if (runtime === null) throw new Error("frames: the current kit version is not stored");
 
     const names = Object.keys(runtime.imports);
-    const made = await makeApp.run({ input: { tsx, kit, names } });
+    const made = await makeApp.run({ input: { files, kit, names } });
     if (made.kind === "unparsed" || made.findings.some((f) => refusingRules.has(f.rule))) {
       return { kind: "offKit" as const, findings: made.findings };
     }
@@ -176,8 +184,27 @@ const makeAppDoc = operation({
   },
 });
 
-/** The document of a put as the store keeps it: the html, or the TSX of an app frame. */
-const textOf = z.custom<PutInput>().transform((put) => ("tsx" in put ? put.tsx : put.html));
+/**
+ * The document of a put as the store keeps it: the html, the TSX of an app frame, or the JSON of
+ * the files of a folder frame, sorted by path (`folderText`).
+ */
+const textOf = z.custom<PutInput>().transform((put) => {
+  if ("files" in put) return folderText.parse(put.files);
+  return "tsx" in put ? put.tsx : put.html;
+});
+
+/** The files of an app frame's put (one TSX is the entry alone), or null for an HTML frame. */
+const filesOf = z.custom<PutInput>().transform((put): FrameFiles | null => {
+  if ("files" in put) return put.files;
+  return "tsx" in put ? { [entryFile]: put.tsx } : null;
+});
+
+/** The UTF-8 bytes of a put's document: of an app frame, the sum of its files. */
+const bytesOf = z.custom<PutInput>().transform((put) => {
+  const files = filesOf.parse(put);
+  if (files === null) return utf8Bytes.parse(textOf.parse(put));
+  return Object.values(files).reduce((sum, text) => sum + utf8Bytes.parse(text), 0);
+});
 
 /** A put's write: a new frame to the right of the others, or a write on an id at its base. */
 const writeOf = operation({
@@ -222,22 +249,22 @@ const writeOf = operation({
 
 /**
  * The check and the make step of a put's document: an HTML frame (`makeDoc`) or an app frame
- * (`makeAppDoc`), each over its own size limit `tooBig` first (1 MiB of UTF-8; 256 KiB for TSX).
+ * (`makeAppDoc`), each over its own size limit `tooBig` first (1 MiB of UTF-8; 256 KiB for the
+ * files of an app frame together).
  */
 const madeOf = operation({
   label: "frames.madeOf",
   input: putInput,
   depends: { makeDoc, makeAppDoc },
   run: async ({ makeDoc, makeAppDoc }, { input }) => {
-    const maxBytes = "tsx" in input ? maxAppBytes : maxDocBytes;
-    if (utf8Bytes.parse(textOf.parse(input)) > maxBytes) {
-      return { kind: "tooBig" as const, maxBytes };
-    }
+    const files = filesOf.parse(input);
+    const maxBytes = files === null ? maxDocBytes : maxAppBytes;
+    if (bytesOf.parse(input) > maxBytes) return { kind: "tooBig" as const, maxBytes };
 
     const made =
-      "tsx" in input
-        ? await makeAppDoc.run({ input: input.tsx })
-        : await makeDoc.run({ input: input.html });
+      files === null
+        ? await makeDoc.run({ input: textOf.parse(input) })
+        : await makeAppDoc.run({ input: files });
     return made.kind === "tooBig" ? { kind: "tooBig" as const, maxBytes: maxMadeCssBytes } : made;
   },
 });
@@ -293,7 +320,8 @@ export const listFrames = operation({
 
 /**
  * `frame.get`: the frame and its document at its current version, from one read of its row: the
- * `html`, or the `tsx` of an app frame as it was written.
+ * `html`, the `tsx` of an app frame, or the `files` of a folder frame, as they were written. A
+ * folder is kept as a JSON object, which a TSX module that the put took can never be.
  */
 export const getFrame = operation({
   label: "frame.get.do",
@@ -304,7 +332,9 @@ export const getFrame = operation({
     if (!row) return { kind: "gone" as const };
 
     const { canvas: _canvas, css: _css, js, kit: _kit, html, ...info } = row;
-    const frame = js === null ? { ...info, html } : { ...info, tsx: html };
+    const files = js === null ? null : folderOf.parse(html);
+    const frame =
+      js === null ? { ...info, html } : files ? { ...info, files } : { ...info, tsx: html };
     return { kind: "found" as const, frame };
   },
 });

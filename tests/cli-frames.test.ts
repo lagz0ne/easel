@@ -1,4 +1,4 @@
-import { mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 
@@ -444,6 +444,48 @@ test("put of a .tsx file that the check refuses exits 1, offKit, with each findi
   expect(told[1]).toMatch(new RegExp(`^${file}:1:24 kit/import `));
   await a.run({ kind: "ls", canvas: "flow" });
   expect(a.out.join("")).toBe("no frame on flow yet: `easel put flow <file>`\n");
+}, 30_000);
+
+test("put of a folder sends a folder frame: each .ts and .tsx file by its path; get -o writes the folder, and get prints each file", async () => {
+  const srv = await boot();
+  const a = await easel(srv, { json: false });
+  expect(await a.login()).toBe(0);
+  await a.run({ kind: "canvas new", name: "Flow" });
+  const source = new URL("kit/frames/people/", import.meta.url);
+  const dir = join(a.dir, "people");
+  const paths = ["index.tsx", "entities.ts", "copy.ts", "view.tsx"];
+  mkdirSync(join(dir, ".cache"), { recursive: true });
+  for (const path of paths) writeFileSync(join(dir, path), readFileSync(new URL(path, source)));
+  // Not a file of the frame: another type of file, and a folder whose name starts with ".".
+  writeFileSync(join(dir, "notes.md"), "# notes");
+  writeFileSync(join(dir, ".cache", "x.ts"), "export {};");
+  a.out.splice(0);
+  a.err.splice(0);
+
+  expect(await a.run({ kind: "put", canvas: "flow", file: dir })).toBe(0);
+  const id = /^created (\S+) v1$/.exec(a.out.splice(0).join("").trim())?.[1] ?? "";
+  expect(id).toMatch(/^[0-9a-f]{12}$/);
+
+  const out = join(a.dir, "got");
+  expect(await a.run({ kind: "get", canvas: "flow", id, out })).toBe(0);
+  expect(a.out.splice(0).join("")).toBe(`${id} v1 written to ${out}/ (4 files)\n`);
+  for (const path of paths) {
+    expect(readFileSync(join(out, path), "utf8")).toBe(readFileSync(new URL(path, source), "utf8"));
+  }
+  expect(await a.run({ kind: "get", canvas: "flow", id })).toBe(0);
+  expect(a.out.join("")).toMatch(/^==> copy\.ts <==\n/);
+
+  // A finding of a folder names its file; a folder with no index.tsx is bad usage, 64.
+  writeFileSync(
+    join(dir, "view.tsx"),
+    `${readFileSync(join(dir, "view.tsx"), "utf8")}import "./none";\n`,
+  );
+  expect(await a.run({ kind: "put", canvas: "flow", file: dir, id, base: "1" })).toBe(1);
+  expect(a.err.splice(0)[1]).toMatch(new RegExp(`^${join(dir, "view.tsx")}:\\d+:8 kit/import `));
+  const empty = join(a.dir, "empty");
+  mkdirSync(empty);
+  expect(await a.run({ kind: "put", canvas: "flow", file: empty })).toBe(64);
+  expect(a.err.splice(0).join("")).toContain(`${empty} is not a frame: no index.tsx`);
 }, 30_000);
 
 test("put of a .tsx file over 256 KiB exits 1, tooBig, and sends nothing", async () => {

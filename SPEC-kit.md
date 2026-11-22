@@ -438,12 +438,13 @@ elements `easel-look` and `easel-kit`.
 The decision is [frame-apps](docs/decisions/frame-apps.md). This section tells what its build order
 items 2 to 6 need. The board worker (item 7) comes later: only its place is told here.
 
-**The file.** An app frame is one TSX module in UTF-8, of at most 256 KiB (262144 bytes; a larger
-one is `tooBig`, see SPEC-frames). The limit is less than the 1 MiB of an HTML frame because the
-parse of 1 MiB of TSX alone takes 40 to 50 ms, all of the speed budget. It exports `View`, and
-`logic` or `frame`, and no other name, each by its own name (`export const logic`,
-`export function View`; not `export { a as logic }`), so that the composed document can mount
-them. A frame of the first form exports these two:
+**The file.** An app frame is one TSX module in UTF-8, or a folder of them (below), of at most
+256 KiB together (262144 bytes; a larger one is `tooBig`, see SPEC-frames). The limit is less than
+the 1 MiB of an HTML frame because the parse of 1 MiB of TSX alone takes 40 to 50 ms, all of the
+speed budget. The entry exports `View`, and `logic` or `frame`, and no other name. A name can come
+from another file of the frame (`export { View } from "./view"`) or have another name in the file
+(`export { V as View }`): the JS imports the entry as a whole. A frame of the first form exports
+these two:
 
 - `logic`: the frame's Tinker cells and operations, as `frameLogic({ cells, ops })` of
   `@easel/frame` gives them. Each state of the frame is a Tinker cell (decision 10).
@@ -456,6 +457,24 @@ them. A frame of the first form exports these two:
 So a review, a test and the check see each state and each operation of a frame in one place,
 with no browser. A capsule frame exports `View` as a resource, and its own capsule as `frame` if it
 has one (§ The capsules, "A capsule frame"). Only `View` is required (`kit/shape`).
+
+**A folder** (built on 2026-11-22; prior art: the file maps of Sandpack, StackBlitz and
+CodeSandbox, and the `files` of a shadcn registry item). A frame of more than one file is a map of
+paths to texts, with the entry `index.tsx`, at most 64 files. A path is relative, with `/` between
+its parts; each part starts with a letter or a digit, and the name ends in `.ts` or `.tsx`. So no
+path starts with `/` or has `..` as a part. Each file gets the check of a TSX file. An import of a
+file of the frame is a path from the importing file (`./copy`, `../entities.ts`), as written or
+with `.ts`, `.tsx`, `/index.ts` or `/index.tsx`; a path that no file has is `kit/import`. Only the
+entry has `kit/shape`. Each finding names its file (`file`). The store keeps a folder as the JSON
+of its files, sorted by path: a TSX module is never a JSON object, so `frame.get` knows the form.
+
+**The JS** (changed on 2026-11-22). The JS of an app frame is one ES module, from its fixed files,
+made by `Bun.build` in memory (`appBundle`). Its entry is easel's own: it imports the entry file
+as a whole and calls `mount({ View, frame })` of `@easel/frame`, so a bundler that renames a name
+cannot break the mount. Each import of a name stays an import, for the import map. The white space
+is minified, so the JS has no comment with a path of the host. It builds in the compiled binary
+too (`tests/kit-binary.test.ts`). The JS of an app frame made before this change gets the mount
+line that compose added then, one time at start (`frames_migrations`, `mount-old-js`).
 
 **Where `logic` runs.** In build order items 2 to 6, `logic` runs in the frame's own Tinker scope,
 in its iframe. When a frame's state must stay after the frame closes, or frames share it (a flow of
@@ -565,23 +584,24 @@ The make step gets exactly the class names of the fixed text, so the CSS has no 
 guessed. The two-order test of the make step holds for this path too.
 
 **The put** (build order item 4). A frame version of an app frame keeps the TSX as the agent wrote
-it, its JS (Bun.Transpiler, from the fixed text), its made CSS, and its kit version. A finding of
-`kit/parse`, `kit/import`, `kit/react-state` or `kit/shape` (no `logic` or `View`, or another
-export) refuses the put with `offKit`; the other findings do not stop it. An app frame always has
+it, its JS (`appBundle`, from the fixed files), its made CSS, and its kit version. A finding of
+`kit/parse`, `kit/import`, `kit/react-state` or `kit/shape` (no `View`, or another export)
+refuses the put with `offKit`; the other findings do not stop it. An app frame always has
 the kit: `<meta name="easel-kit" content="off">` is for HTML frames only. The first app frame of a
 kit version gives that kit version its runtime (§ "The runtime"), so the check and the import map
 use the same names. Built on 2026-11-22. Measured on 2026-11-22 (this host, Bun 1.4.4): a whole
 `frame.put` of `tests/kit/frames/pricing.tsx` (the check, the fixes, the JS, the make and the
-write) takes 5 to 7 ms at p50 and 7 to 10 ms at p95, in 30 puts after the first.
+write) takes 5 to 7 ms at p50 and 7 to 10 ms at p95, in 30 puts after the first; with the JS of
+`Bun.build`, 7.7 ms at p50 and 13.3 ms at p95.
 
 **compose of an app frame** (`composeApp`, built with item 4; the viewer uses it in item 5).
 `compose` gives `<!doctype html>`, the three `<style>` elements of an HTML frame, an import map
-that names the runtime of the frame version's kit version, and the frame's JS as a module script,
-then `mount({ View, frame, axes })` of `@easel/frame` (`frame` is undefined in a file that does not
-declare it; `axes` is the locale and the data state of a capsule frame, `{}` by default). The body
-is empty: the mount renders into it. In
-the JS, `</script` is written `<\/script` and `<!--` is written `<\!--`, and in the import map `<`
-is `\u003c`, so no stored text ends its element. A browser test loads one composed app frame in a
+that names the runtime of the frame version's kit version, the axes as JSON
+(`<script type="application/json" id="easel-axes">`: the locale and the data state of a capsule
+frame, `{}` by default), and the frame's JS as a module script, which calls the mount itself (§
+"The JS"). The body is empty: the mount renders into it. In the JS, `</script` is written
+`<\/script` and `<!--` is written `<\!--`, and in the import map and the axes `<` is `\u003c`, so
+no stored text ends its element. A browser test loads one composed app frame in a
 sandboxed `srcdoc` iframe (`allow-scripts` only, so its origin is `null`) from the runtime's
 route, clicks a button that runs an operation of `logic`, and sends `close`, then gets `closed`.
 The runtime's address holds the kit version and the SHA-256 of its bytes; it answers with
@@ -662,8 +682,9 @@ View of that scope:
 
 - `values` are the custom properties of the `:root` rule of the frame's `easel-look` sheet, and
   `css` is the text of `easel-kit`. So the scope has the look that the document shows.
-- `locale` and `config` are the frame's axes: `composeApp` writes them into the document. The
-  locale is `en` by default, and each config key has the default of its tag. Another locale or
+- `locale` and `config` are the frame's axes: `composeApp` writes them into the document
+  (`easel-axes`), and the mount reads them. The locale is `en` by default, and each config key has
+  the default of its tag. Another locale or
   another data state is another document, so another scope.
 - A start that is refused (`CopyGaps`, `LookFailsK8`, `SampleInvalid`, `CapsuleMissing`, ...)
   draws an alert in place of the View: `This frame does not start: <kind>.` and the payload. The

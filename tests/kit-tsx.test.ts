@@ -188,7 +188,7 @@ test("the make step gets the classes of the fixed text, the same bytes in two or
   const a = `const a = <p className="p-4 text-primary bg-[#f00]" />;`;
   const b = `const b = <p className={cn("mt-8", "rounded-md bg-muted")} />;`;
   const css = async (scope: Awaited<ReturnType<typeof open>>, tsx: string) => {
-    const got = await scope.run(makeApp, { input: { tsx, kit } });
+    const got = await scope.run(makeApp, { input: { files: { "index.tsx": tsx }, kit } });
     if (got.kind !== "made") throw new Error(`not made: ${got.kind}`);
     return got.css;
   };
@@ -208,7 +208,9 @@ test("the make step gets the classes of the fixed text, the same bytes in two or
 
 test("the make step of a TSX that does not parse makes nothing", async () => {
   const scope = await open();
-  const got = await scope.run(makeApp, { input: { tsx: "<p", kit: await testKit() } });
+  const got = await scope.run(makeApp, {
+    input: { files: { "index.tsx": "<p" }, kit: await testKit() },
+  });
   expect(got.kind).toBe("unparsed");
 });
 
@@ -304,26 +306,88 @@ test("an app frame with no View is kit/shape at its first line; logic and frame 
 test("the usual app frame passes the check of its module with the names of the runtime", async () => {
   const scope = await open();
   const got = await scope.run(makeApp, {
-    input: { tsx: await pricing(), kit: await testKit(), names: [...runtimeNames] },
+    input: {
+      files: { "index.tsx": await pricing() },
+      kit: await testKit(),
+      names: [...runtimeNames],
+    },
   });
   if (got.kind !== "made") throw new Error("not made");
 
   expect(got.findings).toEqual([]);
-  // The JS of the fixed text: no types, the JSX of React's runtime, the imports as written.
-  expect(got.js).toContain('from "react/jsx-runtime"');
-  expect(got.js).toContain('from "@easel/frame"');
+  // One module: no types, the JSX of React's runtime, each name an import for the import map,
+  // and the call of the mount at its end. It exports nothing.
+  expect(got.js).toContain('from"react/jsx-runtime"');
+  expect(got.js).toContain('import{mount}from"@easel/frame"');
   expect(got.js).not.toContain("type Period");
-  expect(got.js).toContain("export const logic");
+  expect(got.js).not.toMatch(/\bexport\b/);
+  expect(got.js).toMatch(/mount\(\{View(:\w+)?,frame:undefined\}\);\s*$/);
 });
 
-test("logic and View are exported by their own names, so the composed document can mount them", async () => {
+test("a folder frame: an import of its own files, by a path with no extension; each finding names its file; only the entry has kit/shape", async () => {
   const scope = await open();
-  const tsx = "const a = 1;\nfunction V() { return null; }\nexport { a as logic, V as View };";
+  const files = {
+    "index.tsx": [
+      'import { Row } from "./parts/row";',
+      'import { title } from "./copy";',
+      "export function View() {",
+      '  return <main className="p-4"><h1>{title}</h1><Row /></main>;',
+      "}",
+    ].join("\n"),
+    "copy.ts": 'export const title = "Plans";\nexport const other = 1;',
+    "parts/row.tsx": [
+      'import { title } from "../copy.ts";',
+      'import { gone } from "./gone";',
+      'export const Row = () => <p className="text-red-500">{title}</p>;',
+    ].join("\n"),
+  };
+  const kit = await testKit();
+  const names = [...runtimeNames];
+
+  const refused = await scope.run(makeApp, { input: { files, kit, names } });
+  expect(refused.findings.map((f) => `${f.file ?? "?"}:${f.line}:${f.col} ${f.rule}`)).toEqual([
+    "parts/row.tsx:2:22 kit/import",
+    "parts/row.tsx:3:40 look/color",
+  ]);
+  expect(refused.findings[0]?.what).toBe(
+    'the frame imports "./gone": no file of the frame has this path',
+  );
+
+  // Without the bad import: one module, with each file once and the fix of the class.
+  const fine = {
+    ...files,
+    "parts/row.tsx": (files["parts/row.tsx"] ?? "").replace(/.*gone.*\n/, ""),
+  };
+  const made = await scope.run(makeApp, { input: { files: fine, kit, names } });
+  if (made.kind !== "made") throw new Error("not made");
+  expect(made.findings.map((f) => `${f.file ?? "?"}:${f.line} ${f.rule}`)).toEqual([
+    "parts/row.tsx:2 look/color",
+  ]);
+  expect(made.fixed["parts/row.tsx"]).toContain('"text-destructive"');
+  expect(made.js.match(/"Plans"/g)?.length).toBe(1);
+  expect(made.js).toContain('"text-destructive"');
+  expect(made.css).toContain(".p-4");
+
+  // A path above the frame is no file of it.
+  const above = { "index.tsx": 'import "../x";\nexport function View() { return null; }' };
+  const out = await scope.run(makeApp, { input: { files: above, kit, names } });
+  expect(out.findings.map((f) => f.rule)).toEqual(["kit/import"]);
+});
+
+test("logic, View and frame can be exported by another name, or from another file of the frame", async () => {
+  const scope = await open();
+  const tsx = [
+    "const a = 1;",
+    "function V() { return null; }",
+    "export { a as logic, V as View };",
+    'export { frame } from "./parts";',
+    'export * from "./more";',
+  ].join("\n");
   const got = await scope.run(checkApp, { input: { tsx, kit: await testKit(), names: [] } });
 
   expect(got.findings.map((f) => f.what)).toEqual([
-    "the frame does not export View",
-    "the frame exports a as logic: export View, logic and frame by their own names: an app frame exports View, and logic or frame, and no other name",
-    "the frame exports V as View: export View, logic and frame by their own names: an app frame exports View, and logic or frame, and no other name",
+    'the frame imports "./parts": no file of the frame has this path',
+    'the frame exports all the names of "./more": an app frame exports View, and logic or frame, and no other name',
+    'the frame imports "./more": no file of the frame has this path',
   ]);
 });

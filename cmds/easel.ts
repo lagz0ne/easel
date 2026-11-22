@@ -46,10 +46,11 @@ const help = `easel: the canvas CLI. Every command takes --json (one JSON value 
   easel errors tick                                stamp the fixer's tick (owner)
   easel canvas new <name>                          make a canvas; prints its key
   easel canvas ls                                  the canvases: key, name, when made, shared
-  easel put <canvas> <file|-> [--name N] [--size WxH]  make a frame from a file, or stdin with -
-  easel put <canvas> <file|-> --id <id> --base <v>     write a frame again on the version you got
+  easel put <canvas> <file|dir|-> [--name N] [--size WxH]  make a frame from a file, a folder, or stdin with -
+  easel put <canvas> <file|dir|-> --id <id> --base <v>     write a frame again on the version you got
+                                                   a .tsx file is an app frame; a folder is one of its .ts and .tsx files, from index.tsx
   easel ls <canvas>                                the frames: id, name, box, version
-  easel get <canvas> <id> [-o <file>]              the document; -o writes it and prints the version
+  easel get <canvas> <id> [-o <file|dir>]          the document; -o writes it (a folder frame: each file) and prints the version
   easel rm <canvas> <id>                           delete a frame
   easel share <canvas>                             a link anyone who has it can open; prints it
   easel share <canvas> --password <pw>             the link asks a password (8 or more characters)

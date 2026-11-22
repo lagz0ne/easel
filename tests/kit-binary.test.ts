@@ -70,10 +70,12 @@ test(
       expect(tsx.css).toContain(".p-4");
       expect(tsx.css).toContain("var(--destructive)");
       expect(places(tsx)).toEqual(["2:34", "2:46"]);
-      expect(tsx.fixed).toContain('"text-destructive"');
-      // Bun.Transpiler in the binary: the JS of the fixed text, with React's JSX runtime.
-      expect(tsx.js).toContain('from "react/jsx-runtime"');
+      expect(tsx.fixed["index.tsx"]).toContain('"text-destructive"');
+      // Bun.build in memory in the binary: the JS of the fixed text, with React's JSX runtime and
+      // the call of the mount.
+      expect(tsx.js).toContain('from"react/jsx-runtime"');
       expect(tsx.js).toContain('"text-destructive"');
+      expect(tsx.js).toContain('import{mount}from"@easel/frame"');
 
       // The runtime of app frames is in the binary: the same bytes as a build in a scope.
       const scope = createScope();

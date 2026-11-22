@@ -67,12 +67,12 @@ export const frameAxes = z.object({
  * `compose` of an app frame (SPEC-kit.md § App frames, "compose of an app frame"; fact rule 3):
  * `<!doctype html>`, the three `<style>` elements of an HTML frame (the look, the kit's made CSS,
  * the frame version's made CSS), an import map that points each name of the runtime to its file
- * at `runtime.address`, and the frame's JS as one module script that mounts its `View`
- * (`@easel/frame`): the check holds that the JS exports `View`, and `logic` or `frame`, by their
- * own names (`kit/shape`). A capsule frame draws with its `axes`. The body is empty: the mount
- * renders into it. In the JS and the import map, `</script` is written `<\/script` and `<!--` is
- * written `<\!--`: the same text in a string, a template or a regular expression, so no stored
- * text can end its element.
+ * at `runtime.address`, the frame's `axes` as JSON (`easel-axes`), and the frame's JS as one
+ * module script, which mounts its `View` (`appBundle` gives it its call of `mount`). A capsule
+ * frame draws with the axes. The body is empty: the mount renders into it. In the JS, `</script`
+ * is written `<\/script` and `<!--` is written `<\!--`: the same text in a string, a template or
+ * a regular expression. In the import map and the axes, `<` is `\u003c`. So no stored text can
+ * end its element.
  */
 export const composeApp = operation({
   label: "kit.composeApp",
@@ -93,12 +93,9 @@ export const composeApp = operation({
     );
     // In JSON, `<` is `\u003c`, so the map cannot end its element.
     const map = JSON.stringify({ imports }).replaceAll("<", "\\u003c");
-    // A capsule frame can export its own capsule `frame`; a frame of the first form has none.
-    const mount =
-      `import { mount as __easelMount } from "@easel/frame";\n` +
-      `__easelMount({ View, frame: typeof frame === "undefined" ? undefined : frame, ` +
-      `axes: ${JSON.stringify(axes ?? {})} });`;
-    const code = `${js}\n${mount}`.replace(scriptEnd, (_, end: string) =>
+    // The JS calls the mount itself (`appBundle`); the mount reads the axes of this document.
+    const shown = JSON.stringify(axes ?? {}).replaceAll("<", "\\u003c");
+    const code = js.replace(scriptEnd, (_, end: string) =>
       end === "!--" ? "<\\!--" : "<\\/script",
     );
 
@@ -106,7 +103,9 @@ export const composeApp = operation({
       `<!doctype html>\n<style id="easel-look">${look}</style>\n` +
       `<style id="easel-kit">${made}</style>\n` +
       `<style id="easel-frame">${own}</style>\n` +
-      `<script type="importmap">${map}</script>\n<script type="module">\n${code}\n</script>\n`
+      `<script type="importmap">${map}</script>\n` +
+      `<script type="application/json" id="easel-axes">${shown}</script>\n` +
+      `<script type="module">\n${code}\n</script>\n`
     );
   },
 });

@@ -109,6 +109,15 @@ the document and the axes in the document (SPEC-kit § The capsules, "A capsule 
 refused start draws its kind and payload in place of the View. A first-form frame (`logic` and a
 View component) draws as before.
 
+### A frame in a folder
+
+Form 2 is a folder: `frame.put` takes `files` (`{ "index.tsx": ..., "copy.ts": ... }`), as the
+file maps of Sandpack, StackBlitz and the shadcn registry do. `easel put <canvas> <dir>` sends the
+folder, and `easel get ... -o <dir>` writes it back. Each file gets the check, and `Bun.build`
+makes one module in memory, with an entry that calls the mount (SPEC-kit § App frames, "A
+folder", "The JS"). Other variations: one TSX file with all the parts (it works, but a large frame
+is hard to read and to review), and a tar or zip archive (a binary format that a diff cannot show).
+
 ## The proof
 
 `tests/kit-capsules.test.ts` (8 tests) shows:
@@ -134,8 +143,8 @@ View component) draws as before.
 
 ## Open
 
-- **The file of a frame.** A frame that has more than one file needs a form for `frame.put`: one
-  TSX file with the parts, or a folder.
+- **`easel kit check <dir>`.** `kit.check` takes one file. A folder gets its findings from the put
+  (an `offKit` put writes nothing).
 - **The MCP.** `kit.capsules` and `easel kit capsules` are built (SPEC-kit § The capsules). The
   MCP tool `kit_capsules` comes with the MCP server.
 - **Pictures.** Each install of the matrix (locale × data state) gets its picture in the Chromium

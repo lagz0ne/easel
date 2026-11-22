@@ -174,6 +174,17 @@ Inputs:
   frame version keeps the TSX as written, its JS, its made CSS and its kit version. `frame.get`
   answers the TSX as `tsx`. The same TSX on the version that is already TSX is `unchanged`; the
   same text as `html` is a new version. `easel get -o` writes the TSX as it was written.
+- A folder frame (built on 2026-11-22; SPEC-kit § App frames, "A folder"): `frame.put` takes
+  `files`, a map of paths to texts with the entry `index.tsx`, in place of `html` or `tsx`. The
+  256 KiB limit is for all its files together. A map with no `index.tsx`, more than 64 files, or a
+  path that is not a path of a frame is `invalid`. `frame.get` answers the files as `files`, as
+  they were written. The same files on the version that has them are `unchanged`. `easel put
+<canvas> <dir>` sends each `.ts` and `.tsx` file of the folder and of its folders, by its path,
+  and leaves out a folder whose name starts with `.`, and `node_modules`; a folder that is not a
+  frame is bad usage (64). A finding prints as `<dir>/<path>:<line>:<col>`. `easel get -o <dir>`
+  writes each file at its path, and makes the folders that it needs; a file of the folder that the
+  frame does not have stays. With no `-o`, `easel get` prints each file after a line
+  `==> <path> <==`, as `head` does.
 - `tooBig` is measured on the document's encoded size, its UTF-8 bytes, not its string length.
   The made CSS is not counted; it is at most 256 KiB, and a document whose CSS would be more
   answers `tooBig` too, with `maxBytes` 262144. The

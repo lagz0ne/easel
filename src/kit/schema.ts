@@ -6,8 +6,9 @@ import { z } from "zod";
  * The rule of a finding. `kit/script`: a frame script writes a class (judged rule 12).
  * `kit/class-built`: code builds a class in a class place of an app frame; `kit/parse`: an app
  * frame does not parse; `kit/import`: it imports a name that the runtime does not have;
- * `kit/react-state`: it keeps state in React; `kit/shape`: it does not export `logic` and `View`,
- * and only them (SPEC-kit.md § App frames). The last four refuse the put (`offKit`).
+ * `kit/react-state`: it keeps state in React; `kit/shape`: its entry does not export `View`, or
+ * exports a name other than `View`, `logic` and `frame` (SPEC-kit.md § App frames). The last four
+ * refuse the put (`offKit`).
  */
 export const ruleShape = z.enum([
   "look/color",
@@ -39,11 +40,64 @@ export type Rule = z.infer<typeof ruleShape>;
  */
 export const maxAppBytes = 256 * 1024;
 
+/** The entry file of an app frame: a TSX put is this one file, and a folder must have it. */
+export const entryFile = "index.tsx";
+
+/** The most files in a folder frame. */
+export const maxAppFiles = 64;
+
+/**
+ * A path of a folder frame (SPEC-kit.md § App frames, "A folder"): relative, with `/` between its
+ * parts, each part a letter or a digit then letters, digits, `.`, `_` or `-`, and the name ends in
+ * `.ts` or `.tsx`. So no path starts with `/` or holds `..` as a part.
+ */
+export const filePath = z
+  .string()
+  .regex(
+    /^[A-Za-z0-9][A-Za-z0-9._-]*(\/[A-Za-z0-9][A-Za-z0-9._-]*)*\.tsx?$/,
+    "not a path of a frame: parts of letters, digits, . _ -, with / between them, and .ts or .tsx at the end",
+  );
+
+/**
+ * The files of a folder frame, by path: at most 64, with the entry `index.tsx`. It is kept as
+ * the JSON of its files, sorted by path (`folderText`): a TSX module is never a JSON object.
+ */
+export const frameFiles = z
+  .record(filePath, z.string())
+  .refine((files) => Object.keys(files).length <= maxAppFiles, `more than ${maxAppFiles} files`)
+  .refine((files) => entryFile in files, `no ${entryFile}: a folder frame starts at ${entryFile}`);
+
+export type FrameFiles = z.infer<typeof frameFiles>;
+
+/** The text that the store keeps for a folder frame: the JSON of its files, sorted by path. */
+export const folderText = z
+  .custom<FrameFiles>()
+  .transform((files) =>
+    JSON.stringify(Object.fromEntries(Object.entries(files).sort(([a], [b]) => (a < b ? -1 : 1)))),
+  );
+
+/** The files of a stored folder frame, or null when the text is a TSX module. */
+export const folderOf = z
+  .string()
+  .transform((text) => {
+    if (!text.startsWith("{")) return null;
+    const parsed = frameFiles.safeParse(JSON.parse(text));
+    return parsed.success ? parsed.data : null;
+  })
+  .catch(null);
+
 /** The UTF-8 bytes of a text, as the size limits count them (in the page and in Bun). */
 export const utf8Bytes = z.string().transform((text) => new TextEncoder().encode(text).length);
 
 /** One place in a document that is not in the look or the kit, with the fix. */
-export type Finding = { line: number; col: number; rule: Rule; what: string; fix: string };
+export type Finding = {
+  line: number;
+  col: number;
+  rule: Rule;
+  what: string;
+  fix: string;
+  file?: string;
+};
 
 /** A finding as a call answers it (`frame.put`, `kit.check`). */
 export const findingShape = z.object({
@@ -52,6 +106,8 @@ export const findingShape = z.object({
   rule: ruleShape,
   what: z.string(),
   fix: z.string(),
+  /** The path of the file in a folder frame. */
+  file: z.string().optional(),
 });
 
 /**

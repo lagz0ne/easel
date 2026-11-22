@@ -48,12 +48,13 @@ type FrameCapsule = Capsule.Installable &
   ((values: Record<string, unknown>) => Capsule.Installable);
 
 /**
- * What the composed document mounts: a View component (with its `logic`, which the View imports
- * in the file), or a capsule frame: a View resource, the frame's own capsule, and the axes.
+ * What the JS of a frame mounts: a View component (with its `logic`, which the View imports in
+ * the file), or a capsule frame: a View resource and the frame's own capsule. The axes of a
+ * capsule frame are in the document (`easel-axes`, from `composeApp`).
  */
 export type MountApp =
-  | { View: ComponentType; frame?: undefined; axes?: unknown }
-  | { View: Resource.Handle<ComponentType>; frame?: FrameCapsule; axes?: unknown };
+  | { View: ComponentType; frame?: undefined }
+  | { View: Resource.Handle<ComponentType>; frame?: FrameCapsule };
 
 type Root = ReturnType<typeof createScope>;
 
@@ -116,7 +117,8 @@ export const mount = (app: MountApp) => {
     // A refusal draws outside the provider: the provider of a scope that did not start throws.
     const shown = await Promise.resolve()
       .then(async () => {
-        const axes = axesShape.parse(app.axes ?? {});
+        const told = document.getElementById("easel-axes")?.textContent;
+        const axes = axesShape.parse(JSON.parse(told || "{}"));
         const css = document.getElementById("easel-kit")?.textContent ?? "";
         const own = app.frame ? [app.frame(axes.config)] : [];
 
