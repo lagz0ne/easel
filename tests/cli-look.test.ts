@@ -268,3 +268,50 @@ test("look with no sign-in is refused (2); a server that throws exits 70 with it
   );
   expect(await a.run({ kind: "undo", base: "2" })).toBe(70);
 });
+
+test("kit check prints the count, and each finding on stderr as put does; a .tsx file is an app frame; it writes nothing (exit 0)", async () => {
+  const srv = await boot();
+  const a = await ann(srv, { json: false });
+
+  const page = a.file("page.html", '<p class="p-4 text-red-500">a</p>');
+  expect(await a.run({ kind: "check", file: page })).toBe(0);
+  expect(a.out.splice(0).join("")).toBe("checked: 1 finding, kit version 1\n");
+  expect(a.err.splice(0).join("")).toBe(
+    `${page}:1:15 look/color "text-red-500" is a color of Tailwind's palette, not of the look. Fix: use text-destructive\n`,
+  );
+
+  const app = a.file("page.tsx", 'import { x } from "left-pad";\nexport const logic = 1;\n');
+  expect(await a.run({ kind: "check", file: app })).toBe(0);
+  expect(a.out.splice(0).join("")).toBe("checked: 2 findings, kit version 1\n");
+  const lines = a.err.splice(0).join("").trimEnd().split("\n");
+  expect(lines.map((l) => l.split(" ").slice(0, 2).join(" "))).toEqual([
+    `${app}:1:1 kit/shape`,
+    `${app}:1:19 kit/import`,
+  ]);
+
+  // A file it cannot read is bad usage (64), and nothing is sent.
+  expect(await a.run({ kind: "check", file: a.path("none.tsx") })).toBe(64);
+});
+
+test("kit check with --json prints the answer only; many findings end with `and <n> more`; too big exits 1", async () => {
+  const srv = await boot();
+  const json = await ann(srv);
+  const tsx = json.file(
+    "page.tsx",
+    "export const logic = 1;\nexport function View() { return <p />; }\n",
+  );
+  expect(await json.run({ kind: "check", file: tsx })).toBe(0);
+  expect(json.lines()).toEqual([{ kind: "checked", kit: 1, findings: [], more: 0 }]);
+  expect(json.err).toEqual([]);
+
+  const text = await ann(await boot(), { json: false });
+  const many = Array.from({ length: 22 }, () => '<p class="text-red-500">a</p>').join("\n");
+  expect(await text.run({ kind: "check", file: text.file("many.html", many) })).toBe(0);
+  const err = text.err.splice(0).join("").trimEnd().split("\n");
+  expect(err.length).toBe(21);
+  expect(err.at(-1)).toBe("and 2 more");
+
+  const big = text.file("big.tsx", "x".repeat(256 * 1024 + 1));
+  expect(await text.run({ kind: "check", file: big })).toBe(1);
+  expect(text.err.splice(0).join("")).toContain("over 262144 bytes");
+});

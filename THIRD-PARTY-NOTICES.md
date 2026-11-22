@@ -51,3 +51,33 @@ is.
   "neutral". easel holds no code of shadcn/ui.
 - Licence: MIT. Copyright (c) 2023 shadcn.
 - Source: <https://github.com/shadcn-ui/ui>.
+
+## The runtime of app frames
+
+The binary holds the runtime bundle of app frames (`src/kit/runtime.server.ts`;
+SPEC-kit.md § App frames, "The runtime"), and serves it to each frame. The
+bundle holds the code of these packages, at these exact versions. easel does
+not change their source; the build bundles and minifies it.
+
+- React 19.3.1, React DOM 19.3.1 and Scheduler 0.28.0: MIT. Copyright (c)
+  Meta Platforms, Inc. and affiliates. <https://github.com/facebook/react>.
+- @tinkered/core 0.30.1 and @tinkered/react 0.30.1: MIT.
+  <https://github.com/lagz0ne/tinkered>.
+- Zod 4.6.7: MIT. Copyright (c) 2025 Colin McDonnell.
+  <https://github.com/colinhacks/zod>.
+- Radix UI (`radix-ui` 1.8.1, and the `@radix-ui/*` packages that it holds):
+  MIT. Copyright (c) 2022 WorkOS. <https://github.com/radix-ui/primitives>.
+- Lucide (`lucide-react` 1.77.0): ISC. Copyright (c) 2026 Lucide Icons and
+  Contributors; the parts from Feather are MIT, Copyright (c) 2013-present Cole
+  Bemis. <https://github.com/lucide-icons/lucide>.
+- clsx 2.1.1: MIT. Copyright (c) Luke Edwards. <https://github.com/lukeed/clsx>.
+- class-variance-authority 0.7.1: Apache License 2.0,
+  <https://www.apache.org/licenses/LICENSE-2.0>. Copyright 2022 Joe Bell.
+  <https://github.com/joe-bell/cva>.
+- tailwind-merge 3.7.1: MIT. Copyright (c) 2021 Dany Castillo.
+  <https://github.com/dcastil/tailwind-merge>.
+- The packages that Radix UI uses: `@floating-ui/core`, `@floating-ui/dom`,
+  `@floating-ui/react-dom` and `@floating-ui/utils` (MIT, Floating UI
+  contributors), `aria-hidden`, `get-nonce`, `react-remove-scroll`,
+  `react-remove-scroll-bar`, `react-style-singleton`, `use-callback-ref` and
+  `use-sidecar` (MIT, Anton Korzunov), and `tslib` 2.9.1 (0BSD, Microsoft).

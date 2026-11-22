@@ -2,6 +2,7 @@ import { rpc } from "@tinkered/core";
 import { z } from "zod";
 
 import { pair } from "./compose";
+import { findingShape } from "./schema";
 import { lookPatch } from "./shape";
 
 // The kit's calls of a user (SPEC-kit.md § Contract). Each runs the `user` guard first (fact
@@ -29,7 +30,36 @@ export const lookSetOutput = z.discriminatedUnion("kind", [
   z.object({ kind: z.literal("unreadable"), fails: z.array(pair) }),
 ]);
 
+/**
+ * `kit.check`'s input: an HTML frame or an app frame (SPEC-kit.md § Contract), as `frame.put`
+ * takes it.
+ */
+export const kitCheckInput = z.union([
+  z.strictObject({ html: z.string() }),
+  z.strictObject({ tsx: z.string() }),
+]);
+
+/** The answer of `kit.check`. `tooBig`: over the size limit of `frame.put` for its kind. */
+export const kitCheckOutput = z.discriminatedUnion("kind", [
+  z.object({
+    kind: z.literal("checked"),
+    kit: kitVersion,
+    findings: z.array(findingShape),
+    more: z.number(),
+  }),
+  z.object({ kind: z.literal("tooBig"), maxBytes: z.number() }),
+]);
+
 export const kitApi = rpc({
+  /**
+   * The check of `frame.put` on a document, against the current kit version, and nothing written:
+   * the first 20 findings in document order, and `more`. An app frame gets the findings that
+   * refuse its put too (`kit/parse`, `kit/import`, `kit/react-state`, `kit/shape`).
+   */
+  "kit.check": {
+    input: kitCheckInput,
+    output: kitCheckOutput,
+  },
   /**
    * The look: the current one, or (`at`) the one of a stored kit version, with its revision.
    * A kit version that is not stored answers `gone`.
@@ -75,6 +105,7 @@ type KindOf<A extends KitAddress> =
  * exit code reads it.
  */
 export const kitSuccessKinds = {
+  "kit.check": ["checked"],
   "look.get": ["found"],
   "look.set": ["updated", "unchanged"],
   "look.undo": ["updated"],

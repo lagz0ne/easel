@@ -16,6 +16,11 @@ import { sources } from "./source.server";
 // element pieces (none yet: build order step 4). The newest row is the current kit version. Only
 // `seedKit`, `saveLook` and `undoLook` write (fact rule 2). The board's cell `kit` is set at scope after the
 // rows are stored, from the row as stored (judged rule 6).
+//
+// `runtime` is the SHA-256 of the kit version's runtime, in `kit_runtimes` (SPEC-kit.md § App
+// frames, "The runtime"). It is null until the first use of the kit version by an app frame;
+// `runtimeOf` (runtime.server.ts) then sets it one time, and it never changes. A change of the look
+// keeps the runtime of the kit version before it: the look is in CSS, not in the runtime.
 
 const schema = `
 CREATE TABLE IF NOT EXISTS kit_versions (
@@ -27,6 +32,13 @@ CREATE TABLE IF NOT EXISTS kit_versions (
   source TEXT NOT NULL,
   css TEXT NOT NULL,
   pieces TEXT NOT NULL,
+  made INTEGER NOT NULL,
+  runtime TEXT
+);
+CREATE TABLE IF NOT EXISTS kit_runtimes (
+  sha TEXT PRIMARY KEY NOT NULL,
+  imports TEXT NOT NULL,
+  files TEXT NOT NULL,
   made INTEGER NOT NULL
 );`;
 
@@ -136,8 +148,8 @@ export const saveLook = operation({
     const values = JSON.stringify(input.values);
     const wrote = db
       .query(
-        `INSERT INTO kit_versions (${columns}, made)
-         SELECT version + 1, look_rev + 1, ?, ?, ?, source, css, pieces, ?
+        `INSERT INTO kit_versions (${columns}, made, runtime)
+         SELECT version + 1, look_rev + 1, ?, ?, ?, source, css, pieces, ?, runtime
          FROM kit_versions WHERE version = ${top} AND look_rev = ? AND look_values IS NOT ?
          RETURNING version AS kit, look_rev AS rev`,
       )
@@ -173,9 +185,9 @@ export const undoLook = operation({
     const db = connection.db.$client;
     const wrote = db
       .query(
-        `INSERT INTO kit_versions (${columns}, made)
+        `INSERT INTO kit_versions (${columns}, made, runtime)
          SELECT n.version + 1, n.look_rev + 1, p.look, p.look_values, p.root,
-                n.source, n.css, n.pieces, ?
+                n.source, n.css, n.pieces, ?, n.runtime
          FROM kit_versions n JOIN kit_versions p
            ON p.version = (SELECT MAX(version) FROM kit_versions WHERE look_rev = n.look_rev - 1)
          WHERE n.version = ${top} AND n.look_rev = ?
@@ -250,7 +262,13 @@ export const kitStart = operation({
   label: "kit.start",
   depends: { connection: bunSqlite.connection, seedKit },
   run: async ({ connection, seedKit }) => {
-    connection.db.$client.exec(schema);
+    const db = connection.db.$client;
+    db.exec(schema);
+    // A store made before the runtime: its kit versions get the column, null (no runtime yet).
+    const known = db.query("PRAGMA table_info(kit_versions)").all();
+    if (!known.some((c) => z.object({ name: z.literal("runtime") }).safeParse(c).success)) {
+      db.exec("ALTER TABLE kit_versions ADD COLUMN runtime TEXT");
+    }
     return seedKit.run();
   },
 });

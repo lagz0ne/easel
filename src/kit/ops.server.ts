@@ -1,9 +1,16 @@
 import { operation } from "@tinkered/core";
+import { z } from "zod";
 
+import { maxDocBytes, maxFindings } from "@/frames/contract";
+
+import { checkApp } from "./app.server";
+import { check } from "./check.server";
 import { contrast } from "./compose";
 import { kitApi } from "./contract";
 import { lookValues, mergeLook, rootBlock } from "./look.server";
-import { readKit, readKitAt, saveLook, undoLook } from "./store.server";
+import { runtimeNamesOf } from "./runtime.server";
+import { maxAppBytes, utf8Bytes } from "./schema";
+import { frameKit, readKit, readKitAt, saveLook, undoLook } from "./store.server";
 
 // The kit's calls (SPEC-kit.md § Contract; the kit-look chart). Each runs after the `user` guard
 // (cmds/server.ts, fact rule 1). A change of the look writes through `saveLook` only (fact rule
@@ -71,5 +78,42 @@ export const lookUndo = operation({
   run: async ({ undoLook }, { input }) => undoLook.run({ input: input.base }),
 });
 
+/**
+ * `kit.check`: the check of `frame.put` on a document against the current kit version, with
+ * nothing written (fact rule 6: the one `check`, and the one `checkApp` of an app frame). An app
+ * frame gets the findings of its module too, with the names of the kit version's runtime. Over
+ * the size limit of its kind, `tooBig`.
+ */
+export const checkKit = operation({
+  label: "kit.check.do",
+  input: kitApi["kit.check"].input,
+  depends: { frameKit, check, checkApp, runtimeNamesOf },
+  run: async ({ frameKit, check, checkApp, runtimeNamesOf }, { input }) => {
+    const text = "tsx" in input ? input.tsx : input.html;
+    const maxBytes = "tsx" in input ? maxAppBytes : maxDocBytes;
+    if (utf8Bytes.parse(text) > maxBytes) return { kind: "tooBig" as const, maxBytes };
+
+    const kit = await frameKit.run();
+    const names = await runtimeNamesOf.run({ input: kit.version });
+    const checked =
+      "tsx" in input
+        ? await checkApp.run({ input: { tsx: input.tsx, kit, names } })
+        : await check.run({ input: { html: input.html, kit } });
+    const all = checked.kind === "off" ? [] : checked.findings;
+    const findings = all.slice(0, maxFindings);
+    return {
+      kind: "checked" as const,
+      kit: kit.version,
+      findings,
+      more: z.number().parse(all.length - findings.length),
+    };
+  },
+});
+
 /** The kit's calls, by address. */
-export const kitOps = { "look.get": lookGet, "look.set": lookSet, "look.undo": lookUndo };
+export const kitOps = {
+  "kit.check": checkKit,
+  "look.get": lookGet,
+  "look.set": lookSet,
+  "look.undo": lookUndo,
+};

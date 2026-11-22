@@ -17,10 +17,18 @@
  * other targets' binding packages must be installed: the release installs with
  * `bun install --frozen-lockfile --os='*' --cpu='*'`. Lightning CSS needs no plugin: its static
  * `require` is in src/kit/lightningcss.server.ts.
+ *
+ * The runtime of app frames (SPEC-kit.md § App frames, "The runtime"): the build makes it with the
+ * one `buildRuntime` of the server, from the pins of package.json, and puts it in the binary as the
+ * module `easel:runtime` (cmds/runtime.ts reads it). So the binary needs no node_modules to give a
+ * kit version its runtime, and a test can compare its SHA-256 with the one of a build in a scope.
  */
 import { parseArgs } from "node:util";
 
+import { createScope } from "@tinkered/core";
 import type { BunPlugin } from "bun";
+
+import { buildRuntime } from "@/kit/runtime.server";
 
 const { values } = parseArgs({
   args: Bun.argv.slice(2),
@@ -128,6 +136,22 @@ const oxcStatic: BunPlugin = {
   },
 };
 
+const runtime = await createScope().run(buildRuntime);
+
+const runtimeModule: BunPlugin = {
+  name: "easel-runtime",
+  setup(build) {
+    build.onResolve({ filter: /^easel:runtime$/ }, () => ({
+      path: "easel:runtime",
+      namespace: "easel-runtime",
+    }));
+    build.onLoad({ filter: /.*/, namespace: "easel-runtime" }, () => ({
+      loader: "js",
+      contents: `export default ${JSON.stringify(runtime)};`,
+    }));
+  },
+};
+
 const result = await Bun.build({
   entrypoints: values.entry ?? ["cmds/easel.ts", "cmds/telemetry-worker.ts"],
   compile: target ? { target, outfile } : { outfile },
@@ -137,7 +161,7 @@ const result = await Bun.build({
   sourcemap: values.sourcemap ? "linked" : "none",
   define: { "process.env.NODE_ENV": '"production"' },
   metafile: Boolean(values.metafile),
-  plugins: [oxcStatic],
+  plugins: [oxcStatic, runtimeModule],
 });
 
 for (const log of result.logs) console.error(log.message);
@@ -147,4 +171,6 @@ if (values.metafile && result.metafile) {
   await Bun.write(values.metafile, JSON.stringify(result.metafile));
 }
 
-console.log(`build-binary: ${outfile} (${target ?? "this host"}, oxc-parser ${binding})`);
+console.log(
+  `build-binary: ${outfile} (${target ?? "this host"}, oxc-parser ${binding}, runtime ${runtime.sha.slice(0, 12)})`,
+);

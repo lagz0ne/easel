@@ -5,6 +5,7 @@ import { afterEach, expect, test } from "vite-plus/test";
 
 import { checkApp } from "@/kit/app.server";
 import { makeApp } from "@/kit/make.server";
+import { runtimeNames } from "@/kit/runtime";
 
 import { testKit } from "./kit/fixture";
 
@@ -237,4 +238,89 @@ test("speed: a usual app frame and one of 256 KiB are checked in the budget of 5
   // so a loaded host does not fail it, as the speed tests of the HTML check.
   expect(await time(usual, 15)).toBeLessThan(25);
   expect(await time(big, 5)).toBeLessThan(150);
+});
+
+test("the module of an app frame: kit/import, kit/react-state and kit/shape, each at its place", async () => {
+  const tsx = [
+    'import { useState, useMemo } from "react";',
+    'import * as React from "react";',
+    'import { helper } from "./helper";',
+    'import { motion } from "framer-motion";',
+    'import { z } from "zod";',
+    "export const logic = { cells: {}, ops: {} };",
+    "export function View() {",
+    "  React.useEffect(() => {});",
+    '  const more = import("lodash");',
+    "  return <p />;",
+    "}",
+    "export const extra = 1;",
+    "export default View;",
+    "export type Tone = string;",
+    'export * from "clsx";',
+  ].join("\n");
+  const scope = await open();
+  const names = ["react", "zod", "clsx", "@easel/frame"];
+  const got = await scope.run(checkApp, { input: { tsx, kit: await testKit(), names } });
+  if (got.kind !== "checked") throw new Error("not checked");
+
+  expect(at(got.findings)).toEqual([
+    "1:10 kit/react-state",
+    "3:24 kit/import",
+    "4:24 kit/import",
+    "8:9 kit/react-state",
+    "9:16 kit/import",
+    "12:8 kit/shape",
+    "13:16 kit/shape",
+    "14:8 kit/shape",
+    "15:1 kit/shape",
+  ]);
+  expect(got.findings[0]?.what).toBe("the frame keeps state in React with useState");
+  expect(got.findings[1]?.what).toContain('"./helper"');
+  expect(got.findings[1]?.fix).toContain("react, zod, clsx, @easel/frame");
+  expect(got.findings[5]?.what).toContain("the name extra");
+
+  // With no `names`, the check is the class check of 4.2 only.
+  const classes = await scope.run(checkApp, { input: { tsx, kit: await testKit() } });
+  expect(classes.findings).toEqual([]);
+});
+
+test("an app frame with no logic or View is kit/shape at its first line", async () => {
+  const scope = await open();
+  const got = await scope.run(checkApp, {
+    input: { tsx: "const a = 1;", kit: await testKit(), names: ["react"] },
+  });
+
+  expect(at(got.findings)).toEqual(["1:1 kit/shape", "1:1 kit/shape"]);
+  expect(got.findings.map((f) => f.what)).toEqual([
+    "the frame does not export logic",
+    "the frame does not export View",
+  ]);
+});
+
+test("the usual app frame passes the check of its module with the names of the runtime", async () => {
+  const scope = await open();
+  const got = await scope.run(makeApp, {
+    input: { tsx: await pricing(), kit: await testKit(), names: [...runtimeNames] },
+  });
+  if (got.kind !== "made") throw new Error("not made");
+
+  expect(got.findings).toEqual([]);
+  // The JS of the fixed text: no types, the JSX of React's runtime, the imports as written.
+  expect(got.js).toContain('from "react/jsx-runtime"');
+  expect(got.js).toContain('from "@easel/frame"');
+  expect(got.js).not.toContain("type Period");
+  expect(got.js).toContain("export const logic");
+});
+
+test("logic and View are exported by their own names, so the composed document can mount them", async () => {
+  const scope = await open();
+  const tsx = "const a = 1;\nfunction V() { return null; }\nexport { a as logic, V as View };";
+  const got = await scope.run(checkApp, { input: { tsx, kit: await testKit(), names: [] } });
+
+  expect(got.findings.map((f) => f.what)).toEqual([
+    "the frame does not export logic",
+    "the frame does not export View",
+    "the frame exports a as logic: export logic and View by their own names: an app frame exports logic and View, and only them",
+    "the frame exports V as View: export logic and View by their own names: an app frame exports logic and View, and only them",
+  ]);
 });
