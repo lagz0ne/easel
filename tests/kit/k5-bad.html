@@ -1,0 +1,23 @@
+<!-- K5: one of each finding (SPEC-kit.md § Success Criteria). class="text-blue-500" in a comment is no class. -->
+<main class="mx-auto flex max-w-6xl flex-col gap-6 px-6 py-8">
+  <h1 class="text-2xl font-semibold text-red-500">Team</h1>
+  <p class="bg-[#f00] p-[13px] w-[420px] text-muted-foreground">
+    One: class="text-blue-500" in text is no class.
+  </p>
+  <div class="[color:red] hover:bg-muted btn grid-cols-[2fr_1fr]">Two</div>
+  <div class="font-semibld bg-primary/50 bgg-primary">Three</div>
+  <span class="shadow-[0_0_2px_red] text-[var(--primary)] text-[23px]">Four</span>
+  <p style="color: rebeccapurple; margin: 3px">Five</p>
+  <p style="--v: 30%" class="data-[state=open]:flex aria-expanded:bg-muted">Six</p>
+  <svg viewBox="0 0 8 8"><path d="M0 0h8v8z" fill="#00f" stroke="currentColor" /></svg>
+  <k-plan name="Pro"></k-plan>
+</main>
+<style>
+  .x { color: #123456; padding: var(--space-4) }
+  .y { color: var(--primary); }
+  :root { --primary: var(--accent); }
+</style>
+<script>
+  const nav = document.querySelector("nav");
+  nav.addEventListener("click", () => nav.classList.toggle("open"));
+</script>

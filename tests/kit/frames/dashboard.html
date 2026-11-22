@@ -1,0 +1,141 @@
+<header class="navbar">
+  <strong>Northwind</strong>
+  <nav>
+    <a aria-current="page">Dashboard</a>
+    <a>Orders</a>
+    <a>Customers</a>
+    <a>Settings</a>
+  </nav>
+</header>
+<main class="mx-auto flex max-w-7xl flex-col gap-6 px-8 py-8">
+  <h1>Dashboard</h1>
+
+  <div class="grid grid-cols-4 gap-6">
+    <div class="card stat">
+      <span class="stat-label">Revenue</span><span class="stat-value">$48,210</span
+      ><span class="stat-up">+12%</span>
+    </div>
+    <div class="card stat">
+      <span class="stat-label">Orders</span><span class="stat-value">1,284</span
+      ><span class="stat-up">+4%</span>
+    </div>
+    <div class="card stat">
+      <span class="stat-label">Customers</span><span class="stat-value">3,920</span
+      ><span class="stat-up">+2%</span>
+    </div>
+    <div class="card stat">
+      <span class="stat-label">Refunds</span><span class="stat-value">$1,020</span
+      ><span class="stat-down">-8%</span>
+    </div>
+  </div>
+
+  <div class="grid grid-cols-2 gap-6">
+    <div class="card">
+      <header><h3>Revenue by week</h3></header>
+      <div class="bars">
+        <i style="--v:42%" title="W1"></i>
+        <i style="--v:55%" title="W2"></i>
+        <i style="--v:48%" title="W3"></i>
+        <i style="--v:62%" title="W4"></i>
+        <i style="--v:58%" title="W5"></i>
+        <i style="--v:70%" title="W6"></i>
+        <i style="--v:66%" title="W7"></i>
+        <i style="--v:78%" title="W8"></i>
+        <i style="--v:72%" title="W9"></i>
+        <i style="--v:85%" title="W10"></i>
+        <i style="--v:80%" title="W11"></i>
+        <i style="--v:95%" title="W12"></i>
+      </div>
+      <div class="flex justify-between text-sm text-muted-foreground">
+        <span>W1</span><span>W12</span>
+      </div>
+    </div>
+
+    <div class="card">
+      <header><h3>Top products</h3></header>
+      <ul class="flex flex-col gap-4">
+        <li class="flex flex-col gap-1">
+          <div class="flex justify-between">
+            <span class="font-medium">Harbor Backpack</span
+            ><span class="text-muted-foreground">$12,480</span>
+          </div>
+          <progress value="100" max="100"></progress>
+        </li>
+        <li class="flex flex-col gap-1">
+          <div class="flex justify-between">
+            <span class="font-medium">Trail Bottle</span
+            ><span class="text-muted-foreground">$9,240</span>
+          </div>
+          <progress value="74" max="100"></progress>
+        </li>
+        <li class="flex flex-col gap-1">
+          <div class="flex justify-between">
+            <span class="font-medium">Canvas Tote</span
+            ><span class="text-muted-foreground">$7,310</span>
+          </div>
+          <progress value="59" max="100"></progress>
+        </li>
+        <li class="flex flex-col gap-1">
+          <div class="flex justify-between">
+            <span class="font-medium">Wool Beanie</span
+            ><span class="text-muted-foreground">$5,120</span>
+          </div>
+          <progress value="41" max="100"></progress>
+        </li>
+        <li class="flex flex-col gap-1">
+          <div class="flex justify-between">
+            <span class="font-medium">Camp Mug</span
+            ><span class="text-muted-foreground">$3,680</span>
+          </div>
+          <progress value="29" max="100"></progress>
+        </li>
+      </ul>
+    </div>
+  </div>
+
+  <div class="card card-flush">
+    <header class="px-6 pt-5"><h3>Recent orders</h3></header>
+    <table>
+      <thead>
+        <tr>
+          <th>Order</th>
+          <th>Customer</th>
+          <th>Status</th>
+          <th class="num">Total</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td>#10482</td>
+          <td>Ava Johnson</td>
+          <td><span class="badge badge-success">Paid</span></td>
+          <td class="num">$128.00</td>
+        </tr>
+        <tr>
+          <td>#10481</td>
+          <td>Liam Chen</td>
+          <td><span class="badge badge-warning">Pending</span></td>
+          <td class="num">$64.50</td>
+        </tr>
+        <tr>
+          <td>#10480</td>
+          <td>Sofia Martins</td>
+          <td><span class="badge badge-info">Shipped</span></td>
+          <td class="num">$212.90</td>
+        </tr>
+        <tr>
+          <td>#10479</td>
+          <td>Noah Williams</td>
+          <td><span class="badge badge-danger">Refunded</span></td>
+          <td class="num">$39.00</td>
+        </tr>
+        <tr>
+          <td>#10478</td>
+          <td>Mia Rossi</td>
+          <td><span class="badge badge-success">Paid</span></td>
+          <td class="num">$87.25</td>
+        </tr>
+      </tbody>
+    </table>
+  </div>
+</main>

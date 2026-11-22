@@ -1,0 +1,57 @@
+<header class="navbar">
+  <strong>Northwind</strong>
+  <nav>
+    <a>Dashboard</a>
+    <a>Orders</a>
+    <a>Customers</a>
+    <a aria-current="page">Settings</a>
+  </nav>
+</header>
+<main class="mx-auto flex max-w-3xl flex-col gap-6 px-6 py-8">
+  <div class="flex flex-col gap-1">
+    <h1>Settings</h1>
+    <p class="text-muted-foreground">Manage your account details and how others see you.</p>
+  </div>
+  <div class="card">
+    <header><h2 class="text-lg font-semibold">Profile</h2></header>
+    <div class="flex flex-col gap-5">
+      <label
+        >Full name
+        <input type="text" value="Jane Cooper" />
+      </label>
+      <label
+        >Email
+        <input type="email" value="jane@northwind.com" aria-invalid="true" />
+        <small class="error">This email is already in use</small>
+      </label>
+      <div class="grid grid-cols-2 gap-5">
+        <label
+          >Role
+          <select>
+            <option selected>Admin</option>
+            <option>Editor</option>
+            <option>Viewer</option>
+          </select>
+        </label>
+        <label
+          >Time zone
+          <select>
+            <option selected>UTC</option>
+            <option>America/New_York</option>
+            <option>Europe/Berlin</option>
+          </select>
+        </label>
+      </div>
+      <label
+        >Bio
+        <textarea rows="4" placeholder="Tell us about yourself"></textarea>
+        <small class="hint">Shown on your public profile</small>
+      </label>
+      <label><input type="checkbox" checked /> Send me a weekly report</label>
+    </div>
+    <footer>
+      <button class="btn">Cancel</button>
+      <button class="btn btn-primary">Save changes</button>
+    </footer>
+  </div>
+</main>

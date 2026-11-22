@@ -147,7 +147,7 @@ the look and the kit: one server is one team.
 type PieceInfo = { name: string; kind: "class" | "element"; doc: string; use: string; rev: number }
 type Piece = PieceInfo & { file: string }            // the piece file: comments, template, style
 type Finding = { line: number; col: number; rule: Rule; what: string; fix: string }
-type Rule = "look/color" | "look/size" | "look/override" | "kit/class" | "kit/piece"
+type Rule = "look/color" | "look/size" | "look/override" | "kit/class" | "kit/piece" | "kit/script"
 type Pair = { text: string; on: string; ratio: number; min: number; where: string }
 
 "kit.guide": { kind: "found"; kit: number; text: string }
@@ -200,6 +200,10 @@ canvas: `{ kit, look, css, pieces: { name, template }[] }`. `look` is the look a
 classes of the templates). Every read runs the `mayRead` guard of [frames](SPEC-frames.md). When
 the kit version changes, the cell of each canvas changes.
 
+easel writes the cell `kit` at scope (`kit.atScope`), as the cells of frames
+(src/frames/store.server.ts). A call runs in its own request session; a cell write there stays in
+that session, and no other tab sees it.
+
 ### The make step
 
 `make(source, classNames)` answers CSS. It is the only place that makes CSS, in
@@ -234,6 +238,10 @@ Speed budget (measured on 2026-11-21, on this host): the check, the make of the 
 first make after a start takes 56 ms. A put spends at most 50 ms in this chain for a frame of
 1 MiB.
 
+Measured on 2026-11-22, on this host, with the step-1 code (`check` and `make`, no `compose`):
+about 3 ms (p50) for a usual frame; for a frame of 1 MiB, 30 ms for the check and 3 ms for the
+make.
+
 ### compose
 
 The shared module `src/kit/compose.ts` (no `.server.`) holds the pure functions that the page
@@ -243,19 +251,37 @@ and the server both use:
   `html` as it is. Else it answers `<!doctype html>`, `<style id="easel-look">` (the look),
   `<style id="easel-kit">` (the kit's made CSS), `<style id="easel-frame">` (the frame version's
   made CSS), the piece script, then `html` without its own doctype.
-- `check(html, kit)`: the findings of K5, in document order. On the server it reads the class
-  attributes and the `k-` tags with Bun's `HTMLRewriter` (lol-html), asks the Tailwind design
-  system of the kit version which names give CSS (`parseCandidate`, `candidatesToCss`), and finds
-  colors in CSS with a Lightning CSS `Color` visitor. The design system is made one time for each
-  kit version. `__unstable__loadDesignSystem` is not a stable API of Tailwind: the pin and a test
-  hold it.
 - `contrast(look, kit)`: the pairs of K8 and their ratios.
+
+`check(html, kit)` is not in `compose.ts`: it needs Tailwind and Lightning CSS, so it runs on the
+server only, in `src/kit/check.server.ts` (with `scan`, `prepare`, `judge`, `colors` and `names`
+in `src/kit/`). It gives the findings of K5 in document order, and the class names to make:
+
+- It reads the document with a tokenizer of the HTML start tags (`scan.server.ts`), not with
+  Bun's `HTMLRewriter`: `HTMLRewriter` gives no offset of an attribute, and each finding needs its
+  line and column. The tokenizer reads the class, `style`, `fill`, `stroke` and `stop-color`
+  attributes, the `on*` attributes, the `k-` tags, and the text of `<style>` and of each script.
+  It skips comments and the text of `<textarea>`, `<title>` and the other raw-text elements. Of
+  two attributes with one name on one tag, the first counts, as in a browser.
+- It asks the Tailwind design system of the kit version which names give CSS (`parseCandidate`,
+  `candidatesToCss`), and finds colors in CSS with a Lightning CSS `Color` visitor. The design
+  system is made one time for each kit version, in a resource at scope (never in a session cell).
+  `__unstable__loadDesignSystem` is not a stable API of Tailwind: the pin and a test hold it.
+- The binary holds the native build of Lightning CSS for its system
+  (`src/kit/lightningcss.server.ts`): a static `require` of the `.node` file of each release
+  target (darwin-arm64, linux-x64, linux-arm64). The package's own loader makes the name at run
+  time, so `bun build --compile` cannot find it. A test compiles a binary and makes CSS with it.
 
 The piece script (in the composed document, at most 3 KiB) defines one custom element for each
 element piece, when the document is parsed (`DOMContentLoaded`), so that each element has its
-children. It expands the template into the element's light DOM. It also takes a message
-`{ easel: "kit", kit, look, css }` from its parent only, and replaces the text of the two
-`<style>` elements `easel-look` and `easel-kit`.
+children. It expands the template into the element's light DOM.
+
+A frame document can start before the page listens. So the piece script sends a hello to its
+parent at once, and again each 50 ms, until it gets a `MessagePort` (as penpal does). When it
+gets the port, it stops. The page answers only a hello whose `event.source` is one of its own live
+iframes: at once, with a port and the current kit. Each later kit message goes on that port. A
+kit message is `{ easel: "kit", kit, look, css }`; the piece script then replaces the text of the
+two `<style>` elements `easel-look` and `easel-kit`.
 
 ## Rules
 
@@ -304,7 +330,8 @@ and [kit-look-unbound](docs/statecharts/kit-look-unbound.md) check these rules.
 9. `compose` adds only stored text and the piece script. The piece script holds no color, size or
    font.
 10. The piece script expands only into the light DOM, puts each `{attr}` in as text (never as
-    HTML), and answers only messages from its parent. It sends nothing.
+    HTML), and answers only messages from its parent. It sends only the hello to its parent, and
+    nothing else.
 11. A piece's CSS uses only look values: `check` on it finds nothing (else `offLook`).
 12. The check finds, and only finds:
     - a class that gives no CSS and is not a kit class (`kit/class`; a palette color is
@@ -312,14 +339,20 @@ and [kit-look-unbound](docs/statecharts/kit-look-unbound.md) check these rules.
     - an arbitrary color (`bg-[#f00]`) or an arbitrary font size (`text-[13px]`) (`look/color`,
       `look/size`); arbitrary layout values (`w-[420px]`, `grid-cols-[2fr_1fr]`) are allowed;
     - a color literal (hex, `rgb()`, `hsl()`, `hwb()`, `lab()`, `lch()`, `oklab()`, `oklch()`,
-      `color()`, or a named color) in a `<style>`, a `style` attribute, or an SVG `fill` or
-      `stroke`, with the nearest look color by OKLab distance as the fix;
+      `color()`, or a named color) in a `<style>`, a `style` attribute, or an SVG `fill`,
+      `stroke` or `stop-color`, with the nearest look color by OKLab distance as the fix;
     - a frame rule that sets a look value (`look/override`);
-    - a `k-` element that is not in the kit (`kit/piece`).
+    - a `k-` element that is not in the kit (`kit/piece`);
+    - a write of a class in a frame script or an `on*` attribute: `classList.add`, `remove`,
+      `toggle` or `replace`, a write of `className`, or `setAttribute("class", ...)`
+      (`kit/script`). The make step reads only the class attributes, so a class that a script
+      adds gets no CSS. The fix: keep the state in `hidden`, `aria-*` or `data-state`, and style
+      each state with a variant (`aria-expanded:bg-muted`, `data-[state=open]:flex`).
       `transparent`, `currentColor`, `inherit`, `white`, `black` and `var()` of a look value are
-      allowed.
+      allowed. A frame with `<meta name="easel-kit" content="off">` gets no finding.
 13. The guide lists how to style, the color names of the look, and each piece of the current kit
-    version in name order, from its `doc:` and `use:` lines.
+    version in name order, from its `doc:` and `use:` lines. It also tells that the sandbox of a
+    frame never fires `submit`: a button of a form uses `type="button"` and a click handler.
 
 ## Success Criteria
 

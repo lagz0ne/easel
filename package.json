@@ -29,9 +29,14 @@
     "@tinkered/core": "^0.30.1",
     "@tinkered/react": "^0.30.1",
     "drizzle-orm": "1.0.0-rc.4",
+    "lightningcss": "1.33.0",
+    "lightningcss-darwin-arm64": "1.33.0",
+    "lightningcss-linux-arm64-gnu": "1.33.0",
+    "lightningcss-linux-x64-gnu": "1.33.0",
     "puppeteer-core": "^25.17.0",
     "react": "^19.3.0",
     "react-dom": "^19.3.0",
+    "tailwindcss": "4.3.5",
     "zod": "^4.0.0"
   },
   "devDependencies": {
