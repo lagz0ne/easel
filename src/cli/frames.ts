@@ -12,6 +12,7 @@ import {
   frameName,
   framesSuccessKinds,
   maxDocBytes,
+  maxMadeCssBytes,
   maxSentDocBytes,
   pictureRegion,
   pictureScale,
@@ -24,7 +25,7 @@ import { sharePassword } from "@/frames/share";
 
 import { callDeadline, exits, faultExit } from "./exit";
 import { server } from "./hosts";
-import { say } from "./output";
+import { json, say, stderr } from "./output";
 
 // `easel canvas new|ls`, `easel put`, `easel ls`, `easel get`, `easel rm`, `easel share`, `easel unshare` and `easel shot`
 // (SPEC-frames.md § Make a canvas, § Make and change frames, § Share a canvas). Each prints its answer and exits by
@@ -311,6 +312,16 @@ const putUsage = operation({
   },
 });
 
+/** What `easel put` prints for `tooBig`: the document is too big, or its made CSS would be. */
+const tooBigText = operation({
+  label: "cli.tooBigText",
+  input: z.number(),
+  run: (_, { input: maxBytes }) =>
+    maxBytes === maxMadeCssBytes
+      ? `the document is too big: its made CSS would be over ${maxMadeCssBytes} bytes. Use fewer class names: kit classes, and the scales of the look`
+      : `the document is too big: over ${maxBytes} bytes of UTF-8, or over ${maxSentDocBytes} as JSON, where each " \\ and control character counts 2 to 6. Inline less, or load assets over https`,
+});
+
 /** What `easel put` prints for each answer of `frame.put`, and where. */
 const putText = operation({
   label: "cli.putText",
@@ -319,7 +330,8 @@ const putText = operation({
     id: z.string().optional(),
     answer: putOutput,
   }),
-  run: (_, { input: { canvas, id, answer } }) => {
+  depends: { tooBigText },
+  run: ({ tooBigText }, { input: { canvas, id, answer } }) => {
     switch (answer.kind) {
       case "created":
       case "updated":
@@ -339,11 +351,27 @@ const putText = operation({
           error: true,
         };
       case "tooBig":
-        return {
-          text: `the document is too big: over ${answer.maxBytes} bytes of UTF-8, or over ${maxSentDocBytes} as JSON, where each " \\ and control character counts 2 to 6. Inline less, or load assets over https`,
-          error: true,
-        };
+        return { text: tooBigText.run({ input: answer.maxBytes }), error: true };
     }
+  },
+});
+
+/**
+ * The findings of a put, for a person (SPEC-cli.md § Learn the kit): each on stderr, one a line,
+ * as `<file>:<line>:<col> <rule> <what>. Fix: <fix>`, then `and <n> more`. With `--json` they are
+ * in the answer, so nothing more is printed. Findings do not change the exit code.
+ */
+const putFindings = operation({
+  label: "cli.putFindings",
+  input: z.object({ file: z.string(), answer: putOutput }),
+  depends: { stderr: stderr.required, asJson: json },
+  run: ({ stderr, asJson }, { input: { file, answer } }) => {
+    if (asJson || !("findings" in answer)) return;
+
+    for (const f of answer.findings) {
+      stderr.write(`${file}:${f.line}:${f.col} ${f.rule} ${f.what}. Fix: ${f.fix}\n`);
+    }
+    if (answer.more > 0) stderr.write(`and ${answer.more} more\n`);
   },
 });
 
@@ -402,9 +430,19 @@ const sendPut = operation({
 export const put = operation({
   label: "cli.put",
   input: framesCommand.options[2],
-  depends: { say, usage, putUsage, putFlags, readDocument, sendPut, putText, exitOf: framesExitOf },
+  depends: {
+    say,
+    usage,
+    putUsage,
+    putFlags,
+    readDocument,
+    sendPut,
+    putText,
+    putFindings,
+    exitOf: framesExitOf,
+  },
   run: async (
-    { say, usage, putUsage, putFlags, readDocument, sendPut, putText, exitOf },
+    { say, usage, putUsage, putFlags, readDocument, sendPut, putText, putFindings, exitOf },
     { input },
   ) => {
     const bad = putUsage.run({ input });
@@ -427,6 +465,7 @@ export const put = operation({
     const { answer } = sent;
     const told = putText.run({ input: { canvas: input.canvas, id: input.id, answer } });
     say.run({ input: { json: answer, ...told } });
+    putFindings.run({ input: { file: input.file, answer } });
     return exitOf.run({ input: { address: "frame.put", kind: answer.kind } });
   },
 });

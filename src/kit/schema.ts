@@ -3,16 +3,28 @@ import { z } from "zod";
 // The shapes of the kit module (SPEC-kit.md § Contract) that the make step and the check use.
 
 /** The rule of a finding. `kit/script`: a frame script writes a class (judged rule 12). */
-export type Rule =
-  | "look/color"
-  | "look/size"
-  | "look/override"
-  | "kit/class"
-  | "kit/piece"
-  | "kit/script";
+export const ruleShape = z.enum([
+  "look/color",
+  "look/size",
+  "look/override",
+  "kit/class",
+  "kit/piece",
+  "kit/script",
+]);
+
+export type Rule = z.infer<typeof ruleShape>;
 
 /** One place in a document that is not in the look or the kit, with the fix. */
 export type Finding = { line: number; col: number; rule: Rule; what: string; fix: string };
+
+/** A finding as a call answers it (`frame.put`, `kit.check`). */
+export const findingShape = z.object({
+  line: z.number(),
+  col: z.number(),
+  rule: ruleShape,
+  what: z.string(),
+  fix: z.string(),
+});
 
 /**
  * One kit version, as the make step and the check read it. `look` holds the look values by CSS

@@ -1,7 +1,7 @@
 # The kit on Tailwind (A+T), made by Tailwind v4 compile()
 
-Date: 2026-11-21. Status: accepted; specified in [SPEC-kit.md](../SPEC-kit.md). No code yet. It
-closes the design of E8 "One look, fast" ([epics](../epics.md#e8-one-look-fast)).
+Date: 2026-11-21. Status: accepted; specified in [SPEC-kit.md](../SPEC-kit.md). Build order steps 1
+and 2 are built. It closes the design of E8 "One look, fast" ([epics](../epics.md#e8-one-look-fast)).
 
 ## What the user said
 
@@ -188,7 +188,13 @@ measure is the frame-script test above.
 ## Build order
 
 1. The make step and the K5 check (`make`, `check`), with the two-order test and the pin test.
-2. The look, the kit versions and compose; a frame put with made CSS.
+   Built on 2026-11-22.
+2. The look, the kit versions and compose; a frame put with made CSS. Built on 2026-11-22: the
+   look in DTCG 2025.10, the seed from the shadcn/ui theme (a start, see step 5), kit version 1
+   with its made CSS, the check and the make at each put, the cell `kit` at scope, and the live
+   document composed in the tab. Not in this step: the page does not answer the hello of the
+   piece script yet (step 3), and a picture is drawn from the frame's document with no compose
+   (step 3, with the kit version in its address).
 3. The live change of the look (K7) and the pictures of each kit version (K10). The piece script
    says hello each 50 ms until the page gives it a port (as penpal does), and the page answers with
    the current kit; the TLA+ model of kit-look gets this hello, with a variant that posts only once

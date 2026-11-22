@@ -2,6 +2,8 @@ import { bunSqlite } from "@tinkered/bun/sqlite";
 import { capsule, data, operation, tag } from "@tinkered/core";
 import { z } from "zod";
 
+import { kitStart, showKit } from "@/kit/store.server";
+
 import { canvasInfo, frames, kept, removed } from "./contract";
 import { boardKey } from "./keys.server";
 
@@ -16,6 +18,11 @@ import { boardKey } from "./keys.server";
 // and writes the canvas's keys again. A removed frame leaves its name and box in
 // `frames_removed` (the cell `removed`): the page shows its requests where it was, and its kept
 // versions are drawn at that size.
+//
+// Each frame version keeps its made CSS (`css`) and the kit version it was made for (`kit`), from
+// the make step at its put ([kit](SPEC-kit.md)); both are null when the frame turns the kit off,
+// or was stored before the kit. A show reads only this stored CSS (K11). frames' start runs the
+// kit's start first, and sets the board's cell `kit` of each canvas, and of each new one.
 
 /** The canvases, by key. A server cell: not served on the board. */
 export const canvases = data({
@@ -47,6 +54,8 @@ CREATE TABLE IF NOT EXISTS frames_frames (
   version INTEGER NOT NULL,
   html TEXT NOT NULL,
   made INTEGER NOT NULL,
+  css TEXT,
+  kit INTEGER,
   PRIMARY KEY (canvas, id)
 );
 CREATE TABLE IF NOT EXISTS frames_keygen (
@@ -58,6 +67,8 @@ CREATE TABLE IF NOT EXISTS frames_kept (
   id TEXT NOT NULL,
   version INTEGER NOT NULL,
   html TEXT NOT NULL,
+  css TEXT,
+  kit INTEGER,
   PRIMARY KEY (canvas, id, version)
 );
 CREATE TABLE IF NOT EXISTS frames_removed (
@@ -71,6 +82,14 @@ CREATE TABLE IF NOT EXISTS frames_removed (
   removed INTEGER NOT NULL,
   PRIMARY KEY (canvas, id)
 );`;
+
+/** The columns that a store made before them gets, null in each row: the made CSS of the kit. */
+const addedColumns = [
+  ["frames_frames", "css", "TEXT"],
+  ["frames_frames", "kit", "INTEGER"],
+  ["frames_kept", "css", "TEXT"],
+  ["frames_kept", "kit", "INTEGER"],
+] as const;
 
 /** A canvas's picture key generation, in the statement it is part of: 0 until its first bump. */
 const genOf = "COALESCE((SELECT gen FROM frames_keygen WHERE canvas = ?), 0)";
@@ -154,8 +173,8 @@ const stdout = tag<{ write(chunk: string): unknown } | null>({
 export const saveCanvas = operation({
   label: "frames.saveCanvas",
   input: z.object({ key: z.string(), name: z.string() }),
-  depends: { connection: bunSqlite.connection, cells: canvases.atScope.controller },
-  run: async ({ connection, cells }, { input, clock }) => {
+  depends: { connection: bunSqlite.connection, cells: canvases.atScope.controller, showKit },
+  run: async ({ connection, cells, showKit }, { input, clock }) => {
     const created = clock.currentTimeMillis();
     const made = connection.db.$client
       .query(
@@ -165,6 +184,7 @@ export const saveCanvas = operation({
     if (!made.changes) return { kind: "taken" as const };
 
     cells.set({ ...input, created, shared: false });
+    await showKit.run({ input: [input.key] });
     return { kind: "created" as const, key: input.key };
   },
 });
@@ -179,6 +199,8 @@ const frameWrite = z.discriminatedUnion("kind", [
     w: z.number(),
     h: z.number(),
     html: z.string(),
+    css: z.string().nullable(),
+    kit: z.number().nullable(),
   }),
   z.object({
     kind: z.literal("on"),
@@ -186,6 +208,8 @@ const frameWrite = z.discriminatedUnion("kind", [
     id: z.string(),
     base: z.number(),
     html: z.string(),
+    css: z.string().nullable(),
+    kit: z.number().nullable(),
   }),
 ]);
 
@@ -225,8 +249,8 @@ export const saveFrame = operation({
         const row = keyedRow.parse(
           db
             .query(
-              `INSERT INTO frames_frames (canvas, id, name, x, y, w, h, version, html, made)
-               VALUES (?, ?, ?, ?, 0, ?, ?, 1, ?, ?)
+              `INSERT INTO frames_frames (canvas, id, name, x, y, w, h, version, html, made, css, kit)
+               VALUES (?, ?, ?, ?, 0, ?, ?, 1, ?, ?, ?, ?)
                RETURNING canvas, id, name, x, y, w, h, version, ${genOf} AS gen`,
             )
             .get(
@@ -238,6 +262,8 @@ export const saveFrame = operation({
               input.h,
               input.html,
               clock.currentTimeMillis(),
+              input.css,
+              input.kit,
               input.canvas,
             ),
         );
@@ -248,11 +274,20 @@ export const saveFrame = operation({
       // back and the call faults, never a saved write that answers stale.
       const saved = db
         .query(
-          `UPDATE frames_frames SET html = ?, version = version + 1
+          `UPDATE frames_frames SET html = ?, css = ?, kit = ?, version = version + 1
            WHERE canvas = ? AND id = ? AND version = ? AND html IS NOT ?
            RETURNING canvas, id, name, x, y, w, h, version, ${genOf} AS gen`,
         )
-        .get(input.html, input.canvas, input.id, input.base, input.html, input.canvas);
+        .get(
+          input.html,
+          input.css,
+          input.kit,
+          input.canvas,
+          input.id,
+          input.base,
+          input.html,
+          input.canvas,
+        );
       if (saved !== null) {
         // The queue's trigger kept the version this write replaced, if a request refers to it.
         const keptBase = db.query(isKept).get(input.canvas, input.id, input.base) !== null;
@@ -456,21 +491,39 @@ export const readStill = operation({
     ),
 });
 
-/** One frame's document and version, read from its row: frame.get and the board's `docs`. */
+/**
+ * One frame's document, its made CSS and its version, read from its row: frame.get and the
+ * board's `docs`.
+ */
 export const readDoc = operation({
   label: "frames.readDoc",
   input: z.object({ canvas: z.string(), id: z.string() }),
   depends: { connection: bunSqlite.connection },
   run: async ({ connection }, { input }) =>
     frameRow
-      .extend({ html: z.string() })
+      .extend({ html: z.string(), css: z.string().nullable() })
       .safeParse(
         connection.db.$client
           .query(
-            "SELECT canvas, id, name, x, y, w, h, version, html FROM frames_frames WHERE canvas = ? AND id = ?",
+            "SELECT canvas, id, name, x, y, w, h, version, html, css FROM frames_frames WHERE canvas = ? AND id = ?",
           )
           .get(input.canvas, input.id),
       ).data,
+});
+
+/** At start, after the tables: each column that a store made before it does not have, null in each row. */
+const addColumns = operation({
+  label: "frames.addColumns",
+  depends: { connection: bunSqlite.connection },
+  run: async ({ connection }) => {
+    const db = connection.db.$client;
+    for (const [table, column, definition] of addedColumns) {
+      const known = db.query(`PRAGMA table_info(${table})`).all();
+      if (!known.some((c) => z.object({ name: z.literal(column) }).safeParse(c).success)) {
+        db.exec(`ALTER TABLE ${table} ADD COLUMN ${column} ${definition}`);
+      }
+    }
+  },
 });
 
 /**
@@ -489,13 +542,18 @@ const load = operation({
     out: stdout,
     boardFrame,
     boardKept,
+    addColumns,
+    kitStart,
+    showKit,
   },
   run: async (deps) => {
     const { connection, canvasCells, frameCells, keptCells, removedCells, out } = deps;
-    const { boardFrame, boardKept } = deps;
+    const { boardFrame, boardKept, addColumns, kitStart, showKit } = deps;
     const db = connection.db.$client;
     db.exec("PRAGMA synchronous = FULL");
     db.exec(schema);
+    await addColumns.run();
+    await kitStart.run();
 
     const canvasRows = db.query("SELECT key, name, created FROM frames_canvases").all();
     const frameRows = db
@@ -518,6 +576,7 @@ const load = operation({
     if (all > good) out?.write(`frames: skipped ${all - good} rows that do not parse\n`);
 
     for (const row of goodCanvases) canvasCells.set({ ...row, shared: false });
+    await showKit.run({ input: goodCanvases.map((row) => row.key) });
     for (const row of goodFrames) frameCells.set(boardFrame.run({ input: row }));
     for (const row of goodKept) keptCells.set(boardKept.run({ input: row }));
     for (const row of goodRemoved) removedCells.set(row);

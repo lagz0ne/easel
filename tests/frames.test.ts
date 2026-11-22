@@ -281,11 +281,15 @@ test("a put on the current version saves a new document, and raises the version 
     kind: "updated",
     id,
     version: 2,
+    findings: [],
+    more: 0,
   });
   expect(await a.put({ canvas: "flow", id, base: 2, html: "<p>3</p>" })).toEqual({
     kind: "updated",
     id,
     version: 3,
+    findings: [],
+    more: 0,
   });
   expect(await a.get("flow", id)).toEqual({
     kind: "found",
@@ -304,6 +308,8 @@ test("TheVersionGoesUpOnlyWhenTheDocumentChanges: the same document answers unch
     kind: "unchanged",
     id,
     version: 1,
+    findings: [],
+    more: 0,
   });
   expect(await a.get("flow", id)).toMatchObject({ frame: { version: 1, html: "<p>1</p>" } });
 });
@@ -360,7 +366,7 @@ test("the agent gets the frame again, and a put on that version saves", async ()
 
   expect(
     await b.put({ canvas: "flow", id, base: got.frame.version, html: `${got.frame.html}<p>b</p>` }),
-  ).toEqual({ kind: "updated", id, version: 3 });
+  ).toEqual({ kind: "updated", id, version: 3, findings: [], more: 0 });
 });
 
 // ---- APutOnAnIdNeverMakesAFrame (F3)
@@ -514,7 +520,7 @@ test("the board shows the stored version, never goes back, and drops a deleted f
   await b.put({ canvas: "flow", id, base: 1, html: "<p>stale</p>" });
   await b.put({ canvas: "flow", id, base: 2, html: "<p>3</p>" });
   await until(() => doc.get()?.version === 3);
-  expect(doc.get()).toEqual({ canvas: "flow", id, version: 3, html: "<p>3</p>" });
+  expect(doc.get()).toMatchObject({ canvas: "flow", id, version: 3, html: "<p>3</p>" });
   expect(list.get()).toMatchObject([{ id, version: 3 }]);
   expect(seen).toEqual(seen.toSorted((x, y) => x - y));
   expect(seen).not.toContain(4);

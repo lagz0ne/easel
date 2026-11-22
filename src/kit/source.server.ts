@@ -1,5 +1,6 @@
 import { operation } from "@tinkered/core";
 
+import { preflight } from "./preflight.server";
 import { kitShape } from "./schema";
 
 // The Tailwind source of a kit version (SPEC-kit.md § The make step, "The theme").
@@ -125,9 +126,10 @@ export const fixedTheme = `@theme inline reference {
 const sameName = /^--(?:text|radius|shadow|font)-|^--spacing$/;
 
 /**
- * The two Tailwind sources of a kit version. `kit`: the theme, the kit's own CSS and all
- * utilities: the design system of the check, and (from step 2) the kit version's made CSS.
- * `frame`: the theme and the layer `utilities` only, so a frame version holds only its utilities.
+ * The two Tailwind sources of a kit version. `kit`: the theme, Tailwind's preflight as the base,
+ * the kit's own CSS (its base rules and its pieces) and all utilities: the design system of the
+ * check, and the source of the kit version's made CSS. `frame`: the theme and the layer
+ * `utilities` only, so a frame version holds only its utilities.
  */
 export const sources = operation({
   label: "kit.sources",
@@ -146,7 +148,7 @@ export const sources = operation({
     const theme = `${fixedTheme}@theme inline reference {\n${look.join("\n")}\n}\n`;
     const utilities = "@layer utilities {\n  @tailwind utilities;\n}\n";
     return {
-      kit: `@layer theme, base, components, utilities;\n${theme}${input.css}\n${utilities}`,
+      kit: `@layer theme, base, components, utilities;\n${theme}@layer base {\n${preflight}}\n${input.css}\n${utilities}`,
       frame: `${theme}${utilities}`,
     };
   },

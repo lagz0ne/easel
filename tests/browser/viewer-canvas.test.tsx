@@ -53,7 +53,8 @@ const loadDocs = operation({
     const id = typeof input.id === "string" ? input.id : "";
     const doc = htmls.get(id);
 
-    return doc ? [{ canvas: input.canvas, id, ...doc }] : [];
+    // No made CSS: the page shows the document as it is (a frame stored before the kit).
+    return doc ? [{ canvas: input.canvas, id, ...doc, css: null }] : [];
   },
 });
 

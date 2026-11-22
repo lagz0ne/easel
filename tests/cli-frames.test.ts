@@ -17,7 +17,7 @@ import { cli } from "@/cli";
 import { framesRun, stdinText } from "@/cli/frames";
 import type { FramesCommand } from "@/cli/frames";
 import { frames } from "@/frames";
-import { framesApi, maxDocBytes, maxSentDocBytes } from "@/frames/contract";
+import { framesApi, maxDocBytes, maxMadeCssBytes, maxSentDocBytes } from "@/frames/contract";
 import { framesLoads, framesOps, mayRead } from "@/frames/ops.server";
 import { framesServer } from "@/frames/store.server";
 
@@ -243,9 +243,9 @@ test("put makes a frame and exits 0; a put with --id at its version exits 0, upd
   const file = a.file("two.html", "<p>2</p>");
 
   expect(await a.run({ kind: "put", canvas: "flow", file, id, base: "1" })).toBe(0);
-  expect(a.lines()).toEqual([{ kind: "updated", id, version: 2 }]);
+  expect(a.lines()).toEqual([{ kind: "updated", id, version: 2, findings: [], more: 0 }]);
   expect(await a.run({ kind: "put", canvas: "flow", file, id, base: "2" })).toBe(0);
-  expect(a.lines()).toEqual([{ kind: "unchanged", id, version: 2 }]);
+  expect(a.lines()).toEqual([{ kind: "unchanged", id, version: 2, findings: [], more: 0 }]);
 });
 
 test("put on an old version exits 1, stale, and says how to get the frame again", async () => {
@@ -321,6 +321,65 @@ test("put - reads the document from stdin", async () => {
   expect(await a.run({ kind: "get", canvas: "flow", id: String(made.id) })).toBe(0);
   expect(a.lines()).toMatchObject([{ frame: { html: "<p>from stdin</p>" } }]);
 });
+
+// ---- easel put: the findings of the kit check (SPEC-cli.md § Learn the kit, SPEC-kit K5)
+
+test("put prints each finding on stderr as file:line:col rule what. Fix: fix, at most 20, then the count; it exits 0", async () => {
+  const srv = await boot();
+  const a = await easel(srv, { json: false });
+  expect(await a.login()).toBe(0);
+  await a.run({ kind: "canvas new", name: "Flow" });
+  a.out.splice(0);
+  a.err.splice(0);
+  const file = a.file(
+    "page.html",
+    `<p class="p-4 text-red-500">a</p>\n<i class="bgg-primary"></i>`,
+  );
+
+  expect(await a.run({ kind: "put", canvas: "flow", file })).toBe(0);
+  expect(a.out.join("")).toMatch(/^created [0-9a-f]{12} v1\n$/);
+  expect(a.err.splice(0)).toEqual([
+    `${file}:1:15 look/color "text-red-500" is a color of Tailwind's palette, not of the look. Fix: use text-chart-1\n`,
+    `${file}:2:11 kit/class "bgg-primary" is not a class of the kit or of the look. Fix: use bg-primary\n`,
+  ]);
+
+  const many = Array.from({ length: 25 }, (_, i) => `<p class="bgg-primary">${i}</p>`);
+  expect(
+    await a.run({ kind: "put", canvas: "flow", file: a.file("many.html", many.join("")) }),
+  ).toBe(0);
+  const told = a.err.splice(0);
+  expect(told).toHaveLength(21);
+  expect(told.at(-1)).toBe("and 5 more\n");
+});
+
+test("put --json answers the findings in the answer, and prints nothing more", async () => {
+  const srv = await boot();
+  const a = await ann(srv);
+  const file = a.file("page.html", `<p class="text-red-500">a</p>`);
+
+  expect(await a.run({ kind: "put", canvas: "flow", file })).toBe(0);
+  expect(a.lines()).toMatchObject([
+    { kind: "created", findings: [{ line: 1, col: 11, rule: "look/color" }], more: 0 },
+  ]);
+  expect(a.err).toEqual([]);
+});
+
+test("put of a document whose made CSS would be over 256 KiB exits 1, tooBig, and says so", async () => {
+  const srv = await boot();
+  const a = await easel(srv, { json: false });
+  expect(await a.login()).toBe(0);
+  await a.run({ kind: "canvas new", name: "Flow" });
+  const classes = Array.from({ length: 9000 }, (_, i) => `w-[${i + 1}px]`).join(" ");
+
+  expect(
+    await a.run({
+      kind: "put",
+      canvas: "flow",
+      file: a.file("wide.html", `<p class="${classes}">`),
+    }),
+  ).toBe(1);
+  expect(a.err.join("")).toContain(`its made CSS would be over ${maxMadeCssBytes} bytes`);
+}, 30_000);
 
 test("put of a document over 1 MiB of UTF-8 exits 1, tooBig, and sends nothing", async () => {
   const srv = await boot();

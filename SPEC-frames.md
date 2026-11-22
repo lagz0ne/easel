@@ -66,10 +66,12 @@ that a manifest refers to and removes the rest.
    says pictures are off, and exits 1.
 10. Each put that saves or answers `unchanged` also answers the findings of the kit check
     ([kit](SPEC-kit.md)): each place that is not in the look or the kit, with its fix. The
-    findings do not stop the put. The CLI prints each one on stderr as
+    findings do not stop the put. The answer holds the first 20 findings, and `more` counts the
+    others. The CLI prints each one on stderr as
     `page.html:<line>:<col> <rule> <what>. Fix: <fix>`, at most 20, then the count. A document
     with `<meta name="easel-kit" content="off">` gets no look, no kit, no made CSS and no
-    findings.
+    findings. The check and the make run before the write, against the current kit version; the
+    frame version keeps its made CSS and that kit version.
 
 ### Share a canvas
 
@@ -162,7 +164,7 @@ Inputs:
   them, the put makes a frame.
 - `tooBig` is measured on the document's encoded size, its UTF-8 bytes, not its string length.
   The made CSS is not counted; it is at most 256 KiB, and a document whose CSS would be more
-  answers `tooBig` too. The
+  answers `tooBig` too, with `maxBytes` 262144. The
   cmd sets the socket's `maxPayload` to 2 MiB, so a document a little over 1 MiB gets the
   `tooBig` answer and not a closed socket. The CLI checks the same limit before it sends.
 - The CLI also checks the document as it goes on the socket, JSON-encoded: each `"`, `\` and
@@ -219,7 +221,9 @@ watch that holds it.
 
 The board (`easel.board`, read by the viewer) has the cells `frames`, `docs`, `kept` and `removed`, keyed by
 canvas, and the cell `kit` of [kit](SPEC-kit.md). A document in the cell `docs` is
-`{ html, css, version }`: `css` is the made CSS of that frame version.
+`{ html, css, version }`: `css` is the made CSS of that frame version, as stored. It is null for a
+document that turns the kit off, and for a version stored before the kit; the page shows that
+document as it is.
 A frame on the board carries its picture key `k`. The cell `kept` carries the key of each kept
 view (§ Pictures). The cell `removed` keeps each removed frame: `{ canvas, id, name, x, y, w, h,
 removed }`, its name and its last box, and when it was removed, so the viewer shows the requests

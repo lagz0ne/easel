@@ -1,6 +1,8 @@
 import { data, remoteData, rpc } from "@tinkered/core";
 import { z } from "zod";
 
+import { kit } from "@/kit/cells";
+import { findingShape } from "@/kit/schema";
 import { messages, requests, serverClock } from "@/queue/cells";
 
 import { sharePassword, sharePath } from "./share";
@@ -106,12 +108,17 @@ export type Frame = z.infer<typeof frame>;
  */
 const boardFrame = frameInfo.extend({ canvas: z.string(), k: z.string().optional() });
 
-/** The board's document: one version of one frame's html. */
+/**
+ * The board's document: one version of one frame's html, and the made CSS of that version
+ * ([kit](SPEC-kit.md)). `css` is null when the frame turns the kit off, or was stored before the
+ * kit: then the page shows the html as it is.
+ */
 const boardDoc = z.object({
   canvas: z.string(),
   id: z.string(),
   version: z.number(),
   html: z.string(),
+  css: z.string().nullable(),
 });
 
 /** Each canvas's frames, as the board serves them: a tab reads one canvas with `where`. */
@@ -176,15 +183,30 @@ export const framesBoard = remoteData({
   requests,
   messages,
   serverClock,
+  kit,
 });
 
 const gone = z.object({ kind: z.literal("gone") });
 
-/** The answer of a put that wrote, or found the same document: the frame's id and version. */
+/** The most findings that one answer holds; `more` counts the rest (SPEC-kit § Journeys). */
+export const maxFindings = 20;
+
+/**
+ * The largest made CSS of one frame version: 256 KiB of UTF-8 (SPEC-frames § Contract). A
+ * document whose CSS would be more answers `tooBig` with this as `maxBytes`.
+ */
+export const maxMadeCssBytes = 256 * 1024;
+
+/**
+ * The answer of a put that wrote, or found the same document: the frame's id and version, and
+ * the findings of the kit check (at most `maxFindings`; `more` counts the rest).
+ */
 const written = z.object({
   kind: z.enum(["created", "updated", "unchanged"]),
   id: z.string(),
   version: z.number(),
+  findings: z.array(findingShape),
+  more: z.number(),
 });
 
 /**

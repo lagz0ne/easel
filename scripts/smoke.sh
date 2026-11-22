@@ -79,8 +79,9 @@ no_page_errors
 echo "smoke: ok   live-todo ($((SECONDS - t0)) s)"
 
 # 3. The canvas: an agent's frames, opened by share link, draw as shells with a live, sandboxed
-#    document at rest, Fit works, Zoom in zooms, a drag pans, and a frame the agent puts while the
-#    tab is open shows. A shell shows its picture, drawn by Chromium, and `easel shot` writes one.
+#    document at rest in the look of the kit, Fit works, Zoom in zooms, a drag pans, and a frame
+#    the agent puts while the tab is open shows. A shell shows its picture, drawn by Chromium, and
+#    `easel shot` writes one.
 #    The setup code and the link stay in variables: neither is printed, nor is a picture's key.
 flow=canvas
 t0=$SECONDS
@@ -104,6 +105,10 @@ link="$(easel share smoke 2>/dev/null)" || fail "easel share"
 "${AB[@]}" find role button click --name "Fit" >/dev/null || fail "no Fit button"
 "${AB[@]}" wait --fn 'document.querySelector("iframe[sandbox=\"allow-scripts\"]") !== null' >/dev/null ||
   fail "the frame's document never went live at rest"
+# The live document is composed with the kit (SPEC-kit.md § compose): the look and the kit's CSS
+# came over the socket in the board's cell `kit`, and the frame's made CSS with its document.
+"${AB[@]}" wait --fn 'document.querySelector("iframe[sandbox=\"allow-scripts\"]")?.srcdoc.includes("<style id=\"easel-look\">:root {")' >/dev/null ||
+  fail "the frame's live document is not in the look of the kit"
 zoom='document.querySelector("output[aria-label=Zoom]")?.textContent'
 world='document.querySelector(".e-world")?.style.transform'
 "${AB[@]}" eval "window.smokeZoom = $zoom" >/dev/null || fail "no Zoom status"

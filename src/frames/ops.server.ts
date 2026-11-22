@@ -2,8 +2,19 @@ import { operation, transport } from "@tinkered/core";
 import { z } from "zod";
 
 import { user } from "@/access/guards.server";
+import { makeFrame } from "@/kit/make.server";
+import { frameKit } from "@/kit/store.server";
 
-import { framesApi, framesBoard, frames, keyOfName, maxDocBytes } from "./contract";
+import {
+  framesApi,
+  framesBoard,
+  frames,
+  keyOfName,
+  maxDocBytes,
+  maxFindings,
+  maxMadeCssBytes,
+  putInput,
+} from "./contract";
 import { shotFrame } from "./pictures.server";
 import { endedRefusal, lockedRefusal, passMeta } from "./share";
 import { passCanvas, shareCanvas, unshareCanvas } from "./share.server";
@@ -40,7 +51,10 @@ export const mayRead = operation({
   },
 });
 
-/** The board's `docs` load: one frame's current document, read from its row (decision C12). */
+/**
+ * The board's `docs` load: one frame's current document and its made CSS, read from its row
+ * (decision C12). The CSS is the stored one: a show never makes CSS (K11).
+ */
 export const loadDocs = operation({
   label: "frames.loadDocs",
   input: z.object({ canvas: z.string(), id: z.string() }),
@@ -48,7 +62,9 @@ export const loadDocs = operation({
   run: async ({ readDoc }, { input }) => {
     const row = await readDoc.run({ input });
 
-    return row ? [{ canvas: row.canvas, id: row.id, version: row.version, html: row.html }] : [];
+    return row
+      ? [{ canvas: row.canvas, id: row.id, version: row.version, html: row.html, css: row.css }]
+      : [];
   },
 });
 
@@ -86,35 +102,77 @@ const newFrameId = operation({
 const defaultSize = { w: 1440, h: 900 };
 
 /**
- * `frame.put`: a document over 1 MiB of UTF-8 answers `tooBig` and writes nothing. Without an id
- * it makes a frame; with one it is one conditional write (`saveFrame`). After a write, each
- * reader of the frame's document asks for it again.
+ * The kit check and the make step of a put's document, against the current kit version
+ * ([kit](SPEC-kit.md)), before the write (kit judged rule 2): its made CSS, the kit version it was
+ * made for, and the findings. A frame that turns the kit off gets no CSS (null) and no finding.
+ * Made CSS over 256 KiB answers `tooBig`.
+ */
+const makeDoc = operation({
+  label: "frames.makeDoc",
+  input: z.string(),
+  depends: { frameKit, makeFrame },
+  run: async ({ frameKit, makeFrame }, { input: html }) => {
+    const kit = await frameKit.run();
+    const made = await makeFrame.run({ input: { html, kit } });
+    if (made.kind === "off") return { kind: "made" as const, css: null, kit: null, findings: [] };
+    if (Buffer.byteLength(made.css, "utf8") > maxMadeCssBytes) return { kind: "tooBig" as const };
+
+    return { kind: "made" as const, css: made.css, kit: kit.version, findings: made.findings };
+  },
+});
+
+/** A put's write: a new frame to the right of the others, or a write on an id at its base. */
+const writeOf = operation({
+  label: "frames.writeOf",
+  input: z.object({
+    put: putInput,
+    css: z.string().nullable(),
+    kit: z.number().nullable(),
+  }),
+  depends: { newFrameId },
+  run: ({ newFrameId }, { input: { put, css, kit } }) =>
+    "id" in put
+      ? { kind: "on" as const, ...put, css, kit }
+      : {
+          kind: "new" as const,
+          canvas: put.canvas,
+          id: newFrameId.run(),
+          name: put.name ?? "untitled",
+          ...(put.size ?? defaultSize),
+          html: put.html,
+          css,
+          kit,
+        },
+});
+
+/**
+ * `frame.put`: a document over 1 MiB of UTF-8 answers `tooBig` and writes nothing. Then the kit
+ * check and the make step run on the document, against the current kit version
+ * ([kit](SPEC-kit.md)), before the write (judged rule 2 of kit): made CSS over 256 KiB answers
+ * `tooBig` too. Without an id it makes a frame; with one it is one conditional write
+ * (`saveFrame`). The frame version keeps its made CSS and its kit version. A put that saves or
+ * answers `unchanged` answers the findings too; they do not stop it. After a write, each reader
+ * of the frame's document asks for it again.
  */
 export const putFrame = operation({
   label: "frame.put.do",
   input: framesApi["frame.put"].input,
-  depends: { saveFrame, newFrameId, invalidate: framesBoard.invalidate },
-  run: async ({ saveFrame, newFrameId, invalidate }, { input }) => {
+  depends: { saveFrame, makeDoc, writeOf, invalidate: framesBoard.invalidate },
+  run: async ({ saveFrame, makeDoc, writeOf, invalidate }, { input }) => {
     if (Buffer.byteLength(input.html, "utf8") > maxDocBytes) {
       return { kind: "tooBig" as const, maxBytes: maxDocBytes };
     }
+    const made = await makeDoc.run({ input: input.html });
+    if (made.kind === "tooBig") return { kind: "tooBig" as const, maxBytes: maxMadeCssBytes };
 
-    const write =
-      "id" in input
-        ? { kind: "on" as const, ...input }
-        : {
-            kind: "new" as const,
-            canvas: input.canvas,
-            id: newFrameId.run(),
-            name: input.name ?? "untitled",
-            ...(input.size ?? defaultSize),
-            html: input.html,
-          };
+    const write = writeOf.run({ input: { put: input, css: made.css, kit: made.kit } });
     const answer = await saveFrame.run({ input: write });
-    if (answer.kind === "created" || answer.kind === "updated") {
+    if (answer.kind === "stale" || answer.kind === "gone") return answer;
+    if (answer.kind !== "unchanged") {
       await invalidate.run({ input: { docs: { canvas: input.canvas, id: answer.id } } });
     }
-    return answer;
+    const findings = made.findings.slice(0, maxFindings);
+    return { ...answer, findings, more: made.findings.length - findings.length };
   },
 });
 
@@ -143,7 +201,7 @@ export const getFrame = operation({
     const row = await readDoc.run({ input });
     if (!row) return { kind: "gone" as const };
 
-    const { canvas: _canvas, ...frame } = row;
+    const { canvas: _canvas, css: _css, ...frame } = row;
     return { kind: "found" as const, frame };
   },
 });

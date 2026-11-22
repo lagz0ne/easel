@@ -265,7 +265,9 @@ const seed = operation({
   run: ({ cells, rows, thread, clocks, docCells }) => {
     cells.set({ canvas: "home", id: home, name: "Home", x: 0, y: 0, w: 400, h: 300, version: 1 });
     clocks.set({ canvas: "home", now: serverNow });
-    if (store.doc !== null) docCells.set({ canvas: "home", id: home, version: 1, html: store.doc });
+    if (store.doc !== null) {
+      docCells.set({ canvas: "home", id: home, version: 1, html: store.doc, css: null });
+    }
     for (const row of store.requests) rows.set(row);
     for (const m of store.messages) thread.set(m);
   },

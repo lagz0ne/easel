@@ -5,6 +5,7 @@ import { z } from "zod";
 
 import { frames } from "@/frames";
 import type { FrameInfo } from "@/frames/contract";
+import { compose } from "@/kit/compose";
 
 import "./canvas.css";
 import { aimFromLink, openFromLink } from "./act";
@@ -20,7 +21,8 @@ import { liveSet, painted, paintScript, stage, zoomShown } from "./stage";
 // agent work, § Lose the socket; the viewer-canvas chart). React draws a shell per frame when the
 // board changes; the stage moves the camera, culls the shells and picks the live set without a
 // render. A live frame's document comes from the board's `docs`, read by `of({ canvas, id })`
-// only (fact rule 5), and runs sandboxed with scripts and no same origin (judged rule 4).
+// only (fact rule 5), composed with the canvas's `kit` (SPEC-kit.md § compose), and runs
+// sandboxed with scripts and no same origin (judged rule 4).
 
 type Stage = ReturnType<typeof stage.factory>;
 
@@ -78,7 +80,34 @@ function Zoom() {
   );
 }
 
-/** A live frame's document: the board's version of it, with the paint script at its end. */
+const docCanvas = tag<string>({ label: "viewer.docCanvas" });
+const docId = tag<string>({ label: "viewer.docId" });
+
+/**
+ * A live frame's document as it shows: `compose` of the board's version of it, its made CSS and
+ * the canvas's kit (fact rule 8: the look, the kit and the piece script come only from
+ * `compose`). Null until the document, and the kit that it needs, have come.
+ */
+const liveDoc = resource({
+  label: "viewer.liveDoc",
+  config: { canvas: docCanvas.required, id: docId.required },
+  depends: (c) => ({
+    doc: frames.board.docs.of({ canvas: c.canvas, id: c.id }),
+    kit: frames.board.kit.of({ canvas: c.canvas }),
+    compose,
+  }),
+  factory: ({ doc, kit, compose }) => {
+    const at = doc.get();
+    const look = kit.get() ?? null;
+    if (!at || (at.css !== null && look === null)) return null;
+
+    const shown = look ?? { look: "", css: "" };
+    const html = compose.run({ input: { html: at.html, css: at.css, kit: shown } });
+    return { version: at.version, html };
+  },
+});
+
+/** A live frame's document: the composed version of it, with the paint script at its end. */
 function LiveDoc({
   canvas,
   frame,
@@ -88,7 +117,7 @@ function LiveDoc({
   frame: FrameInfo;
   attach: Stage["doc"];
 }) {
-  const doc = useData(frames.board.docs.of({ canvas, id: frame.id }));
+  const doc = useData(liveDoc({ canvas, id: frame.id }));
   if (!doc) return null;
 
   return (

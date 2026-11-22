@@ -202,7 +202,56 @@ the kit version changes, the cell of each canvas changes.
 
 easel writes the cell `kit` at scope (`kit.atScope`), as the cells of frames
 (src/frames/store.server.ts). A call runs in its own request session; a cell write there stays in
-that session, and no other tab sees it.
+that session, and no other tab sees it. frames' start runs the kit's start first (the table, and
+the seed into an empty store), then sets the cell of each canvas; `canvas.create` sets the cell of
+its canvas.
+
+The answer of `frame.put` and of `kit.check` holds the first 20 findings, in document order;
+`more` is the count of the others.
+
+### The look and the kit versions
+
+The look is a DTCG 2025.10 file. Each look value has a `$type` (its own, or that of the nearest
+group) and a `$value`:
+
+| `$type`      | `$value`                                                               | CSS                       |
+| ------------ | ---------------------------------------------------------------------- | ------------------------- |
+| `color`      | `{ colorSpace: "srgb", components: [r, g, b], alpha?, hex? }`          | `#rrggbb`, or `#rrggbbaa` |
+| `dimension`  | `{ value, unit }`, `unit` is `px` or `rem`                             | `14px`, `0.875rem`        |
+| `fontFamily` | a name, or a list of names                                             | the names, with commas    |
+| `shadow`     | a layer `{ color, offsetX, offsetY, blur, spread, inset? }`, or a list | the layers, with commas   |
+
+A `$value` can be an alias, `{font.sans}`: the look value gets the value that the alias names. The
+CSS name of a color drops its group (`color.primary` is `--primary`). The other names join their
+path with `-` (`text.sm` is `--text-sm`, `spacing` is `--spacing`). A color in another color space
+is `invalid` in this version of easel.
+
+A kit version is one row of `kit_versions` in the app's SQLite file. It holds: its number, the
+revision of the look, the look (the DTCG file), the look values by CSS name, the look as a `:root`
+block, the kit's own CSS (its base rules and pieces), its made CSS, and its element pieces. The
+newest row is the current kit version. The `:root` block and the made CSS are made once, when the
+row is written; a show reads them as stored.
+
+A frame version keeps its made CSS and the number of the kit version that it was made for. A
+frame that turns the kit off, and a frame version stored before the kit, keep no made CSS (null):
+easel shows them as they are.
+
+### The seed
+
+The binary holds the seed. The first start writes it as kit version 1, with look revision 1.
+
+- The look comes from the shadcn/ui theme (MIT): its color names, and the values of its base
+  color "neutral", from oklch to sRGB. The font stacks, the type scale, the shadows and `--spacing`
+  are Tailwind's (MIT); the radii are those of shadcn/ui's `--radius` (10px).
+- A shadcn/ui value that fails K8 is changed to the nearest value that passes, and its
+  `$description` tells the change: `muted-foreground` (4.35:1 on `muted`), `destructive` (4.47:1
+  on `muted`), `input` and `ring` (under 3:1 on `background`). The colors that shadcn/ui does not
+  have (`success`, `warning`, the three `-soft` colors) come from Tailwind's palette, except
+  `warning`, which is `#8a5a00` (5.44:1 on `muted`).
+- The kit's pieces are those of the E8 study (A+T): `src/kit/seed.server.ts`.
+- These values are a start, not the look of easel. A design ship on Doop (build order step 5 of
+  the decision) picks easel's own base color, font and radius, so that a frame does not look like
+  a template.
 
 ### The make step
 
@@ -215,7 +264,9 @@ bytes, in any order of calls.
   names of earlier builds, so a shared one makes CSS that depends on the order of puts. There is
   no browser runtime. A new engine version is a new pin; it never makes the stored CSS again.
 - **For a kit version:** the source is the kit source: the theme, Tailwind's preflight as the
-  base, the base rules of the kit, and the CSS of each piece in the layer `components`. The class
+  base (a copy of `preflight.css` of the pin, in `src/kit/preflight.server.ts`, which a test holds
+  to the file of the package), the base rules of the kit, and the CSS of each piece in the layer
+  `components`. The class
   names are those of the templates. The made CSS goes into the kit version.
 - **For a frame version:** the class names are those of the frame's `class` attributes only. The
   names that the check finds (a palette color, an arbitrary color or font size, a name that gives
@@ -240,17 +291,21 @@ first make after a start takes 56 ms. A put spends at most 50 ms in this chain f
 
 Measured on 2026-11-22, on this host, with the step-1 code (`check` and `make`, no `compose`):
 about 3 ms (p50) for a usual frame; for a frame of 1 MiB, 30 ms for the check and 3 ms for the
-make.
+make. With the step-2 code, all of `frame.put` (the check, the make and the write): 4 ms (p50)
+for a usual frame, 32 to 43 ms for a frame of 1 MiB.
 
 ### compose
 
 The shared module `src/kit/compose.ts` (no `.server.`) holds the pure functions that the page
 and the server both use:
 
-- `compose(html, css, kit)`: when `html` has `<meta name="easel-kit" content="off">`, it answers
-  `html` as it is. Else it answers `<!doctype html>`, `<style id="easel-look">` (the look),
-  `<style id="easel-kit">` (the kit's made CSS), `<style id="easel-frame">` (the frame version's
-  made CSS), the piece script, then `html` without its own doctype.
+- `compose(html, css, kit)`: `css` is the frame version's made CSS. When it is null, the check at
+  the put found `<meta name="easel-kit" content="off">`, or the version was stored before the
+  kit: `compose` answers `html` as it is. Else it answers `<!doctype html>`,
+  `<style id="easel-look">` (the look), `<style id="easel-kit">` (the kit's made CSS),
+  `<style id="easel-frame">` (the frame version's made CSS), the piece script, then `html` without
+  its own doctype. In a style text, `</style` is written `<\/style`, so no stored text can end its
+  element.
 - `contrast(look, kit)`: the pairs of K8 and their ratios.
 
 `check(html, kit)` is not in `compose.ts`: it needs Tailwind and Lightning CSS, so it runs on the
@@ -276,12 +331,13 @@ The piece script (in the composed document, at most 3 KiB) defines one custom el
 element piece, when the document is parsed (`DOMContentLoaded`), so that each element has its
 children. It expands the template into the element's light DOM.
 
-A frame document can start before the page listens. So the piece script sends a hello to its
-parent at once, and again each 50 ms, until it gets a `MessagePort` (as penpal does). When it
-gets the port, it stops. The page answers only a hello whose `event.source` is one of its own live
-iframes: at once, with a port and the current kit. Each later kit message goes on that port. A
-kit message is `{ easel: "kit", kit, look, css }`; the piece script then replaces the text of the
-two `<style>` elements `easel-look` and `easel-kit`.
+A frame document can start before the page listens. So the piece script sends a hello
+(`{ easel: "hello" }`) to its parent at once, and again each 50 ms, until it gets a `MessagePort`
+(as penpal does). When it gets the port, it stops. The page answers only a hello whose
+`event.source` is one of its own live iframes: at once, with a kit message that carries the port,
+for the current kit. Each later kit message goes on that port. A kit message is
+`{ easel: "kit", kit, look, css }`; the piece script then replaces the text of the two `<style>`
+elements `easel-look` and `easel-kit`.
 
 ## Rules
 
