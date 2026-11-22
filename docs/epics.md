@@ -710,13 +710,13 @@ Decided:
 - Deferred: a page that shows the kit to people. Add it when a team asks to see the kit apart from
   its frames.
 - Deferred: images, icons and fonts kept in easel. Add it when a frame cannot load what it needs.
-- Deferred: frame code that runs with no change in an app of the team. The markup, the classes and
-  the look go into an app; a frame script does not. Add it when a team asks to turn a frame into
-  app code.
+- Deferred: a way to take a frame into an app of the team. A frame can be a full React and Tinker
+  app ([frame-apps](decisions/frame-apps.md)), so its code can go into an app, but easel gives no
+  export. Add it when a team asks to turn a frame into app code.
 - Deferred: prototypes, that is, a flow of frames that share state, or a viewer who leads a review
-  while the others follow. Until then, a frame script is a short plain script for one frame. Add
-  it when a team asks to click through a flow of frames, or to lead a review of a prototype. The
-  planned answer is in [kit-on-tailwind](decisions/kit-on-tailwind.md#frame-scripts).
+  while the others follow. Add it when a team asks to click through a flow of frames, or to lead a
+  review of a prototype. The planned answer is in [frame-apps](decisions/frame-apps.md): shared
+  state at scope in the easel page, reached by rpc on each frame's port.
 
 ### E8.1 Make a frame from the kit
 

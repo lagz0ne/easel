@@ -139,6 +139,9 @@ dashboard) are the ones in K3; hero and kanban are screens that no kit covers.
 
 ## Frame scripts
 
+Replaced on 2026-11-22 by [frame-apps](frame-apps.md): a frame can be a full React and Tinker
+app, and class names are only in fixed places. The text below is kept as the record.
+
 On 2026-11-21, the user asked whether frames use React, and then whether they use Tinker
 (`@tinkered/core`, the library of the easel app). On 2026-11-22, the user agreed that frame code
 does not need to run with no change in a Tinker app. Only the markup, the classes and the look go
@@ -206,7 +209,8 @@ measure is the frame-script test above.
    that kit version, and the kit versions that a request and a result keep (`kit`, `beforeKit`,
    `afterKit`). Measured on this host: 12 live documents of 20 in view show a new look 21 ms after
    the write; a real Chromium draws the 20 pictures of the new kit version in 1 s, 2 at once.
-4. Pieces (`k-`), `put_piece` with its revision (K12, K14).
+4. App frames and the kit's pieces as React components, `put_piece` with its revision (K12, K14).
+   The order is in [frame-apps](frame-apps.md#build-order).
 5. The seed look: a design ship on Doop that does not look generic (K1).
 
 ## Open
