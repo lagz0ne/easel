@@ -341,8 +341,9 @@ elements `easel-look` and `easel-kit`.
 
 ## Rules
 
-The statecharts [kit-piece](docs/statecharts/kit-piece.md), [kit-look](docs/statecharts/kit-look.md)
-and [kit-look-unbound](docs/statecharts/kit-look-unbound.md) check these rules.
+The statecharts [kit-piece](docs/statecharts/kit-piece.md), [kit-look](docs/statecharts/kit-look.md),
+[kit-look-unbound](docs/statecharts/kit-look-unbound.md) and
+[kit-look-hello-once](docs/statecharts/kit-look-hello-once.md) check these rules.
 
 ### Fact rules (the code graph decides)
 
@@ -443,7 +444,7 @@ and [kit-look-unbound](docs/statecharts/kit-look-unbound.md) check these rules.
 - The speed budget: a test makes the 3 reference screens and a frame of 1 MiB, and each chain
   takes less than 50 ms.
 - K14: a test makes two `kit.put` calls on one revision; the second answers `stale`.
-- Each rule of the three statecharts is reached by a test that replays its path.
+- Each rule of the four statecharts is reached by a test that replays its path.
 
 ## Out of Scope (Deferred)
 

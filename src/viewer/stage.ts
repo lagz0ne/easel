@@ -107,6 +107,22 @@ export const paintScript = `<script>(()=>{const v=__V__;const post=()=>requestAn
 /** What a document's paint script posts. */
 const paintPost = z.object({ easel: z.literal("painted"), v: z.number() });
 
+/** What a document's piece script posts until it has a port ([kit](SPEC-kit.md) § compose). */
+const helloPost = z.object({ easel: z.literal("hello") });
+
+/**
+ * A kit message ([kit](SPEC-kit.md) § compose): the kit version, the look as a `:root` block and
+ * the kit's made CSS. The piece script replaces the text of `easel-look` and `easel-kit` with it.
+ */
+export const kitMessage = z.object({
+  easel: z.literal("kit"),
+  kit: z.number(),
+  look: z.string(),
+  css: z.string(),
+});
+
+export type KitMessage = z.infer<typeof kitMessage>;
+
 /** A box on a frame, from its top left. */
 const partArea = z.object({ x: z.number(), y: z.number(), w: z.number(), h: z.number() });
 
@@ -175,6 +191,10 @@ export const stage = resource({
     let closed = false;
     const shells = new Map<string, Shell>();
     const docs = new Map<string, HTMLIFrameElement>();
+    /** The port that the page gave each live document, by frame id; only the page holds port1. */
+    const ports = new Map<string, MessagePort>();
+    /** The canvas's kit as the board gave it last: a hello gets it at once. */
+    let kitNow: KitMessage | null = null;
     const pops = new Set<HTMLElement>();
     /** A place that `aim` asked for before the first Fit: it comes into view after it. */
     let aimAt: { x: number; y: number } | null = null;
@@ -485,8 +505,44 @@ export const stage = resource({
         if (paints.get()[id] !== version) paints.update((p) => ({ ...p, [id]: version }));
       },
 
+      /**
+       * The canvas's kit came or changed (SPEC-viewer § Watch an agent work, step 4): each live
+       * document that has a port gets it on that port, and its piece script replaces the two
+       * style texts, with no reload. A document with no port yet gets it with its port.
+       */
+      sendKit: (next: KitMessage) => {
+        kitNow = next;
+        for (const port of ports.values()) port.postMessage(next);
+      },
+
+      /**
+       * A hello counts only from the window of one of the page's own live iframes (SPEC-viewer
+       * judged rule 12). That document gets a new port and the current kit at once; a port that
+       * it had before (its document loaded again) is closed. With no kit yet, the hello waits:
+       * the piece script says it again 50 ms later.
+       */
+      onHello: (event: MessageEvent) => {
+        if (!kitNow) return;
+        for (const [id, frame] of docs) {
+          const win = frame.contentWindow;
+          if (!win || win !== event.source) continue;
+
+          ports.get(id)?.close();
+          const channel = new MessageChannel();
+          ports.set(id, channel.port1);
+          win.postMessage(kitNow, "*", [channel.port2]);
+        }
+      },
+
+      /** A frame's live document left: its port is closed. */
+      dropPort: (id: string) => {
+        ports.get(id)?.close();
+        ports.delete(id);
+      },
+
       /** A paint post counts only from the iframe it names, for the version that iframe holds. */
       onMessage: (event: MessageEvent) => {
+        if (helloPost.safeParse(event.data).success) return at.onHello(event);
         const post = paintPost.safeParse(event.data);
         if (!post.success) return at.onPart(event);
         for (const [id, frame] of docs) {
@@ -585,6 +641,8 @@ export const stage = resource({
 
         moving = false;
         labelZoom = 0;
+        for (const port of ports.values()) port.close();
+        ports.clear();
         // After the scope closed (a tab torn down before its page), there is no cell to clear.
         if (closed) return;
 
@@ -676,6 +734,7 @@ export const stage = resource({
           cap.abort();
           if (docs.get(id) !== el) return;
           docs.delete(id);
+          at.dropPort(id);
           at.unpaint(id);
         };
       },
@@ -718,6 +777,7 @@ export const stage = resource({
 
     ctx.defer(() => {
       closed = true;
+      for (const port of ports.values()) port.close();
       restWait?.abort();
       at.stopAdding();
     });

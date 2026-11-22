@@ -11,9 +11,17 @@
 \* refused (K8), the user goes back one step (K9), and a viewer asks for a change (K10).
 \* KeepKit = FALSE (chart kit-look-unbound) is the design this rules out: a request keeps only the
 \* frame version, so its Before is drawn with the current kit version. It breaks K10.
+\*
+\* Part = "look" also has one live document of the tab (K7; SPEC-kit.md § compose). It is composed
+\* with the kit version that the tab shows, and it can start before the page listens. Its piece
+\* script says hello to its parent at once, and with Hello = "each50ms" again each 50 ms until it
+\* gets a port. The page answers a hello with a port and the current kit; each later kit goes on
+\* the port, so the document shows it with no reload. Hello = "once" (chart kit-look-hello-once)
+\* is the design this rules out: a document that says hello once, before the page listens, never
+\* gets a port, and keeps an old look after a change. It breaks K7.
 EXTENDS Naturals, Sequences
 
-CONSTANTS Part, KeepKit
+CONSTANTS Part, KeepKit, Hello
 
 Agents == IF Part = "piece" THEN {"A", "B"} ELSE {"U"}
 Looks == {"L1", "L2", "Low"}         \* "Low" makes text fail WCAG AA contrast
@@ -31,9 +39,15 @@ VARIABLES
   base,      \* base[a]: the revision that writer a last read (0: none, or it must read again)
   shown,     \* the kit version that an open tab shows (0: no board read yet)
   asked,     \* the kit version that a request keeps from when the viewer asked (0: no request)
-  seen       \* what the viewer saw when they asked: [look, piece] ("-" before)
+  seen,      \* what the viewer saw when they asked: [look, piece] ("-" before)
+  listens,   \* the page listens for the hello of its live documents
+  doc,       \* the tab's live document: "none" (not started yet) or "live"
+  port,      \* the live document holds a port from the page
+  docKit     \* the kit version that the live document shows (0: none)
 
-vars == <<look, prevLook, lookRev, piece, pieceRev, hist, base, shown, asked, seen>>
+store == <<look, prevLook, lookRev, piece, pieceRev, hist, base>>
+live == <<listens, doc, port, docKit>>
+vars == <<look, prevLook, lookRev, piece, pieceRev, hist, base, shown, asked, seen, listens, doc, port, docKit>>
 kit == Len(hist)                     \* the current kit version
 rev == IF Part = "piece" THEN pieceRev ELSE lookRev
 Snap(l, p) == [look |-> l, piece |-> p]
@@ -45,12 +59,13 @@ Init ==
   /\ hist = << Snap("L1", "p1") >>
   /\ base = [a \in Agents |-> 0]
   /\ shown = 0 /\ asked = 0 /\ seen = "-"
+  /\ listens = FALSE /\ doc = "none" /\ port = FALSE /\ docKit = 0
 
 \* easel kit get <piece> / easel look get: the writer reads the current revision.
 Read(a) ==
   /\ base[a] # rev
   /\ base' = [base EXCEPT ![a] = rev]
-  /\ UNCHANGED <<look, prevLook, lookRev, piece, pieceRev, hist, shown, asked, seen>>
+  /\ UNCHANGED <<look, prevLook, lookRev, piece, pieceRev, hist, shown, asked, seen>> /\ UNCHANGED live
 
 CanWrite(a) == base[a] # 0 /\ kit < MaxKit
 
@@ -62,13 +77,13 @@ PutPiece(a, d) ==
   /\ piece' = d /\ pieceRev' = pieceRev + 1
   /\ hist' = Append(hist, Snap(look, d))
   /\ base' = [base EXCEPT ![a] = pieceRev + 1]
-  /\ UNCHANGED <<look, prevLook, lookRev, shown, asked, seen>>
+  /\ UNCHANGED <<look, prevLook, lookRev, shown, asked, seen>> /\ UNCHANGED live
 
 \* A write on an old revision answers stale and writes nothing. The writer must read again.
 PutStale(a) ==
   /\ base[a] # 0 /\ base[a] # rev
   /\ base' = [base EXCEPT ![a] = 0]
-  /\ UNCHANGED <<look, prevLook, lookRev, piece, pieceRev, hist, shown, asked, seen>>
+  /\ UNCHANGED <<look, prevLook, lookRev, piece, pieceRev, hist, shown, asked, seen>> /\ UNCHANGED live
 
 \* easel look set --base <rev>: a readable look is saved as a new kit version.
 SetLook(a, l) ==
@@ -76,7 +91,7 @@ SetLook(a, l) ==
   /\ look' = l /\ prevLook' = look /\ lookRev' = lookRev + 1
   /\ hist' = Append(hist, Snap(l, piece))
   /\ base' = [base EXCEPT ![a] = lookRev + 1]
-  /\ UNCHANGED <<piece, pieceRev, shown, asked, seen>>
+  /\ UNCHANGED <<piece, pieceRev, shown, asked, seen>> /\ UNCHANGED live
 
 \* A look that fails WCAG AA answers unreadable, with each failing pair. Nothing changes.
 SetLookUnreadable(a, l) ==
@@ -90,32 +105,65 @@ Undo(a) ==
   /\ look' = prevLook /\ prevLook' = look /\ lookRev' = lookRev + 1
   /\ hist' = Append(hist, Snap(prevLook, piece))
   /\ base' = [base EXCEPT ![a] = lookRev + 1]
-  /\ UNCHANGED <<piece, pieceRev, shown, asked, seen>>
+  /\ UNCHANGED <<piece, pieceRev, shown, asked, seen>> /\ UNCHANGED live
 
 \* The board's cell `kit` reaches an open tab, which shows the newest kit version in each frame.
+\* The page sends the kit on the port of each live document that has one: its piece script
+\* replaces the two style texts, with no reload.
 TabShows ==
   /\ shown # kit
   /\ shown' = kit
-  /\ UNCHANGED <<look, prevLook, lookRev, piece, pieceRev, hist, base, asked, seen>>
+  /\ docKit' = IF port THEN kit ELSE docKit
+  /\ UNCHANGED store /\ UNCHANGED <<asked, seen, listens, doc, port>>
+
+\* The page starts to listen for hellos (its message handler). A document can start before it.
+PageListens ==
+  /\ Part = "look" /\ ~listens
+  /\ listens' = TRUE
+  /\ UNCHANGED store /\ UNCHANGED <<shown, asked, seen, doc, port, docKit>>
+
+\* The answer to a hello: only when the page listens, a port and the current kit, at once.
+Answer ==
+  /\ port' = listens
+  /\ docKit' = shown
+
+\* A live document starts, composed with the kit version that the tab shows. Its piece script
+\* says hello at once.
+DocStarts ==
+  /\ Part = "look" /\ doc = "none" /\ shown # 0
+  /\ doc' = "live"
+  /\ Answer
+  /\ UNCHANGED store /\ UNCHANGED <<shown, asked, seen, listens>>
+
+\* The piece script says hello again, 50 ms later, while it has no port (as penpal does). With
+\* Hello = "once" it never says it again.
+HelloAgain ==
+  /\ Hello = "each50ms" /\ doc = "live" /\ ~port /\ listens
+  /\ Answer
+  /\ UNCHANGED store /\ UNCHANGED <<shown, asked, seen, listens, doc>>
 
 \* A viewer asks for a change. The request keeps the kit version that the tab shows.
 Ask ==
   /\ Part = "look" /\ shown # 0 /\ asked = 0
   /\ asked' = shown /\ seen' = hist[shown]
-  /\ UNCHANGED <<look, prevLook, lookRev, piece, pieceRev, hist, base, shown>>
+  /\ UNCHANGED <<look, prevLook, lookRev, piece, pieceRev, hist, base, shown>> /\ UNCHANGED live
 
 Done ==
   /\ kit = MaxKit /\ shown = kit
   /\ UNCHANGED vars
 
 Next ==
-  \/ TabShows \/ Ask \/ Done
+  \/ TabShows \/ Ask \/ Done \/ PageListens \/ DocStarts \/ HelloAgain
   \/ \E a \in Agents :
        \/ Read(a) \/ PutStale(a) \/ Undo(a)
        \/ \E d \in Docs : PutPiece(a, d)
        \/ \E l \in Looks : SetLook(a, l) \/ SetLookUnreadable(a, l)
 
-Spec == Init /\ [][Next]_vars
+\* A tab gets each change of the cell `kit`, the page listens in the end, and a piece script that
+\* has no port says hello again: each of them is not put off forever.
+Spec ==
+  /\ Init /\ [][Next]_vars
+  /\ WF_vars(TabShows) /\ WF_vars(PageListens) /\ WF_vars(HelloAgain)
 
 \* ---------- rules, in the reader's words ----------
 
@@ -155,8 +203,18 @@ ATabNeverGoesBack == [][shown' >= shown]_vars
 before == IF KeepKit THEN hist[asked] ELSE hist[kit]
 TheBeforeShowsWhatTheViewerSaw == asked # 0 => before = seen
 
+\* K7: a live document shows only a stored kit version, and never goes back to an older one.
+ADocumentShowsOnlyAStoredKitVersion == docKit <= kit
+ADocumentNeverGoesBack == [][doc = "live" => docKit' >= docKit]_vars
+
+\* K7: each live document comes to show the newest kit version, with no reload: the page answers
+\* its hello with a port, and sends each later kit on it. A document that started before the page
+\* listened is not left behind.
+ALiveDocumentShowsTheNewLook == <>[](doc = "live" => docKit = kit)
+
 TypeOK ==
   /\ look \in Readable /\ piece \in Docs
   /\ prevLook \in Readable \cup {"-"}
   /\ kit \in 1..MaxKit /\ shown \in 0..MaxKit /\ asked \in 0..MaxKit
+  /\ listens \in BOOLEAN /\ doc \in {"none", "live"} /\ port \in BOOLEAN /\ docKit \in 0..MaxKit
 ====

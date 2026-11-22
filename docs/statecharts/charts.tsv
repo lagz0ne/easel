@@ -27,3 +27,4 @@ frames-pictures-kept	models/frames/Pictures.tla	models/frames/PicturesKept.cfg	m
 kit-piece	models/kit/Kit.tla	models/kit/KitPiece.cfg	models/kit/Kit.view.mjs	holds
 kit-look	models/kit/Kit.tla	models/kit/KitLook.cfg	models/kit/Kit.view.mjs	holds
 kit-look-unbound	models/kit/Kit.tla	models/kit/KitLookUnbound.cfg	models/kit/Kit.view.mjs	breaks
+kit-look-hello-once	models/kit/Kit.tla	models/kit/KitLookHelloOnce.cfg	models/kit/Kit.view.mjs	breaks

@@ -55,11 +55,13 @@ Each chart's page has the chart, its rules in plain words, and what the model le
 | [kit-piece](kit-piece.md)                           | kit    | Two agents change one piece: the first change on a revision wins, the other gets `stale`   |
 | [kit-look](kit-look.md)                             | kit    | The look: a change, a refused unreadable look, one step back, and what a viewer saw        |
 | [kit-look-unbound](kit-look-unbound.md)             | kit    | Why a request keeps its kit version: with the frame version only, its Before is wrong      |
+| [kit-look-hello-once](kit-look-hello-once.md)       | kit    | Why the piece script says hello again: one hello before the page listens is lost           |
 
-`queue-two-step`, `frames-writes-two-step`, `fixer-claim-unsafe` and `kit-look-unbound` break on
-purpose. Each shows the bug that a design prevents: one write for a claim or a save, the fixer's two
-guards (the process-group stop and the check again before the push), and a request that keeps its
-kit version. Its row in `charts.tsv` says `breaks`.
+`queue-two-step`, `frames-writes-two-step`, `fixer-claim-unsafe`, `kit-look-unbound` and
+`kit-look-hello-once` break on purpose. Each shows the bug that a design prevents: one write for a
+claim or a save, the fixer's two guards (the process-group stop and the check again before the
+push), a request that keeps its kit version, and a piece script that says hello until it gets a
+port. Its row in `charts.tsv` says `breaks`.
 
 ## Files
 

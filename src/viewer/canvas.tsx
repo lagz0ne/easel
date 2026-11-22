@@ -16,6 +16,7 @@ import { Panel, RequestsButton } from "./panel";
 import { FramePicture } from "./picture";
 import { RequestButton, Requests } from "./request";
 import { liveSet, painted, paintScript, stage, zoomShown } from "./stage";
+import type { KitMessage } from "./stage";
 
 // The canvas behind `/s/<link>` (SPEC-viewer.md § See the frames, § Pan and zoom, § Watch an
 // agent work, § Lose the socket; the viewer-canvas chart). React draws a shell per frame when the
@@ -83,10 +84,24 @@ function Zoom() {
 const docCanvas = tag<string>({ label: "viewer.docCanvas" });
 const docId = tag<string>({ label: "viewer.docId" });
 
+type Composed = { version: number; html: string };
+
+/**
+ * The document that a live frame was composed with, for its version, while the frame is live. A
+ * change of the kit composes nothing again: it reaches the document on its port, so the iframe
+ * keeps its document and does not reload (K7).
+ */
+const docMemo = resource({
+  label: "viewer.docMemo",
+  config: { canvas: docCanvas.required, id: docId.required },
+  factory: (): { shown: Composed | null } => ({ shown: null }),
+});
+
 /**
  * A live frame's document as it shows: `compose` of the board's version of it, its made CSS and
  * the canvas's kit (fact rule 8: the look, the kit and the piece script come only from
- * `compose`). Null until the document, and the kit that it needs, have come.
+ * `compose`). Null until the document, and the kit that it needs, have come. A version is
+ * composed once, with the kit of that moment; a later kit goes on the document's port.
  */
 const liveDoc = resource({
   label: "viewer.liveDoc",
@@ -94,16 +109,38 @@ const liveDoc = resource({
   depends: (c) => ({
     doc: frames.board.docs.of({ canvas: c.canvas, id: c.id }),
     kit: frames.board.kit.of({ canvas: c.canvas }),
+    memo: docMemo({ canvas: c.canvas, id: c.id }),
     compose,
   }),
-  factory: ({ doc, kit, compose }) => {
+  factory: ({ doc, kit, memo, compose }) => {
     const at = doc.get();
     const look = kit.get() ?? null;
+    const kept = memo.get();
     if (!at || (at.css !== null && look === null)) return null;
+    if (kept.shown?.version === at.version) return kept.shown;
 
     const shown = look ?? { look: "", css: "" };
     const html = compose.run({ input: { html: at.html, css: at.css, kit: shown } });
-    return { version: at.version, html };
+    kept.shown = { version: at.version, html };
+    return kept.shown;
+  },
+});
+
+/**
+ * The canvas's kit, given to the stage each time it comes or changes (SPEC-viewer § Watch an
+ * agent work, step 4): the stage answers each hello with it, and sends it on each port.
+ */
+const kitFeed = resource({
+  label: "viewer.kitFeed",
+  config: { canvas: canvasKey.required },
+  depends: (c) => ({ kit: frames.board.kit.of({ canvas: c.canvas }), at: stage }),
+  factory: ({ kit, at }) => {
+    const now = kit.get();
+    if (!now) return null;
+
+    const message: KitMessage = { easel: "kit", kit: now.kit, look: now.look, css: now.css };
+    at.sendKit(message);
+    return now.kit;
   },
 });
 
@@ -279,6 +316,7 @@ export function Canvas({ canvas, opening }: { canvas: string; opening: React.Rea
   const asking = useData(requestMode);
   const panel = useData(panelOpen);
   useData(clockTicker({ canvas }));
+  useData(kitFeed({ canvas }));
   useData(openFromLink({ canvas }));
   useData(aimFromLink({ canvas }));
   if (state?.status === "fault" && ended.safeParse(state.fault.payload).success) return opening;
