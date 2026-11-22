@@ -472,12 +472,14 @@ export const readPicture = operation({
         h: z.number().nullable(),
         html: z.string().nullable(),
         css: z.string().nullable(),
+        js: z.string().nullable(),
+        kit: z.number().nullable(),
         gen: z.number(),
       })
-      .transform(({ current, w, h, html, css, gen }) => ({
+      .transform(({ current, w, h, html, css, js, kit, gen }) => ({
         current,
         gen,
-        doc: html !== null && w !== null && h !== null ? { html, css, w, h } : null,
+        doc: html !== null && w !== null && h !== null ? { html, css, js, kit, w, h } : null,
       }))
       .parse(
         connection.db.$client
@@ -489,6 +491,12 @@ export const readPicture = operation({
                CASE WHEN f.version = $version THEN f.css
                  ELSE (SELECT css FROM frames_kept
                    WHERE canvas = $canvas AND id = $id AND version = $version) END AS css,
+               CASE WHEN f.version = $version THEN f.js
+                 ELSE (SELECT js FROM frames_kept
+                   WHERE canvas = $canvas AND id = $id AND version = $version) END AS js,
+               CASE WHEN f.version = $version THEN f.kit
+                 ELSE (SELECT kit FROM frames_kept
+                   WHERE canvas = $canvas AND id = $id AND version = $version) END AS kit,
                COALESCE((SELECT gen FROM frames_keygen WHERE canvas = $canvas), 0) AS gen
              FROM (SELECT 1)
                LEFT JOIN frames_frames f ON f.canvas = $canvas AND f.id = $id

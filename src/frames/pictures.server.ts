@@ -7,8 +7,9 @@ import puppeteer from "puppeteer-core";
 import type { Browser } from "puppeteer-core";
 import { z } from "zod";
 
-import { compose } from "@/kit/compose";
+import { compose, composeApp, composeKit } from "@/kit/compose";
 import { inlineFonts } from "@/kit/fonts.server";
+import { runtimeAddress, runtimeOf, storedFiles } from "@/kit/runtime.server";
 import { readKit, readKitAt } from "@/kit/store.server";
 import { readiness } from "@/ops/registry";
 import { seenView } from "@/queue/store.server";
@@ -345,14 +346,27 @@ export const chromiumBrowser = resource({
   },
 });
 
-/** A region of a frame and a scale, as the route checked them. */
+/**
+ * The runtime files that a draw serves: each request whose address starts with `prefix` gets the
+ * file of that name, from the stored bytes, and never reaches the network.
+ */
+const drawRuntime = z.object({ prefix: z.string(), files: z.record(z.string(), z.string()) });
+
+/** A region of a frame and a scale, as the route checked them, and the runtime of an app frame. */
 const drawInput = z.object({
   html: z.string(),
   w: z.number(),
   h: z.number(),
   scale: z.number(),
   region: z.object({ x: z.number(), y: z.number(), w: z.number(), h: z.number() }),
+  runtime: drawRuntime.nullable(),
 });
+
+/**
+ * The origin of the runtime in a picture's document. The `.invalid` name (RFC 2606) never
+ * resolves: the draw answers each request to it from the stored runtime.
+ */
+const runtimeOrigin = "http://runtime.easel.invalid";
 
 /**
  * One draw: a browser context of its own (its own cookies, cache and storage), and in it a page at
@@ -382,6 +396,27 @@ export const drawPage = operation({
     try {
       const page = await Promise.race([stopped.promise, context.newPage()]);
       page.on("dialog", (dialog) => void dialog.dismiss().catch(() => undefined));
+      // An app frame: its runtime comes from the stored bytes (SPEC-kit.md § App frames, "The
+      // picture of an app frame"); each other request goes to the egress proxy, as for HTML.
+      const runtime = input.runtime;
+      if (runtime) {
+        await Promise.race([stopped.promise, page.setRequestInterception(true)]);
+        page.on("request", (request) => {
+          const url = request.url();
+          if (!url.startsWith(runtime.prefix)) {
+            void request.continue().catch(() => undefined);
+            return;
+          }
+
+          const text = runtime.files[url.slice(runtime.prefix.length)];
+          const answer =
+            text === undefined
+              ? { status: 404, body: "" }
+              : { status: 200, contentType: "text/javascript; charset=utf-8", body: text };
+          const headers = { "Access-Control-Allow-Origin": "*" };
+          void request.respond({ ...answer, headers }).catch(() => undefined);
+        });
+      }
       // Each step races the stop: the page is sized, the document loaded, its fonts ready, then
       // the region is taken.
       await Promise.race([
@@ -669,7 +704,14 @@ const readRow = z.object({
   current: z.number().nullable(),
   gen: z.number(),
   doc: z
-    .object({ html: z.string(), css: z.string().nullable(), w: z.number(), h: z.number() })
+    .object({
+      html: z.string(),
+      css: z.string().nullable(),
+      js: z.string().nullable(),
+      kit: z.number().nullable(),
+      w: z.number(),
+      h: z.number(),
+    })
     .nullable(),
 });
 
@@ -735,7 +777,40 @@ const findPicture = operation({
 });
 
 /**
- * Draws the box of the frame, composed with the kit version (`compose`): 400 off the frame or past the limits; 503 with no slot or past
+ * The document of a picture: `compose` of an HTML frame; for an app frame (`js`), `composeApp`
+ * of its JS with the runtime of the kit version that it was made for, at `runtimeOrigin`, and the
+ * stored files of that runtime for the draw to serve.
+ */
+const pictureDoc = operation({
+  label: "pictures.doc",
+  input: z.object({
+    html: z.string(),
+    css: z.string().nullable(),
+    js: z.string().nullable(),
+    kit: z.number().nullable(),
+    look: composeKit,
+  }),
+  depends: { compose, composeApp, runtimeOf, runtimeAddress, storedFiles },
+  run: async (units, { input }) => {
+    const { html, css, js, kit, look } = input;
+    if (js === null || kit === null) {
+      return { html: units.compose.run({ input: { html, css, kit: look } }), runtime: null };
+    }
+
+    const runtime = await units.runtimeOf.run({ input: kit });
+    const files = runtime && (await units.storedFiles.run({ input: { kit, sha: runtime.sha } }));
+    if (!runtime || !files) throw new Error(`pictures: kit version ${kit} has no runtime`);
+
+    const at = units.runtimeAddress.run({ input: { kit, sha: runtime.sha } });
+    const address = `${runtimeOrigin}${at}`;
+    const link = { address, imports: runtime.imports };
+    const doc = units.composeApp.run({ input: { js, css: css ?? "", kit: look, runtime: link } });
+    return { html: doc, runtime: { prefix: address, files } };
+  },
+});
+
+/**
+ * Draws the box of the frame, composed with the kit version (`pictureDoc`): 400 off the frame or past the limits; 503 with no slot or past
  * 20 s; 404 when the version is not there any more (its frame was deleted and it is not kept) or
  * its keys changed during the draw; else the picture.
  */
@@ -747,6 +822,8 @@ const drawPicture = operation({
     version: z.number(),
     html: z.string(),
     css: z.string().nullable(),
+    js: z.string().nullable(),
+    kit: z.number().nullable(),
     look: z.string(),
     kitCss: z.string(),
     w: z.number(),
@@ -755,15 +832,15 @@ const drawPicture = operation({
     scale: z.number(),
     region: box.nullable(),
   }),
-  depends: { readStill, render, pictureBox, refusal, compose, inlineFonts },
-  run: async ({ readStill, render, pictureBox, refusal, compose, inlineFonts }, { input }) => {
+  depends: { readStill, render, pictureBox, refusal, pictureDoc, inlineFonts },
+  run: async ({ readStill, render, pictureBox, refusal, pictureDoc, inlineFonts }, { input }) => {
     const region = pictureBox.run({ input });
     if (region === null) return refusal.run({ input: 400 });
 
-    const kit = { look: inlineFonts.run({ input: input.look }), css: input.kitCss };
-    const html = compose.run({ input: { html: input.html, css: input.css, kit } });
+    const look = { look: inlineFonts.run({ input: input.look }), css: input.kitCss };
+    const { html, runtime } = await pictureDoc.run({ input: { ...input, look } });
     const drawn = await render.run({
-      input: { html, w: input.w, h: input.h, scale: input.scale, region },
+      input: { html, runtime, w: input.w, h: input.h, scale: input.scale, region },
     });
     switch (drawn.kind) {
       case "busy":

@@ -87,7 +87,24 @@ const drawInput = z.object({
   h: z.number(),
   scale: z.number(),
   region: z.object({ x: z.number(), y: z.number(), w: z.number(), h: z.number() }),
+  runtime: z.object({ prefix: z.string(), files: z.record(z.string(), z.string()) }).nullable(),
 });
+
+/** An app frame whose View covers the page with the look's `--primary`, as `primaryHtml` does. */
+const primaryTsx = `export function View() {
+  return <div className="fixed inset-0 bg-primary" />;
+}
+`;
+
+/** The import map of a composed app document. */
+const importMap = z
+  .string()
+  .transform((html) => /<script type="importmap">(.*?)<\/script>/s.exec(html)?.[1] ?? "{}")
+  .transform((text): unknown => JSON.parse(text))
+  .pipe(z.object({ imports: z.record(z.string(), z.string()) }));
+
+/** An HTML frame that covers the page with the look's `--primary`. */
+const primaryHtml = '<div class="fixed inset-0 bg-primary"></div>';
 
 /**
  * The test's Chromium: each draw is kept, with what it was given, and answers its document's
@@ -217,7 +234,11 @@ async function boot(options: Boot = {}) {
     },
     canvas: (name: string) => server.run(createCanvas, { input: { name } }),
     /** A new frame: its id. */
-    put: async (input: { canvas: string; html: string; size?: { w: number; h: number } }) => {
+    put: async (
+      input:
+        | { canvas: string; html: string; size?: { w: number; h: number } }
+        | { canvas: string; tsx: string; size?: { w: number; h: number } },
+    ) => {
       const made = await server.run(putFrame, { input });
       if (made.kind !== "created") throw new Error(made.kind);
       return made;
@@ -348,6 +369,7 @@ test("the tab asks for its address; the server takes that version's document; th
       h: 300,
       scale: 0.5,
       region: { x: 0, y: 0, w: 400, h: 300 },
+      runtime: null,
     },
   ]);
 });
@@ -959,7 +981,14 @@ test("pictures.render itself answers late only once its stopped draw has ended",
   srv.draws.hold();
   srv.draws.linger();
   const drawn = srv.server.run(render, {
-    input: { html: "<p>1</p>", w: 100, h: 100, scale: 0.5, region: { x: 0, y: 0, w: 100, h: 100 } },
+    input: {
+      html: "<p>1</p>",
+      w: 100,
+      h: 100,
+      scale: 0.5,
+      region: { x: 0, y: 0, w: 100, h: 100 },
+      runtime: null,
+    },
   });
   const state = { answered: false };
   void drawn.then(() => (state.answered = true));
@@ -1342,6 +1371,51 @@ test("a real Chromium draws a WebP at the scale and region asked, and readiness 
 
   expect(await srv.server.run(chromiumCheck)).toEqual({ ok: true, detail: "Chromium runs" });
 }, 30_000);
+
+test("an app frame's picture is drawn from its composed app document (composeApp): its JS, with the runtime of its kit version from the stored bytes, not its TSX", async () => {
+  const srv = await boot();
+  await srv.canvas("Apps");
+  const made = await srv.put({ canvas: "apps", tsx: primaryTsx, size: { w: 200, h: 100 } });
+
+  const answer = await srv.get(await srv.address("apps", made.id, "s=1"));
+  expect(answer.status).toBe(200);
+  const { html, runtime } = drawInput.parse(srv.draws.seen[0]?.input);
+  expect(html).toContain('<script type="importmap">');
+  expect(html).toContain('import{mount}from"@easel/frame"');
+  expect(html).not.toContain("export function View");
+
+  // Each name of the import map is a file of the runtime that the draw serves.
+  if (!runtime) throw new Error("no runtime for the draw");
+  const map = importMap.parse(html);
+  const files = Object.values(map.imports);
+  expect(files.length).toBeGreaterThan(0);
+  for (const file of files) {
+    expect(file.startsWith(runtime.prefix)).toBe(true);
+    expect(runtime.files[file.slice(runtime.prefix.length)]).toBeTypeOf("string");
+  }
+
+  // An HTML frame's draw needs no runtime.
+  const plain = await srv.put({ canvas: "apps", html: "<p>1</p>", size: { w: 200, h: 100 } });
+  expect((await srv.get(await srv.address("apps", plain.id, "s=1"))).status).toBe(200);
+  expect(srv.draws.seen[1]?.input.runtime).toBeNull();
+}, 30_000);
+
+test("a real Chromium draws an app frame from its runtime: the same pixels as the HTML frame that draws the same thing", async () => {
+  const srv = await boot({ chromium: localChromium(), real: true });
+  await srv.canvas("Real");
+  const size = { w: 200, h: 100 };
+  const app = await srv.put({ canvas: "real", tsx: primaryTsx, size });
+  const html = await srv.put({ canvas: "real", html: primaryHtml, size });
+
+  const bytes = async (id: string) => {
+    const answer = await srv.get(await srv.address("real", id, "s=1"));
+    expect(answer.status).toBe(200);
+    return new Uint8Array(await answer.arrayBuffer());
+  };
+  const [drawnApp, drawnHtml] = [await bytes(app.id), await bytes(html.id)];
+  expect(sizeOf(drawnApp)).toEqual(size);
+  expect(drawnApp).toEqual(drawnHtml);
+}, 60_000);
 
 test("K7, speed: after a change of the look, a real Chromium draws the 20 frames in view in the new kit version, asked all at once as a tab asks, in well under 10 s and under the 5 s slot wait", async () => {
   const chromium = localChromium();

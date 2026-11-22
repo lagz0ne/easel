@@ -217,7 +217,7 @@ export const runtimeAddress = operation({
 });
 
 /** The files of the runtime `sha` of the kit version `kit`, as stored; null when it has no such runtime. */
-const storedFiles = operation({
+export const storedFiles = operation({
   label: "kit.storedFiles",
   input: z.object({ kit: z.number(), sha: z.string() }),
   depends: { connection: bunSqlite.connection, cache: runtimeCache },

@@ -594,7 +594,8 @@ use the same names. Built on 2026-11-22. Measured on 2026-11-22 (this host, Bun 
 write) takes 5 to 7 ms at p50 and 7 to 10 ms at p95, in 30 puts after the first; with the JS of
 `Bun.build`, 7.7 ms at p50 and 13.3 ms at p95.
 
-**compose of an app frame** (`composeApp`, built with item 4; the viewer uses it in item 5).
+**compose of an app frame** (`composeApp`, built with item 4). The viewer composes each live app
+frame with it (`composeDoc` in `src/viewer/canvas.tsx`), and so does the draw of its picture.
 `compose` gives `<!doctype html>`, the three `<style>` elements of an HTML frame, an import map
 that names the runtime of the frame version's kit version, the axes as JSON
 (`<script type="application/json" id="easel-axes">`: the locale and the data state of a capsule
@@ -627,9 +628,12 @@ with no `close` never runs the frame's ends. A synchronous close in Tinker would
 
 **The picture of an app frame** (build order item 5). The draw loads the composed app document in
 Chromium, as for an HTML frame (frames § Pictures). Chromium reaches the network only through the
-egress proxy, which refuses easel's own address. So the draw answers each request for the runtime
-of the kit version from its stored bytes (Puppeteer's request interception), and sends each other
-request to the proxy as now. The mount renders in one step before `load`, so the draw takes the
+egress proxy, which refuses easel's own address. So the picture's document names the runtime at
+`http://runtime.easel.invalid/api/runtime/<kit version>/<sha-256>/` (a `.invalid` name never
+resolves, RFC 2606), and the draw answers each request to it from the stored bytes of the frame
+version's kit version (Puppeteer's request interception, `pictureDoc`). Each other request goes
+to the proxy as now. A test in a real Chromium draws an app frame and an HTML frame that show the
+same thing, and gets the same WebP bytes. The mount renders in one step before `load`, so the draw takes the
 first render, after the fonts are ready, as now. Reasons, and the option that is refused:
 
 - The picture is the same document that a tab shows: the same runtime bytes, the same JS, the same
