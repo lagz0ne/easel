@@ -2,7 +2,9 @@ import { operation, transport } from "@tinkered/core";
 import { z } from "zod";
 
 import { user } from "@/access/guards.server";
-import { makeFrame } from "@/kit/make.server";
+import { makeApp, makeFrame } from "@/kit/make.server";
+import { runtimeAddress, runtimeOf } from "@/kit/runtime.server";
+import { maxAppBytes, refusingRules, utf8Bytes } from "@/kit/schema";
 import { frameKit } from "@/kit/store.server";
 
 import {
@@ -13,6 +15,7 @@ import {
   maxDocBytes,
   maxFindings,
   maxMadeCssBytes,
+  type PutInput,
   putInput,
 } from "./contract";
 import { shotFrame } from "./pictures.server";
@@ -52,19 +55,40 @@ export const mayRead = operation({
 });
 
 /**
+ * What the page needs to show an app frame's version: its JS, its kit version, and the address
+ * and the files of that kit version's runtime, as stored (the put stored it: SPEC-kit § App
+ * frames, "The runtime"). Null for an HTML frame.
+ */
+const appOf = operation({
+  label: "frames.appOf",
+  input: z.object({ js: z.string().nullable(), kit: z.number().nullable() }),
+  depends: { runtimeOf, runtimeAddress },
+  run: async ({ runtimeOf, runtimeAddress }, { input: { js, kit } }) => {
+    if (js === null || kit === null) return null;
+
+    const runtime = await runtimeOf.run({ input: kit });
+    if (runtime === null) return null;
+    const address = runtimeAddress.run({ input: { kit, sha: runtime.sha } });
+    return { js, kit, runtime: { address, imports: runtime.imports } };
+  },
+});
+
+/**
  * The board's `docs` load: one frame's current document and its made CSS, read from its row
- * (decision C12). The CSS is the stored one: a show never makes CSS (K11).
+ * (decision C12), and for an app frame its JS and runtime (`app`). The CSS is the stored one: a
+ * show never makes CSS (K11).
  */
 export const loadDocs = operation({
   label: "frames.loadDocs",
   input: z.object({ canvas: z.string(), id: z.string() }),
-  depends: { readDoc },
-  run: async ({ readDoc }, { input }) => {
+  depends: { readDoc, appOf },
+  run: async ({ readDoc, appOf }, { input }) => {
     const row = await readDoc.run({ input });
+    if (!row) return [];
 
-    return row
-      ? [{ canvas: row.canvas, id: row.id, version: row.version, html: row.html, css: row.css }]
-      : [];
+    const app = await appOf.run({ input: { js: row.js, kit: row.kit } });
+    const { canvas, id, version, html, css } = row;
+    return [{ canvas, id, version, html, css, app }];
   },
 });
 
@@ -114,12 +138,46 @@ const makeDoc = operation({
   run: async ({ frameKit, makeFrame }, { input: html }) => {
     const kit = await frameKit.run();
     const made = await makeFrame.run({ input: { html, kit } });
-    if (made.kind === "off") return { kind: "made" as const, css: null, kit: null, findings: [] };
+    if (made.kind === "off") {
+      return { kind: "made" as const, css: null, kit: null, js: null, findings: [] };
+    }
     if (Buffer.byteLength(made.css, "utf8") > maxMadeCssBytes) return { kind: "tooBig" as const };
 
-    return { kind: "made" as const, css: made.css, kit: kit.version, findings: made.findings };
+    const { css, findings } = made;
+    return { kind: "made" as const, css, kit: kit.version, js: null, findings };
   },
 });
+
+/**
+ * The check, the make step and the JS of an app frame ([kit](SPEC-kit.md) § App frames, "The
+ * put"), against the current kit version and its runtime, before the write. The first app frame
+ * of a kit version gives it its runtime (`runtimeOf`), so its names are the ones the check holds.
+ * A TSX that does not parse, or a finding of `kit/import`, `kit/react-state` or `kit/shape`,
+ * answers `offKit` with all its findings. Made CSS over 256 KiB answers `tooBig`.
+ */
+const makeAppDoc = operation({
+  label: "frames.makeAppDoc",
+  input: z.string(),
+  depends: { frameKit, runtimeOf, makeApp },
+  run: async ({ frameKit, runtimeOf, makeApp }, { input: tsx }) => {
+    const kit = await frameKit.run();
+    const runtime = await runtimeOf.run({ input: kit.version });
+    if (runtime === null) throw new Error("frames: the current kit version is not stored");
+
+    const names = Object.keys(runtime.imports);
+    const made = await makeApp.run({ input: { tsx, kit, names } });
+    if (made.kind === "unparsed" || made.findings.some((f) => refusingRules.has(f.rule))) {
+      return { kind: "offKit" as const, findings: made.findings };
+    }
+    if (utf8Bytes.parse(made.css) > maxMadeCssBytes) return { kind: "tooBig" as const };
+
+    const { css, js, findings } = made;
+    return { kind: "made" as const, css, kit: kit.version, js, findings };
+  },
+});
+
+/** The document of a put as the store keeps it: the html, or the TSX of an app frame. */
+const textOf = z.custom<PutInput>().transform((put) => ("tsx" in put ? put.tsx : put.html));
 
 /** A put's write: a new frame to the right of the others, or a write on an id at its base. */
 const writeOf = operation({
@@ -128,44 +186,85 @@ const writeOf = operation({
     put: putInput,
     css: z.string().nullable(),
     kit: z.number().nullable(),
+    js: z.string().nullable(),
   }),
   depends: { newFrameId },
-  run: ({ newFrameId }, { input: { put, css, kit } }) =>
-    "id" in put
-      ? { kind: "on" as const, ...put, css, kit }
-      : {
-          kind: "new" as const,
-          canvas: put.canvas,
-          id: newFrameId.run(),
-          name: put.name ?? "untitled",
-          ...(put.size ?? defaultSize),
-          html: put.html,
-          css,
-          kit,
-        },
+  run: ({ newFrameId }, { input: { put, css, kit, js } }) => {
+    const html = textOf.parse(put);
+    if ("id" in put) {
+      return {
+        kind: "on" as const,
+        canvas: put.canvas,
+        id: put.id,
+        base: put.base,
+        html,
+        css,
+        kit,
+        js,
+      };
+    }
+
+    const box = put.size ?? defaultSize;
+    const name = put.name ?? "untitled";
+    return {
+      kind: "new" as const,
+      canvas: put.canvas,
+      id: newFrameId.run(),
+      name,
+      ...box,
+      html,
+      css,
+      kit,
+      js,
+    };
+  },
 });
 
 /**
- * `frame.put`: a document over 1 MiB of UTF-8 answers `tooBig` and writes nothing. Then the kit
- * check and the make step run on the document, against the current kit version
- * ([kit](SPEC-kit.md)), before the write (judged rule 2 of kit): made CSS over 256 KiB answers
- * `tooBig` too. Without an id it makes a frame; with one it is one conditional write
- * (`saveFrame`). The frame version keeps its made CSS and its kit version. A put that saves or
- * answers `unchanged` answers the findings too; they do not stop it. After a write, each reader
- * of the frame's document asks for it again.
+ * The check and the make step of a put's document: an HTML frame (`makeDoc`) or an app frame
+ * (`makeAppDoc`), each over its own size limit `tooBig` first (1 MiB of UTF-8; 256 KiB for TSX).
+ */
+const madeOf = operation({
+  label: "frames.madeOf",
+  input: putInput,
+  depends: { makeDoc, makeAppDoc },
+  run: async ({ makeDoc, makeAppDoc }, { input }) => {
+    const maxBytes = "tsx" in input ? maxAppBytes : maxDocBytes;
+    if (utf8Bytes.parse(textOf.parse(input)) > maxBytes) {
+      return { kind: "tooBig" as const, maxBytes };
+    }
+
+    const made =
+      "tsx" in input
+        ? await makeAppDoc.run({ input: input.tsx })
+        : await makeDoc.run({ input: input.html });
+    return made.kind === "tooBig" ? { kind: "tooBig" as const, maxBytes: maxMadeCssBytes } : made;
+  },
+});
+
+/**
+ * `frame.put`: a document over 1 MiB of UTF-8 (an app frame: 256 KiB) answers `tooBig` and writes
+ * nothing. Then the kit check and the make step run on the document, against the current kit
+ * version ([kit](SPEC-kit.md)), before the write (judged rule 2 of kit): made CSS over 256 KiB
+ * answers `tooBig` too, and an app frame that the check refuses answers `offKit` with its first 20
+ * findings and `more`. Without an id it makes a frame; with one it is one conditional write
+ * (`saveFrame`). The frame version keeps its made CSS and its kit version, and an app frame its
+ * TSX and its JS. A put that saves or answers `unchanged` answers the findings too; they do not
+ * stop it. After a write, each reader of the frame's document asks for it again.
  */
 export const putFrame = operation({
   label: "frame.put.do",
   input: framesApi["frame.put"].input,
-  depends: { saveFrame, makeDoc, writeOf, invalidate: framesBoard.invalidate },
-  run: async ({ saveFrame, makeDoc, writeOf, invalidate }, { input }) => {
-    if (Buffer.byteLength(input.html, "utf8") > maxDocBytes) {
-      return { kind: "tooBig" as const, maxBytes: maxDocBytes };
+  depends: { saveFrame, madeOf, writeOf, invalidate: framesBoard.invalidate },
+  run: async ({ saveFrame, madeOf, writeOf, invalidate }, { input }) => {
+    const made = await madeOf.run({ input });
+    if (made.kind === "tooBig") return made;
+    if (made.kind === "offKit") {
+      const findings = made.findings.slice(0, maxFindings);
+      return { kind: "offKit" as const, findings, more: made.findings.length - findings.length };
     }
-    const made = await makeDoc.run({ input: input.html });
-    if (made.kind === "tooBig") return { kind: "tooBig" as const, maxBytes: maxMadeCssBytes };
 
-    const write = writeOf.run({ input: { put: input, css: made.css, kit: made.kit } });
+    const write = writeOf.run({ input: { put: input, css: made.css, kit: made.kit, js: made.js } });
     const answer = await saveFrame.run({ input: write });
     if (answer.kind === "stale" || answer.kind === "gone") return answer;
     if (answer.kind !== "unchanged") {
@@ -192,7 +291,10 @@ export const listFrames = operation({
   },
 });
 
-/** `frame.get`: the frame and its document at its current version, from one read of its row. */
+/**
+ * `frame.get`: the frame and its document at its current version, from one read of its row: the
+ * `html`, or the `tsx` of an app frame as it was written.
+ */
 export const getFrame = operation({
   label: "frame.get.do",
   input: framesApi["frame.get"].input,
@@ -201,7 +303,8 @@ export const getFrame = operation({
     const row = await readDoc.run({ input });
     if (!row) return { kind: "gone" as const };
 
-    const { canvas: _canvas, css: _css, ...frame } = row;
+    const { canvas: _canvas, css: _css, js, kit: _kit, html, ...info } = row;
+    const frame = js === null ? { ...info, html } : { ...info, tsx: html };
     return { kind: "found" as const, frame };
   },
 });

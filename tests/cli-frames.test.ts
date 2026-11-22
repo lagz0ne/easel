@@ -409,6 +409,54 @@ test("put of a document under 1 MiB whose JSON is over the socket's limit exits 
   expect(await a.run({ kind: "put", canvas: "flow", file: a.file("h.html", half) })).toBe(0);
 });
 
+test("put of a .tsx file sends an app frame: created exits 0, and get -o writes its TSX", async () => {
+  const srv = await boot();
+  const a = await ann(srv);
+  const tsx = readFileSync(new URL("kit/frames/pricing.tsx", import.meta.url), "utf8");
+
+  expect(await a.run({ kind: "put", canvas: "flow", file: a.file("pricing.tsx", tsx) })).toBe(0);
+  const [made] = a.lines();
+  expect(made).toMatchObject({ kind: "created", version: 1, findings: [], more: 0 });
+
+  const out = join(a.dir, "got.tsx");
+  expect(await a.run({ kind: "get", canvas: "flow", id: String(made.id), out })).toBe(0);
+  expect(readFileSync(out, "utf8")).toBe(tsx);
+  expect(a.lines()).toMatchObject([{ kind: "found", frame: { version: 1 }, file: out }]);
+}, 30_000);
+
+test("put of a .tsx file that the check refuses exits 1, offKit, with each finding on stderr", async () => {
+  const srv = await boot();
+  const a = await easel(srv, { json: false });
+  expect(await a.login()).toBe(0);
+  await a.run({ kind: "canvas new", name: "Flow" });
+  a.out.splice(0);
+  a.err.splice(0);
+  const file = a.file(
+    "page.tsx",
+    'import { motion } from "framer-motion";\nexport const logic = {};\nexport function View() {\n  return <p />;\n}',
+  );
+
+  expect(await a.run({ kind: "put", canvas: "flow", file })).toBe(1);
+  const told = a.err.splice(0);
+  expect(told[0]).toBe(
+    "offKit: nothing was written; the app frame has 1 finding to fix first (below)\n",
+  );
+  expect(told[1]).toMatch(new RegExp(`^${file}:1:24 kit/import `));
+  await a.run({ kind: "ls", canvas: "flow" });
+  expect(a.out.join("")).toBe("no frame on flow yet: `easel put flow <file>`\n");
+}, 30_000);
+
+test("put of a .tsx file over 256 KiB exits 1, tooBig, and sends nothing", async () => {
+  const srv = await boot();
+  const a = await ann(srv);
+  const big = `export const logic = {};\n//${"x".repeat(256 * 1024)}`;
+
+  expect(await a.run({ kind: "put", canvas: "flow", file: a.file("big.tsx", big) })).toBe(1);
+  expect(a.lines()).toEqual([{ kind: "tooBig", maxBytes: 262144 }]);
+  await a.run({ kind: "ls", canvas: "flow" });
+  expect(a.lines()).toEqual([{ kind: "found", frames: [] }]);
+});
+
 // ---- easel ls, get, rm
 
 test("ls exits 0 with the frames, and 1 for a canvas that is not there", async () => {

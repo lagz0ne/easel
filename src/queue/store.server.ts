@@ -15,7 +15,7 @@ import { maxOpen, maxTries, stateOf } from "./contract";
 // The claim keeps the digest of its handle, and the frame version at the claim (`claim_version`,
 // the `before` of a result). Two triggers keep each frame version that a request or a message
 // refers to (SPEC-frames judged rule 16): a put that replaces it, or a delete of its frame, saves
-// the old document, with its made CSS and its kit version, in `frames_kept` first, in the same
+// the old document, with its made CSS, its kit version and its JS, in `frames_kept` first, in the same
 // statement. Each start makes the triggers again, so a store made before the kit gets the new
 // ones.
 
@@ -76,18 +76,18 @@ CREATE TABLE IF NOT EXISTS queue_messages (
 );
 CREATE INDEX IF NOT EXISTS queue_messages_request ON queue_messages (request, created);
 DROP TRIGGER IF EXISTS queue_keep_put;
-CREATE TRIGGER queue_keep_put BEFORE UPDATE OF html ON frames_frames
+CREATE TRIGGER queue_keep_put BEFORE UPDATE OF html, js ON frames_frames
 WHEN ${referred}
 BEGIN
-  INSERT OR IGNORE INTO frames_kept (canvas, id, version, html, css, kit)
-  VALUES (OLD.canvas, OLD.id, OLD.version, OLD.html, OLD.css, OLD.kit);
+  INSERT OR IGNORE INTO frames_kept (canvas, id, version, html, css, kit, js)
+  VALUES (OLD.canvas, OLD.id, OLD.version, OLD.html, OLD.css, OLD.kit, OLD.js);
 END;
 DROP TRIGGER IF EXISTS queue_keep_drop;
 CREATE TRIGGER queue_keep_drop BEFORE DELETE ON frames_frames
 WHEN ${referred}
 BEGIN
-  INSERT OR IGNORE INTO frames_kept (canvas, id, version, html, css, kit)
-  VALUES (OLD.canvas, OLD.id, OLD.version, OLD.html, OLD.css, OLD.kit);
+  INSERT OR IGNORE INTO frames_kept (canvas, id, version, html, css, kit, js)
+  VALUES (OLD.canvas, OLD.id, OLD.version, OLD.html, OLD.css, OLD.kit, OLD.js);
 END;`;
 
 /** The columns that a store made before them gets: the time of a claim, and the kit versions. */

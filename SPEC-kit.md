@@ -417,7 +417,9 @@ A frame document can start before the page listens. So the piece script sends a 
 (`{ easel: "hello" }`) to its parent at once, and again each 50 ms, until it gets a `MessagePort`
 (as penpal does). When it gets the port, it stops. The page answers only a hello whose
 `event.source` is one of its own live iframes: at once, with a kit message that carries the port,
-for the current kit. Each later kit message goes on that port. A kit message is
+for the current kit. Each later kit message goes on that port. Two hellos can be in flight before
+the first answer: the page answers each with a new port and closes the one before, so the script
+takes each port that its parent gives and keeps the newest. A kit message is
 `{ easel: "kit", kit, look, css }`; the piece script then replaces the text of the two `<style>`
 elements `easel-look` and `easel-kit`.
 
@@ -552,18 +554,28 @@ guessed. The two-order test of the make step holds for this path too.
 it, its JS (Bun.Transpiler, from the fixed text), its made CSS, and its kit version. A finding of
 `kit/parse`, `kit/import`, `kit/react-state` or `kit/shape` (no `logic` or `View`, or another
 export) refuses the put with `offKit`; the other findings do not stop it. An app frame always has
-the kit: `<meta name="easel-kit" content="off">` is for HTML frames only.
+the kit: `<meta name="easel-kit" content="off">` is for HTML frames only. The first app frame of a
+kit version gives that kit version its runtime (§ "The runtime"), so the check and the import map
+use the same names. Built on 2026-11-22. Measured on 2026-11-22 (this host, Bun 1.4.4): a whole
+`frame.put` of `tests/kit/frames/pricing.tsx` (the check, the fixes, the JS, the make and the
+write) takes 5 to 7 ms at p50 and 7 to 10 ms at p95, in 30 puts after the first.
 
-**compose of an app frame** (build order item 5). `compose` gives `<!doctype html>`, the three
-`<style>` elements of an HTML frame, an import map that names the runtime of the frame version's
-kit version, and the frame's JS as a module script. The runtime's address holds the kit version
-and the SHA-256 of its bytes; it answers with `Cache-Control: public, max-age=31536000,
-immutable` and `Access-Control-Allow-Origin: *` (the frame's origin is `null`).
+**compose of an app frame** (`composeApp`, built with item 4; the viewer uses it in item 5).
+`compose` gives `<!doctype html>`, the three `<style>` elements of an HTML frame, an import map
+that names the runtime of the frame version's kit version, and the frame's JS as a module script,
+then `mount({ logic, View })` of `@easel/frame`. The body is empty: the mount renders into it. In
+the JS, `</script` is written `<\/script` and `<!--` is written `<\!--`, and in the import map `<`
+is `\u003c`, so no stored text ends its element. A browser test loads one composed app frame in a
+sandboxed `srcdoc` iframe (`allow-scripts` only, so its origin is `null`) from the runtime's
+route, clicks a button that runs an operation of `logic`, and sends `close`, then gets `closed`.
+The runtime's address holds the kit version and the SHA-256 of its bytes; it answers with
+`Cache-Control: public, max-age=31536000, immutable` and `Access-Control-Allow-Origin: *` (the
+frame's origin is `null`).
 
 **The hello and the port.** `@easel/frame` says hello as the piece script does (§ compose), each
-50 ms until it gets a port, and takes a port only from its parent. A kit message on the port
-replaces the two style texts, as in an HTML frame (K7). The port also carries `close` and
-`closed`.
+50 ms until it gets a port, takes a port only from its parent, and keeps the newest port. A kit
+message on the port replaces the two style texts, as in an HTML frame (K7). The port also carries
+`close` and `closed`.
 
 **Close before the iframe goes** (decision 9). In an iframe that the page removes, the async
 `scope.close()` does not end, so the deferred ends of the frame's scope do not run. So the page

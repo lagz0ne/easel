@@ -1,6 +1,8 @@
 import { operation } from "@tinkered/core";
 import { z } from "zod";
 
+import { runtimeLink } from "./runtime";
+
 // The shared functions of the kit (SPEC-kit.md § compose): the page and the server both use them,
 // so this file imports no server code.
 
@@ -44,6 +46,52 @@ export const compose = operation({
       `<!doctype html>\n<style id="easel-look">${look}</style>\n` +
       `<style id="easel-kit">${made}</style>\n` +
       `<style id="easel-frame">${own}</style>\n${pieceScript}\n${frame}`
+    );
+  },
+});
+
+/** A script text cannot end its own element, or start a comment that hides its end tag. */
+const scriptEnd = /<(\/script|!--)/gi;
+
+/**
+ * `compose` of an app frame (SPEC-kit.md § App frames, "compose of an app frame"; fact rule 3):
+ * `<!doctype html>`, the three `<style>` elements of an HTML frame (the look, the kit's made CSS,
+ * the frame version's made CSS), an import map that points each name of the runtime to its file
+ * at `runtime.address`, and the frame's JS as one module script that mounts its `View`
+ * (`@easel/frame`): the check holds that the JS exports `logic` and `View` by their own names
+ * (`kit/shape`). The body is empty: the mount renders into it. In the JS and the import map, `</script`
+ * is written `<\/script` and `<!--` is written `<\!--`: the same text in a string, a template or
+ * a regular expression, so no stored text can end its element.
+ */
+export const composeApp = operation({
+  label: "kit.composeApp",
+  input: z.object({
+    js: z.string(),
+    css: z.string(),
+    kit: composeKit,
+    runtime: runtimeLink,
+  }),
+  run: (_, { input: { js, css, kit, runtime } }) => {
+    const [look, made, own] = [kit.look, kit.css, css].map((text) =>
+      text.replace(styleEnd, "<\\/$1"),
+    );
+
+    const imports = Object.fromEntries(
+      Object.entries(runtime.imports).map(([name, file]) => [name, `${runtime.address}${file}`]),
+    );
+    // In JSON, `<` is `\u003c`, so the map cannot end its element.
+    const map = JSON.stringify({ imports }).replaceAll("<", "\\u003c");
+    const mount =
+      `import { mount as __easelMount } from "@easel/frame";\n` + "__easelMount({ logic, View });";
+    const code = `${js}\n${mount}`.replace(scriptEnd, (_, end: string) =>
+      end === "!--" ? "<\\!--" : "<\\/script",
+    );
+
+    return (
+      `<!doctype html>\n<style id="easel-look">${look}</style>\n` +
+      `<style id="easel-kit">${made}</style>\n` +
+      `<style id="easel-frame">${own}</style>\n` +
+      `<script type="importmap">${map}</script>\n<script type="module">\n${code}\n</script>\n`
     );
   },
 });

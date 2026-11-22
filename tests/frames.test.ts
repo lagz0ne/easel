@@ -364,6 +364,7 @@ test("the agent gets the frame again, and a put on that version saves", async ()
   const got = await b.get("flow", id);
   if (got.kind !== "found") throw new Error("not found");
 
+  if (!("html" in got.frame)) throw new Error("not an HTML frame");
   expect(
     await b.put({ canvas: "flow", id, base: got.frame.version, html: `${got.frame.html}<p>b</p>` }),
   ).toEqual({ kind: "updated", id, version: 3, findings: [], more: 0 });

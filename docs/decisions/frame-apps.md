@@ -182,7 +182,12 @@ ships; each ends green.
    (`runtimeOf`, `kit_runtimes`), in the binary as `easel:runtime`, served at
    `/api/runtime/<kit>/<sha-256>/<file>`; `kit/import`, `kit/react-state` and `kit/shape`;
    `@easel/frame`; and `kit.check` with `easel kit check`.
-4. **frame.put of a TSX frame:** check, JS, CSS, kept with the frame version.
+4. **frame.put of a TSX frame:** check, JS, CSS, kept with the frame version. Done on
+   2026-11-22: `frame.put` takes `tsx` (`offKit`, `tooBig` at 256 KiB), the frame version keeps
+   its TSX, JS, made CSS and kit version, the board's document has `app`, `easel put` sends a
+   `.tsx` file, and `composeApp` writes the composed document (a browser test clicks a button in
+   it). A put of a usual TSX frame takes 5 to 7 ms at p50. Open for item 5: the viewer does not
+   yet mount an app frame; it shows its TSX as an HTML document, not as an app.
 5. **The live app frame** in the viewer: mount with a Tinker scope, a new look on the port (K7),
    `close` and `closed`. A browser test with 12 live app frames: going live p95 under 150 ms.
 6. **The kit's pieces as shadcn components** and `put_piece` (K12, K14).

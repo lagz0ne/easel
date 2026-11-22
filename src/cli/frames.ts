@@ -8,6 +8,7 @@ import { frames } from "@/frames";
 import {
   canvasKey,
   canvasName,
+  frame,
   frameId,
   frameName,
   framesSuccessKinds,
@@ -22,6 +23,7 @@ import {
 } from "@/frames/contract";
 import type { FramesAddress } from "@/frames/contract";
 import { sharePassword } from "@/frames/share";
+import { maxAppBytes } from "@/kit/schema";
 
 import { callDeadline, exits, faultExit } from "./exit";
 import { server } from "./hosts";
@@ -315,11 +317,33 @@ const putUsage = operation({
 /** What `easel put` prints for `tooBig`: the document is too big, or its made CSS would be. */
 const tooBigText = operation({
   label: "cli.tooBigText",
-  input: z.number(),
-  run: (_, { input: maxBytes }) =>
-    maxBytes === maxMadeCssBytes
-      ? `the document is too big: its made CSS would be over ${maxMadeCssBytes} bytes. Use fewer class names: kit classes, and the scales of the look`
-      : `the document is too big: over ${maxBytes} bytes of UTF-8, or over ${maxSentDocBytes} as JSON, where each " \\ and control character counts 2 to 6. Inline less, or load assets over https`,
+  input: z.object({ maxBytes: z.number(), app: z.boolean() }),
+  run: (_, { input: { maxBytes, app } }) =>
+    app
+      ? `the app frame is too big: over ${maxAppBytes} bytes of UTF-8, or its made CSS would be. Keep one frame in one file of at most 256 KiB, and use kit classes`
+      : maxBytes === maxMadeCssBytes
+        ? `the document is too big: its made CSS would be over ${maxMadeCssBytes} bytes. Use fewer class names: kit classes, and the scales of the look`
+        : `the document is too big: over ${maxBytes} bytes of UTF-8, or over ${maxSentDocBytes} as JSON, where each " \\ and control character counts 2 to 6. Inline less, or load assets over https`,
+});
+
+/** What `easel put` prints for `gone`: no canvas, or, with `--id`, no frame. */
+const goneText = operation({
+  label: "cli.goneText",
+  input: z.object({ canvas: z.string(), id: z.string().optional() }),
+  run: (_, { input: { canvas, id } }) =>
+    id === undefined
+      ? `no canvas ${canvas}: make it with \`easel canvas new\``
+      : `no frame ${id} on ${canvas}: a put with --id never makes a frame`,
+});
+
+/** What `easel put` prints for `offKit`: nothing was written, and the count of the findings. */
+const offKitText = operation({
+  label: "cli.offKitText",
+  input: z.object({ findings: z.array(z.unknown()), more: z.number() }),
+  run: (_, { input: { findings, more } }) => {
+    const count = findings.length + more;
+    return `offKit: nothing was written; the app frame has ${count} ${count === 1 ? "finding" : "findings"} to fix first (below)`;
+  },
 });
 
 /** What `easel put` prints for each answer of `frame.put`, and where. */
@@ -329,9 +353,10 @@ const putText = operation({
     canvas: z.string(),
     id: z.string().optional(),
     answer: putOutput,
+    app: z.boolean(),
   }),
-  depends: { tooBigText },
-  run: ({ tooBigText }, { input: { canvas, id, answer } }) => {
+  depends: { tooBigText, offKitText, goneText },
+  run: ({ tooBigText, offKitText, goneText }, { input: { canvas, id, answer, app } }) => {
     switch (answer.kind) {
       case "created":
       case "updated":
@@ -343,15 +368,11 @@ const putText = operation({
           error: true,
         };
       case "gone":
-        return {
-          text:
-            id === undefined
-              ? `no canvas ${canvas}: make it with \`easel canvas new\``
-              : `no frame ${id} on ${canvas}: a put with --id never makes a frame`,
-          error: true,
-        };
+        return { text: goneText.run({ input: { canvas, id } }), error: true };
       case "tooBig":
-        return { text: tooBigText.run({ input: answer.maxBytes }), error: true };
+        return { text: tooBigText.run({ input: { maxBytes: answer.maxBytes, app } }), error: true };
+      case "offKit":
+        return { text: offKitText.run({ input: answer }), error: true };
     }
   },
 });
@@ -375,6 +396,16 @@ const putFindings = operation({
   },
 });
 
+/** The document as `frame.put` takes it: `{ html }`, or `{ tsx }` for an app frame, and its limit. */
+const sentDoc = operation({
+  label: "cli.sentDoc",
+  input: z.object({ text: z.string(), app: z.boolean() }),
+  run: (_, { input: { text, app } }) =>
+    app
+      ? { doc: { tsx: text }, maxBytes: maxAppBytes }
+      : { doc: { html: text }, maxBytes: maxDocBytes },
+});
+
 /**
  * `frame.put`'s answer for a document: `tooBig` without a call when it is over 1 MiB of UTF-8, or
  * over `maxSentDocBytes` as JSON (a socket closes on a message over its `maxPayload`), else the
@@ -391,22 +422,22 @@ const sendPut = operation({
       base: version.optional(),
     }),
     html: z.string(),
+    /** An app frame: the document goes as `tsx`, with its own limit of 256 KiB. */
+    app: z.boolean(),
   }),
-  depends: { framesFault, deadline: framesDeadline, putCall: frames.api["frame.put"] },
-  run: async ({ framesFault, deadline, putCall }, { input: { command, html } }) => {
+  depends: { framesFault, deadline: framesDeadline, putCall: frames.api["frame.put"], sentDoc },
+  run: async ({ framesFault, deadline, putCall, sentDoc }, { input: { command, html, app } }) => {
+    const { doc, maxBytes } = sentDoc.run({ input: { text: html, app } });
     const sentBytes = Buffer.byteLength(JSON.stringify(html), "utf8");
-    if (Buffer.byteLength(html, "utf8") > maxDocBytes || sentBytes > maxSentDocBytes) {
-      return {
-        answered: true as const,
-        answer: { kind: "tooBig" as const, maxBytes: maxDocBytes },
-      };
+    if (Buffer.byteLength(html, "utf8") > maxBytes || sentBytes > maxSentDocBytes) {
+      return { answered: true as const, answer: { kind: "tooBig" as const, maxBytes } };
     }
 
     const { canvas, id, base, name, size } = command;
     const sent =
       id !== undefined && base !== undefined
-        ? { canvas, html, id, base }
-        : { canvas, html, name, size };
+        ? { canvas, ...doc, id, base }
+        : { canvas, ...doc, name, size };
     const stop = deadline.run({ input: "frame.put" });
     const reply = await putCall.settle({ input: sent, signal: stop.signal });
     stop.abort();
@@ -459,11 +490,13 @@ export const put = operation({
 
     const { size, id, base } = flags;
     const command = { canvas: input.canvas, name: input.name, size, id, base };
-    const sent = await sendPut.run({ input: { command, html: doc.text } });
+    // A file whose name ends in `.tsx` is an app frame (SPEC-frames § Contract).
+    const app = input.file.endsWith(".tsx");
+    const sent = await sendPut.run({ input: { command, html: doc.text, app } });
     if (!sent.answered) return sent.exit;
 
     const { answer } = sent;
-    const told = putText.run({ input: { canvas: input.canvas, id: input.id, answer } });
+    const told = putText.run({ input: { canvas: input.canvas, id: input.id, answer, app } });
     say.run({ input: { json: answer, ...told } });
     putFindings.run({ input: { file: input.file, answer } });
     return exitOf.run({ input: { address: "frame.put", kind: answer.kind } });
@@ -511,6 +544,21 @@ export const ls = operation({
   },
 });
 
+/** A frame from `frame.get`: the document as it was written (the html, or the TSX of an app frame), and the rest. */
+const writtenOf = operation({
+  label: "cli.writtenOf",
+  input: frame,
+  run: (_, { input }) => {
+    if ("tsx" in input) {
+      const { tsx, ...info } = input;
+      return { html: tsx, info };
+    }
+
+    const { html, ...info } = input;
+    return { html, info };
+  },
+});
+
 /**
  * `easel get <canvas> <id> [-o file]` (`frame.get`): with `-o`, writes the document to the file
  * and prints the version (its JSON leaves the html out); without, prints the document.
@@ -524,8 +572,9 @@ export const get = operation({
     framesFault,
     deadline: framesDeadline,
     getCall: frames.api["frame.get"],
+    writtenOf,
   },
-  run: async ({ say, exitOf, framesFault, deadline, getCall }, { input }) => {
+  run: async ({ say, exitOf, framesFault, deadline, getCall, writtenOf }, { input }) => {
     const stop = deadline.run({ input: "frame.get" });
     const reply = await getCall.settle({
       input: { canvas: input.canvas, id: input.id },
@@ -538,7 +587,7 @@ export const get = operation({
     const answer = reply.value;
     switch (answer.kind) {
       case "found": {
-        const { html, ...info } = answer.frame;
+        const { html, info } = writtenOf.run({ input: answer.frame });
         if (input.out === undefined) {
           say.run({ input: { json: answer, text: html } });
           break;

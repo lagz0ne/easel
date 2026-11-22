@@ -22,8 +22,10 @@ import { boardKey } from "./keys.server";
 //
 // Each frame version keeps its made CSS (`css`) and the kit version it was made for (`kit`), from
 // the make step at its put ([kit](SPEC-kit.md)); both are null when the frame turns the kit off,
-// or was stored before the kit. A show reads only this stored CSS (K11). frames' start runs the
-// kit's start first, and sets the board's cell `kit` of each canvas, and of each new one.
+// or was stored before the kit. A show reads only this stored CSS (K11). An app frame keeps its
+// TSX as written in `html`, and its JS in `js` (null for an HTML frame): a frame is one kind for
+// each version. frames' start runs the kit's start first, and sets the board's cell `kit` of each
+// canvas, and of each new one.
 
 /** The canvases, by key. A server cell: not served on the board. */
 export const canvases = data({
@@ -57,6 +59,7 @@ CREATE TABLE IF NOT EXISTS frames_frames (
   made INTEGER NOT NULL,
   css TEXT,
   kit INTEGER,
+  js TEXT,
   PRIMARY KEY (canvas, id)
 );
 CREATE TABLE IF NOT EXISTS frames_keygen (
@@ -70,6 +73,7 @@ CREATE TABLE IF NOT EXISTS frames_kept (
   html TEXT NOT NULL,
   css TEXT,
   kit INTEGER,
+  js TEXT,
   PRIMARY KEY (canvas, id, version)
 );
 CREATE TABLE IF NOT EXISTS frames_removed (
@@ -84,12 +88,17 @@ CREATE TABLE IF NOT EXISTS frames_removed (
   PRIMARY KEY (canvas, id)
 );`;
 
-/** The columns that a store made before them gets, null in each row: the made CSS of the kit. */
+/**
+ * The columns that a store made before them gets, null in each row: the made CSS of the kit, and
+ * the JS of an app frame.
+ */
 const addedColumns = [
   ["frames_frames", "css", "TEXT"],
   ["frames_frames", "kit", "INTEGER"],
   ["frames_kept", "css", "TEXT"],
   ["frames_kept", "kit", "INTEGER"],
+  ["frames_frames", "js", "TEXT"],
+  ["frames_kept", "js", "TEXT"],
 ] as const;
 
 /** A canvas's picture key generation, in the statement it is part of: 0 until its first bump. */
@@ -202,6 +211,7 @@ const frameWrite = z.discriminatedUnion("kind", [
     html: z.string(),
     css: z.string().nullable(),
     kit: z.number().nullable(),
+    js: z.string().nullable(),
   }),
   z.object({
     kind: z.literal("on"),
@@ -211,6 +221,7 @@ const frameWrite = z.discriminatedUnion("kind", [
     html: z.string(),
     css: z.string().nullable(),
     kit: z.number().nullable(),
+    js: z.string().nullable(),
   }),
 ]);
 
@@ -250,8 +261,8 @@ export const saveFrame = operation({
         const row = keyedRow.parse(
           db
             .query(
-              `INSERT INTO frames_frames (canvas, id, name, x, y, w, h, version, html, made, css, kit)
-               VALUES (?, ?, ?, ?, 0, ?, ?, 1, ?, ?, ?, ?)
+              `INSERT INTO frames_frames (canvas, id, name, x, y, w, h, version, html, made, css, kit, js)
+               VALUES (?, ?, ?, ?, 0, ?, ?, 1, ?, ?, ?, ?, ?)
                RETURNING canvas, id, name, x, y, w, h, version, ${genOf} AS gen`,
             )
             .get(
@@ -265,6 +276,7 @@ export const saveFrame = operation({
               clock.currentTimeMillis(),
               input.css,
               input.kit,
+              input.js,
               input.canvas,
             ),
         );
@@ -272,21 +284,25 @@ export const saveFrame = operation({
       }
 
       // A row it wrote that does not parse throws here, inside the transaction: the write rolls
-      // back and the call faults, never a saved write that answers stale.
+      // back and the call faults, never a saved write that answers stale. The same document is
+      // the same text of the same kind (an HTML frame, or an app frame).
+      const app = Number(input.js !== null);
       const saved = db
         .query(
-          `UPDATE frames_frames SET html = ?, css = ?, kit = ?, version = version + 1
-           WHERE canvas = ? AND id = ? AND version = ? AND html IS NOT ?
+          `UPDATE frames_frames SET html = ?, css = ?, kit = ?, js = ?, version = version + 1
+           WHERE canvas = ? AND id = ? AND version = ? AND (html IS NOT ? OR (js IS NOT NULL) <> ?)
            RETURNING canvas, id, name, x, y, w, h, version, ${genOf} AS gen`,
         )
         .get(
           input.html,
           input.css,
           input.kit,
+          input.js,
           input.canvas,
           input.id,
           input.base,
           input.html,
+          app,
           input.canvas,
         );
       if (saved !== null) {
@@ -296,8 +312,10 @@ export const saveFrame = operation({
       }
 
       const now = db
-        .query("SELECT version, html IS ? AS same FROM frames_frames WHERE canvas = ? AND id = ?")
-        .get(input.html, input.canvas, input.id);
+        .query(
+          "SELECT version, html IS ? AND (js IS NOT NULL) = ? AS same FROM frames_frames WHERE canvas = ? AND id = ?",
+        )
+        .get(input.html, app, input.canvas, input.id);
       if (now === null) return { kind: "gone" as const };
       const { version, same } = z.object({ version: z.number(), same: z.number() }).parse(now);
       // The same document at the version it read: nothing to write (F2).
@@ -499,7 +517,7 @@ export const readStill = operation({
 
 /**
  * One frame's document, its made CSS and its version, read from its row: frame.get and the
- * board's `docs`.
+ * board's `docs`. An app frame has its JS too, and the kit version it was made for.
  */
 export const readDoc = operation({
   label: "frames.readDoc",
@@ -507,11 +525,16 @@ export const readDoc = operation({
   depends: { connection: bunSqlite.connection },
   run: async ({ connection }, { input }) =>
     frameRow
-      .extend({ html: z.string(), css: z.string().nullable() })
+      .extend({
+        html: z.string(),
+        css: z.string().nullable(),
+        js: z.string().nullable(),
+        kit: z.number().nullable(),
+      })
       .safeParse(
         connection.db.$client
           .query(
-            "SELECT canvas, id, name, x, y, w, h, version, html, css FROM frames_frames WHERE canvas = ? AND id = ?",
+            "SELECT canvas, id, name, x, y, w, h, version, html, css, js, kit FROM frames_frames WHERE canvas = ? AND id = ?",
           )
           .get(input.canvas, input.id),
       ).data,

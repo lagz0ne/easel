@@ -2,6 +2,7 @@ import { data, remoteData, rpc } from "@tinkered/core";
 import { z } from "zod";
 
 import { kit } from "@/kit/cells";
+import { runtimeLink } from "@/kit/runtime";
 import { findingShape } from "@/kit/schema";
 import { messages, requests, serverClock } from "@/queue/cells";
 
@@ -97,8 +98,14 @@ export const frameInfo = z.object({
 
 export type FrameInfo = z.infer<typeof frameInfo>;
 
-/** A frame with its document (decision C1). */
-export const frame = frameInfo.extend({ html: z.string() });
+/**
+ * A frame with its document (decision C1): `html`, or `tsx` for an app frame, as it was written
+ * (SPEC-frames § Contract, "An app frame").
+ */
+export const frame = z.union([
+  frameInfo.extend({ html: z.string() }),
+  frameInfo.extend({ tsx: z.string() }),
+]);
 
 export type Frame = z.infer<typeof frame>;
 
@@ -109,9 +116,16 @@ export type Frame = z.infer<typeof frame>;
 const boardFrame = frameInfo.extend({ canvas: z.string(), k: z.string().optional() });
 
 /**
+ * What the page needs to show an app frame ([kit](SPEC-kit.md) § App frames): its JS, the kit
+ * version that it was made for, and the address and the files of that kit version's runtime.
+ */
+export const boardApp = z.object({ js: z.string(), kit: z.number(), runtime: runtimeLink });
+
+/**
  * The board's document: one version of one frame's html, and the made CSS of that version
  * ([kit](SPEC-kit.md)). `css` is null when the frame turns the kit off, or was stored before the
- * kit: then the page shows the html as it is.
+ * kit: then the page shows the html as it is. `app` is set for an app frame: then `html` is its
+ * TSX, and the page composes the app (`composeApp`) in place of the html.
  */
 const boardDoc = z.object({
   canvas: z.string(),
@@ -119,6 +133,7 @@ const boardDoc = z.object({
   version: z.number(),
   html: z.string(),
   css: z.string().nullable(),
+  app: boardApp.nullable().optional(),
 });
 
 /** Each canvas's frames, as the board serves them: a tab reads one canvas with `where`. */
@@ -211,8 +226,9 @@ const written = z.object({
 
 /**
  * `frame.put`'s input: a new frame (`name`, `size`), or a write on an id at the version the agent
- * read (`id` with `base`). The two shapes are strict: `id` without `base`, `base` without `id`, or
- * `name` or `size` with `id` (decision C5) is `invalid`.
+ * read (`id` with `base`); each with `html`, or `tsx` for an app frame. The shapes are strict:
+ * `id` without `base`, `base` without `id`, `name` or `size` with `id` (decision C5), or both
+ * `html` and `tsx` is `invalid`.
  */
 export const putInput = z.union([
   z.strictObject({
@@ -222,14 +238,24 @@ export const putInput = z.union([
     size: size.optional(),
   }),
   z.strictObject({ canvas: canvasKey, html: z.string(), id: frameId, base: version }),
+  z.strictObject({
+    canvas: canvasKey,
+    tsx: z.string(),
+    name: frameName.optional(),
+    size: size.optional(),
+  }),
+  z.strictObject({ canvas: canvasKey, tsx: z.string(), id: frameId, base: version }),
 ]);
 
-/** `frame.put`'s answer. */
+export type PutInput = z.infer<typeof putInput>;
+
+/** `frame.put`'s answer. `offKit`: an app frame that the check refuses, with its findings. */
 export const putOutput = z.union([
   written,
   z.object({ kind: z.literal("stale"), id: z.string(), version: z.number() }),
   gone,
   z.object({ kind: z.literal("tooBig"), maxBytes: z.number() }),
+  z.object({ kind: z.literal("offKit"), findings: z.array(findingShape), more: z.number() }),
 ]);
 
 const one = z.object({ canvas: canvasKey, id: frameId });

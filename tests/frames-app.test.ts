@@ -1,0 +1,375 @@
+import { createHash, randomBytes } from "node:crypto";
+
+import { bunSqlite } from "@tinkered/bun/sqlite";
+import { exits } from "@tinkered/cli/test";
+import { createScope, operation } from "@tinkered/core";
+import { makeTestClock, memory } from "@tinkered/core/testing";
+import { chromium } from "playwright";
+import { afterEach, expect, test } from "vite-plus/test";
+
+import { access } from "@/access";
+import { user } from "@/access/guards.server";
+import { loginOps } from "@/access/login.server";
+import { accessServer } from "@/access/store.server";
+import { ownerOps, userOps } from "@/access/users.server";
+import { frames } from "@/frames";
+import { type PutInput, socketMaxPayload } from "@/frames/contract";
+import { framesLoads, framesOps, loadDocs, mayRead, putFrame } from "@/frames/ops.server";
+import { framesServer } from "@/frames/store.server";
+import { composeApp } from "@/kit/compose";
+import { runtimeNames } from "@/kit/runtime";
+import { type BuiltRuntime, runtimeNamesOf, runtimeRoute } from "@/kit/runtime.server";
+import { readKit } from "@/kit/store.server";
+
+import { localChromium } from "./support/chromium";
+import { wsServer } from "./support/ws";
+
+// frame.put of an app frame (SPEC-frames § Contract, "An app frame"; SPEC-kit § App frames, "The
+// put"): the check, the fixes, the JS, the made CSS, kept with the frame version and its kit
+// version; `offKit` writes nothing; `frame.get` answers the TSX as written; the board's document
+// carries the JS and the runtime of its kit version; and the put stays in the speed budget.
+
+const closers: Array<() => unknown> = [];
+
+afterEach(async () => {
+  for (const close of closers.splice(0).reverse()) await close();
+});
+
+const pricing = () => Bun.file(new URL("kit/frames/pricing.tsx", import.meta.url)).text();
+
+/** A runtime that a test gives the server in place of a build: each name, one small file each. */
+function fakeRuntime(): BuiltRuntime {
+  const imports = Object.fromEntries(
+    runtimeNames.map((name) => [name, `${name.replace(/^@/, "").replaceAll("/", "__")}.js`]),
+  );
+  const files = Object.fromEntries(Object.values(imports).map((file) => [file, "export {};"]));
+  return { sha: createHash("sha256").update("fake").digest("hex"), imports, files };
+}
+
+/**
+ * One server: SQLite, access, frames and a memory transport, as cmds/server.ts wires them. With
+ * `runtime: null` the scope builds the real runtime, as in dev.
+ */
+async function boot(options: { runtime?: BuiltRuntime | null } = {}) {
+  const clock = makeTestClock({ now: 1_800_000_000_000 });
+  const out: string[] = [];
+  const stdout = { write: (chunk: string) => out.push(chunk) };
+  const services = [access.login, access.user, frames.api, frames.board];
+  const transport = wsServer.server({ path: "/rpc", services, maxPayload: socketMaxPayload });
+  const server = await createScope({
+    clock,
+    capsules: [
+      exits({ file: process.env.TINKER_EXITS }),
+      bunSqlite({ file: ":memory:" }),
+      accessServer({ mode: "approve", origin: null, stdout, trusted: [], durable: false }),
+      framesServer({
+        stdout,
+        runtime: options.runtime === undefined ? fakeRuntime() : options.runtime,
+      }),
+      access.login({ implement: loginOps }),
+      access.user({ implement: userOps, onStart: [user] }),
+      access.owner({ implement: ownerOps, onStart: [user] }),
+      frames.api({ implement: framesOps, onStart: [user] }),
+      frames.board({ serve: true, load: framesLoads, onStart: [mayRead] }),
+      transport,
+      memory.server({ services }),
+    ],
+  }).ready;
+  closers.push(() => server.close());
+  const setupCode = () => /setup code: (\S+)/.exec(out.join(""))?.[1] ?? "";
+
+  return { server, setupCode };
+}
+
+/** Ann's agent, signed in, with the canvas `flow`. */
+async function annOn(srv: Awaited<ReturnType<typeof boot>>) {
+  const client = async (token?: string) => {
+    const meta = operation({
+      label: "test.meta",
+      run: async (): Promise<Record<string, string>> =>
+        token ? { authorization: `Bearer ${token}` } : {},
+    });
+    const scope = await createScope({
+      capsules: [
+        exits({ file: process.env.TINKER_EXITS }),
+        memory.client({ peer: srv.server, headers: { "x-easel-peer": "198.51.100.1" }, meta }),
+        access.login({ remote: memory.client }),
+        frames.api({ remote: memory.client }),
+      ],
+    }).ready;
+    closers.push(() => scope.close());
+    return scope;
+  };
+  const text = randomBytes(32).toString("base64url");
+  const digest = createHash("sha256").update(text).digest("hex");
+  await (
+    await client()
+  ).run(access.login["login.setup"], {
+    input: { name: "ann", code: srv.setupCode(), digest },
+  });
+  const scope = await client(text);
+  await scope.run(frames.api["canvas.create"], { input: { name: "flow" } });
+
+  return {
+    put: (input: PutInput) => scope.run(frames.api["frame.put"], { input }),
+    get: (id: string) => scope.run(frames.api["frame.get"], { input: { canvas: "flow", id } }),
+    list: () => scope.run(frames.api["frame.list"], { input: { canvas: "flow" } }),
+  };
+}
+
+const at = (findings: Array<{ line: number; col: number; rule: string }>) =>
+  findings.map((f) => `${f.line}:${f.col} ${f.rule}`);
+
+test("a put of a TSX frame checks it, fixes it, and keeps its TSX, JS and CSS with the frame version", async () => {
+  const srv = await boot();
+  const ann = await annOn(srv);
+  const tsx = (await pricing()).replace('"btn w-full"', '"btn w-full text-red-500"');
+
+  const made = await ann.put({ canvas: "flow", tsx, name: "Pricing" });
+  if (made.kind !== "created") throw new Error(`not created: ${made.kind}`);
+  expect(made.version).toBe(1);
+  expect(made.findings.map((f) => f.rule)).toContain("look/color");
+
+  // frame.get answers the TSX as the agent wrote it, not the fixed text.
+  const got = await ann.get(made.id);
+  expect(got).toMatchObject({ kind: "found", frame: { id: made.id, name: "Pricing", tsx } });
+
+  // The board's document: the JS of the fixed text, the made CSS, and the runtime of kit 1.
+  const [doc] = await srv.server.run(loadDocs, { input: { canvas: "flow", id: made.id } });
+  if (!doc?.app) throw new Error("no app");
+  expect(doc.app.js).toContain('"btn w-full text-destructive"');
+  expect(doc.app.js).toContain('from "react/jsx-runtime"');
+  expect(doc.css).toContain(".text-destructive");
+  expect(doc.app.kit).toBe(1);
+  expect(doc.app.runtime.address).toBe(`/api/runtime/1/${fakeRuntime().sha}/`);
+  expect(doc.app.runtime.imports["@easel/frame"]).toBe("easel__frame.js");
+
+  // The first app frame gave kit version 1 its runtime.
+  expect(await srv.server.run(runtimeNamesOf, { input: 1 })).toEqual([...runtimeNames]);
+});
+
+test("an app frame that the check refuses answers offKit with its findings, and nothing is written", async () => {
+  const srv = await boot();
+  const ann = await annOn(srv);
+  const tsx = [
+    'import { useState } from "react";',
+    'import { motion } from "framer-motion";',
+    "export const logic = {};",
+    "export function View() {",
+    '  return <p className="p-4">x</p>;',
+    "}",
+  ].join("\n");
+
+  const refused = await ann.put({ canvas: "flow", tsx });
+  expect(refused.kind).toBe("offKit");
+  if (refused.kind !== "offKit") return;
+  expect(at(refused.findings)).toEqual(["1:10 kit/react-state", "2:24 kit/import"]);
+  expect(refused.more).toBe(0);
+  expect(await ann.list()).toEqual({ kind: "found", frames: [] });
+
+  // A TSX that does not parse is offKit with kit/parse.
+  const unparsed = await ann.put({
+    canvas: "flow",
+    tsx: "export function View() {\n  return <p>;\n}",
+  });
+  expect(unparsed.kind === "offKit" && at(unparsed.findings)).toEqual(["3:1 kit/parse"]);
+
+  // At most 20 findings; more counts the rest.
+  const many = Array.from({ length: 23 }, (_, i) => `import { a${i} } from "left-pad-${i}";`);
+  const lots = await ann.put({ canvas: "flow", tsx: many.join("\n") });
+  expect(lots.kind === "offKit" && [lots.findings.length, lots.more]).toEqual([20, 5]);
+  expect(await ann.list()).toEqual({ kind: "found", frames: [] });
+});
+
+test("an app frame over 256 KiB is tooBig with maxBytes 262144, and nothing is written", async () => {
+  const srv = await boot();
+  const ann = await annOn(srv);
+
+  const big = `export const logic = {};\n//${"x".repeat(256 * 1024)}`;
+  expect(await ann.put({ canvas: "flow", tsx: big })).toEqual({ kind: "tooBig", maxBytes: 262144 });
+  expect(await ann.list()).toEqual({ kind: "found", frames: [] });
+
+  // Under 256 KiB of TSX, but its made CSS would be over 256 KiB: tooBig too.
+  const classes = Array.from({ length: 9000 }, (_, i) => `w-[${i + 1}px]`).join(" ");
+  const wide = `export const logic = {};\nexport function View() {\n  return <p className="${classes}" />;\n}`;
+  expect(await ann.put({ canvas: "flow", tsx: wide })).toEqual({
+    kind: "tooBig",
+    maxBytes: 262144,
+  });
+  expect(await ann.list()).toEqual({ kind: "found", frames: [] });
+}, 30_000);
+
+test("a frame is one kind for each version: a TSX put on an HTML frame is its next version, and back", async () => {
+  const srv = await boot();
+  const ann = await annOn(srv);
+  const tsx = await pricing();
+
+  const made = await ann.put({ canvas: "flow", html: "<p>a</p>" });
+  if (made.kind !== "created") throw new Error("not created");
+  const { id } = made;
+
+  expect(await ann.put({ canvas: "flow", id, base: 1, tsx })).toMatchObject({
+    kind: "updated",
+    version: 2,
+  });
+  expect(await ann.get(id)).toMatchObject({ kind: "found", frame: { version: 2, tsx } });
+  // The same TSX on its version is unchanged; an old base is stale.
+  expect(await ann.put({ canvas: "flow", id, base: 2, tsx })).toMatchObject({
+    kind: "unchanged",
+    version: 2,
+  });
+  expect(await ann.put({ canvas: "flow", id, base: 1, tsx })).toEqual({
+    kind: "stale",
+    id,
+    version: 2,
+  });
+  // The same text as HTML is another kind: a new version, an HTML frame again.
+  expect(await ann.put({ canvas: "flow", id, base: 2, html: tsx })).toMatchObject({
+    kind: "updated",
+    version: 3,
+  });
+  expect(await ann.get(id)).toMatchObject({ kind: "found", frame: { version: 3, html: tsx } });
+  const [doc] = await srv.server.run(loadDocs, { input: { canvas: "flow", id } });
+  expect(doc?.app).toBeNull();
+});
+
+test("the composed document of an app frame: the look, the CSS, the import map of its runtime and its JS", async () => {
+  const srv = await boot();
+  const ann = await annOn(srv);
+  const made = await ann.put({ canvas: "flow", tsx: await pricing() });
+  if (made.kind !== "created") throw new Error("not created");
+  const [doc] = await srv.server.run(loadDocs, { input: { canvas: "flow", id: made.id } });
+  if (!doc?.app) throw new Error("no app");
+
+  const kit = { look: ":root{--primary:#111}", css: ".btn{color:red}</style>" };
+  const html = srv.server.run(composeApp, {
+    input: {
+      js: `${doc.app.js}\nconst t = "</script><!--";`,
+      css: doc.css ?? "",
+      kit,
+      runtime: doc.app.runtime,
+    },
+  });
+
+  expect(
+    html.startsWith('<!doctype html>\n<style id="easel-look">:root{--primary:#111}</style>'),
+  ).toBe(true);
+  expect(html).toContain(".btn{color:red}<\\/style>");
+  const map = /<script type="importmap">(.*?)<\/script>/.exec(html)?.[1] ?? "";
+  expect(JSON.parse(map).imports.react).toBe(`${doc.app.runtime.address}react.js`);
+  expect(html).toContain('const t = "<\\/script><\\!--";');
+  expect(html).toContain('import { mount as __easelMount } from "@easel/frame";');
+  expect(html.match(/<\/script>/g)?.length).toBe(2);
+});
+
+test("speed: a put of a usual TSX frame spends less than 50 ms in the check and the make", async () => {
+  const srv = await boot();
+  await annOn(srv);
+  const tsx = await pricing();
+  // The first put of a kit version gives it its runtime, and the design system is made once.
+  await srv.server.run(putFrame, { input: { canvas: "flow", tsx } });
+
+  const times: number[] = [];
+  for (let i = 0; i < 30; i++) {
+    const start = performance.now();
+    const made = await srv.server.run(putFrame, {
+      input: { canvas: "flow", tsx: `${tsx}\n// ${i}` },
+    });
+    times.push(performance.now() - start);
+    expect(made.kind).toBe("created");
+  }
+  times.sort((a, b) => a - b);
+  const p50 = times[15] ?? Infinity;
+  const p95 = times[28] ?? Infinity;
+  process.stderr.write(
+    `frame.put of pricing.tsx: p50 ${p50.toFixed(1)} ms, p95 ${p95.toFixed(1)} ms\n`,
+  );
+  // The budget is 50 ms; loose here, so a loaded host does not fail it.
+  expect(p50).toBeLessThan(50);
+});
+
+/**
+ * The page of the browser test: one sandboxed iframe (scripts only, so its origin is null) with
+ * the composed document as its srcdoc. It answers the frame's hello with a port, as the viewer
+ * does, and keeps each message of the frame in `window.told`.
+ */
+const parentPage = (html: string) => `<!doctype html>
+<iframe sandbox="allow-scripts" style="width:1200px;height:900px"></iframe>
+<script>
+  window.told = [];
+  const frame = document.querySelector("iframe");
+  const channel = new MessageChannel();
+  channel.port1.onmessage = (event) => window.told.push(event.data.easel);
+  addEventListener("message", (event) => {
+    if (event.source !== frame.contentWindow) return;
+    window.told.push(event.data.easel);
+    if (event.data.easel === "hello" && !window.port) {
+      window.port = channel.port1;
+      frame.contentWindow.postMessage({ easel: "port" }, "*", [channel.port2]);
+    }
+  });
+  window.closeFrame = () => window.port.postMessage({ easel: "close" });
+  frame.srcdoc = ${JSON.stringify(html).replaceAll("<", "\\u003c")};
+</script>`;
+
+test(
+  "a real Chromium loads one composed app frame in a sandboxed srcdoc iframe; a click runs its operation; close gives closed",
+  { timeout: 60_000 },
+  async () => {
+    const executablePath = localChromium();
+    if (executablePath === null) {
+      throw new Error("no local Chromium: run `bunx playwright install chromium`");
+    }
+
+    const srv = await boot({ runtime: null });
+    const ann = await annOn(srv);
+    const made = await ann.put({ canvas: "flow", tsx: await pricing() });
+    if (made.kind !== "created") throw new Error(`not created: ${made.kind}`);
+    const [doc] = await srv.server.run(loadDocs, { input: { canvas: "flow", id: made.id } });
+    if (!doc?.app) throw new Error("no app");
+    const now = await srv.server.run(readKit);
+    if (now === null) throw new Error("no kit");
+    const html = srv.server.run(composeApp, {
+      input: {
+        js: doc.app.js,
+        css: doc.css ?? "",
+        kit: { look: now.root, css: now.css },
+        runtime: doc.app.runtime,
+      },
+    });
+
+    // The parent page and the runtime's route, at one origin, as easel serves them.
+    const files = /^\/api\/runtime\/([^/]+)\/([^/]+)\/([^/]+)$/;
+    const web = Bun.serve({
+      port: 0,
+      hostname: "127.0.0.1",
+      fetch: (request) => {
+        const path = new URL(request.url).pathname;
+        const [, kit = "", sha = "", file = ""] = files.exec(path) ?? [];
+        if (file) return srv.server.run(runtimeRoute, { input: { kit, sha, file } });
+        return new Response(parentPage(html), { headers: { "Content-Type": "text/html" } });
+      },
+    });
+    closers.push(() => web.stop(true));
+    const browser = await chromium.launch({ executablePath });
+    closers.push(() => browser.close());
+    const page = await browser.newPage();
+    const errors: string[] = [];
+    page.on("pageerror", (error) => errors.push(error.message));
+    page.on("console", (message) => {
+      if (message.type() === "error") errors.push(message.text());
+    });
+
+    await page.goto(`http://127.0.0.1:${web.port}/`);
+    const frame = page.frameLocator("iframe");
+    await frame.getByRole("button", { name: "Choose Pro" }).click({ timeout: 20_000 });
+    await expect.poll(() => frame.getByRole("button", { name: "Chosen" }).count()).toBe(1);
+    await frame.getByRole("tab", { name: "Yearly" }).click();
+    await expect.poll(() => frame.getByText("$290").count()).toBe(1);
+
+    await page.evaluate(() => Reflect.get(window, "closeFrame")());
+    await expect.poll(() => page.evaluate(() => Reflect.get(window, "told"))).toContain("closed");
+    expect(await frame.locator("main").count()).toBe(0);
+    expect(errors).toEqual([]);
+  },
+);

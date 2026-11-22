@@ -164,14 +164,16 @@ Inputs:
 - `frame.put` takes `{ canvas, html, name?, size?, id?, base? }`. `id` and `base` come together or
   not at all; one without the other is `invalid`, and so is `name` or `size` with `id`. Without
   them, the put makes a frame.
-- An app frame (build order item 4 of [frame-apps](docs/decisions/frame-apps.md); not built yet):
-  `frame.put` takes `tsx` in place of `html`, of at most 256 KiB: a larger one answers `tooBig`
-  with `maxBytes` 262144 (SPEC-kit § App frames, "The file"). `easel put` sends a file whose
-  name ends in `.tsx` as `tsx`. A frame is one kind for each version: a put of the other kind on
+- An app frame (build order item 4 of [frame-apps](docs/decisions/frame-apps.md); built on
+  2026-11-22): `frame.put` takes `tsx` in place of `html`, of at most 256 KiB: a larger one
+  answers `tooBig` with `maxBytes` 262144 (SPEC-kit § App frames, "The file"), and so does a TSX
+  whose made CSS would be over 256 KiB. `easel put` sends a file whose name ends in `.tsx` as
+  `tsx`. A frame is one kind for each version: a put of the other kind on
   an id is a new version of that frame. A finding of `kit/parse`, `kit/import`,
   `kit/react-state` or `kit/shape` answers `offKit` with its findings and writes nothing. The
   frame version keeps the TSX as written, its JS, its made CSS and its kit version. `frame.get`
-  answers the TSX as `tsx`.
+  answers the TSX as `tsx`. The same TSX on the version that is already TSX is `unchanged`; the
+  same text as `html` is a new version. `easel get -o` writes the TSX as it was written.
 - `tooBig` is measured on the document's encoded size, its UTF-8 bytes, not its string length.
   The made CSS is not counted; it is at most 256 KiB, and a document whose CSS would be more
   answers `tooBig` too, with `maxBytes` 262144. The
@@ -233,8 +235,12 @@ The board (`easel.board`, read by the viewer) has the cells `frames`, `docs`, `k
 canvas, and the cell `kit` of [kit](SPEC-kit.md). A document in the cell `docs` is
 `{ html, css, version }`: `css` is the made CSS of that frame version, as stored. It is null for a
 document that turns the kit off, and for a version stored before the kit; the page shows that
-document as it is. The document of an app frame is `{ js, css, kit, version }`: its JS, its made
-CSS, and the kit version of its runtime (build order item 5).
+document as it is. The document of an app frame also has `app: { js, kit, runtime }`: its JS, the
+kit version it was made for, and that kit version's runtime as stored (`runtime: { address,
+imports }`, the address of its files and the file of each name), and its `html` is the TSX as
+written. `app` is null for an HTML frame.
+The page composes it with `composeApp` ([kit](SPEC-kit.md) § App frames; the live mount is build
+order item 5).
 A frame on the board carries its picture key `k`. The cell `kept` carries the key of each kept
 view (§ Pictures). The cell `removed` keeps each removed frame: `{ canvas, id, name, x, y, w, h,
 removed }`, its name and its last box, and when it was removed, so the viewer shows the requests
