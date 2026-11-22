@@ -11,6 +11,7 @@ import { z } from "zod";
 import { frames } from "@/frames";
 import { frames as frameCells, framesBoard } from "@/frames/contract";
 import { kit as kitCells } from "@/kit/cells";
+import { compose } from "@/kit/compose";
 import { Canvas } from "@/viewer/canvas";
 
 // The live look in a real Chromium (SPEC-kit.md § compose, § Change the look step 3; SPEC-viewer.md
@@ -237,6 +238,39 @@ test("a document whose hellos the page does not hear at first gets the new look 
   );
   expect(docOf("a")).toBe(iframe);
   expect(await drawnOf("a")).toBe(drawn);
+});
+
+test("two hellos in flight: the page answers each with a new port and closes the one before; the document takes the newest port, so a later kit message reaches it", async () => {
+  const html = createScope().run(compose, {
+    input: { html: probeDoc("two"), css: madeCss, kit: { look: looks[1].look, css: "" } },
+  });
+  const frame = document.createElement("iframe");
+  document.body.append(frame);
+  onTestFinished(() => frame.remove());
+  const channels: MessageChannel[] = [];
+  const answered = new Promise<void>((done) => {
+    const answer = (event: MessageEvent) => {
+      if (event.source !== frame.contentWindow) return;
+      if (!z.object({ easel: z.literal("hello") }).safeParse(event.data).success) return;
+      removeEventListener("message", answer);
+      // As the page does for two hellos that came before its first answer: a port for each.
+      for (let i = 0; i < 2; i++) {
+        channels.at(-1)?.port1.close();
+        const channel = new MessageChannel();
+        channels.push(channel);
+        const first = { easel: "kit", kit: 1, look: looks[1].look, css: "" };
+        frame.contentWindow?.postMessage(first, "*", [channel.port2]);
+      }
+      done();
+    };
+    addEventListener("message", answer);
+  });
+  frame.srcdoc = html;
+  await answered;
+
+  channels[1]?.port1.postMessage({ easel: "kit", kit: 2, look: looks[2].look, css: "" });
+  const look = () => frame.contentDocument?.getElementById("easel-look")?.textContent;
+  await expect.poll(look, { timeout: 1_000 }).toBe(looks[2].look);
 });
 
 test("the page answers no hello from a window that is not one of its live iframes (SPEC-viewer judged rule 12)", async () => {

@@ -12,10 +12,12 @@ export const composeKit = z.object({ look: z.string(), css: z.string() });
  * start before the page listens, so it says hello to its parent at once and again each 50 ms,
  * until a message from its parent gives it a `MessagePort` (as penpal does). That message, and
  * each later one on the port, is `{ easel: "kit", kit, look, css }`: the script replaces the text
- * of the two `<style>` elements `easel-look` and `easel-kit`. It sends nothing but the hello, and
+ * of the two `<style>` elements `easel-look` and `easel-kit`. Two hellos can be in flight before the
+ * first answer: the page answers each with a new port and closes the one before, so the script
+ * takes each port its parent gives and keeps the newest. It sends nothing but the hello, and
  * holds no color, size or font. Element pieces (`k-`) come with the pieces (build order step 4).
  */
-export const pieceScript = `<script>(()=>{let p=null;const s=(d)=>{if(!d||d.easel!=="kit"||typeof d.look!=="string"||typeof d.css!=="string")return;const l=document.getElementById("easel-look"),k=document.getElementById("easel-kit");if(l)l.textContent=d.look;if(k)k.textContent=d.css};const h=()=>{if(p)return;parent.postMessage({easel:"hello"},"*");setTimeout(h,50)};addEventListener("message",(e)=>{if(p||e.source!==parent||!e.ports[0])return;p=e.ports[0];p.onmessage=(m)=>s(m.data);s(e.data)});h()})()</script>`;
+export const pieceScript = `<script>(()=>{let p=null;const s=(d)=>{if(!d||d.easel!=="kit"||typeof d.look!=="string"||typeof d.css!=="string")return;const l=document.getElementById("easel-look"),k=document.getElementById("easel-kit");if(l)l.textContent=d.look;if(k)k.textContent=d.css};const h=()=>{if(p)return;parent.postMessage({easel:"hello"},"*");setTimeout(h,50)};addEventListener("message",(e)=>{if(e.source!==parent||!e.ports[0])return;if(p)p.close();p=e.ports[0];p.onmessage=(m)=>s(m.data);s(e.data)});h()})()</script>`;
 
 /** A style text cannot end its own element: `</style` in CSS is written `<\/style`. */
 const styleEnd = /<\/(style)/gi;
