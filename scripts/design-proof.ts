@@ -39,7 +39,7 @@
 //   S14 each text colour has WCAG AA contrast (4.5:1) on each surface, in light and dark (E3 S14).
 //   T1 text: … not ..., curly quotes, a no-break space between a number and its unit.
 //
-// E8 (build step 5, the seed look): the variations on page `Work · E8 One look, fast` are
+// E8 (build step 5, the seed look): the seed frames on page `Work · E8 One look, fast` are
 // frames of a team, made with the kit, not screens of easel, so S1 to S14 do not apply to them.
 // Each one is checked, in any status, by:
 //   K8 the frame holds the look and the kit (easel-look, easel-kit), and each pair of
@@ -170,25 +170,15 @@ const EPICS: ReadonlyArray<{ epic: string; frames: ReadonlyArray<{ id: string; k
 
 const DESIGN: Array<Frame> = EPICS.flatMap((e) => e.frames.map((f) => ({ ...f, epic: e.epic })));
 
-// The E8 seed look variations (E8.W01 to E8.W15): A Cobalt, B Spruce, C Petrol, each its look
-// values, the form, the list and the dashboard of K3, and a state with focus and an error.
-// After the user picks one, the others are deleted and leave this list.
+// The E8 seed look (E8.W01 to E8.W05): the look of ui.shadcn.com, which the user picked on
+// 2026-11-22. Its look values, the form, the list and the dashboard of K3, and a state with
+// focus and an error.
 const E8_KIT: ReadonlyArray<string> = [
   "2ChgqgBBcK",
   "x_s2rZXTvo",
   "Pwreopoa3W",
   "0ck0qcqhX-",
   "9hPIX7B-4t",
-  "6RsK4QfF1U",
-  "yAF01tsSJ7",
-  "gNA8qpMIDR",
-  "nV06LcCsER",
-  "dx4e7YhsLe",
-  "6aldEzLxtz",
-  "LB8Jmy9xMn",
-  "GLuOg8pkdl",
-  "EdS8bQ1JF7",
-  "rNi_0jl3Ut",
 ];
 
 // Each frame on these pages of the library is part of the system: always checked.
@@ -1049,7 +1039,7 @@ const checkFrame = (proof: Proof, f: Frame, parsed: Parsed): void => {
   }
 };
 
-// --- E8: the seed look variations, K8 and R2 ---------------------------------
+// --- E8: the seed look, K8 and R2 -------------------------------------------
 
 const styleById = (html: string, id: string): string | undefined =>
   new RegExp(`<style id="${id}">([\\s\\S]*?)</style>`).exec(html)?.[1];
@@ -1068,7 +1058,7 @@ const readE8Ids = async (): Promise<Set<string>> => {
   return new Set([...part.matchAll(/^\| (K\d+)\s+\|/gm)].flatMap((m) => (m[1] ? [m[1]] : [])));
 };
 
-// R2: the IDs that a frame proves end its name: `E8.W02 A Cobalt: form (K1 K4)`.
+// R2: the IDs that a frame proves end its name: `E8.W02 Seed: form, the K3 brief (K1 K4)`.
 const checkE8Name = (f: CanvasFrame, ids: Set<string>): void => {
   const claimed = /\(([^()]*)\)\s*$/.exec(f.name)?.[1] ?? "";
   for (const m of claimed.matchAll(/\b([A-Z]\d{1,2})\b/g)) {
