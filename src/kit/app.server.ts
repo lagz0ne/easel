@@ -1,4 +1,5 @@
-import { operation } from "@tinkered/core";
+import { operation, resource } from "@tinkered/core";
+import type { EcmaScriptModule, Program } from "oxc-parser";
 import { z } from "zod";
 
 import { type Found, paintFindings, placeFindings, styleFindings } from "./check.server";
@@ -22,6 +23,30 @@ const builtFix =
 const scriptFix =
   'keep the state in a Tinker cell of logic, and choose the class in className, as className={cn(open && "flex")}';
 
+/**
+ * JS from TSX (frame-apps decision 7): Bun.Transpiler, built into Bun, with React's JSX runtime
+ * imported (`react/jsx-runtime`, a name of the runtime), so the JS needs no bundler.
+ */
+export const transpiler = resource({
+  label: "kit.transpiler",
+  target: "scope",
+  factory: () =>
+    new Bun.Transpiler({
+      loader: "tsx",
+      target: "browser",
+      autoImportJSX: true,
+      tsconfig: { compilerOptions: { jsx: "react-jsx", jsxImportSource: "react" } },
+    }),
+});
+
+/** The JS of the fixed text of an app frame: its types removed and its JSX made calls. */
+export const appJs = operation({
+  label: "kit.appJs",
+  input: z.string(),
+  depends: { transpiler },
+  run: ({ transpiler }, { input }) => transpiler.transformSync(input),
+});
+
 /** The source of an app frame as oxc-parser reads it, or its parse findings (`kit/parse`). */
 export const parseApp = operation({
   label: "kit.parseApp",
@@ -33,7 +58,9 @@ export const parseApp = operation({
       sourceType: "module",
       preserveParens: false,
     });
-    if (parsed.errors.length === 0) return { kind: "parsed" as const, program: parsed.program };
+    if (parsed.errors.length === 0) {
+      return { kind: "parsed" as const, program: parsed.program, module: parsed.module };
+    }
 
     const found = parsed.errors.map((error): Found => ({
       at: error.labels[0]?.start ?? 0,
@@ -43,6 +70,153 @@ export const parseApp = operation({
     }));
     return { kind: "unparsed" as const, found };
   },
+});
+
+/** The React hooks that keep state or run an effect (`kit/react-state`, as `tinker/react-state`). */
+const stateHooks = new Set([
+  "useState",
+  "useReducer",
+  "useActionState",
+  "useOptimistic",
+  "useSyncExternalStore",
+  "useEffect",
+  "useLayoutEffect",
+  "useInsertionEffect",
+]);
+
+const stateFix =
+  "keep each state in a Tinker cell of logic: data() and operation() in logic, useData() and useRun() in View; a text field that keeps each key uses defaultValue";
+
+const shapeFix =
+  "export const logic = frameLogic({ cells, ops }) and export function View(), and no other name; keep the other names in the file, not exported";
+
+const moduleShape = z.custom<EcmaScriptModule>();
+
+/**
+ * `kit/import`: each import that the runtime of the kit version does not have (`names`): another
+ * package, a relative import or an address; and each dynamic `import()`.
+ */
+export const importFindings = operation({
+  label: "kit.importFindings",
+  input: z.object({ module: moduleShape, names: z.array(z.string()) }),
+  run: (_, { input: { module, names } }) => {
+    const known = new Set(names);
+    const fix = `import only the names of the runtime: ${names.join(", ")}; keep all code of the frame in this one file`;
+    const found: Found[] = module.staticImports
+      .filter((one) => !known.has(one.moduleRequest.value))
+      .map((one) => ({
+        at: one.moduleRequest.start,
+        rule: "kit/import",
+        what: `the frame imports "${one.moduleRequest.value}": the runtime of this kit version does not have it`,
+        fix,
+      }));
+
+    for (const one of module.dynamicImports) {
+      const what = "the frame loads code with import(): the check cannot see what it loads";
+      found.push({ at: one.start, rule: "kit/import", what, fix });
+    }
+    return found;
+  },
+});
+
+/**
+ * `kit/react-state`: each React hook that keeps state or runs an effect, imported by its name from
+ * `react`, or read from a namespace or a default import (`React.useState`).
+ */
+export const stateFindings = operation({
+  label: "kit.stateFindings",
+  input: z.object({ program: z.custom<Program>(), module: moduleShape }),
+  depends: { oxc },
+  run: ({ oxc }, { input: { program, module } }) => {
+    const hooks: Array<{ name: string; at: number }> = [];
+    for (const one of module.staticImports) {
+      if (one.moduleRequest.value !== "react") continue;
+      for (const { importName } of one.entries) {
+        if (importName.name !== null && stateHooks.has(importName.name)) {
+          hooks.push({ name: importName.name, at: importName.start ?? one.start });
+        }
+      }
+    }
+
+    // `React.useState`: a hook read from a namespace or a default import.
+    hooks.push(...oxc.members(program, stateHooks));
+    return hooks.map(({ name, at }): Found => ({
+      at,
+      rule: "kit/react-state",
+      what: `the frame keeps state in React with ${name}`,
+      fix: stateFix,
+    }));
+  },
+});
+
+type ExportEntry = EcmaScriptModule["staticExports"][number]["entries"][number];
+
+/** How a finding of `kit/shape` names an export: a name, a default, or a re-export. */
+const exportTold = operation({
+  label: "kit.exportTold",
+  input: z.custom<ExportEntry>(),
+  run: (_, { input: entry }) => {
+    if (entry.moduleRequest) return `the names of "${entry.moduleRequest.value}"`;
+    if (entry.exportName.kind === "Default") return "a default";
+    if (entry.localName.name !== entry.exportName.name) {
+      return `${entry.localName.name ?? ""} as ${entry.exportName.name ?? ""}: export logic and View by their own names`;
+    }
+    return `the ${entry.isType ? "type " : ""}name ${entry.exportName.name ?? ""}`;
+  },
+});
+
+/** `kit/shape`: each export other than `logic` and `View`, and each of the two that is missing. */
+export const shapeFindings = operation({
+  label: "kit.shapeFindings",
+  input: moduleShape,
+  depends: { exportTold },
+  run: ({ exportTold }, { input: module }) => {
+    const exported = new Set<string>();
+    const found: Found[] = [];
+    for (const entry of module.staticExports.flatMap((one) => one.entries)) {
+      const name = entry.exportName.name ?? "";
+      // By its own name (`export const logic`), so the composed document can mount it.
+      const own = [
+        !entry.moduleRequest,
+        !entry.isType,
+        entry.localName.name === name,
+        ["logic", "View"].includes(name),
+        !exported.has(name),
+      ].every(Boolean);
+      if (own) {
+        exported.add(name);
+        continue;
+      }
+
+      const what = `the frame exports ${exportTold.run({ input: entry })}: an app frame exports logic and View, and only them`;
+      found.push({ at: entry.start, rule: "kit/shape", what, fix: shapeFix });
+    }
+
+    for (const name of ["logic", "View"].filter((one) => !exported.has(one))) {
+      const what = `the frame does not export ${name}`;
+      found.push({ at: 0, rule: "kit/shape", what, fix: shapeFix });
+    }
+    return found;
+  },
+});
+
+/**
+ * The module of an app frame (SPEC-kit.md § App frames, "The file", "The runtime"): `kit/import`,
+ * `kit/react-state` and `kit/shape`. `names` are the names of the kit version's runtime.
+ */
+export const moduleFindings = operation({
+  label: "kit.moduleFindings",
+  input: z.object({
+    program: z.custom<Program>(),
+    module: moduleShape,
+    names: z.array(z.string()),
+  }),
+  depends: { importFindings, stateFindings, shapeFindings },
+  run: (units, { input: { program, module, names } }) => [
+    ...units.importFindings.run({ input: { module, names } }),
+    ...units.stateFindings.run({ input: { program, module } }),
+    ...units.shapeFindings.run({ input: module }),
+  ],
 });
 
 /**
@@ -103,14 +277,20 @@ export const applyEdits = operation({
 
 /**
  * K5 on an app frame: the findings in document order, the class names to make, and the fixed text
- * (SPEC-kit.md § App frames, "Fixes by position"). A TSX that does not parse is `unparsed`, with
- * its `kit/parse` findings.
+ * (SPEC-kit.md § App frames, "Fixes by position"). With `names` (the names of the kit version's
+ * runtime), the findings of its module too (`moduleFindings`): what the put and `kit.check` give.
+ * A TSX that does not parse is `unparsed`, with its `kit/parse` findings.
  */
 export const checkApp = operation({
   label: "kit.checkApp",
-  input: z.object({ tsx: z.string(), kit: kitShape }),
+  input: z.object({
+    tsx: z.string(),
+    kit: kitShape,
+    names: z.array(z.string()).optional(),
+  }),
   depends: {
     parseApp,
+    moduleFindings,
     placesOf,
     prepare,
     appClasses,
@@ -126,11 +306,13 @@ export const checkApp = operation({
       return { kind: "unparsed" as const, findings };
     }
 
-    const { program } = parsed;
+    const { program, module } = parsed;
     const places = units.placesOf.run({ input: { source: input.tsx, program } });
+    const { names } = input;
     const kit = await units.prepare.run({ input: input.kit });
     const classes = units.appClasses.run({ input: { kit, parts: places.classes } });
     const found: Found[] = [
+      ...(names ? units.moduleFindings.run({ input: { program, module, names } }) : []),
       ...classes.found,
       ...units.styleFindings.run({ input: { kit, parts: places.styles } }),
       ...units.paintFindings.run({ input: { kit, parts: places.paints } }),

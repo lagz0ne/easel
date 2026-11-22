@@ -57,6 +57,7 @@ const help = `easel: the canvas CLI. Every command takes --json (one JSON value 
   easel unshare <canvas>                           end the link; open tabs say it has ended
   easel shot <canvas> <id> -o <file> [--scale 0.25|0.5|1|2] [--region x,y,w,h]
                                                    draw the frame as a browser does; writes a WebP
+  easel kit check <file|->                         the check of a put, and nothing written; a .tsx file is an app frame
   easel look get [-o <file>] [--at <kit>]         the look as DTCG JSON, its revision and its kit version
   easel look set <file|-> --base <rev>             change values of the look (a JSON Merge Patch); every tab shows it
   easel look undo --base <rev>                     the look before the last change, as a new kit version
@@ -440,8 +441,20 @@ const queueInvocations = [
     })),
 ] as const;
 
-/** The words and flags of `easel look get|set|undo` (SPEC-kit.md § Change the look). */
+/**
+ * The words and flags of `easel look get|set|undo` (SPEC-kit.md § Change the look) and of
+ * `easel kit check` (§ Make an app frame).
+ */
 const lookInvocations = [
+  z
+    .object({
+      positionals: z.tuple([z.literal("kit"), z.literal("check"), z.string()]),
+      values: z.strictObject(common),
+    })
+    .transform(({ positionals: [, , file], values }): unknown => ({
+      at: values.server,
+      command: { kind: "look", act: { kind: "check", file } },
+    })),
   z
     .object({
       positionals: z.tuple([z.literal("look"), z.literal("get")]),

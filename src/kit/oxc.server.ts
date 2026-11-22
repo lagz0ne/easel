@@ -17,6 +17,19 @@ export const oxc = resource({
     parseSync,
     /** Gives each node of a program to the visitor, in the order of the source. */
     visit: (visitor: VisitorObject, program: Program) => new Visitor(visitor).visit(program),
+    /** Each `a.<name>` of a program whose name is in `names` (not `a[name]`), with its offset. */
+    members: (program: Program, names: ReadonlySet<string>) => {
+      const found: Array<{ name: string; at: number }> = [];
+      new Visitor({
+        MemberExpression: (node) => {
+          const { property } = node;
+          if (!node.computed && property.type === "Identifier" && names.has(property.name)) {
+            found.push({ name: property.name, at: property.start });
+          }
+        },
+      }).visit(program);
+      return found;
+    },
   }),
 });
 
