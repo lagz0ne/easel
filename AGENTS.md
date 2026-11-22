@@ -21,6 +21,33 @@ Before editing files for a substantial task:
 
 <!-- intent-skills:end -->
 
+## Writing: ASD-STE100
+
+ASD-STE100 (Simplified Technical English,
+Issue 9) is the official rule for all writing
+in this project: replies to the user, docs,
+specs, ADRs, commit messages, code comments,
+and the text that easel shows (CLI, errors,
+pages). The user decided this on 2026-11-22.
+
+- Keep a sentence short: 20 words at most for
+  an instruction, 25 for a description.
+- Write one instruction in each sentence. Use
+  the imperative for an instruction.
+- Use the active voice and simple tenses
+  (present, past, future).
+- Give each word one meaning. Use the terms of
+  `docs/glossary.md` (Rule 1.8). Do not use a
+  technical noun as a verb (Rule 1.7).
+- Use common words. Do not use slang, idioms or
+  long chains of nouns. Keep the articles.
+- Do not use an `-ing` word as a noun.
+- Put 6 sentences at most in a paragraph, on
+  one topic. Write steps as a numbered list.
+- Keep code, paths, IDs and quotes exact.
+  Quotes of the user stay as the user wrote
+  them.
+
 ## After you edit: run the check
 
 1. `bun run check:plain` runs `tinker check`.
