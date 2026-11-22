@@ -168,6 +168,8 @@ that share state, or a review that one viewer leads, needs state, operations and
 easel page. That is the model of Tinker. Tinker lite is ready for easel when it has:
 
 1. A browser entry with cells, watch and operations only, at 3 KB gzip or less.
+   It can use `@preact/signals-core` (MIT; 1.7 KB gzip, 4.8 KB minified, measured on
+   2026-11-22) as its reactive core, and not a new core.
 2. A binding of cells to attributes and of clicks to operations, so that an agent writes no glue.
 3. A fixed, versioned single-file build in each release. easel stores it in a kit version, as it
    stores made CSS (K11).
