@@ -379,7 +379,7 @@ const Shell = memo(function Shell({
       style={{ left: frame.x, top: frame.y, width: frame.w, height: frame.h }}
     >
       <div className="e-label" data-label>
-        {frame.name}
+        <span className="e-label-name">{frame.name}</span>
         <FrameAxes frame={frame} />
         <DockedControls frame={frame} place="top" />
         <ControlsButton frame={frame} />

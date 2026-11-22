@@ -569,15 +569,31 @@ test("kit-frame-controls: an app frame posts its controls; the panel draws them 
   await expect.element(button).toHaveAttribute("aria-pressed", "false");
 });
 
+/** The shell of the frame `id`. */
+function shellOf(id: string) {
+  const shell = region().querySelector<HTMLElement>(`.e-shell[data-id="${id}"]`);
+  if (!shell) throw new Error(`no shell ${id}`);
+  return shell;
+}
+
+/** A frame's id, and so its name, that is longer than its label row at a far zoom. */
+const long = "alpha-with-a-long-name";
+
 test("kit-frame-controls places: the frame places each control in its label row, in a column at its left or right edge, or in the panel; each place shows the same live values", async () => {
   const seen = controlsSeen();
-  const server = await boot([{ id: "a", x: 0, y: 0, controls: "placed" }]);
+  // Frames on each side: the fit zooms out, so the label row, with a long name, is narrower than
+  // its controls.
+  const server = await boot([
+    { id: "b", x: 0, y: 0 },
+    { id: long, x: 1300, y: 0, controls: "placed" },
+    { id: "c", x: 2600, y: 0 },
+  ]);
   const at = await tab(server);
-  await rested(at, 1);
+  await rested(at, 3);
 
-  const top = page.getByRole("group", { name: "Top controls of Frame a" });
-  const left = page.getByRole("group", { name: "Left controls of Frame a" });
-  const right = page.getByRole("group", { name: "Right controls of Frame a" });
+  const top = page.getByRole("group", { name: `Top controls of Frame ${long}` });
+  const left = page.getByRole("group", { name: `Left controls of Frame ${long}` });
+  const right = page.getByRole("group", { name: `Right controls of Frame ${long}` });
   const on = top.getByRole("switch", { name: "On" });
   const size = left.getByRole("combobox", { name: "Size" });
   await expect.element(on).not.toBeChecked();
@@ -590,11 +606,20 @@ test("kit-frame-controls places: the frame places each control in its label row,
   ).toEqual(["Add one", "Fail"]);
 
   // The label row holds the top controls; each column sits outside the frame, at its edge.
-  const shell = document.querySelector<HTMLElement>('.e-shell[data-id="a"]');
-  expect(shell?.querySelector("[data-label]")?.contains(on.element())).toBe(true);
-  const frameBox = shell?.getBoundingClientRect();
-  expect(left.element().getBoundingClientRect().right).toBeLessThanOrEqual(frameBox?.left ?? 0);
-  expect(right.element().getBoundingClientRect().left).toBeGreaterThanOrEqual(frameBox?.right ?? 0);
+  const shell = shellOf(long);
+  expect(shell.querySelector("[data-label]")?.contains(on.element())).toBe(true);
+  // The row is narrower than its controls: the name gets shorter, and no control is cut off.
+  const button = page.getByRole("button", { name: `Controls of Frame ${long}` }).element();
+  for (const el of [on.element(), button]) {
+    const box = el.getBoundingClientRect();
+    const hit = document.elementFromPoint(box.left + box.width / 2, box.top + box.height / 2);
+    expect(el.contains(hit)).toBe(true);
+  }
+  const name = shell.querySelector(".e-label-name");
+  expect(name instanceof HTMLElement && name.scrollWidth > name.clientWidth).toBe(true);
+  const frameBox = shell.getBoundingClientRect();
+  expect(left.element().getBoundingClientRect().right).toBeLessThanOrEqual(frameBox.left);
+  expect(right.element().getBoundingClientRect().left).toBeGreaterThanOrEqual(frameBox.right);
 
   // A change at one place goes to the live document; the panel shows the new value too.
   await right.getByRole("button", { name: "Add one" }).click();
@@ -606,7 +631,7 @@ test("kit-frame-controls places: the frame places each control in its label row,
   await right.getByRole("button", { name: "Fail" }).click();
   await expect.element(right.getByRole("alert")).toHaveTextContent("The frame refused it: Nope.");
 
-  await page.getByRole("button", { name: "Controls of Frame a" }).click();
+  await page.getByRole("button", { name: `Controls of Frame ${long}` }).click();
   const panel = page.getByRole("complementary", { name: "Controls" });
   await expect.element(panel.getByRole("spinbutton", { name: "Count" })).toHaveValue(1);
   expect(

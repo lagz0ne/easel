@@ -173,18 +173,32 @@
   border-color: transparent;
 }
 
+/* The label row: the name gets shorter to fit the frame's width; the picks and the controls
+   after it keep their size, and may go past the frame's edge. */
 .e-label {
   position: absolute;
   bottom: 100%;
   left: 0;
+  display: flex;
+  align-items: flex-end;
+  box-sizing: border-box;
   padding-bottom: var(--e-1);
-  overflow: hidden;
   color: var(--e-muted);
   font-size: var(--e-size-1);
   white-space: nowrap;
-  text-overflow: ellipsis;
   transform-origin: 0 100%;
   pointer-events: none;
+}
+
+.e-label > * {
+  flex: none;
+}
+
+.e-label > .e-label-name {
+  flex: 0 1 auto;
+  min-width: 2em;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 /* The picture: a plain card until pictures are built (decision C10). */
