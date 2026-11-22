@@ -80,6 +80,23 @@ export const ownPointer = "[data-own-pointer]";
 /** The ids of the live frames, in the order they went live. Only the stage writes it. */
 export const liveSet = data<readonly string[]>({ label: "viewer.liveSet", initial: [] });
 
+/**
+ * The ids of the frames whose app is closing (SPEC-kit.md § App frames, "Close before the iframe
+ * goes"; the chart kit-app-frame): each left the live set, or was deleted, while an app frame's
+ * document was live. Its shell keeps the iframe, hidden, until the app posts `closed` or 200 ms
+ * pass. Only the stage writes it.
+ */
+export const holding = data<readonly string[]>({ label: "viewer.holding", initial: [] });
+
+/** The iframes of app frames that are done closing, by `<frame id> <serial>`. Only the stage writes it. */
+export const closeDone = data<Readonly<Record<string, true>>>({
+  label: "viewer.closeDone",
+  initial: {},
+});
+
+/** How long the page waits for the `closed` of an app frame before it removes the iframe. */
+export const closeWaitMs = 200;
+
 /** The version each frame's document said it painted (or the cap ran out for), by id. */
 export const painted = data<Readonly<Record<string, number>>>({
   label: "viewer.painted",
@@ -127,6 +144,12 @@ const paintPost = z.object({ easel: z.literal("painted"), v: z.number() });
 
 /** What a document's piece script posts until it has a port ([kit](SPEC-kit.md) § compose). */
 const helloPost = z.object({ easel: z.literal("hello") });
+
+/** An app frame's answer to `close`: its scope closed, so the page can remove the iframe. */
+const closedPost = z.object({ easel: z.literal("closed") });
+
+/** What the page posts to an app frame before it removes its iframe. */
+const closePost = { easel: "close" } as const;
 
 /**
  * A kit message ([kit](SPEC-kit.md) § compose): the kit version, the look as a `:root` block and
@@ -188,13 +211,15 @@ export const stage = resource({
   target: "scope",
   depends: {
     live: liveSet.controller,
+    hold: holding.controller,
+    done: closeDone.controller,
     paints: painted.controller,
     zoom: zoomShown.controller,
     part: partBox.controller,
     offered: offeredAxes.controller,
     popPlace,
   },
-  factory: ({ live, paints, zoom, part, offered, popPlace }, ctx) => {
+  factory: ({ live, hold, done, paints, zoom, part, offered, popPlace }, ctx) => {
     let cam = { x: 0, y: 0, z: 1 };
     let view = { w: 0, h: 0, left: 0, top: 0 };
     let vp: HTMLElement | null = null;
@@ -210,8 +235,10 @@ export const stage = resource({
     let closed = false;
     const shells = new Map<string, Shell>();
     const docs = new Map<string, HTMLIFrameElement>();
-    /** The port that the page gave each live document, by frame id; only the page holds port1. */
-    const ports = new Map<string, MessagePort>();
+    /** The port that the page gave each live document, by its iframe; only the page holds port1. */
+    const ports = new Map<HTMLIFrameElement, MessagePort>();
+    /** The iframes of app frames that the page asked to close, each with the end of its wait. */
+    const closing = new Map<HTMLIFrameElement, () => void>();
     /** The canvas's kit as the board gave it last: a hello gets it at once. */
     let kitNow: KitMessage | null = null;
     const pops = new Set<HTMLElement>();
@@ -320,12 +347,25 @@ export const stage = resource({
           .map((c) => c.id);
       },
 
+      /**
+       * The live set gets smaller. Before it, each frame that leaves it with an app's document
+       * goes in `holding`: its shell keeps the iframe while the app closes.
+       */
+      dropLive: (kept: readonly string[]) => {
+        const left = live
+          .get()
+          .filter((id) => !kept.includes(id) && docs.get(id)?.dataset.app !== undefined);
+        // `holding` first: each write runs its readers at once, and the frame must be in one.
+        if (left.length) hold.set([...new Set([...hold.get(), ...left])]);
+        live.set(kept);
+      },
+
       /** At rest: a frame that leaves the live set goes at once; one that joins waits its turn. */
       settleLive: () => {
         const now = live.get();
         const wanted = at.wanted(now);
         const kept = now.filter((id) => wanted.includes(id));
-        if (kept.length !== now.length) live.set(kept);
+        if (kept.length !== now.length) at.dropLive(kept);
 
         at.stopAdding();
         queue = wanted.filter((id) => !kept.includes(id));
@@ -546,13 +586,19 @@ export const stage = resource({
           const win = frame.contentWindow;
           if (!win || win !== event.source) continue;
 
-          ports.get(id)?.close();
+          ports.get(frame)?.close();
           const channel = new MessageChannel();
-          ports.set(id, channel.port1);
-          channel.port1.addEventListener("message", (message) => at.onAxes(frame, message.data));
+          ports.set(frame, channel.port1);
+          channel.port1.addEventListener("message", (message) => at.onPort(frame, message.data));
           channel.port1.start();
           win.postMessage(kitNow, "*", [channel.port2]);
         }
+      },
+
+      /** A post on a document's port: its axes, or its `closed`. */
+      onPort: (frame: HTMLIFrameElement, posted: unknown) => {
+        if (closedPost.safeParse(posted).success) return closing.get(frame)?.();
+        at.onAxes(frame, posted);
       },
 
       /**
@@ -570,15 +616,16 @@ export const stage = resource({
         offered.set({ ...offered.get(), [id]: { ...read.data, version } });
       },
 
-      /** A frame's live document left: its port is closed. */
-      dropPort: (id: string) => {
-        ports.get(id)?.close();
-        ports.delete(id);
+      /** A document left: its port is closed. */
+      dropPort: (frame: HTMLIFrameElement) => {
+        ports.get(frame)?.close();
+        ports.delete(frame);
       },
 
       /** A paint post counts only from the iframe it names, for the version that iframe holds. */
       onMessage: (event: MessageEvent) => {
         if (helloPost.safeParse(event.data).success) return at.onHello(event);
+        if (closedPost.safeParse(event.data).success) return at.onClosed(event);
         const post = paintPost.safeParse(event.data);
         if (!post.success) return at.onPart(event);
         for (const [id, frame] of docs) {
@@ -679,10 +726,12 @@ export const stage = resource({
         labelZoom = 0;
         for (const port of ports.values()) port.close();
         ports.clear();
+        closing.clear();
         // After the scope closed (a tab torn down before its page), there is no cell to clear.
         if (closed) return;
 
         live.set([]);
+        hold.set([]);
         paints.set({});
         zoom.set(100);
       },
@@ -751,7 +800,7 @@ export const stage = resource({
         shells.delete(id);
         queue = queue.filter((other) => other !== id);
         const now = live.get();
-        if (now.includes(id)) live.set(now.filter((other) => other !== id));
+        if (now.includes(id)) at.dropLive(now.filter((other) => other !== id));
       },
 
       /** A live iframe: its picture comes off when it posts that it painted, or after 1.5 s. */
@@ -768,11 +817,57 @@ export const stage = resource({
 
         return () => {
           cap.abort();
+          // An app's document keeps its port and its host: it goes on to close (`closingDoc`), in
+          // this commit. React detaches it before a deleted frame's shell, so it holds the frame.
+          if (el.dataset.app === undefined) at.dropPort(el);
+          else if (!closed && !hold.get().includes(id)) hold.set([...hold.get(), id]);
           if (docs.get(id) !== el) return;
           docs.delete(id);
-          at.dropPort(id);
           at.unpaint(id);
         };
+      },
+
+      /** A `closed` from the window of a closing document that had no port yet. */
+      onClosed: (event: MessageEvent) => {
+        for (const [frame, end] of closing) if (frame.contentWindow === event.source) end();
+      },
+
+      /**
+       * An app frame's iframe that goes (chart kit-app-frame): the page posts `close` (on its
+       * port; to its window when it has no port yet), and the iframe stays, hidden, until the app
+       * posts `closed` or `closeWaitMs` pass. Then `closeDone` names it, and its shell drops it.
+       */
+      closingDoc: (el: HTMLIFrameElement | null) => {
+        const key = el?.dataset.closing;
+        if (!el || key === undefined) return;
+        const wait = new AbortController();
+        const end = () => {
+          if (closing.get(el) !== end) return;
+          closing.delete(el);
+          wait.abort();
+          at.dropPort(el);
+          if (!closed) at.settleClose(key, el.dataset.id ?? "");
+        };
+        closing.set(el, end);
+        const port = ports.get(el);
+        if (port) port.postMessage(closePost);
+        else el.contentWindow?.postMessage(closePost, "*");
+        ctx.clock
+          .sleep(closeWaitMs, AbortSignal.any([wait.signal, ctx.signal]))
+          .then(end, () => undefined);
+
+        return () => {
+          if (closing.get(el) === end) closing.delete(el);
+          wait.abort();
+          at.dropPort(el);
+        };
+      },
+
+      /** A closing iframe is done; a frame with no other closing iframe leaves `holding`. */
+      settleClose: (key: string, id: string) => {
+        done.update((d) => ({ ...d, [key]: true }));
+        const still = [...closing.keys()].some((frame) => frame.dataset.id === id);
+        if (!still) hold.set(hold.get().filter((other) => other !== id));
       },
 
       /**

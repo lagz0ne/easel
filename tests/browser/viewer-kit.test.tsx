@@ -52,6 +52,14 @@ const probeJs = (id: string) =>
 const capsuleJs = (id: string) =>
   `const me=Math.random();let port=null;const hello=()=>{if(port)return;parent.postMessage({easel:"hello"},"*");setTimeout(hello,50)};addEventListener("message",(e)=>{if(e.source!==parent)return;if(e.ports[0]&&!port){port=e.ports[0];port.postMessage({easel:"axes",locales:["en","vi"],config:{sample:{values:["many","empty"],default:"many"}}})}const d=e.data;if(d&&typeof d.probe==="number")parent.postMessage({probe:d.probe,id:${JSON.stringify(id)},me,color:document.getElementById("easel-axes").textContent},"*")});hello();`;
 
+/**
+ * An app frame's JS that closes as `@easel/frame` does (chart kit-app-frame): it says hello each
+ * 50 ms until it gets a port. On `close` (on its port, or from its parent's window) it tells the
+ * test how it got it, then posts `closed` 300 ms later (of real time: the test clock holds the page's wait), on its port or to its parent.
+ */
+const closerJs = (id: string) =>
+  `let port=null;const hello=()=>{if(port)return;parent.postMessage({easel:"hello"},"*");setTimeout(hello,50)};const take=(d,via)=>{if(!d||d.easel!=="close")return;parent.postMessage({seen:"close",id:${JSON.stringify(id)},via},"*");setTimeout(()=>port?port.postMessage({easel:"closed"}):parent.postMessage({easel:"closed"},"*"),300)};addEventListener("message",(e)=>{if(e.source!==parent)return;if(e.ports[0]&&!port){port=e.ports[0];port.onmessage=(m)=>take(m.data,"port")}take(e.data,"window");if(e.data&&typeof e.data.probe==="number")parent.postMessage({probe:e.data.probe,id:${JSON.stringify(id)},me:0,color:port?"port":"none"},"*")});hello();`;
+
 /** The runtime of an app frame that imports nothing. */
 const noRuntime = { address: "/api/runtime/1/none/", imports: {} };
 
@@ -85,17 +93,34 @@ const put = operation({
     k: z.string().optional(),
     app: z.boolean().optional(),
     capsule: z.boolean().optional(),
+    closer: z.boolean().optional(),
+    version: z.number().optional(),
   }),
   depends: { cells: frameCells.controller, invalidate: framesBoard.invalidate },
-  run: async ({ cells, invalidate }, { input: { app, capsule, ...input } }) => {
-    const js = capsule ? capsuleJs(input.id) : probeJs(input.id);
+  run: async (
+    { cells, invalidate },
+    { input: { app, capsule, closer, version = 1, ...input } },
+  ) => {
+    const js = closer ? closerJs(input.id) : capsule ? capsuleJs(input.id) : probeJs(input.id);
     const served: ServedDoc =
-      app || capsule
-        ? { version: 1, html: "", app: { js, kit: 1, runtime: noRuntime } }
-        : { version: 1, html: probeDoc(input.id) };
+      app || capsule || closer
+        ? { version, html: "", app: { js, kit: 1, runtime: noRuntime } }
+        : { version, html: probeDoc(input.id) };
     htmls.set(input.id, served);
-    cells.set({ ...input, canvas, name: `Frame ${input.id}`, w: 320, h: 200, version: 1 });
+    cells.set({ ...input, canvas, name: `Frame ${input.id}`, w: 320, h: 200, version });
     await invalidate.run({ input: { docs: { canvas, id: input.id } } });
+  },
+});
+
+/** An agent's delete. */
+const drop = operation({
+  label: "test.drop",
+  input: z.string(),
+  depends: { cells: frameCells.controller, invalidate: framesBoard.invalidate },
+  run: async ({ cells, invalidate }, { input }) => {
+    htmls.delete(input);
+    cells.delete({ canvas, id: input });
+    await invalidate.run({ input: { docs: { canvas, id: input } } });
   },
 });
 
@@ -109,7 +134,15 @@ const setKit = operation({
 });
 
 async function boot(
-  ids: Array<{ id: string; x: number; y: number; k?: string; app?: boolean; capsule?: boolean }>,
+  ids: Array<{
+    id: string;
+    x: number;
+    y: number;
+    k?: string;
+    app?: boolean;
+    capsule?: boolean;
+    closer?: boolean;
+  }>,
 ) {
   htmls.clear();
   const server = await createScope({
@@ -162,7 +195,10 @@ const rafs = (n: number) =>
   });
 
 const region = () => page.getByRole("region", { name: "Frames" }).element();
-const docs = () => [...region().querySelectorAll<HTMLIFrameElement>("iframe")];
+/** The live documents that show; an app document that is closing (hidden) is not one. */
+const docs = () => [...region().querySelectorAll<HTMLIFrameElement>("iframe:not([data-closing])")];
+/** The app documents that are closing: hidden, until their app posts `closed`. */
+const closingDocs = () => [...region().querySelectorAll<HTMLIFrameElement>("iframe[data-closing]")];
 const docOf = (id: string) => docs().find((d) => d.dataset.id === id);
 
 /** The camera rests, and the frames in view go live: `live` of the `n` (all, by default). */
@@ -321,6 +357,87 @@ test("kit-frame-axes: a capsule frame posts its axes; the page offers the locale
   await sample.selectOptions("many");
   await expect.poll(() => colorOf("b")).toBe("{}");
   expect(await drawnOf("a")).toBe(plain);
+});
+
+const seenClose = z.object({ seen: z.literal("close"), id: z.string(), via: z.string() });
+
+/** Each `close` that a closer frame got, with how it got it (`port` or `window`). */
+function closes() {
+  const seen: Array<{ id: string; via: string }> = [];
+  const listen = (event: MessageEvent) => {
+    const read = seenClose.safeParse(event.data);
+    if (read.success) seen.push({ id: read.data.id, via: read.data.via });
+  };
+  addEventListener("message", listen);
+  onTestFinished(() => removeEventListener("message", listen));
+  return seen;
+}
+
+test("kit-app-frame: a new version of an app frame: the page posts close on its port and keeps the old iframe, hidden, until the app posts closed", async () => {
+  const seen = closes();
+  const server = await boot([{ id: "a", x: 0, y: 0, closer: true }]);
+  const at = await tab(server);
+  await rested(at, 1);
+  await expect.poll(() => colorOf("a")).toBe("port");
+  const old = docOf("a");
+
+  await server.run(put, { input: { id: "a", x: 0, y: 0, closer: true, version: 2 } });
+  await expect.poll(() => docOf("a")?.dataset.version).toBe("2");
+  expect(closingDocs()).toEqual([old]);
+  expect(old && getComputedStyle(old).visibility).toBe("hidden");
+  expect(old?.getAttribute("aria-hidden")).toBe("true");
+
+  // The app got close on its port; 300 ms later it posts closed, and only then its iframe goes.
+  await expect.poll(() => seen).toEqual([{ id: "a", via: "port" }]);
+  await expect.poll(() => old?.isConnected).toBe(false);
+  expect(docs().map((d) => d.dataset.version)).toEqual(["2"]);
+});
+
+test("kit-app-frame: an app that does not answer close loses its iframe after 200 ms all the same; an HTML frame's goes at once", async () => {
+  const server = await boot([
+    { id: "a", x: 0, y: 0, app: true },
+    { id: "b", x: 400, y: 0 },
+  ]);
+  const at = await tab(server);
+  await rested(at, 2);
+  const [app, html] = [docOf("a"), docOf("b")];
+
+  await server.run(put, { input: { id: "a", x: 0, y: 0, app: true, version: 2 } });
+  await server.run(put, { input: { id: "b", x: 400, y: 0, version: 2 } });
+  await expect.poll(() => docs().map((d) => d.dataset.version)).toEqual(["2", "2"]);
+  expect(html?.isConnected).toBe(false);
+  expect(closingDocs()).toEqual([app]);
+
+  // The probe app never posts closed: its iframe stays until the wait of 200 ms ends.
+  await tick(100);
+  at.clock.advance(199);
+  await tick();
+  expect(app?.isConnected).toBe(true);
+  at.clock.advance(1);
+  await expect.poll(() => app?.isConnected).toBe(false);
+});
+
+test("kit-app-frame: a deleted app frame: its shell goes from the canvas at once, its iframe stays hidden until the app posts closed", async () => {
+  const seen = closes();
+  const server = await boot([
+    { id: "a", x: 0, y: 0, closer: true },
+    { id: "b", x: 400, y: 0 },
+  ]);
+  const at = await tab(server);
+  await rested(at, 2);
+  await expect.poll(() => colorOf("a")).toBe("port");
+  const old = docOf("a");
+
+  await server.run(drop, { input: "a" });
+  await expect.poll(() => region().querySelectorAll('[role="group"]').length).toBe(1);
+  expect(page.getByRole("group", { name: "Frame a" }).elements()).toEqual([]);
+  await expect.poll(() => closingDocs()).toEqual([old]);
+  expect(old?.closest(".e-shell")?.hasAttribute("hidden")).toBe(true);
+
+  await expect.poll(() => seen).toEqual([{ id: "a", via: "port" }]);
+  await expect.poll(() => old?.isConnected).toBe(false);
+  expect(region().querySelectorAll(".e-shell").length).toBe(1);
+  expect(docs().map((d) => d.dataset.id)).toEqual(["b"]);
 });
 
 test("two hellos in flight: the page answers each with a new port and closes the one before; the document takes the newest port, so a later kit message reaches it", async () => {

@@ -16,7 +16,17 @@ import type { RequestView } from "./follow";
 import { Panel, RequestsButton } from "./panel";
 import { FramePicture } from "./picture";
 import { RequestButton, Requests } from "./request";
-import { axesPost, liveSet, offeredAxes, painted, paintScript, stage, zoomShown } from "./stage";
+import {
+  axesPost,
+  closeDone,
+  holding,
+  liveSet,
+  offeredAxes,
+  painted,
+  paintScript,
+  stage,
+  zoomShown,
+} from "./stage";
 import type { KitMessage } from "./stage";
 
 // The canvas behind `/s/<link>` (SPEC-viewer.md § See the frames, § Pan and zoom, § Watch an
@@ -86,7 +96,11 @@ const docCanvas = tag<string>({ label: "viewer.docCanvas" });
 const docId = tag<string>({ label: "viewer.docId" });
 
 /** A live frame's document: its version, the key of its axes, and the composed html. */
-type Composed = { version: number; key: string; html: string };
+/** A composed document; `serial` names its iframe, so a later pick of the same axes is a new one. */
+type Composed = { version: number; key: string; html: string; app: boolean; serial: number };
+
+/** The documents of a frame that show: the current one, and each app document that is closing. */
+type ShownDocs = { current: Composed | null; leaving: readonly Composed[] };
 
 /** The locale that a capsule frame draws in when none is picked (`@easel/frame`'s default). */
 const defaultLocale = "en";
@@ -168,12 +182,32 @@ export const axesFor = operation({
 /**
  * The document that a live frame was composed with, for its version, while the frame is live. A
  * change of the kit composes nothing again: it reaches the document on its port, so the iframe
- * keeps its document and does not reload (K7).
+ * keeps its document and does not reload (K7). An app document that stops showing (another
+ * version, another pick, out of the live set) stays in `leaving` until the stage says that it is
+ * done closing (chart kit-app-frame); an HTML document goes at once.
  */
 const docMemo = resource({
   label: "viewer.docMemo",
   config: { canvas: docCanvas.required, id: docId.required },
-  factory: (): { shown: Composed | null } => ({ shown: null }),
+  factory: (_, { config }) => {
+    let shown: Composed | null = null;
+    let serial = 0;
+    let view: ShownDocs = { current: null, leaving: [] };
+    return {
+      shown: () => shown,
+      serial: () => ++serial,
+      /** The documents that show with `current`; the same object while nothing changed. */
+      next: (current: Composed | null, done: Readonly<Record<string, true>>) => {
+        const went = shown && shown !== current && shown.app ? [shown] : [];
+        const leaving = [...went, ...view.leaving].filter((d) => !done[`${config.id} ${d.serial}`]);
+        shown = current;
+        if (current === view.current && leaving.length === view.leaving.length) return view;
+
+        view = { current, leaving };
+        return view;
+      },
+    };
+  },
 });
 
 /**
@@ -182,20 +216,29 @@ const docMemo = resource({
  */
 const composeDoc = operation({
   label: "viewer.composeDoc",
-  input: z.object({ doc: boardDoc, kit: composeKit, axes: frameAxes.nullable() }),
+  input: z.object({
+    doc: boardDoc,
+    kit: composeKit.nullable(),
+    axes: frameAxes.nullable(),
+    key: z.string(),
+    serial: z.number(),
+  }),
   depends: { compose, composeApp },
-  run: ({ compose, composeApp }, { input: { doc, kit, axes } }) =>
-    doc.app
+  run: ({ compose, composeApp }, { input: { doc, kit, axes, key, serial } }): Composed => {
+    const look = kit ?? { look: "", css: "" };
+    const html = doc.app
       ? composeApp.run({
           input: {
             js: doc.app.js,
             css: doc.css ?? "",
-            kit,
+            kit: look,
             runtime: doc.app.runtime,
             ...(axes ? { axes } : {}),
           },
         })
-      : compose.run({ input: { html: doc.html, css: doc.css, kit } }),
+      : compose.run({ input: { html: doc.html, css: doc.css, kit: look } });
+    return { version: doc.version, key, html, app: Boolean(doc.app), serial };
+  },
 });
 
 /**
@@ -214,26 +257,29 @@ const liveDoc = resource({
     memo: docMemo({ canvas: c.canvas, id: c.id }),
     offered: offeredAxes,
     picked: axesPicked,
+    live: liveSet,
+    done: closeDone,
     axesFor,
     composeDoc,
   }),
-  factory: ({ doc, kit, memo, offered, picked, axesFor, composeDoc }, ctx) => {
+  factory: ({ doc, kit, memo, offered, picked, live, done, axesFor, composeDoc }, ctx) => {
+    const { id } = ctx.config;
     const at = doc.get();
     const look = kit.get() ?? null;
     const kept = memo.get();
-    if (!at || (at.css !== null && look === null)) return null;
+    if (!live.includes(id) || !at || (at.css !== null && look === null)) {
+      return kept.next(null, done);
+    }
 
-    const offer = offered[ctx.config.id];
-    const axes = axesFor.run({
-      input: { id: ctx.config.id, version: at.version, offer, picked },
-    });
+    const axes = axesFor.run({ input: { id, version: at.version, offer: offered[id], picked } });
     const key = `${at.version}:${JSON.stringify(axes)}`;
-    if (kept.shown?.key === key) return kept.shown;
+    const before = kept.shown();
+    if (before?.key === key) return kept.next(before, done);
 
-    const shown = look ?? { look: "", css: "" };
-    const html = composeDoc.run({ input: { doc: at, kit: shown, axes } });
-    kept.shown = { version: at.version, key, html };
-    return kept.shown;
+    const made = composeDoc.run({
+      input: { doc: at, kit: look, axes, key, serial: kept.serial() },
+    });
+    return kept.next(made, done);
   },
 });
 
@@ -255,30 +301,39 @@ const kitFeed = resource({
   },
 });
 
-/** A live frame's document: the composed version of it, with the paint script at its end. */
-function LiveDoc({
-  canvas,
-  frame,
-  attach,
-}: {
-  canvas: string;
-  frame: FrameInfo;
-  attach: Stage["doc"];
-}) {
-  const doc = useData(liveDoc({ canvas, id: frame.id }));
-  if (!doc) return null;
+/**
+ * A live frame's documents: the composed version of it, with the paint script at its end, and each
+ * app document that is closing, hidden (chart kit-app-frame). One list, so an iframe that stops
+ * showing keeps its element, and its app can end its work.
+ */
+function LiveDoc({ canvas, frame, at }: { canvas: string; frame: FrameInfo; at: Stage }) {
+  const docs = useData(liveDoc({ canvas, id: frame.id }));
+  const shown = docs.current ? [docs.current, ...docs.leaving] : docs.leaving;
 
+  // A closing one keeps its srcdoc (a new one would load it again), but it leaves the page's view.
   return (
-    <iframe
-      key={doc.key}
-      ref={attach}
-      className="e-doc"
-      title={frame.name}
-      sandbox="allow-scripts"
-      data-id={frame.id}
-      data-version={doc.version}
-      srcDoc={doc.html + paintScript.replace("__V__", String(doc.version))}
-    />
+    <>
+      {shown.map((doc) => (
+        <iframe
+          key={doc.serial}
+          className="e-doc"
+          sandbox="allow-scripts"
+          data-id={frame.id}
+          data-version={doc.version}
+          data-app={doc.app ? "" : undefined}
+          srcDoc={doc.html + paintScript.replace("__V__", String(doc.version))}
+          {...(doc === docs.current
+            ? { ref: at.doc, title: frame.name }
+            : {
+                ref: at.closingDoc,
+                className: "e-doc e-doc-closing",
+                "aria-hidden": true,
+                tabIndex: -1,
+                "data-closing": `${frame.id} ${doc.serial}`,
+              })}
+        />
+      ))}
+    </>
   );
 }
 
@@ -296,19 +351,20 @@ const Shell = memo(function Shell({
   at,
 }: {
   canvas: string;
-  frame: FrameInfo & { k?: string };
+  frame: FrameInfo & { k?: string; gone?: true };
   at: Stage;
 }) {
   const live = useData(liveSet, (ids) => ids.includes(frame.id));
+  const held = useData(holding, (ids) => ids.includes(frame.id));
   const shown = useData(painted, (p) => p[frame.id]);
   const kitNow = useData(frames.board.kit.of({ canvas }))?.kit ?? null;
 
   return (
     <div
-      ref={at.shell}
       className="e-shell"
-      role="group"
-      aria-label={frame.name}
+      {...(frame.gone
+        ? { hidden: true }
+        : { ref: at.shell, role: "group", "aria-label": frame.name })}
       data-id={frame.id}
       data-x={frame.x}
       data-y={frame.y}
@@ -320,7 +376,7 @@ const Shell = memo(function Shell({
         {frame.name}
         <FrameAxes frame={frame} />
       </div>
-      {live ? <LiveDoc canvas={canvas} frame={frame} attach={at.doc} /> : null}
+      {live || held ? <LiveDoc canvas={canvas} frame={frame} at={at} /> : null}
       <div className="e-card" hidden={live && shown === frame.version}>
         <FramePicture
           canvas={canvas}
@@ -490,6 +546,43 @@ function Status({ lost, fault }: { lost: boolean; fault: boolean }) {
   return null;
 }
 
+/** The last frames that the canvas showed, by id: a deleted one keeps its box while it closes. */
+const shownMemo = resource({
+  label: "viewer.shownMemo",
+  config: { canvas: canvasKey.required },
+  factory: () => new Map<string, FrameInfo & { k?: string }>(),
+});
+
+/**
+ * The frames that the canvas draws: the board's, and each deleted frame whose app document was
+ * live, hidden, until its app closed (chart kit-app-frame: `holding`).
+ */
+const shownFrames = resource({
+  label: "viewer.shownFrames",
+  config: { canvas: canvasKey.required },
+  depends: (c) => ({
+    list: frames.board.frames.where({ canvas: c.canvas }),
+    memo: shownMemo({ canvas: c.canvas }),
+    live: liveSet,
+    held: holding,
+  }),
+  factory: ({ list, memo, live, held }) => {
+    const now = list.get() ?? [];
+    const last = memo.get();
+    const ids = new Set(now.map((f) => f.id));
+    const shown: Array<FrameInfo & { k?: string; gone?: true }> = [...now];
+    // A deleted frame keeps its place: React moves no shell, and a moved iframe loads again.
+    for (const [at, f] of [...last.values()].entries()) {
+      const keep = !ids.has(f.id) && (live.includes(f.id) || held.includes(f.id));
+      if (keep) shown.splice(at, 0, { ...f, gone: true });
+    }
+    last.clear();
+    for (const f of shown) last.set(f.id, f);
+
+    return shown.length === now.length ? now : shown;
+  },
+});
+
 /**
  * The canvas. A read refused `{ ended: true }` or `{ locked: true }` says Opening: the gate's
  * `refusals` opens the link once more, shows the ended page, or asks the password. A dropped socket keeps the frames read so far.
@@ -500,6 +593,7 @@ export function Canvas({ canvas, opening }: { canvas: string; opening: React.Rea
   const state = useData(frames.board.status(part));
   const lost = useData(frames.board.faults, (f) => f.frames?.fault === "link");
   const at = useResource(stage);
+  const drawn = useData(shownFrames({ canvas }));
   useResource(resendOnBack);
   useResource(escapeKey);
   const pick = useRun(pickPlace);
@@ -547,7 +641,7 @@ export function Canvas({ canvas, opening }: { canvas: string; opening: React.Rea
         }}
       >
         <div ref={at.world} className="e-world">
-          {list.map((f) => (
+          {drawn.map((f) => (
             <Shell key={f.id} canvas={canvas} frame={f} at={at} />
           ))}
           <Requests canvas={canvas} list={list} lost={lost} />

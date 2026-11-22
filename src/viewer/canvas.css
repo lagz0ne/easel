@@ -215,6 +215,11 @@
   pointer-events: none;
 }
 
+/* An app document that is closing: it stays until its app posts `closed`, but shows nothing. */
+.e-doc-closing {
+  visibility: hidden;
+}
+
 /* A request (SPEC-viewer.md § Ask for a change; the E4.1 design). The pins and the popover sit in
    the world at their place, and undo the zoom (`--e-unzoom`, written by the stage) to keep their
    screen size. */

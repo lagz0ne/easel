@@ -626,6 +626,23 @@ the port. The chart [kit-app-frame](docs/statecharts/kit-app-frame.md) holds thi
 with no `close` never runs the frame's ends. A synchronous close in Tinker would remove this step
 (a request to the library author).
 
+**How the page keeps the iframe** (the viewer, `src/viewer/stage.ts` and `canvas.tsx`). React
+removes an element at once, and an iframe that moves in the document loads again. So the page
+keeps the same element while the app closes, as `AnimatePresence` of Framer Motion keeps a child
+for its exit:
+
+- A frame's documents are one list: the current one, then each app document that is closing. A
+  new version or another pick of the axes puts the current one in the list of closing ones.
+- A frame that leaves the live set, or an app document that stops showing, goes in `holding`
+  first. While it is there, its shell keeps the list.
+- A deleted frame whose app document was live keeps its shell, hidden and at its place in the
+  list, until it leaves `holding`.
+- A closing iframe is hidden (`visibility: hidden`, `aria-hidden`), with its own `srcdoc`. It
+  leaves when its app posts `closed`, or 200 ms later on the tab's clock (`closeDone`).
+- An HTML frame has no `close`, so its iframe goes at once.
+
+`tests/browser/viewer-kit.test.tsx` checks each of the three ways an iframe goes.
+
 **The picture of an app frame** (build order item 5). The draw loads the composed app document in
 Chromium, as for an HTML frame (frames § Pictures). Chromium reaches the network only through the
 egress proxy, which refuses easel's own address. So the picture's document names the runtime at
