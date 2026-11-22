@@ -137,6 +137,49 @@ dashboard) are the ones in K3; hero and kanban are screens that no kit covers.
   release binary holds it, so the release must name it, give its licence, and tell where its
   source is (it is public on npm and GitHub). A change to its files would have to be published.
 
+## Frame scripts
+
+On 2026-11-21, the user asked whether frames use React, and then whether they use Tinker
+(`@tinkered/core`, the library of the easel app). On 2026-11-22, the user agreed that frame code
+does not need to run with no change in a Tinker app. Only the markup, the classes and the look go
+into an app.
+
+Decision: a frame script is a short plain `<script>`. It keeps state in `hidden`, `aria-*` and
+`data-state`, and the class attribute styles each state with variants. It does not write
+`classList` or `className` (K5). It uses `type="button"` and a click handler, because the sandbox
+does not send `submit`.
+
+Measured with Sonnet, 3 runs each, one frame with tabs, a modal and a form, each clicked through
+in the sandbox:
+
+| Variant                  | Time   | Output tokens | Works  | Size in the frame | Load, 20 live frames |
+| ------------------------ | ------ | ------------- | ------ | ----------------- | -------------------- |
+| Plain script             | 10.2 s | 1,560         | 3 of 3 | 0.35 KB           | 90 ms                |
+| Tinker 0.30.1            | 15.7 s | 2,419         | 3 of 3 | 67–101 KB         | 132 ms               |
+| Alpine.js                | 9.9 s  | 1,373         | 0 of 3 | 56 KB             | 158 ms               |
+| petite-vue (not written) | —      | —             | —      | 17 KB             | 116 ms               |
+
+React was refused: a runtime in each live frame, classes that the K5 check cannot see, and more to
+write. Tinker 0.30.1 was refused for now: it has no DOM binding, so the agent writes glue code, and
+its rules refuse the small helpers that a frame script needs.
+
+Planned for prototypes (deferred in E8): a small build of Tinker, "Tinker lite". A flow of frames
+that share state, or a review that one viewer leads, needs state, operations and a channel to the
+easel page. That is the model of Tinker. Tinker lite is ready for easel when it has:
+
+1. A browser entry with cells, watch and operations only, at 3 KB gzip or less.
+2. A binding of cells to attributes and of clicks to operations, so that an agent writes no glue.
+3. A fixed, versioned single-file build in each release. easel stores it in a kit version, as it
+   stores made CSS (K11).
+4. A `postMessage` channel for rpc and remote data, which checks the sender (a frame cannot open a
+   socket).
+5. A rule set for code in a document, which permits small helpers.
+6. A test in CI that runs it in a sandboxed `srcdoc` with an opaque origin.
+
+easel takes it when an agent writes a prototype frame with it in no more time than with a plain
+script, and when it keeps state in attributes, so the K5 check still sees each class. The
+measure is the frame-script test above.
+
 ## Build order
 
 1. The make step and the K5 check (`make`, `check`), with the two-order test and the pin test.
