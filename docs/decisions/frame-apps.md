@@ -110,8 +110,25 @@ oxc-transform makes JS from the 8.7 KB frame in 0.14 ms (Bun.Transpiler: 0.19 ms
    frame's port, waits for `closed` (at most 200 ms), then removes the iframe. The page itself
    ends any work that crosses the port (a subscription) when the port closes. A synchronous close
    in Tinker would remove this step (a request to the library author).
-10. **Shared state** of a prototype lives in a scope resource or the database of the easel page,
-    and a frame reaches it by rpc on its port. A call there runs in its own request session.
+10. **One shape for each frame: `logic` and `View`.** The user picked the variant with the most
+    governance (2026-11-22). A frame file exports `logic` (its Tinker cells and operations) and
+    `View` (React that only reads cells and runs operations). Each state of a frame is a Tinker
+    cell: no React state (`useState`, `useReducer`) and no effect that keeps state; the Tinker rule
+    `tinker/react-state` checks it. So the check, the tests and a review see each state and each
+    operation of each frame in one place, with no browser.
+11. **Where `logic` runs.** By default, in the frame's own scope (the speed of C). When a frame's
+    state must stay after the frame closes, or frames share it (a prototype flow), its `logic`
+    runs in the board worker: one dedicated Worker for each board and tab, made from a `blob:` URL
+    in a hidden sandboxed iframe, so its origin is `null` and it has no session. The page gives the
+    frame and the worker the two ends of one `MessageChannel`, then relays nothing. Tinker rpc and
+    remote data run over that port. A call there runs in its own request session, so shared state
+    is written at scope. The same file works in both places; the build splits it (the worker part
+    imports only Tinker, the schema library and easel's frame helper). A text field that a worker
+    cell holds uses `defaultValue`, until Tinker has an optimistic write. State that viewers share
+    goes to the easel server, through operations that easel defines.
+    Measured (`~/work/tmp/e8-kit/worker-spike/`): in the worker, one frame goes live in 48.6 / 85.3
+    ms (p50 / p95), its state stays when it comes back, and a 3 s loop in the worker does not stop
+    the pan. Agents wrote the split 3 of 3 times, in 17% more time than one plain app.
 
 ## Other variations
 
@@ -126,10 +143,13 @@ oxc-transform makes JS from the 8.7 KB frame in 0.14 ms (Bun.Transpiler: 0.19 ms
 
 ## Open
 
-- **A loop in one frame.** In the headless test browser, all sandboxed frames share the page's
-  renderer, so a loop in a frame stops the easel page too (as it does with plain scripts now).
-  Check the process model of a real desktop Chrome (`chrome://process-internals`). If the frames
-  share it, serve frame documents from a second site, as Claude artifacts and CodePen do.
+- **A loop in one frame, in other browsers.** Measured on 2026-11-22 (Chrome 158,
+  `~/work/tmp/e8-kit/proc-test/`): with site isolation on, as on desktop Chrome, and
+  `IsolateSandboxedIframes` at its default, a 3 s loop in a sandboxed frame does not stop the page
+  (largest gap 67 ms). With that feature off, the page stops for 3 s. Playwright and agent-browser
+  turn it off, so the earlier spikes showed a stop. So desktop Chrome needs no second site. Firefox
+  and Safari are not measured; if a team uses them and a frame stops the page, serve frame
+  documents from a second site, as Claude artifacts and CodePen do.
 - **Pictures of an app frame.** The picture of a version must show the app's first paint.
   `react-dom/server` gives HTML with no script; the step 4 spec decides.
 - **Charts.** A chart library takes colors as props, which the class places do not cover. Add one
@@ -140,7 +160,8 @@ oxc-transform makes JS from the 8.7 KB frame in 0.14 ms (Bun.Transpiler: 0.19 ms
 Step 4 of E8. It replaces the step "Pieces (`k-`)" of kit-on-tailwind. Each item is one or more
 ships; each ends green.
 
-1. **Spec and model first.** SPEC-kit and SPEC-viewer get the app frame. A TLA+ model of the app
+1. **Spec and model first.** SPEC-kit and SPEC-viewer get the app frame, with the `logic` and
+   `View` shape. A TLA+ model of the app
    frame's life (going live, the hello, a new look, `close`, `closed`, removed), with a variant
    that removes the iframe with no `close` and fails.
 2. **The class check on TSX** with oxc-parser: the fixed places, `kit/class-built`, the fixes by
@@ -151,3 +172,6 @@ ships; each ends green.
 5. **The live app frame** in the viewer: mount with a Tinker scope, a new look on the port (K7),
    `close` and `closed`. A browser test with 12 live app frames: going live p95 under 150 ms.
 6. **The kit's pieces as shadcn components** and `put_piece` (K12, K14).
+7. **The board worker** for `logic` that must stay or that frames share, on the port package of
+   Tinker when it comes (the feedback is in `~/work/tmp/e8-kit/tinker-feedback.md`), or on
+   easel's own port backend until then.
