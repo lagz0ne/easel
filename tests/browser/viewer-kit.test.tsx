@@ -126,13 +126,13 @@ const region = () => page.getByRole("region", { name: "Frames" }).element();
 const docs = () => [...region().querySelectorAll<HTMLIFrameElement>("iframe")];
 const docOf = (id: string) => docs().find((d) => d.dataset.id === id);
 
-/** The camera rests, and each frame in view goes live. */
-async function rested(at: Awaited<ReturnType<typeof tab>>, n: number) {
+/** The camera rests, and the frames in view go live: `live` of the `n` (all, by default). */
+async function rested(at: Awaited<ReturnType<typeof tab>>, n: number, live = n) {
   await expect.poll(() => region().querySelectorAll('[role="group"]').length).toBe(n);
   await rafs(2);
   at.clock.advance(restMs);
-  await rafs(n + 6);
-  await expect.poll(() => docs().length).toBe(n);
+  await rafs(live + 6);
+  await expect.poll(() => docs().length).toBe(live);
 }
 
 const probeAnswer = z.object({
@@ -262,4 +262,38 @@ test("the page answers no hello from a window that is not one of its live iframe
   });
   stray.contentWindow?.postMessage({ ask: 1 }, "*");
   expect(await told).toBe(0);
+});
+
+test("K7: with 20 frames in view, each live document shows a new color.primary within 1 s, in the same document, with no new iframe", async () => {
+  // 20 frames, 5 across and 4 down: Fit shows them all, and 12 are live (decision C7).
+  const grid = Array.from({ length: 20 }, (_, i) => ({
+    id: `f${String(i).padStart(2, "0")}`,
+    x: (i % 5) * 340,
+    y: Math.floor(i / 5) * 220,
+  }));
+  const server = await boot(grid);
+  const at = await tab(server);
+  await rested(at, 20, 12);
+  const live = docs().map((d) => d.dataset.id ?? "");
+  const iframes = docs();
+  // Each live document has its port: its hello was answered.
+  for (const id of live) {
+    await expect.poll(() => colorOf(id), { timeout: 1_000 }).toBe(looks[1].rgb);
+  }
+  const drawn = await Promise.all(live.map((id) => drawnOf(id)));
+
+  const sent = performance.now();
+  await server.run(setKit, { input: 2 });
+  const times = await Promise.all(
+    live.map(async (id) => {
+      await expect.poll(() => colorOf(id), { timeout: 1_000, interval: 10 }).toBe(looks[2].rgb);
+      return performance.now() - sent;
+    }),
+  );
+  console.log(
+    `speed: K7 ${live.length} live documents of 20 in view showed the new look in ${Math.max(...times).toFixed(0)} ms at most (p50 ${[...times].sort((a, b) => a - b)[Math.floor(times.length / 2)]?.toFixed(0)} ms)`,
+  );
+  expect(Math.max(...times)).toBeLessThan(1_000);
+  expect(docs()).toEqual(iframes);
+  expect(await Promise.all(live.map((id) => drawnOf(id)))).toEqual(drawn);
 });
