@@ -57,6 +57,7 @@ const help = `easel: the canvas CLI. Every command takes --json (one JSON value 
   easel unshare <canvas>                           end the link; open tabs say it has ended
   easel shot <canvas> <id> -o <file> [--scale 0.25|0.5|1|2] [--region x,y,w,h]
                                                    draw the frame as a browser does; writes a WebP
+  easel kit capsules                               the capsules of the kit: what each does, its install, config and exports
   easel kit check <file|->                         the check of a put, and nothing written; a .tsx file is an app frame
   easel look get [-o <file>] [--at <kit>]         the look as DTCG JSON, its revision and its kit version
   easel look set <file|-> --base <rev>             change values of the look (a JSON Merge Patch); every tab shows it
@@ -442,10 +443,19 @@ const queueInvocations = [
 ] as const;
 
 /**
- * The words and flags of `easel look get|set|undo` (SPEC-kit.md § Change the look) and of
- * `easel kit check` (§ Make an app frame).
+ * The words and flags of `easel look get|set|undo` (SPEC-kit.md § Change the look), of
+ * `easel kit check` (§ Make an app frame) and of `easel kit capsules` (§ The capsules).
  */
 const lookInvocations = [
+  z
+    .object({
+      positionals: z.tuple([z.literal("kit"), z.literal("capsules")]),
+      values: z.strictObject(common),
+    })
+    .transform(({ values }): unknown => ({
+      at: values.server,
+      command: { kind: "look", act: { kind: "capsules" } },
+    })),
   z
     .object({
       positionals: z.tuple([z.literal("kit"), z.literal("check"), z.string()]),

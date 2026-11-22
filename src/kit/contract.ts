@@ -1,6 +1,7 @@
 import { rpc } from "@tinkered/core";
 import { z } from "zod";
 
+import { capsuleRow, startRow } from "./capsules/row";
 import { pair } from "./compose";
 import { findingShape } from "./schema";
 import { lookPatch } from "./shape";
@@ -50,7 +51,27 @@ export const kitCheckOutput = z.discriminatedUnion("kind", [
   z.object({ kind: z.literal("tooBig"), maxBytes: z.number() }),
 ]);
 
+/** The answer of `kit.capsules`: the kit version, the start of its capsules, and each capsule. */
+export const kitCapsulesOutput = z.discriminatedUnion("kind", [
+  z.object({
+    kind: z.literal("found"),
+    kit: kitVersion,
+    start: startRow,
+    capsules: z.array(capsuleRow),
+  }),
+]);
+
 export const kitApi = rpc({
+  /**
+   * The capsules of the current kit version (SPEC-kit.md § The capsules): what each does, how a
+   * frame installs it, its config with its schema, and each export with its kind, a line that
+   * uses it, its edges in the graph, its input schema and its texts. `start` says if they start
+   * with the look of the kit version.
+   */
+  "kit.capsules": {
+    input: z.object({}),
+    output: kitCapsulesOutput,
+  },
   /**
    * The check of `frame.put` on a document, against the current kit version, and nothing written:
    * the first 20 findings in document order, and `more`. An app frame gets the findings that
@@ -105,6 +126,7 @@ type KindOf<A extends KitAddress> =
  * exit code reads it.
  */
 export const kitSuccessKinds = {
+  "kit.capsules": ["found"],
   "kit.check": ["checked"],
   "look.get": ["found"],
   "look.set": ["updated", "unchanged"],

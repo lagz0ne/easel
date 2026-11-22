@@ -129,10 +129,11 @@ A component depends on another component in the same way as on the pieces
   scope from the frame's install list.
 - **The file of a frame.** A frame that has more than one file needs a form for `frame.put`: one
   TSX file with the parts, or a folder.
-- **The MCP and the CLI.** `easel kit capsules` and an MCP tool give the output of
-  `describeCapsule` for the kit version of the board.
-- **Pictures.** Each install of the matrix (locale × data state) gets its picture, as a story in
-  Chromatic does.
+- **The MCP.** `kit.capsules` and `easel kit capsules` are built (SPEC-kit § The capsules). The
+  MCP tool `kit_capsules` comes with the MCP server.
+- **Pictures.** Each install of the matrix (locale × data state) gets its picture in the Chromium
+  of the pictures, as a story in Chromatic does. `renderFrame` (`react-dom/static`) draws only
+  easel's own code: an agent's code must not run in the server process (SPEC-kit fact rule 13).
 - **Texts from a backend.** A part's texts are in its code. A team that keeps texts elsewhere can
   give them as config of `copy` later (`copy({ locale, overrides })`); `say` merges them.
 - **Input checks.** An in-process run of Tinker does not parse the input of an operation; only the

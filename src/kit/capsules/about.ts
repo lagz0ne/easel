@@ -1,23 +1,23 @@
 import { operation } from "@tinkered/core";
 import { z } from "zod";
 
+import type { CapsuleRow } from "./row";
+
 // What a capsule of the kit says about itself (docs/decisions/kit-capsules.md): each capsule has
 // its own `<label>.about` tag among its fixed tags, so the scope's list of capsules
 // (`scope.capsules`) shows it by its label. A tool reads that list, not a document.
 
-/** What a capsule does, and what each of its exports does. */
+/**
+ * What a capsule does, how a frame installs it, and for each export what it does and one line of
+ * code that uses it.
+ */
 export const aboutShape = z.object({
   does: z.string(),
-  exports: z.record(z.string(), z.string()),
+  install: z.string(),
+  exports: z.record(z.string(), z.object({ does: z.string(), use: z.string() })),
 });
 
 export type About = z.infer<typeof aboutShape>;
-
-/** One config key of a capsule, as a tool shows it: its tag, if it needs a value, and its schema. */
-type ConfigKey = { key: string; tag: string; required: boolean; schema: unknown };
-
-/** One export of a capsule: its name, its kind, what it does, and the schema of its input. */
-type ExportRow = { name: string; kind: string; does: string; input?: unknown };
 
 /** A field of a unit: a tag is a function with fields, the other units are objects. */
 const fieldOf = operation({
@@ -51,11 +51,85 @@ const kindOf = operation({
   label: "kit.capsules.kindOf",
   input: z.unknown(),
   run: (_, { input: unit }) => {
-    if ((typeof unit !== "object" && typeof unit !== "function") || unit === null) return "value";
-    if (Reflect.get(unit, "kind") === "reader") return "cell";
+    if ((typeof unit !== "object" && typeof unit !== "function") || unit === null) {
+      return "value" as const;
+    }
+    if (Reflect.get(unit, "kind") === "reader") return "cell" as const;
 
     const found = kinds.find(({ fields }) => fields.every((field) => field in unit));
-    return found?.kind ?? "value";
+    return found?.kind ?? ("value" as const);
+  },
+});
+
+/** How a body uses a unit that it depends on: by the kind of the unit, or of an edge's target. */
+const hows = {
+  resource: "uses",
+  operation: "calls",
+  cell: "reads",
+  tag: "reads",
+  value: "uses",
+} as const;
+
+/**
+ * The edges of a unit (`depends`): each unit it depends on, with its label and how. A controller
+ * of a cell `writes`; a tag's `required` or `optional` edge `reads`.
+ */
+export const edgesOf = operation({
+  label: "kit.capsules.edgesOf",
+  input: z.unknown(),
+  depends: { kindOf, fieldOf },
+  run: ({ kindOf, fieldOf }, { input: unit }) => {
+    const depends = z
+      .record(z.string(), z.unknown())
+      .catch({})
+      .parse(fieldOf.run({ input: { unit, key: "depends" } }));
+
+    return Object.entries(depends).map(([as, dep]) => {
+      const edge = fieldOf.run({ input: { unit: dep, key: "kind" } });
+      const target = edge === "controller" || edge === "required" || edge === "optional";
+      const to = target ? fieldOf.run({ input: { unit: dep, key: "target" } }) : dep;
+
+      const kind = kindOf.run({ input: to });
+      const label = z
+        .string()
+        .catch("?")
+        .parse(fieldOf.run({ input: { unit: to, key: "label" } }));
+      const how: (typeof hows)[keyof typeof hows] | "writes" =
+        edge === "controller" ? (kind === "cell" ? "writes" : "calls") : hows[kind];
+      return { as, unit: label, how };
+    });
+  },
+});
+
+/** The texts of a part's `text` unit, from its `copy.texts` tag: each key with its English text. */
+export const textsOf = operation({
+  label: "kit.capsules.textsOf",
+  input: z.unknown(),
+  depends: { fieldOf },
+  run: ({ fieldOf }, { input: unit }) => {
+    const tags = z
+      .array(z.object({ tag: z.unknown(), value: z.unknown() }))
+      .catch([])
+      .parse(fieldOf.run({ input: { unit, key: "tags" } }));
+    const found = tags.find(
+      ({ tag }) => fieldOf.run({ input: { unit: tag, key: "label" } }) === "copy.texts",
+    );
+    const en = z
+      .object({
+        en: z.record(
+          z.string(),
+          z.union([z.string(), z.object({ one: z.string(), other: z.string() })]),
+        ),
+      })
+      .safeParse(found?.value);
+    if (!en.success) return undefined;
+
+    return Object.fromEntries(
+      Object.entries(en.data.en).map(([key, text]) => [
+        key,
+        typeof text === "string" ? text : `${text.one} | ${text.other}`,
+      ]),
+    );
   },
 });
 
@@ -70,11 +144,12 @@ export const describeCapsule = operation({
     record: z.object({ label: z.string(), tags: z.record(z.string(), z.unknown()) }),
     handle: z.object({ config: z.record(z.string(), z.unknown()).optional() }).loose(),
   }),
-  depends: { schemaOf, kindOf, fieldOf },
-  run: ({ schemaOf, kindOf, fieldOf }, { input: { record, handle } }) => {
+  depends: { schemaOf, kindOf, fieldOf, edgesOf, textsOf },
+  run: (units, { input: { record, handle } }): CapsuleRow => {
+    const { schemaOf, kindOf, fieldOf, edgesOf, textsOf } = units;
     const about = aboutShape.parse(record.tags[`${record.label}.about`]);
 
-    const config: ConfigKey[] = Object.entries(handle.config ?? {}).map(([key, entry]) => {
+    const config = Object.entries(handle.config ?? {}).map(([key, entry]) => {
       // A required key is an edge ({ kind: "required", target: tag }); a key with a default, the tag.
       const kind = fieldOf.run({ input: { unit: entry, key: "kind" } });
       const tag =
@@ -87,15 +162,26 @@ export const describeCapsule = operation({
       };
     });
 
-    const exports: ExportRow[] = Object.entries(about.exports).map(([name, does]) => {
+    const exports = Object.entries(about.exports).map(([name, { does, use }]) => {
       const unit: unknown = Reflect.get(handle, name);
       const kind = kindOf.run({ input: unit });
       const parse =
-        kind === "operation" ? fieldOf.run({ input: { unit: unit, key: "input" } }) : undefined;
-      const schema = parse === undefined ? null : schemaOf.run({ input: parse });
-      return schema === null ? { name, kind, does } : { name, kind, does, input: schema };
+        kind === "operation" ? fieldOf.run({ input: { unit, key: "input" } }) : undefined;
+      const input = parse === undefined ? null : schemaOf.run({ input: parse });
+
+      const texts = textsOf.run({ input: unit });
+      const depends = edgesOf.run({ input: unit });
+      return {
+        name,
+        kind,
+        does,
+        use,
+        depends,
+        ...(input === null ? {} : { input }),
+        ...(texts === undefined ? {} : { texts }),
+      };
     });
 
-    return { label: record.label, does: about.does, config, exports };
+    return { label: record.label, does: about.does, install: about.install, config, exports };
   },
 });

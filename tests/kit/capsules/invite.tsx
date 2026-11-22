@@ -24,6 +24,7 @@ const texts = {
 /** The `t` of the frame: its texts in the locale of the scope. */
 export const text = resource({
   label: "invite.text",
+  tags: [copy.texts(texts)],
   depends: { say: copy.say },
   factory: ({ say }) => say(texts),
 });

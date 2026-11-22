@@ -7,6 +7,7 @@ import { exits } from "@tinkered/cli/test";
 import { createScope, operation } from "@tinkered/core";
 import { makeTestClock, memory } from "@tinkered/core/testing";
 import { afterEach, expect, test } from "vite-plus/test";
+import { z } from "zod";
 
 import { access } from "@/access";
 import { user } from "@/access/guards.server";
@@ -314,4 +315,44 @@ test("kit check with --json prints the answer only; many findings end with `and 
   const big = text.file("big.tsx", "x".repeat(256 * 1024 + 1));
   expect(await text.run({ kind: "check", file: big })).toBe(1);
   expect(text.err.splice(0).join("")).toContain("over 262144 bytes");
+});
+
+test("kit capsules prints each capsule of the kit version: what it does, its install, config and exports, with its edges and texts", async () => {
+  const srv = await boot();
+  const text = await ann(srv, { json: false });
+
+  expect(await text.run({ kind: "capsules" })).toBe(0);
+  const out = text.out.splice(0).join("");
+  expect(out.split("\n")[0]).toBe(
+    "kit version 1: 3 capsules; they start with the look of this kit version",
+  );
+  expect(out).toContain("\n\ncopy: The locale of a scope");
+  expect(out).toContain('  config locale: "en" | "vi"\n');
+  expect(out).toContain("  config values (required): a map of ^--[a-z][a-z0-9-]*$ to values\n");
+  expect(out).toContain("  pieces (resource): Button, Card, Badge, Stat and Empty");
+  expect(out).toContain('           <Button tone="primary|secondary|ghost|danger"');
+  expect(out).toContain("      depends: t uses ui.text");
+  expect(out).toContain('      text ui.empty: "Nothing here yet"');
+
+  const json = await ann(await boot());
+  expect(await json.run({ kind: "capsules" })).toBe(0);
+  const [answer] = json.lines();
+  expect(answer).toMatchObject({ kind: "found", kit: 1, start: { kind: "started" } });
+  const capsules = z
+    .array(
+      z.object({
+        label: z.string(),
+        exports: z.array(z.object({ name: z.string(), kind: z.string() })),
+      }),
+    )
+    .parse(Reflect.get(Object(answer), "capsules"));
+  expect(
+    capsules.map(
+      (one) => `${one.label}: ${one.exports.map((e) => `${e.name} ${e.kind}`).join(", ")}`,
+    ),
+  ).toEqual([
+    "look: values resource, styles resource",
+    "copy: say resource, texts tag, format resource",
+    "ui: pieces resource, text resource",
+  ]);
 });

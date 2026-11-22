@@ -4,6 +4,7 @@ import { z } from "zod";
 import { maxDocBytes, maxFindings } from "@/frames/contract";
 
 import { checkApp } from "./app.server";
+import { kitCapsules } from "./capsules/list.server";
 import { check } from "./check.server";
 import { contrast } from "./compose";
 import { kitApi } from "./contract";
@@ -110,8 +111,26 @@ export const checkKit = operation({
   },
 });
 
+/**
+ * `kit.capsules`: the kit's capsules, installed with the look and the kit's CSS of the current
+ * kit version (`kitCapsules`), each described.
+ */
+export const listCapsules = operation({
+  label: "kit.capsules.do",
+  input: kitApi["kit.capsules"].input,
+  depends: { frameKit, kitCapsules },
+  run: async ({ frameKit, kitCapsules }) => {
+    const kit = await frameKit.run();
+    const { start, capsules } = await kitCapsules.run({
+      input: { values: kit.look, css: kit.css },
+    });
+    return { kind: "found" as const, kit: kit.version, start, capsules };
+  },
+});
+
 /** The kit's calls, by address. */
 export const kitOps = {
+  "kit.capsules": listCapsules,
   "kit.check": checkKit,
   "look.get": lookGet,
   "look.set": lookSet,

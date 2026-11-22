@@ -24,6 +24,7 @@ export const texts = {
 
 export const text = resource({
   label: "pricing.text",
+  tags: [copy.texts(texts)],
   depends: { say: copy.say },
   factory: ({ say }) => say(texts),
 });

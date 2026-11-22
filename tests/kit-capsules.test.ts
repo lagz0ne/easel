@@ -12,6 +12,7 @@ import { lookValues } from "@/kit/look.server";
 import { seedKitCss, seedLook } from "@/kit/seed.server";
 
 import * as invite from "./kit/capsules/invite";
+import { texts as pricingTexts } from "./kit/capsules/pricing/copy";
 import { sampleShape } from "./kit/capsules/pricing/entities";
 import { pricing } from "./kit/capsules/pricing/index";
 
@@ -126,7 +127,7 @@ test("the copy check: a key with no English, a key with no text, and other param
     { locale: "vi", key: "c", why: "no English text" },
     { locale: "vi", key: "b", why: "the parameters are not {count}" },
   ]);
-  expect(await server.run(textGaps, { input: pricing.texts })).toEqual([]);
+  expect(await server.run(textGaps, { input: pricingTexts })).toEqual([]);
 });
 
 test("a look that fails K8 stops the scope: the pieces do not draw with it", async () => {
@@ -198,7 +199,6 @@ test("the list of capsules: what each does, its config with its schema, and its 
     "plans cell",
     "choose operation",
     "text resource",
-    "texts value",
   ]);
   expect(list[3]?.exports[2]?.input).toMatchObject({ type: "string" });
   // The scope's own record: the config as installed.

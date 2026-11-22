@@ -215,6 +215,7 @@ type Rule = "look/color" | "look/size" | "look/override" | "kit/class" | "kit/pi
 type Pair = { text: string; on: string; ratio: number; min: number; where: string }
 
 "kit.guide": { kind: "found"; kit: number; text: string }
+"kit.capsules": { kind: "found"; kit: number; start: Start; capsules: CapsuleRow[] }   // § The capsules
 "kit.list":  { kind: "found"; kit: number; pieces: PieceInfo[] }
 "kit.get":   { kind: "found"; kit: number; piece: Piece } | { kind: "gone" }
 "kit.put":   { kind: "created" | "updated" | "unchanged"; name: string; rev: number; kit: number }
@@ -233,6 +234,7 @@ type Pair = { text: string; on: string; ratio: number; min: number; where: strin
 | Call                    | Success kinds                     |
 | ----------------------- | --------------------------------- |
 | `kit.guide`, `kit.list` | `found`                           |
+| `kit.capsules`          | `found`                           |
 | `kit.get`, `look.get`   | `found`                           |
 | `kit.put`               | `created`, `updated`, `unchanged` |
 | `kit.check`             | `checked`                         |
@@ -611,6 +613,47 @@ first render, after the fonts are ready, as now. Reasons, and the option that is
   boundary that frames already have (frames, known risk). It also gives no layout, and its HTML is
   not the document of the tab.
 
+### The capsules
+
+The kit is three Tinker capsules (decision [kit-capsules](docs/decisions/kit-capsules.md)):
+`look` (the look values and the kit's CSS of a kit version), `copy` (the locale, `say` and
+`format`) and `ui` (the pieces as React components). easel installs them for each app frame, with
+the look of the frame's kit version. A frame is a component that depends on them (form 1) or a
+capsule of its own (form 2).
+
+**The list.** `kit.capsules` installs the kit's capsules with the look of the current kit version,
+in a new scope, and reads the scope's list of capsules. For each capsule it answers:
+
+```ts
+type CapsuleRow = {
+  label: string; does: string; install: string;
+  config: { key: string; tag: string; required: boolean; schema: JsonSchema }[];
+  exports: {
+    name: string; kind: "resource" | "operation" | "cell" | "tag" | "value";
+    does: string; use: string;                  // from the capsule's `<label>.about` tag
+    depends: { as: string; unit: string; how: "uses" | "reads" | "writes" | "calls" }[];
+    input?: JsonSchema;                         // an operation's input
+    texts?: Record<string, string>;             // a part's `text`: each key, its English text
+  }[];
+};
+type Start = { kind: "started" } | { kind: "refused"; refused: string; payload: unknown };
+```
+
+- `does`, `install` and each `use` come from the capsule's own `<label>.about` tag. A capsule
+  that has no such tag is not in the kit.
+- `depends` comes from the graph: the units in the `depends` of each export.
+- `texts` comes from the `copy.texts` tag of a part's `text` resource.
+- `start` is the start of the kit's capsules with the look of this kit version. A look that fails
+  K8 gives `refused` with `LookFailsK8`.
+
+`easel kit capsules` prints the list for a person (a schema as a short type, such as
+`"en" | "vi"`); with `--json`, the answer as it is. The MCP tool `kit_capsules` gives the answer.
+
+**Why the list comes from the graph.** The list is the same graph that a frame of the kit version
+gets. So it cannot be older than the kit, and an agent learns each part before it writes code:
+what exists, how to install it, a line that uses it, what it depends on, and the texts that it can
+use again.
+
 ## Rules
 
 The statecharts [kit-piece](docs/statecharts/kit-piece.md), [kit-look](docs/statecharts/kit-look.md),
@@ -644,6 +687,12 @@ The statecharts [kit-piece](docs/statecharts/kit-piece.md), [kit-look](docs/stat
 11. Only `buildRuntime` (`src/kit/runtime.server.ts`) builds a runtime, and only `runtimeOf`
     writes one to a kit version. `kit.check`, a show and a picture read the stored runtime only;
     the route `/api/runtime/...` answers only stored bytes.
+12. The CLI and the MCP list the capsules of the kit from `kit.capsules` only, and `kit.capsules`
+    reads them only from the scope of the kit's capsules (`kitCapsules`). No other text lists a
+    capsule, its config or its exports.
+13. Only easel's own code draws with `react-dom/server` or `react-dom/static`
+    (`src/kit/capsules/render.server.tsx`): the kit's capsules and the tests. The code of an agent
+    draws only in its sandboxed iframe or in the Chromium of the pictures.
 
 ### Judged rules (need reading the code)
 

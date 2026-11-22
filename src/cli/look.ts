@@ -6,6 +6,7 @@ import { z } from "zod";
 import { loginApi } from "@/access/contract";
 import { kit } from "@/kit";
 import {
+  kitCapsulesOutput,
   kitCheckOutput,
   kitSuccessKinds,
   kitVersion,
@@ -33,6 +34,8 @@ export const lookCommand = z.discriminatedUnion("kind", [
   z.object({ kind: z.literal("undo"), base: z.string() }),
   /** `easel kit check <file|->`: a path that ends in `.tsx` is an app frame. */
   z.object({ kind: z.literal("check"), file: z.string().min(1) }),
+  /** `easel kit capsules`: the capsules of the current kit version. */
+  z.object({ kind: z.literal("capsules") }),
 ]);
 
 export type LookCommand = z.infer<typeof lookCommand>;
@@ -40,7 +43,13 @@ export type LookCommand = z.infer<typeof lookCommand>;
 /** `--base 3` or `--at 3`, as typed: 1 or more. */
 const numberFlag = z.string().regex(/^\d+$/).transform(Number).pipe(kitVersion);
 
-const address = z.enum(["look.get", "look.set", "look.undo", "kit.check"] satisfies KitAddress[]);
+const address = z.enum([
+  "look.get",
+  "look.set",
+  "look.undo",
+  "kit.check",
+  "kit.capsules",
+] satisfies KitAddress[]);
 
 /** One call's deadline: after `callDeadline` (60 s) its signal aborts with a `link` fault. */
 const lookDeadline = operation({
@@ -400,11 +409,118 @@ export const kitCheck = operation({
   },
 });
 
-/** Runs one `easel look` command, or `easel kit check`; answers its exit code. */
+type Capsules = Extract<z.infer<typeof kitCapsulesOutput>, { kind: "found" }>;
+
+const schemaShape = z
+  .object({
+    type: z.string().optional(),
+    enum: z.array(z.unknown()).optional(),
+    items: z.unknown().optional(),
+    propertyNames: z.object({ pattern: z.string() }).optional(),
+    additionalProperties: z.unknown().optional(),
+  })
+  .loose();
+
+/**
+ * A JSON Schema as a short type for a person: `"en" | "vi"`, `string`, `array`, or a map with the
+ * pattern of its names. `--json` gives the whole schema.
+ */
+const schemaText = operation({
+  label: "cli.kitSchemaText",
+  input: z.unknown(),
+  run: (_, { input }) => {
+    const schema = schemaShape.safeParse(input);
+    if (!schema.success) return "any";
+
+    const { type, propertyNames } = schema.data;
+    if (schema.data.enum) return schema.data.enum.map((one) => JSON.stringify(one)).join(" | ");
+    if (type === "object" && propertyNames) return `a map of ${propertyNames.pattern} to values`;
+    return type ?? "any";
+  },
+});
+
+/** The text of one export: its name, kind and what it does, then its use, edges and texts. */
+const exportText = operation({
+  label: "cli.kitExportText",
+  input: z.custom<Capsules["capsules"][number]["exports"][number]>(),
+  depends: { schemaText },
+  run: ({ schemaText }, { input: one }) => {
+    const lines = [`  ${one.name} (${one.kind}): ${one.does}`];
+    lines.push(
+      ...one.use.split("\n").map((line, i) => `      ${i === 0 ? "use: " : "     "}${line}`),
+    );
+
+    if (one.depends.length > 0) {
+      const edges = one.depends.map((edge) => `${edge.as} ${edge.how} ${edge.unit}`).join(", ");
+      lines.push(`      depends: ${edges}`);
+    }
+
+    if (one.input !== undefined) lines.push(`      input: ${schemaText.run({ input: one.input })}`);
+    for (const [key, text] of Object.entries(one.texts ?? {})) {
+      lines.push(`      text ${key}: ${JSON.stringify(text)}`);
+    }
+    return lines.join("\n");
+  },
+});
+
+/** What `easel kit capsules` prints for a person: the start, then each capsule and its exports. */
+const capsulesText = operation({
+  label: "cli.kitCapsulesText",
+  input: z.custom<Capsules>(),
+  depends: { exportText, schemaText },
+  run: ({ exportText, schemaText }, { input: answer }) => {
+    const start =
+      answer.start.kind === "started"
+        ? "they start with the look of this kit version"
+        : `they do not start: ${answer.start.refused} ${JSON.stringify(answer.start.payload)}`;
+    const blocks = answer.capsules.map((one) => {
+      const config = one.config.map(
+        (key) =>
+          `  config ${key.key}${key.required ? " (required)" : ""}: ${schemaText.run({ input: key.schema })}`,
+      );
+      const exports = one.exports.map((row) => exportText.run({ input: row }));
+      return [`${one.label}: ${one.does}`, `  install: ${one.install}`, ...config, ...exports].join(
+        "\n",
+      );
+    });
+    const head = `kit version ${answer.kit}: ${answer.capsules.length} capsules; ${start}`;
+    return [head, ...blocks].join("\n\n");
+  },
+});
+
+/**
+ * `easel kit capsules` (`kit.capsules`): the capsules of the current kit version, each with what
+ * it does, its install, its config and its exports; with `--json`, the answer only.
+ */
+export const kitCapsules = operation({
+  label: "cli.kitCapsules",
+  input: lookCommand.options[4],
+  depends: {
+    say,
+    capsulesText,
+    exitOf: lookExitOf,
+    fault: lookFault,
+    deadline: lookDeadline,
+    call: kit.api["kit.capsules"],
+  },
+  run: async ({ say, capsulesText, exitOf, fault, deadline, call }) => {
+    const stop = deadline.run({ input: "kit.capsules" });
+    const reply = await call.settle({ input: {}, signal: stop.signal });
+    stop.abort();
+    if (reply.status === "cancelled") return fault.run({ input: reply.reason });
+    if (reply.status === "failed") return fault.run({ input: reply.error });
+
+    const answer = reply.value;
+    say.run({ input: { json: answer, text: capsulesText.run({ input: answer }) } });
+    return exitOf.run({ input: { address: "kit.capsules", kind: answer.kind } });
+  },
+});
+
+/** Runs one `easel look` command, or `easel kit check|capsules`; answers its exit code. */
 export const lookRun = operation({
   label: "cli.look",
   input: lookCommand,
-  depends: { lookGet, lookSet, lookUndo, kitCheck },
+  depends: { lookGet, lookSet, lookUndo, kitCheck, kitCapsules },
   run: (ops, { input }) => {
     switch (input.kind) {
       case "get":
@@ -415,6 +531,8 @@ export const lookRun = operation({
         return ops.lookUndo.run({ input });
       case "check":
         return ops.kitCheck.run({ input });
+      case "capsules":
+        return ops.kitCapsules.run({ input });
     }
   },
 });

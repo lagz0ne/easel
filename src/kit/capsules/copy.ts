@@ -40,6 +40,9 @@ const locale = tag<Locale>({ label: "copy.locale", default: "en", parse: localeS
 
 const about = tag({ label: "copy.about", parse: aboutShape });
 
+/** The texts of a part, on its `text` resource: a tool reads its keys from the graph. */
+const texts = tag<Texts>({ label: "copy.texts", parse: textsShape });
+
 /** The parameters of a text, sorted: `{count} people in {team}` gives `count team`. */
 const paramsOf = operation({
   label: "copy.paramsOf",
@@ -133,11 +136,23 @@ export const copy = capsule({
   tags: [
     about({
       does: "The locale of a scope: the texts of each part and the formats of numbers, money and dates in it.",
+      install:
+        'easel installs it for each frame: copy({ locale }), with each locale of the board ("en", "vi").',
       exports: {
-        say: "say(texts) gives the t of a part: a part's text resource depends on it. A gap in the texts raises CopyGaps.",
-        format: "format.number, format.money and format.date in the locale.",
+        say: {
+          does: "say(texts) gives the t of a part, after the check of its texts: a gap raises CopyGaps.",
+          use: 'const text = resource({ label: "<part>.text", tags: [copy.texts(texts)], depends: { say: copy.say }, factory: ({ say }) => say(texts) }); // texts = { en: { "<part>.title": "..." }, vi: { ... } } satisfies Texts',
+        },
+        texts: {
+          does: "The tag of a part's texts, on its text resource, so a tool can list them.",
+          use: "tags: [copy.texts(texts)]",
+        },
+        format: {
+          does: "format.number, format.money and format.date in the locale.",
+          use: 'depends: { format: copy.format } // format.money(29, "USD") is "$29.00" in en',
+        },
       },
     }),
   ],
-  exports: { say, format },
+  exports: { say, texts, format },
 });

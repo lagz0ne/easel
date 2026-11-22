@@ -57,7 +57,8 @@ Prior art:
 ### An agent works through MCP
 
 1. The server's `instructions` (in its answer to `initialize`) say: "Frames are made from the
-   kit of this easel. Call `kit_guide` before the first `put_frame`." The descriptions of
+   kit of this easel. Call `kit_guide` before the first `put_frame`; call `kit_capsules` before
+   the first app frame." The descriptions of
    `put_frame` and `create_canvas` say the same.
 2. The agent lists the tools. Each has a name, a description that says when to use it, an input
    schema, and an output schema.
@@ -98,6 +99,7 @@ Tools, one per call. They are named after the call, and their inputs match the C
 | `delete_frame`    | `frame.delete`     | destructive             |
 | `shot_frame`      | `frame.shot`       | readOnly                |
 | `kit_guide`       | `kit.guide`        | readOnly                |
+| `kit_capsules`    | `kit.capsules`     | readOnly                |
 | `list_pieces`     | `kit.list`         | readOnly                |
 | `get_piece`       | `kit.get`          | readOnly                |
 | `put_piece`       | `kit.put`          |                         |

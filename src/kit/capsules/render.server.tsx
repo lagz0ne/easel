@@ -10,6 +10,10 @@ import { look } from "./look";
 // frame's install list, its start (each capsule checks what it needs), then the View in that
 // scope, then the scope closes. The same install list and the same code give the same HTML. A
 // change of the locale or of the data state is a new install list, so a new scope.
+//
+// Only easel's own code draws here (SPEC-kit.md fact rule 13): the kit's capsules and the tests.
+// The code of an agent runs in the server process here, out of each sandbox, so an agent's frame
+// draws only in its sandboxed iframe or in the Chromium of the pictures.
 
 const refusal = z.object({ kind: z.string(), payload: z.unknown() });
 

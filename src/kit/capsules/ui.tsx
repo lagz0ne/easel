@@ -30,6 +30,7 @@ const texts = {
 /** The `t` of the pieces: their texts in the locale of the scope. */
 const text = resource({
   label: "ui.text",
+  tags: [copy.texts(texts)],
   depends: { say: copy.say },
   factory: ({ say }) => say(texts),
 });
@@ -112,9 +113,23 @@ export const ui = capsule({
   tags: [
     about({
       does: "The pieces of the kit: React components with the kit's classes. Its start stops the scope when the look fails K8.",
+      install: "easel installs it for each frame, after look and copy.",
       exports: {
-        pieces: "Button, Card, Badge, Stat and Empty.",
-        text: "The t of the pieces, in the locale of the scope.",
+        pieces: {
+          does: "Button, Card, Badge, Stat and Empty: compose them, and do not style them.",
+          use: [
+            "depends: { ui: ui.pieces } then factory: ({ ui: { Button, Card, Badge, Stat, Empty } }) => function View() { ... }",
+            '<Button tone="primary|secondary|ghost|danger" small wide disabled label="<aria label>" onClick={...}>Save</Button>',
+            '<Card title="Plans">...</Card>',
+            '<Badge tone="plain|info|success|warning|danger">New</Badge>',
+            '<Stat label="Revenue" value="$1,200" />',
+            "<Empty>{optional action}</Empty> // its text is ui.empty",
+          ].join("\n"),
+        },
+        text: {
+          does: "The t of the pieces, in the locale of the scope.",
+          use: "The pieces use it; a frame uses its own text.",
+        },
       },
     }),
   ],

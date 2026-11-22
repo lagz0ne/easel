@@ -39,9 +39,16 @@ export const look = capsule({
   tags: [
     about({
       does: "The look values and the kit's CSS of one kit version.",
+      install: "easel installs it for each frame, with the look of the board's kit version.",
       exports: {
-        values: "The look values, by CSS name.",
-        styles: "The :root block of the look, then the kit's CSS.",
+        values: {
+          does: "The look values, by CSS name.",
+          use: 'depends: { values: look.values } // values["--primary"]',
+        },
+        styles: {
+          does: "The :root block of the look, then the kit's CSS.",
+          use: "easel puts it in the frame; a frame does not read it.",
+        },
       },
     }),
   ],
