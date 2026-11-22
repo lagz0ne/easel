@@ -82,8 +82,8 @@ async function boot(options: Boot = {}) {
   return { server, setupCode };
 }
 
-/** An agent signed in as Ann, the first owner. */
-async function agentOf(srv: Awaited<ReturnType<typeof boot>>) {
+/** An agent signed in as Ann, the first owner; with `known`, the pass of her first start. */
+async function agentOf(srv: Awaited<ReturnType<typeof boot>>, known?: string) {
   const client = async (token?: string) => {
     const meta = operation({
       label: "test.meta",
@@ -101,6 +101,8 @@ async function agentOf(srv: Awaited<ReturnType<typeof boot>>) {
     closers.push(() => scope.close());
     return scope;
   };
+  if (known) return client(known);
+
   const text = randomBytes(32).toString("base64url");
   const digest = createHash("sha256").update(text).digest("hex");
   await (
@@ -108,8 +110,12 @@ async function agentOf(srv: Awaited<ReturnType<typeof boot>>) {
   ).run(access.login["login.setup"], {
     input: { name: "ann", code: srv.setupCode(), digest },
   });
+  passes.set(srv, text);
   return client(text);
 }
+
+/** The pass of Ann on each server that she started. */
+const passes = new Map<object, string>();
 
 /** The route's answer for one file of a runtime. */
 const fetchFile = (server: Scope.Handle, kitVersion: string, sha: string, file: string) =>
@@ -200,6 +206,66 @@ test(
     });
     expect(set).toMatchObject({ kind: "updated", kit: 2 });
     expect((await srv.server.run(runtimeOf, { input: 2 }))?.sha).toBe(a.sha);
+  },
+);
+
+test(
+  "kit.accept: after an update of easel, the next kit version has its runtime and the same look; a change of the look keeps it",
+  { timeout: 30_000 },
+  async () => {
+    const dir = mkdtempSync(join(tmpdir(), "easel-accept-"));
+    try {
+      const file = join(dir, "easel.db");
+      const a = fakeRuntime("a");
+      const one = await boot({ file, runtime: a });
+      const ann = await agentOf(one);
+      // No runtime yet: its first use gives the one of this easel, so nothing to accept.
+      expect(await ann.run(kit.api["kit.accept"], { input: {} })).toEqual({
+        kind: "unchanged",
+        kit: 1,
+        rev: 1,
+      });
+      await one.server.run(runtimeOf, { input: 1 });
+      expect((await ann.run(kit.api["kit.accept"], { input: {} })).kind).toBe("unchanged");
+      const pass = passes.get(one) ?? "";
+      await one.server.close();
+
+      const b = fakeRuntime("b");
+      const two = await boot({ file, runtime: b });
+      const again = await agentOf(two, pass);
+      expect(await again.run(kit.api["kit.accept"], { input: {} })).toEqual({
+        kind: "updated",
+        kit: 2,
+        rev: 1,
+        runtime: b.sha,
+      });
+      expect((await two.server.run(runtimeOf, { input: 1 }))?.sha).toBe(a.sha);
+      expect((await two.server.run(runtimeOf, { input: 2 }))?.sha).toBe(b.sha);
+      const got = await again.run(kit.api["look.get"], { input: {} });
+      const before = await again.run(kit.api["look.get"], { input: { at: 1 } });
+      expect(got).toEqual({ ...before, kit: 2 });
+
+      // The accept kept the look's revision, so a change on revision 1 is not stale.
+      const set = await again.run(kit.api["look.set"], {
+        input: {
+          look: { color: { primary: { $value: { colorSpace: "srgb", components: [0, 0, 0.5] } } } },
+          base: 1,
+        },
+      });
+      expect(set).toMatchObject({ kind: "updated", kit: 3, rev: 2 });
+      expect((await two.server.run(runtimeOf, { input: 3 }))?.sha).toBe(b.sha);
+      expect(await again.run(kit.api["look.undo"], { input: { base: 2 } })).toMatchObject({
+        kind: "updated",
+        kit: 4,
+      });
+      expect((await two.server.run(runtimeOf, { input: 4 }))?.sha).toBe(b.sha);
+      const undone = await again.run(kit.api["look.get"], { input: {} });
+      expect(undone.kind === "found" && undone.look).toEqual(
+        before.kind === "found" && before.look,
+      );
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
   },
 );
 

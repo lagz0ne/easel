@@ -32,3 +32,5 @@ kit-app-frame	models/kit/AppFrame.tla	models/kit/AppFrame.cfg	models/kit/AppFram
 kit-app-frame-no-close	models/kit/AppFrame.tla	models/kit/AppFrameNoClose.cfg	models/kit/AppFrame.view.mjs	breaks
 kit-frame-axes	models/kit/FrameAxes.tla	models/kit/FrameAxes.cfg	models/kit/FrameAxes.view.mjs	holds
 kit-frame-controls	models/kit/FrameControls.tla	models/kit/FrameControls.cfg	models/kit/FrameControls.view.mjs	holds
+kit-runtime	models/kit/KitRuntime.tla	models/kit/KitRuntime.cfg	models/kit/KitRuntime.view.mjs	holds
+kit-runtime-same-text	models/kit/KitRuntime.tla	models/kit/KitRuntimeSameText.cfg	models/kit/KitRuntime.view.mjs	breaks

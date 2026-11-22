@@ -36,6 +36,8 @@ export const lookCommand = z.discriminatedUnion("kind", [
   z.object({ kind: z.literal("check"), file: z.string().min(1) }),
   /** `easel kit capsules`: the capsules of the current kit version. */
   z.object({ kind: z.literal("capsules") }),
+  /** `easel kit accept`: the runtime of this easel for the next kit version. */
+  z.object({ kind: z.literal("accept") }),
 ]);
 
 export type LookCommand = z.infer<typeof lookCommand>;
@@ -49,6 +51,7 @@ const address = z.enum([
   "look.undo",
   "kit.check",
   "kit.capsules",
+  "kit.accept",
 ] satisfies KitAddress[]);
 
 /** One call's deadline: after `callDeadline` (60 s) its signal aborts with a `link` fault. */
@@ -516,11 +519,42 @@ export const kitCapsules = operation({
   },
 });
 
-/** Runs one `easel look` command, or `easel kit check|capsules`; answers its exit code. */
+/**
+ * `easel kit accept` (`kit.accept`): the runtime of this easel for the next kit version. The text
+ * says that a frame gets it at its next put.
+ */
+export const kitAccept = operation({
+  label: "cli.kitAccept",
+  input: lookCommand.options[5],
+  depends: {
+    say,
+    exitOf: lookExitOf,
+    fault: lookFault,
+    deadline: lookDeadline,
+    call: kit.api["kit.accept"],
+  },
+  run: async ({ say, exitOf, fault, deadline, call }) => {
+    const stop = deadline.run({ input: "kit.accept" });
+    const reply = await call.settle({ input: {}, signal: stop.signal });
+    stop.abort();
+    if (reply.status === "cancelled") return fault.run({ input: reply.reason });
+    if (reply.status === "failed") return fault.run({ input: reply.error });
+
+    const answer = reply.value;
+    const text =
+      answer.kind === "updated"
+        ? `updated: kit version ${answer.kit} has the runtime of this easel. Put each app frame again to give it this runtime`
+        : `unchanged: kit version ${answer.kit} has the runtime of this easel, or gets it at its first use`;
+    say.run({ input: { json: answer, text } });
+    return exitOf.run({ input: { address: "kit.accept", kind: answer.kind } });
+  },
+});
+
+/** Runs one `easel look` command, or `easel kit check|capsules|accept`; answers its exit code. */
 export const lookRun = operation({
   label: "cli.look",
   input: lookCommand,
-  depends: { lookGet, lookSet, lookUndo, kitCheck, kitCapsules },
+  depends: { lookGet, lookSet, lookUndo, kitCheck, kitCapsules, kitAccept },
   run: (ops, { input }) => {
     switch (input.kind) {
       case "get":
@@ -533,6 +567,8 @@ export const lookRun = operation({
         return ops.kitCheck.run({ input });
       case "capsules":
         return ops.kitCapsules.run({ input });
+      case "accept":
+        return ops.kitAccept.run({ input });
     }
   },
 });

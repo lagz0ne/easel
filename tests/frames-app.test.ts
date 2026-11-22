@@ -6,6 +6,7 @@ import { join } from "node:path";
 import { bunSqlite } from "@tinkered/bun/sqlite";
 import { exits } from "@tinkered/cli/test";
 import { createScope, operation } from "@tinkered/core";
+import type { Scope } from "@tinkered/core";
 import { makeTestClock, memory } from "@tinkered/core/testing";
 import { chromium } from "playwright";
 import { afterEach, expect, test } from "vite-plus/test";
@@ -23,7 +24,7 @@ import { composeApp } from "@/kit/compose";
 import { fontRoute } from "@/kit/fonts.server";
 import { runtimeNames } from "@/kit/runtime";
 import { type BuiltRuntime, runtimeNamesOf, runtimeRoute } from "@/kit/runtime.server";
-import { readKit } from "@/kit/store.server";
+import { acceptRuntime, readKit, readKitAt } from "@/kit/store.server";
 
 import { localChromium } from "./support/chromium";
 import { wsServer } from "./support/ws";
@@ -50,12 +51,12 @@ const people = async () => {
 };
 
 /** A runtime that a test gives the server in place of a build: each name, one small file each. */
-function fakeRuntime(): BuiltRuntime {
+function fakeRuntime(mark = "fake"): BuiltRuntime {
   const imports = Object.fromEntries(
     runtimeNames.map((name) => [name, `${name.replace(/^@/, "").replaceAll("/", "__")}.js`]),
   );
   const files = Object.fromEntries(Object.values(imports).map((file) => [file, "export {};"]));
-  return { sha: createHash("sha256").update("fake").digest("hex"), imports, files };
+  return { sha: createHash("sha256").update(mark).digest("hex"), imports, files };
 }
 
 /**
@@ -93,8 +94,8 @@ async function boot(options: { runtime?: BuiltRuntime | null; file?: string } = 
   return { server, setupCode };
 }
 
-/** Ann's agent, signed in, with the canvas `flow`. */
-async function annOn(srv: Awaited<ReturnType<typeof boot>>) {
+/** Ann's agent, signed in, with the canvas `flow`; with `known`, the pass of her first start. */
+async function annOn(srv: Awaited<ReturnType<typeof boot>>, known?: string) {
   const client = async (token?: string) => {
     const meta = operation({
       label: "test.meta",
@@ -112,6 +113,8 @@ async function annOn(srv: Awaited<ReturnType<typeof boot>>) {
     closers.push(() => scope.close());
     return scope;
   };
+  if (known) return agentOn(await client(known), known);
+
   const text = randomBytes(32).toString("base64url");
   const digest = createHash("sha256").update(text).digest("hex");
   await (
@@ -122,7 +125,13 @@ async function annOn(srv: Awaited<ReturnType<typeof boot>>) {
   const scope = await client(text);
   await scope.run(frames.api["canvas.create"], { input: { name: "flow" } });
 
+  return agentOn(scope, text);
+}
+
+/** The calls of Ann's agent on the canvas `flow`, and her pass. */
+function agentOn(scope: Scope.Handle, pass: string) {
   return {
+    pass,
     put: (input: PutInput) => scope.run(frames.api["frame.put"], { input }),
     get: (id: string) => scope.run(frames.api["frame.get"], { input: { canvas: "flow", id } }),
     list: () => scope.run(frames.api["frame.list"], { input: { canvas: "flow" } }),
@@ -447,6 +456,54 @@ test("a folder frame: frame.put takes its files, keeps them as written, and fram
     frames: [{ id: made.id, version: 1 }],
   });
 });
+
+test(
+  "after an update of easel, the same TSX keeps its runtime; after the team accepts, a put of it again is a new version on the new runtime",
+  { timeout: 30_000 },
+  async () => {
+    const dir = mkdtempSync(join(tmpdir(), "easel-accept-"));
+    try {
+      const file = join(dir, "easel.db");
+      const a = fakeRuntime("a");
+      const one = await boot({ file, runtime: a });
+      const tsx = await pricing();
+      const first = await annOn(one);
+      const made = await first.put({ canvas: "flow", tsx });
+      if (made.kind !== "created") throw new Error(`not created: ${made.kind}`);
+      await one.server.close();
+
+      // An update of easel: it runs the runtime b. Kit version 1 keeps a, so the put is unchanged.
+      const b = fakeRuntime("b");
+      const two = await boot({ file, runtime: b });
+      const ann = await annOn(two, first.pass);
+      const again = { canvas: "flow", tsx, id: made.id, base: 1 };
+      expect((await ann.put(again)).kind).toBe("unchanged");
+
+      // The team accepts: kit version 2 is kit version 1 with the runtime b, its look the same.
+      expect(await two.server.run(acceptRuntime)).toEqual({
+        kind: "updated",
+        kit: 2,
+        rev: 1,
+        runtime: b.sha,
+      });
+      const [kit1, kit2] = await Promise.all([
+        two.server.run(readKitAt, { input: 1 }),
+        two.server.run(readKitAt, { input: 2 }),
+      ]);
+      expect({ ...kit2, version: 1 }).toEqual(kit1);
+      expect(await two.server.run(acceptRuntime)).toEqual({ kind: "unchanged", kit: 2, rev: 1 });
+
+      // The same TSX put again: a new version on kit version 2, with the runtime b.
+      expect(await ann.put(again)).toMatchObject({ kind: "updated", version: 2 });
+      const [doc] = await two.server.run(loadDocs, { input: { canvas: "flow", id: made.id } });
+      expect(doc?.app?.kit).toBe(2);
+      expect(doc?.app?.runtime.address).toBe(`/api/runtime/2/${b.sha}/`);
+      expect((await ann.put({ ...again, base: 2 })).kind).toBe("unchanged");
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
+  },
+);
 
 // Three starts on a database file, each with `synchronous = FULL`: a budget as for the other
 // tests that write to disk.

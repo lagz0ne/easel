@@ -60,12 +60,14 @@ Each chart's page has the chart, its rules in plain words, and what the model le
 | [kit-app-frame-no-close](kit-app-frame-no-close.md) | kit    | Why the page posts close first: an iframe removed at once never runs the app's ends        |
 | [kit-frame-axes](kit-frame-axes.md)                 | kit    | The locale and data state picks of capsule frames: posted, offered, composed again         |
 | [kit-frame-controls](kit-frame-controls.md)         | kit    | The controls of an app frame: posted, drawn in the panel, run in the live scope            |
+| [kit-runtime](kit-runtime.md)                       | kit    | The runtime of a kit version: kept after an update, accepted by the team, put again        |
+| [kit-runtime-same-text](kit-runtime-same-text.md)   | kit    | Why the same TSX on another runtime is a new version: else a put after an accept is lost   |
 
 `queue-two-step`, `frames-writes-two-step`, `fixer-claim-unsafe`, `kit-look-unbound`,
-`kit-look-hello-once` and `kit-app-frame-no-close` break on purpose. Each shows the bug that a
+`kit-look-hello-once`, `kit-app-frame-no-close` and `kit-runtime-same-text` break on purpose. Each shows the bug that a
 design prevents: one write for a claim or a save, the fixer's two guards (the process-group stop
 and the check again before the push), a request that keeps its kit version, a piece script that
-says hello until it gets a port, and a page that posts `close` before it removes an app frame. Its row in `charts.tsv` says `breaks`.
+says hello until it gets a port, a page that posts `close` before it removes an app frame, and a put that compares the runtime too. Its row in `charts.tsv` says `breaks`.
 
 ## Files
 

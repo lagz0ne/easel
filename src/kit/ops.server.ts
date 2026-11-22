@@ -11,7 +11,7 @@ import { kitApi } from "./contract";
 import { lookValues, mergeLook, rootBlock } from "./look.server";
 import { runtimeNamesOf } from "./runtime.server";
 import { maxAppBytes, utf8Bytes } from "./schema";
-import { frameKit, readKit, readKitAt, saveLook, undoLook } from "./store.server";
+import { acceptRuntime, frameKit, readKit, readKitAt, saveLook, undoLook } from "./store.server";
 
 // The kit's calls (SPEC-kit.md § Contract; the kit-look chart). Each runs after the `user` guard
 // (cmds/server.ts, fact rule 1). A change of the look writes through `saveLook` only (fact rule
@@ -128,8 +128,17 @@ export const listCapsules = operation({
   },
 });
 
+/** `kit.accept`: the runtime of this easel for the next kit version, by the one write. */
+export const kitAccept = operation({
+  label: "kit.accept.do",
+  input: kitApi["kit.accept"].input,
+  depends: { acceptRuntime },
+  run: async ({ acceptRuntime }) => acceptRuntime.run(),
+});
+
 /** The kit's calls, by address. */
 export const kitOps = {
+  "kit.accept": kitAccept,
   "kit.capsules": listCapsules,
   "kit.check": checkKit,
   "look.get": lookGet,

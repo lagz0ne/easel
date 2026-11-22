@@ -173,12 +173,16 @@ Inputs:
   `kit/react-state` or `kit/shape` answers `offKit` with its findings and writes nothing. The
   frame version keeps the TSX as written, its JS, its made CSS and its kit version. `frame.get`
   answers the TSX as `tsx`. The same TSX on the version that is already TSX is `unchanged`; the
-  same text as `html` is a new version. `easel get -o` writes the TSX as it was written.
+  same text as `html` is a new version. The same TSX on a kit version with another runtime is a
+  new version too: after the team accepts the runtime of this easel (`easel kit accept`, SPEC-kit
+  § App frames), a put again gives the frame that runtime (the chart
+  [kit-runtime](docs/statecharts/kit-runtime.md)). `easel get -o` writes the TSX as it was written.
 - A folder frame (built on 2026-11-22; SPEC-kit § App frames, "A folder"): `frame.put` takes
   `files`, a map of paths to texts with the entry `index.tsx`, in place of `html` or `tsx`. The
   256 KiB limit is for all its files together. A map with no `index.tsx`, more than 64 files, or a
   path that is not a path of a frame is `invalid`. `frame.get` answers the files as `files`, as
-  they were written. The same files on the version that has them are `unchanged`. `easel put
+  they were written. The same files on the version that has them, on the same runtime, are
+  `unchanged`. `easel put
 <canvas> <dir>` sends each `.ts` and `.tsx` file of the folder and of its folders, by its path,
   and leaves out a folder whose name starts with `.`, and `node_modules`; a folder that is not a
   frame is bad usage (64). A finding prints as `<dir>/<path>:<line>:<col>`. `easel get -o <dir>`
@@ -346,7 +350,9 @@ number or section.
    answer `stale`, `unchanged` or `gone`. Of two puts on one version, the first wins and the other
    answers `stale`, so no write is lost.
 3. A frame's `version` goes up by one on each change of its document, and only then: the same
-   document answers `unchanged`.
+   document answers `unchanged`. The document of an app frame includes the runtime of its kit
+   version, so the statement also compares the runtime of the stored kit version with the one of
+   the put.
 4. A write saves its row before it sets its cell. The cell is set from the row as stored at that
    moment, so the board never shows a version that is not stored, and never goes back to an older
    one. If the row write throws, the cell is unchanged. A delete drops the row and the cell

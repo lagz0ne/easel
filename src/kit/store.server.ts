@@ -6,6 +6,7 @@ import { kit } from "./cells";
 import { contrast } from "./compose";
 import { lookValues, rootBlock } from "./look.server";
 import { make } from "./make.server";
+import { easelRuntime } from "./runtime.server";
 import { seedKitCss, seedLook } from "./seed.server";
 import { sources } from "./source.server";
 
@@ -201,6 +202,45 @@ export const undoLook = operation({
 
     await showNewest.run();
     return { kind: "updated" as const, ...revRow.parse(wrote) };
+  },
+});
+
+/**
+ * `acceptRuntime`: the one write of an accept (SPEC-kit.md § App frames, "Accept the runtime of
+ * this easel"; the chart kit-runtime). One transaction keeps the runtime of this easel (once for
+ * each SHA-256), and one statement writes the next kit version as the newest one, with the same
+ * look revision, look, kit CSS, made CSS and pieces, and this runtime. It writes only when the
+ * newest kit version has a runtime and that runtime is another one: so of two accepts the first
+ * writes, and the other answers `unchanged`. A kit version with no runtime yet gets this one at
+ * its first use. Then the board's cell `kit` of each canvas.
+ */
+export const acceptRuntime = operation({
+  label: "kit.acceptRuntime",
+  depends: { connection: bunSqlite.connection, easelRuntime, showNewest },
+  run: async ({ connection, easelRuntime, showNewest }, { clock }) => {
+    const db = connection.db.$client;
+    const built = await easelRuntime.run();
+    const made = clock.currentTimeMillis();
+    const wrote = db.transaction(() => {
+      db.query(
+        "INSERT OR IGNORE INTO kit_runtimes (sha, imports, files, made) VALUES (?, ?, ?, ?)",
+      ).run(built.sha, JSON.stringify(built.imports), JSON.stringify(built.files), made);
+      return db
+        .query(
+          `INSERT INTO kit_versions (${columns}, made, runtime)
+           SELECT version + 1, look_rev, look, look_values, root, source, css, pieces, ?, ?
+           FROM kit_versions
+           WHERE version = ${top} AND runtime IS NOT NULL AND runtime IS NOT ?
+           RETURNING version AS kit, look_rev AS rev`,
+        )
+        .get(made, built.sha, built.sha);
+    })();
+    if (wrote === null) {
+      return { kind: "unchanged" as const, ...revRow.parse(db.query(newest).get()) };
+    }
+
+    await showNewest.run();
+    return { kind: "updated" as const, ...revRow.parse(wrote), runtime: built.sha };
   },
 });
 

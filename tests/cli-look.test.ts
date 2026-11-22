@@ -24,6 +24,7 @@ import { framesServer } from "@/frames/store.server";
 import { kit } from "@/kit";
 import { kitApi } from "@/kit/contract";
 import { kitOps } from "@/kit/ops.server";
+import { runtimeOf } from "@/kit/runtime.server";
 
 // `easel look get|set|undo` (SPEC-kit.md § Change the look, E8.2) as the cmd runs them: the CLI's
 // capsule over the memory transport, each command's exit code by kit's success lists (SPEC-cli
@@ -316,6 +317,48 @@ test("kit check with --json prints the answer only; many findings end with `and 
   expect(await text.run({ kind: "check", file: big })).toBe(1);
   expect(text.err.splice(0).join("")).toContain("over 262144 bytes");
 });
+
+/** An older easel gave kit version 1 another runtime: its row names one that this easel has not. */
+const olderRuntime = operation({
+  label: "test.olderRuntime",
+  depends: { connection: bunSqlite.connection, runtimeOf },
+  run: async ({ connection, runtimeOf }) => {
+    await runtimeOf.run({ input: 1 });
+    const db = connection.db.$client;
+    db.query(
+      "INSERT INTO kit_runtimes (sha, imports, files, made) SELECT ?, imports, files, made FROM kit_runtimes",
+    ).run("0".repeat(64));
+    db.query("UPDATE kit_versions SET runtime = ? WHERE version = 1").run("0".repeat(64));
+  },
+});
+
+test(
+  "kit accept prints the kit version with the runtime of this easel and exits 0; with nothing to change, unchanged and 0",
+  { timeout: 30_000 },
+  async () => {
+    const srv = await boot();
+    const text = await ann(srv, { json: false });
+
+    // Kit version 1 has no runtime yet: its first use gives the one of this easel.
+    expect(await text.run({ kind: "accept" })).toBe(0);
+    expect(text.out.splice(0).join("")).toBe(
+      "unchanged: kit version 1 has the runtime of this easel, or gets it at its first use\n",
+    );
+
+    await srv.server.run(olderRuntime);
+    expect(await text.run({ kind: "accept" })).toBe(0);
+    expect(text.out.splice(0).join("")).toBe(
+      "updated: kit version 2 has the runtime of this easel. Put each app frame again to give it this runtime\n",
+    );
+
+    expect(await text.run({ kind: "accept" })).toBe(0);
+    expect(text.out.splice(0).join("")).toContain("unchanged: kit version 2 ");
+
+    const json = await ann(await boot());
+    expect(await json.run({ kind: "accept" })).toBe(0);
+    expect(json.lines()).toEqual([{ kind: "unchanged", kit: 1, rev: 1 }]);
+  },
+);
 
 test("kit capsules prints each capsule of the kit version: what it does, its install, config and exports, with its edges and texts", async () => {
   const srv = await boot();

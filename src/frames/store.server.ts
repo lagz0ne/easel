@@ -108,6 +108,13 @@ const addedColumns = [
 /** A canvas's picture key generation, in the statement it is part of: 0 until its first bump. */
 const genOf = "COALESCE((SELECT gen FROM frames_keygen WHERE canvas = ?), 0)";
 
+/**
+ * 1 when the row's kit version has the runtime of the kit version `?`, else 0: a part of the same
+ * document of an app frame (the chart kit-runtime).
+ */
+const sameRuntime = `((SELECT runtime FROM kit_versions WHERE version = frames_frames.kit)
+  IS (SELECT runtime FROM kit_versions WHERE version = ?))`;
+
 /** The gap between a new frame and the rightmost one (decision C2). */
 export const frameGap = 80;
 
@@ -289,12 +296,15 @@ export const saveFrame = operation({
 
       // A row it wrote that does not parse throws here, inside the transaction: the write rolls
       // back and the call faults, never a saved write that answers stale. The same document is
-      // the same text of the same kind (an HTML frame, or an app frame).
+      // the same text of the same kind (an HTML frame, or an app frame), and for an app frame on
+      // a kit version with the same runtime: after an accept, the same TSX put again is a new
+      // version on the new runtime (SPEC-kit.md § App frames; the chart kit-runtime).
       const app = Number(input.js !== null);
       const saved = db
         .query(
           `UPDATE frames_frames SET html = ?, css = ?, kit = ?, js = ?, version = version + 1
-           WHERE canvas = ? AND id = ? AND version = ? AND (html IS NOT ? OR (js IS NOT NULL) <> ?)
+           WHERE canvas = ? AND id = ? AND version = ?
+             AND (html IS NOT ? OR (js IS NOT NULL) <> ? OR (js IS NOT NULL AND ${sameRuntime} = 0))
            RETURNING canvas, id, name, x, y, w, h, version, ${genOf} AS gen`,
         )
         .get(
@@ -307,6 +317,7 @@ export const saveFrame = operation({
           input.base,
           input.html,
           app,
+          input.kit,
           input.canvas,
         );
       if (saved !== null) {
@@ -317,9 +328,10 @@ export const saveFrame = operation({
 
       const now = db
         .query(
-          "SELECT version, html IS ? AND (js IS NOT NULL) = ? AS same FROM frames_frames WHERE canvas = ? AND id = ?",
+          `SELECT version, html IS ? AND (js IS NOT NULL) = ? AND (js IS NULL OR ${sameRuntime}) AS same
+           FROM frames_frames WHERE canvas = ? AND id = ?`,
         )
-        .get(input.html, app, input.canvas, input.id);
+        .get(input.html, app, input.kit, input.canvas, input.id);
       if (now === null) return { kind: "gone" as const };
       const { version, same } = z.object({ version: z.number(), same: z.number() }).parse(now);
       // The same document at the version it read: nothing to write (F2).

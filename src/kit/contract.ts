@@ -82,6 +82,19 @@ export const kitApi = rpc({
     output: kitCheckOutput,
   },
   /**
+   * The team accepts the runtime of this easel (SPEC-kit.md § App frames, "Accept the runtime of
+   * this easel"): the next kit version is the current one with this runtime, and its look and
+   * kit the same. A frame gets it at its next put. When the current kit version has this runtime,
+   * or no runtime yet (its first use gives it this one), it answers `unchanged` and writes nothing.
+   */
+  "kit.accept": {
+    input: z.object({}),
+    output: z.discriminatedUnion("kind", [
+      z.object({ kind: z.literal("updated"), ...revAndKit, runtime: z.string() }),
+      z.object({ kind: z.literal("unchanged"), ...revAndKit }),
+    ]),
+  },
+  /**
    * The look: the current one, or (`at`) the one of a stored kit version, with its revision.
    * A kit version that is not stored answers `gone`.
    */
@@ -128,6 +141,7 @@ type KindOf<A extends KitAddress> =
 export const kitSuccessKinds = {
   "kit.capsules": ["found"],
   "kit.check": ["checked"],
+  "kit.accept": ["updated", "unchanged"],
   "look.get": ["found"],
   "look.set": ["updated", "unchanged"],
   "look.undo": ["updated"],

@@ -224,6 +224,8 @@ type Pair = { text: string; on: string; ratio: number; min: number; where: strin
            | { kind: "unreadable"; fails: Pair[] } | { kind: "tooBig"; maxBytes: number }
 "kit.check": { kind: "checked"; kit: number; findings: Finding[]; more: number }
            | { kind: "tooBig"; maxBytes: number }
+"kit.accept": { kind: "updated"; rev: number; kit: number; runtime: string }   // § App frames
+           | { kind: "unchanged"; rev: number; kit: number }
 "look.get":  { kind: "found"; kit: number; rev: number; look: Dtcg } | { kind: "gone" }
 "look.set":  { kind: "updated" | "unchanged"; rev: number; kit: number }
            | { kind: "stale"; rev: number; kit: number } | { kind: "unreadable"; fails: Pair[] }
@@ -238,6 +240,7 @@ type Pair = { text: string; on: string; ratio: number; min: number; where: strin
 | `kit.get`, `look.get`   | `found`                           |
 | `kit.put`               | `created`, `updated`, `unchanged` |
 | `kit.check`             | `checked`                         |
+| `kit.accept`            | `updated`, `unchanged`            |
 | `look.set`              | `updated`, `unchanged`            |
 | `look.undo`             | `updated`                         |
 
@@ -517,6 +520,28 @@ document before the `load` event too (a browser test reads the body at `load`).
   use. This is the one column of a kit version that is written after the row: one time, from null.
   It is at the first use, and not when the kit version is made, because most kit versions have no
   app frame, and a build in each test scope would cost about 0.15 s.
+- **Accept the runtime of this easel** (built on 2026-11-22; the chart
+  [kit-runtime](docs/statecharts/kit-runtime.md), TLA+ model `KitRuntime`). After an update of
+  easel, a team keeps the runtime that it has (K11). So a change to `@easel/frame` (the mount, the
+  controls) or to `@easel/kit` reaches its frames only when the team accepts it. This is the
+  library update of Figma: a file keeps its library version until the team accepts the update.
+  1. The team runs `easel kit accept` (`kit.accept`; the MCP tool `accept_kit`).
+  2. One transaction keeps the runtime of this easel in `kit_runtimes`, and one statement writes
+     the next kit version (`acceptRuntime`). It is the current kit version with this runtime: the
+     look revision, the look, the kit's CSS, the made CSS and the pieces stay byte for byte the
+     same. The answer is `updated` with the kit version and the SHA-256 of the runtime.
+  3. The statement writes only when the current kit version has a runtime and that runtime is
+     another one. Else it answers `unchanged` and writes nothing. A kit version with no runtime
+     gets the one of this easel at its first use. Of two accepts, the first writes, and the other
+     answers `unchanged`.
+  4. A frame keeps its kit version until a put. A put of the same TSX (or the same files) on a
+     kit version with another runtime is a new frame version (SPEC-frames § Contract). So the
+     agent puts each app frame again, as the CLI says: `Put each app frame again to give it
+this runtime`.
+  5. A frame version that is not put again shows the runtime of its kit version, as before. The
+     look of the board comes from the current kit version, as after a change of the look.
+     The chart [kit-runtime-same-text](docs/statecharts/kit-runtime-same-text.md) shows why step 4
+     compares the runtime: with the text only, the put after the accept writes nothing.
 - **The address**: `GET /api/runtime/<kit version>/<sha-256>/<file>`, from the stored bytes, with
   `Content-Type: text/javascript; charset=utf-8`, `Cache-Control: public, max-age=31536000,
 immutable` and `Access-Control-Allow-Origin: *`. It needs no user and no pass: a frame's origin
@@ -779,8 +804,8 @@ Another input (an object, a union) has no control: the panel leaves it out.
   message) starts again from the start of its scope. The picture of a frame, and another tab, show
   that start.
 - **The runtime keeps its mount (K11).** The controls need the mount of this easel. A kit version
-  that has a runtime from before keeps it: its frames post no controls until the kit version has a
-  new runtime ("accept the new kit", below).
+  that has a runtime from before keeps it: its frames post no controls until the team accepts the
+  runtime of this easel (`easel kit accept`, § App frames) and puts each frame again.
 
 **Why the list comes from the graph.** The list is the same graph that a frame of the kit version
 gets. So it cannot be older than the kit, and an agent learns each part before it writes code:
@@ -840,7 +865,8 @@ The statecharts [kit-piece](docs/statecharts/kit-piece.md), [kit-look](docs/stat
 4. A kit version never changes after it is written, and nothing removes it while the easel lives.
    It holds all that `compose` needs: the look, the kit's made CSS and the templates. The one
    exception is its runtime: `runtimeOf` sets it one time, from null, at the first use by an app
-   frame; then it never changes.
+   frame; then it never changes. `kit.accept` changes no stored kit version: it writes the next
+   one.
 5. Made CSS is never made again for a stored kit version or frame version. An update of easel with
    a new engine changes no stored made CSS, so each frame shows the same document, byte for byte
    (K11).
@@ -947,13 +973,13 @@ own fonts kept in easel. easel holds only the two fonts of the seed (§ The seed
 
 Also deferred:
 
-- New names in the look (a new color name). They need the CSS of each frame made again. Add it with
-  "accept the new kit" below.
+- New names in the look (a new color name). They need the CSS of each frame made again. Add it to
+  `kit.accept` (§ App frames) when a team asks for it.
 - Removing a piece. Add it when a team asks. Until then, a team changes a piece, and K5 finds a
   frame that uses a piece in a wrong way.
 - A new seed or a new engine major version for an easel that has a kit. An easel keeps the kit and
-  the made CSS that it has (K11). Add an "accept the new kit" step, as Figma's library updates,
-  when a team asks for it.
+  the made CSS that it has (K11). `kit.accept` takes only the runtime of this easel. Add the seed
+  and the made CSS to it when a team asks for them.
 - Loops or expressions in templates. A piece with a list takes its rows as children.
 - Expanding `k-` tags on the server. The frame's piece script expands them, so no server step
   changes a stored document. If a server step needs it later: `HTMLRewriter` fills the default

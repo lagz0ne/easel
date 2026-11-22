@@ -104,6 +104,7 @@ Tools, one per call. They are named after the call, and their inputs match the C
 | `get_piece`       | `kit.get`          | readOnly                |
 | `put_piece`       | `kit.put`          |                         |
 | `check_frame`     | `kit.check`        | readOnly                |
+| `accept_kit`      | `kit.accept`       | idempotent              |
 | `get_look`        | `look.get`         | readOnly                |
 | `set_look`        | `look.set`         |                         |
 | `undo_look`       | `look.undo`        |                         |
