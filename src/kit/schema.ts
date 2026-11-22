@@ -5,9 +5,7 @@ import { z } from "zod";
 /**
  * The rule of a finding. `kit/script`: a frame script writes a class (judged rule 12).
  * `kit/class-built`: code builds a class in a class place of an app frame; `kit/parse`: an app
- * frame does not parse; `kit/import`: it imports a name that the runtime does not have;
- * `kit/react-state`: it keeps state in React; `kit/shape`: it does not export `logic` and `View`,
- * and only them (SPEC-kit.md § App frames). The last four refuse the put (`offKit`).
+ * frame does not parse (SPEC-kit.md § App frames).
  */
 export const ruleShape = z.enum([
   "look/color",
@@ -18,29 +16,9 @@ export const ruleShape = z.enum([
   "kit/script",
   "kit/class-built",
   "kit/parse",
-  "kit/import",
-  "kit/react-state",
-  "kit/shape",
-]);
-
-/** The rules of an app frame that refuse its put with `offKit` (SPEC-kit.md § App frames, "The put"). */
-export const refusingRules: ReadonlySet<Rule> = new Set<Rule>([
-  "kit/parse",
-  "kit/import",
-  "kit/react-state",
-  "kit/shape",
 ]);
 
 export type Rule = z.infer<typeof ruleShape>;
-
-/**
- * The largest app frame: 256 KiB of UTF-8 (SPEC-kit.md § App frames, "The file"). The parse of
- * 1 MiB of TSX alone takes 40 to 50 ms, all of the speed budget of a put.
- */
-export const maxAppBytes = 256 * 1024;
-
-/** The UTF-8 bytes of a text, as the size limits count them (in the page and in Bun). */
-export const utf8Bytes = z.string().transform((text) => new TextEncoder().encode(text).length);
 
 /** One place in a document that is not in the look or the kit, with the fix. */
 export type Finding = { line: number; col: number; rule: Rule; what: string; fix: string };

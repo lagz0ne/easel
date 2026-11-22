@@ -222,7 +222,6 @@ type Pair = { text: string; on: string; ratio: number; min: number; where: strin
            | { kind: "gone" } | { kind: "offLook"; findings: Finding[] }
            | { kind: "unreadable"; fails: Pair[] } | { kind: "tooBig"; maxBytes: number }
 "kit.check": { kind: "checked"; kit: number; findings: Finding[]; more: number }
-           | { kind: "tooBig"; maxBytes: number }
 "look.get":  { kind: "found"; kit: number; rev: number; look: Dtcg } | { kind: "gone" }
 "look.set":  { kind: "updated" | "unchanged"; rev: number; kit: number }
            | { kind: "stale"; rev: number; kit: number } | { kind: "unreadable"; fails: Pair[] }
@@ -253,10 +252,8 @@ Inputs:
   `<slot>` takes the children with no `slot` attribute; `<slot name="x">` takes the children with
   `slot="x"`; `data-if="attr"` keeps an element only when the attribute is there, `data-if-not`
   only when it is not. There is nothing else: no loops, no expressions.
-- `kit.check` takes `{ html }` or `{ tsx }` (an app frame), with the size limit of `frame.put`:
-  over it, `tooBig` with `maxBytes` (1048576 for `html`, 262144 for `tsx`). For a `tsx` that does
-  not parse, the findings are the `kit/parse` ones. `easel kit check <file>` sends a file whose
-  name ends in `.tsx` as `tsx`, any other file or stdin as `html`.
+- `kit.check` takes `{ html }` or `{ tsx }` (an app frame, build order item 4), with the size
+  limit of `frame.put`. For a `tsx` that does not parse, the findings are the `kit/parse` ones.
 - `look.set` takes `{ look, base }`. `look` is DTCG JSON, merged into the stored look as a JSON
   Merge Patch of values only. The look's names and types are fixed (`src/kit/shape.ts`, the names
   of the seed), so the contract's shape checks a patch before it is sent. A name that the look
@@ -429,8 +426,7 @@ items 2 to 6 need. The board worker (item 7) comes later: only its place is told
 **The file.** An app frame is one TSX module in UTF-8, of at most 256 KiB (262144 bytes; a larger
 one is `tooBig`, see SPEC-frames). The limit is less than the 1 MiB of an HTML frame because the
 parse of 1 MiB of TSX alone takes 40 to 50 ms, all of the speed budget. It exports two names, and
-only these two, each by its own name (`export const logic`, `export function View`; not
-`export { a as logic }`), so that the composed document can mount them:
+only these two:
 
 - `logic`: the frame's Tinker cells and operations, as `frameLogic({ cells, ops })` of
   `@easel/frame` gives them. Each state of the frame is a Tinker cell (decision 10).
@@ -449,60 +445,16 @@ frames), its `logic` will run in the board worker (item 7, not built): one dedic
 each board and tab, with an origin of `null`. The file is the same in both places, so a frame
 written now works in the worker later. Item 7 tells how a frame asks for the worker.
 
-**The runtime.** Each kit version has one runtime bundle, kept with it (K11), as its made CSS
-(build order item 3). Its packages, for the first kit version, each pinned exactly in
-package.json: `react` and `react-dom` 19.3.1, `@tinkered/core` and `@tinkered/react` 0.30.1, `zod`
-4.6.7, `radix-ui` 1.8.1, `lucide-react` 1.77.0, `clsx` 2.1.1, `class-variance-authority` 0.7.1,
-`tailwind-merge` 3.7.1, and `@easel/frame` (easel's own helper, `src/kit/easel-frame.ts`:
+**The runtime.** Each kit version has one runtime bundle, made one time with the kit version and
+kept with it (K11), as its made CSS (build order item 3). Its packages, for the first kit version:
+`react`, `react-dom`, `@tinkered/core`, `@tinkered/react`, `zod`, `radix-ui`, `lucide-react`,
+`clsx`, `class-variance-authority`, `tailwind-merge`, and `@easel/frame` (easel's own helper:
 `frameLogic`, `cn`, and the mount). A new package comes with a new kit version; no package that
-brings its own CSS. An app frame imports only the names of its kit version's runtime: these
-packages, and the subpaths `react/jsx-runtime` and `react-dom/client`. Another import, a relative
-import, an address, or a dynamic `import()` is the finding `kit/import`, and it refuses the put.
-`@easel/frame` mounts the app: it makes the frame's scope (a scope with no capsules starts at
-once) and renders `View` into `document.body` in one synchronous step (`flushSync`), so the first
-render is in the document before its `load` event.
-
-- **The build** (`src/kit/runtime.server.ts`, `buildRuntime`): one `Bun.build` for the browser,
-  with React's production build, minified, with one entry file for each name (`react.js`,
-  `tinkered__core.js`, `easel__frame.js`, ...) and the code that they share in chunks named by
-  their hash (`splitting`). A frame loads only the entries that it imports and their chunks. Its
-  SHA-256 is of the file names and texts, so the same pins give the same SHA-256: a test builds it
-  twice and finds the same bytes.
-- **The binary holds it.** `scripts/build-binary.ts` makes it with the same `buildRuntime` and
-  puts it in the binary (the module `easel:runtime`), so a binary needs no `node_modules`. Dev and
-  the tests build it in their scope at its first use. A test finds the SHA-256 of the binary's
-  runtime equal to that of a build in a scope.
-- **Kept with the kit version** (`runtimeOf`). A kit version gets the runtime of the easel that
-  runs at its first use by an app frame (a put), and keeps it from then: one transaction writes
-  the files in `kit_runtimes` (once for each SHA-256) and sets the kit version's `runtime` where it
-  has none, so of two first uses the first wins. It is never made again. So after an update of
-  easel with other pins, a kit version that has a runtime keeps its bytes, and a restart reads the
-  same bytes (K11). A change of the look keeps the runtime of the kit version before it: the look
-  is in CSS, not in the runtime. A kit version stored before the runtime has none until its first
-  use. This is the one column of a kit version that is written after the row: one time, from null.
-  It is at the first use, and not when the kit version is made, because most kit versions have no
-  app frame, and a build in each test scope would cost about 0.15 s.
-- **The address**: `GET /api/runtime/<kit version>/<sha-256>/<file>`, from the stored bytes, with
-  `Content-Type: text/javascript; charset=utf-8`, `Cache-Control: public, max-age=31536000,
-immutable` and `Access-Control-Allow-Origin: *`. It needs no user and no pass: a frame's origin
-  is `null`, so its module requests carry no cookie, and the runtime is the code of the package
-  list, the same for each team. Another SHA-256, a kit version with no such runtime, a file that
-  the runtime does not have, or a malformed address answers 404 with `Cache-Control: no-store`.
-- **The import check** uses the names of the kit version's runtime, or, when it has none yet, the
-  names of the runtime that this easel will give it. `kit.check` writes no runtime.
-- Measured on 2026-11-22 (this host, Bun 1.4.4): 22 files, 1 895 107 bytes minified, 513 495
-  bytes gzip (`lucide-react.js` 862 KB of it, `zod.js` 368 KB, `radix-ui.js` 267 KB). A build
-  takes 116 to 156 ms. The bytes and the SHA-256 are the same in each build, after a restart, and
-  in the compiled binary.
-
-**The class rule before a put.** An agent has the easel CLI only, and the Oxlint plugin of
-`kit/class-built` (`src/kit/lint.server.ts`) is in the repository, not in the binary: it needs
-Oxlint and its `node_modules`. So an agent runs `easel kit check page.tsx` (`kit.check`): the
-server runs the one check of the put on the file, against the current kit version, and writes
-nothing. It gives each finding that the put would give, `kit/class-built` and the module
-findings included, at its line and column, with the fix. The binary could run the parse alone,
-but the K5 verdicts need the kit version on the server, and a second path could give other
-findings than the put. An agent that works in this repository can also use the Oxlint plugin.
+brings its own CSS. An app frame imports only these names (and their subpaths that the bundle
+has); another import, a relative import, an address, or a dynamic `import()` is the finding
+`kit/import`, and it refuses the put. `@easel/frame` mounts the app: it makes the frame's scope,
+waits for it, and renders `View` into `document.body` in one synchronous step (`flushSync`), so
+the first render is in the document before its `load` event.
 
 **Class places** (decision 5). The check reads the TSX with `oxc-parser` (MIT, pinned exactly),
 which gives each literal with its offset. A class name is a whole string in a class place:
@@ -621,9 +573,6 @@ The statecharts [kit-piece](docs/statecharts/kit-piece.md), [kit-look](docs/stat
    that `placesOf` too.
 10. The release binary and `dist/server` load the native file of `oxc-parser` with a static
     `require` for each release target, as they load Lightning CSS.
-11. Only `buildRuntime` (`src/kit/runtime.server.ts`) builds a runtime, and only `runtimeOf`
-    writes one to a kit version. `kit.check`, a show and a picture read the stored runtime only;
-    the route `/api/runtime/...` answers only stored bytes.
 
 ### Judged rules (need reading the code)
 
@@ -636,9 +585,7 @@ The statecharts [kit-piece](docs/statecharts/kit-piece.md), [kit-look](docs/stat
    the transaction, not in it.
 3. The kit version goes up by one on each change of the look or of a piece, and only then.
 4. A kit version never changes after it is written, and nothing removes it while the easel lives.
-   It holds all that `compose` needs: the look, the kit's made CSS and the templates. The one
-   exception is its runtime: `runtimeOf` sets it one time, from null, at the first use by an app
-   frame; then it never changes.
+   It holds all that `compose` needs: the look, the kit's made CSS and the templates.
 5. Made CSS is never made again for a stored kit version or frame version. An update of easel with
    a new engine changes no stored made CSS, so each frame shows the same document, byte for byte
    (K11).

@@ -2,7 +2,7 @@ import { operation } from "@tinkered/core";
 import { compile } from "tailwindcss";
 import { z } from "zod";
 
-import { appJs, checkApp } from "./app.server";
+import { checkApp } from "./app.server";
 import { check } from "./check.server";
 import { kitShape } from "./schema";
 import { sources } from "./source.server";
@@ -45,22 +45,20 @@ export const makeFrame = operation({
 });
 
 /**
- * The made CSS and the JS of an app frame (SPEC-kit.md § App frames): its check first, then the
- * make of exactly the class names of the fixed text, with the frame source, and the JS of the
- * fixed text (Bun.Transpiler). With `names` (the runtime's), the findings of the module too. A TSX
- * that does not parse makes nothing.
+ * The made CSS of an app frame (SPEC-kit.md § App frames): its check first, then the make of
+ * exactly the class names of the fixed text, with the frame source. A TSX that does not parse
+ * makes nothing.
  */
 export const makeApp = operation({
   label: "kit.makeApp",
-  input: z.object({ tsx: z.string(), kit: kitShape, names: z.array(z.string()).optional() }),
-  depends: { checkApp, make, sources, appJs },
-  run: async ({ checkApp, make, sources, appJs }, { input }) => {
+  input: z.object({ tsx: z.string(), kit: kitShape }),
+  depends: { checkApp, make, sources },
+  run: async ({ checkApp, make, sources }, { input }) => {
     const checked = await checkApp.run({ input });
     if (checked.kind === "unparsed") return checked;
 
     const { frame } = sources.run({ input: input.kit });
     const css = await make.run({ input: { source: frame, classNames: checked.classes } });
-    const js = appJs.run({ input: checked.fixed });
-    return { kind: "made" as const, css, js, findings: checked.findings, fixed: checked.fixed };
+    return { kind: "made" as const, css, findings: checked.findings, fixed: checked.fixed };
   },
 });

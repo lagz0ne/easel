@@ -19,14 +19,6 @@
       },
       "tinker/components/telemetry/thread.server.ts": {
         "plain": "A check inside the native observer callbacks: a span here would feed the telemetry it sends."
-      },
-      "src/kit/easel-frame.ts": {
-        "frameLogic": "@easel/frame's API for frame code (SPEC-kit \u00a7 App frames): a frame calls it as a plain function at module level; no easel graph runs it.",
-        "cn": "@easel/frame's API for frame code: the cn of shadcn/ui, called in className as a plain function by frame code and the kit's pieces.",
-        "mount": "@easel/frame's API for the composed document: its module script calls it once in the frame's iframe, before any scope exists.",
-        "take": "A step of mount: it runs in the frame's iframe, outside easel's graph.",
-        "field": "A step of mount: it runs in the frame's iframe, outside easel's graph.",
-        "hello": "A step of mount: it runs in the frame's iframe, outside easel's graph."
       }
     }
   },

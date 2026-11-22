@@ -2,10 +2,7 @@ import { mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 
-import { createScope } from "@tinkered/core";
 import { expect, test } from "vite-plus/test";
-
-import { buildRuntime } from "@/kit/runtime.server";
 
 import { testKit } from "./kit/fixture";
 
@@ -13,8 +10,7 @@ import { testKit } from "./kit/fixture";
 // (src/kit/lightningcss.server.ts) and of oxc-parser (the plugin of scripts/build-binary.ts), go
 // into a binary that scripts/build-binary.ts makes, as it makes dist/server. The binary runs from
 // an empty folder, so it reads nothing from node_modules: it makes CSS, the Lightning CSS check
-// finds a color in a style attribute, oxc-parser reads a TSX frame and Bun.Transpiler makes its JS,
-// and the runtime of app frames is the one that a build in a scope makes.
+// finds a color in a style attribute, and oxc-parser reads a TSX frame.
 
 const root = new URL("..", import.meta.url).pathname;
 
@@ -71,18 +67,6 @@ test(
       expect(tsx.css).toContain("var(--destructive)");
       expect(places(tsx)).toEqual(["2:34", "2:46"]);
       expect(tsx.fixed).toContain('"text-destructive"');
-      // Bun.Transpiler in the binary: the JS of the fixed text, with React's JSX runtime.
-      expect(tsx.js).toContain('from "react/jsx-runtime"');
-      expect(tsx.js).toContain('"text-destructive"');
-
-      // The runtime of app frames is in the binary: the same bytes as a build in a scope.
-      const scope = createScope();
-      const built = await scope.run(buildRuntime);
-      await scope.close();
-      expect(run({ runtime: true })).toEqual({
-        sha: built.sha,
-        files: Object.keys(built.files).length,
-      });
     } finally {
       await rm(dir, { recursive: true, force: true });
     }

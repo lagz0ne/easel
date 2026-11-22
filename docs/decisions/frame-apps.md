@@ -174,14 +174,9 @@ ships; each ends green.
    position, the two-order test, and the static load in the binary with the release script change.
    The same rule as an Oxlint JS plugin. Done on 2026-11-22: `kit.checkApp` and `kit.makeApp`
    (not yet in `frame.put`), `scripts/build-binary.ts`, and the plugin in `src/kit/lint.server.ts`.
-   Open: names looked up by their scope. How an agent gets the class rule before a put is
-   decided in step 3: `easel kit check page.tsx` (SPEC-kit § App frames).
+   Open: how an agent gets the plugin (it is in the repo, not in the binary), and names looked up
+   by their scope.
 3. **The runtime bundle for each kit version**, its versioned address, and the import check.
-   Done on 2026-11-22: `buildRuntime` (one `Bun.build`, an entry for each name, shared chunks;
-   1.9 MB minified, 514 KB gzip, 0.12 to 0.16 s), kept with a kit version at its first use
-   (`runtimeOf`, `kit_runtimes`), in the binary as `easel:runtime`, served at
-   `/api/runtime/<kit>/<sha-256>/<file>`; `kit/import`, `kit/react-state` and `kit/shape`;
-   `@easel/frame`; and `kit.check` with `easel kit check`.
 4. **frame.put of a TSX frame:** check, JS, CSS, kept with the frame version.
 5. **The live app frame** in the viewer: mount with a Tinker scope, a new look on the port (K7),
    `close` and `closed`. A browser test with 12 live app frames: going live p95 under 150 ms.

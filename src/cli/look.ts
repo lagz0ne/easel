@@ -5,22 +5,15 @@ import { z } from "zod";
 
 import { loginApi } from "@/access/contract";
 import { kit } from "@/kit";
-import {
-  kitCheckOutput,
-  kitSuccessKinds,
-  kitVersion,
-  lookGetOutput,
-  lookSetOutput,
-} from "@/kit/contract";
+import { kitSuccessKinds, kitVersion, lookGetOutput, lookSetOutput } from "@/kit/contract";
 import type { KitAddress } from "@/kit/contract";
 import { lookPatch } from "@/kit/shape";
 
 import { callDeadline, exits, faultExit } from "./exit";
 import { stdinText } from "./frames";
-import { json, say, stderr } from "./output";
+import { say } from "./output";
 
-// `easel look get|set|undo` (SPEC-kit.md § Change the look; SPEC-cli.md § Commands by module),
-// and `easel kit check <file>` (SPEC-kit.md § Make an app frame, step 5).
+// `easel look get|set|undo` (SPEC-kit.md § Change the look; SPEC-cli.md § Commands by module).
 // Each prints its answer and exits by the call's success list in kit's contract (SPEC-cli fact
 // rule 3): `found`, `updated` and `unchanged` exit 0; `stale`, `unreadable`, `none` and `gone`
 // exit 1. A kit fault is told as the shell tells any fault (`faultExit`): a patch with a name
@@ -31,8 +24,6 @@ export const lookCommand = z.discriminatedUnion("kind", [
   z.object({ kind: z.literal("get"), out: z.string().optional(), at: z.string().optional() }),
   z.object({ kind: z.literal("set"), file: z.string().min(1), base: z.string() }),
   z.object({ kind: z.literal("undo"), base: z.string() }),
-  /** `easel kit check <file|->`: a path that ends in `.tsx` is an app frame. */
-  z.object({ kind: z.literal("check"), file: z.string().min(1) }),
 ]);
 
 export type LookCommand = z.infer<typeof lookCommand>;
@@ -40,7 +31,7 @@ export type LookCommand = z.infer<typeof lookCommand>;
 /** `--base 3` or `--at 3`, as typed: 1 or more. */
 const numberFlag = z.string().regex(/^\d+$/).transform(Number).pipe(kitVersion);
 
-const address = z.enum(["look.get", "look.set", "look.undo", "kit.check"] satisfies KitAddress[]);
+const address = z.enum(["look.get", "look.set", "look.undo"] satisfies KitAddress[]);
 
 /** One call's deadline: after `callDeadline` (60 s) its signal aborts with a `link` fault. */
 const lookDeadline = operation({
@@ -331,80 +322,11 @@ export const lookUndo = operation({
   },
 });
 
-/**
- * What `easel kit check` prints: the count on stdout, and each finding on stderr, one a line, as
- * `put` prints them (SPEC-cli.md § Learn the kit); with `--json`, the answer only.
- */
-const tellCheck = operation({
-  label: "cli.kitTellCheck",
-  input: z.object({ file: z.string(), answer: kitCheckOutput }),
-  depends: { say, stderr: stderr.required, asJson: json },
-  run: ({ say, stderr, asJson }, { input: { file, answer } }) => {
-    switch (answer.kind) {
-      case "tooBig":
-        return say.run({
-          input: {
-            json: answer,
-            text: `the document is too big: over ${answer.maxBytes} bytes of UTF-8. Split it, or inline less`,
-            error: true,
-          },
-        });
-      case "checked": {
-        const count = answer.findings.length + answer.more;
-        const text = `checked: ${count} ${count === 1 ? "finding" : "findings"}, kit version ${answer.kit}`;
-        say.run({ input: { json: answer, text } });
-        if (asJson) return;
-
-        for (const f of answer.findings) {
-          stderr.write(`${file}:${f.line}:${f.col} ${f.rule} ${f.what}. Fix: ${f.fix}\n`);
-        }
-        if (answer.more > 0) stderr.write(`and ${answer.more} more\n`);
-      }
-    }
-  },
-});
-
-/**
- * `easel kit check <file|->` (`kit.check`): the check of a put, against the current kit version,
- * and nothing written. A file whose name ends in `.tsx` goes as an app frame (`tsx`), any other,
- * or stdin, as HTML. The findings do not change the exit code (SPEC-cli.md § Learn the kit).
- */
-export const kitCheck = operation({
-  label: "cli.kitCheck",
-  input: lookCommand.options[3],
-  depends: {
-    usage: lookUsage,
-    readPatch,
-    tellCheck,
-    exitOf: lookExitOf,
-    fault: lookFault,
-    deadline: lookDeadline,
-    call: kit.api["kit.check"],
-  },
-  run: async ({ usage, readPatch, tellCheck, exitOf, fault, deadline, call }, { input }) => {
-    const text = await readPatch.run({ input: input.file });
-    if (text === null) {
-      const said = input.file === "-" ? "stdin cannot be read" : `cannot read ${input.file}`;
-      return usage.run({ input: said });
-    }
-
-    const sent = input.file.endsWith(".tsx") ? { tsx: text } : { html: text };
-    const stop = deadline.run({ input: "kit.check" });
-    const reply = await call.settle({ input: sent, signal: stop.signal });
-    stop.abort();
-    if (reply.status === "cancelled") return fault.run({ input: reply.reason });
-    if (reply.status === "failed") return fault.run({ input: reply.error });
-
-    tellCheck.run({ input: { file: input.file, answer: reply.value } });
-    return exitOf.run({ input: { address: "kit.check", kind: reply.value.kind } });
-  },
-});
-
-/** Runs one `easel look` command, or `easel kit check`; answers its exit code. */
+/** Runs one `easel look` command; answers its exit code. */
 export const lookRun = operation({
   label: "cli.look",
   input: lookCommand,
-  depends: { lookGet, lookSet, lookUndo, kitCheck },
+  depends: { lookGet, lookSet, lookUndo },
   run: (ops, { input }) => {
     switch (input.kind) {
       case "get":
@@ -413,8 +335,6 @@ export const lookRun = operation({
         return ops.lookSet.run({ input });
       case "undo":
         return ops.lookUndo.run({ input });
-      case "check":
-        return ops.kitCheck.run({ input });
     }
   },
 });

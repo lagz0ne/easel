@@ -2,7 +2,6 @@ import { bunSqlite } from "@tinkered/bun/sqlite";
 import { capsule, data, operation, tag } from "@tinkered/core";
 import { z } from "zod";
 
-import { kitRuntime } from "@/kit/runtime.server";
 import { kitStart, showKit } from "@/kit/store.server";
 
 import { canvasInfo, frames, kept, removed } from "./contract";
@@ -589,13 +588,10 @@ const load = operation({
   },
 });
 
-/**
- * The server side of frames, filled by the cmd. Install it after `bunSqlite`. `runtime`: the
- * runtime of app frames that the build of the binary made (none: the scope builds it).
- */
+/** The server side of frames, filled by the cmd. Install it after `bunSqlite`. */
 export const framesServer = capsule({
   label: "framesServer",
-  config: { stdout, runtime: kitRuntime },
+  config: { stdout },
   hooks: {
     async start({ run, next }) {
       await run(load, {}, { role: "setup", explain: "Reads canvases and frames" });

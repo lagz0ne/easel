@@ -25,7 +25,6 @@ import { issues } from "@/issues";
 import { issueOps, membersOnly, signedIn } from "@/issues/ops.server";
 import { kit } from "@/kit";
 import { kitOps } from "@/kit/ops.server";
-import { runtimeRoute } from "@/kit/runtime.server";
 import { ops } from "@/ops";
 import { opsOwnerOps, opsServer, opsUserOps, ready } from "@/ops/ops.server";
 import { observePanics } from "@/ops/panic.server";
@@ -41,7 +40,6 @@ import { todo } from "@/todo";
 import { todoOps } from "@/todo/ops.server";
 
 import { pages } from "./pages";
-import { runtime } from "./runtime";
 
 /**
  * The env's defaults: the dev port when `PORT` is unset; "dev" and build 0 when no image set
@@ -139,9 +137,6 @@ export default defineMain(async ({ env, args, signal, stdout, stderr, exit }) =>
       "POST /api/telemetry": tabs,
       // A frame's picture: its key is the right to it, no user and no pass (SPEC-frames § Pictures).
       "GET /api/pictures/{canvas}/{id}/{version}": pictureRoute,
-      // The runtime of app frames: public code at an address that never changes (SPEC-kit § App
-      // frames); a frame's origin is null, so no user and no pass.
-      "GET /api/runtime/{kit}/{sha}/{file}": runtimeRoute,
     },
   });
   const app = createScope({
@@ -173,7 +168,7 @@ export default defineMain(async ({ env, args, signal, stdout, stderr, exit }) =>
       // beside EASEL_DB. Before framesServer: the board's keys need the secret.
       picturesServer({ chromium: env.EASEL_CHROMIUM, database: auth.file }),
       // Canvases and frames, in EASEL_DB; any signed-in user writes any canvas (SPEC-frames).
-      framesServer({ stdout, runtime }),
+      framesServer({ stdout }),
       frames.api({ implement: framesOps, onStart: [user] }),
       frames.board({ serve: true, load: framesLoads, onStart: [mayRead] }),
       // Share links and passes, in EASEL_DB; `share.open` needs nothing but the link (fact rule 1).
