@@ -713,7 +713,8 @@ Decided:
   more than 10 minutes to set.
 - Deferred: a page that shows the kit to people. Add it when a team asks to see the kit apart from
   its frames.
-- Deferred: images, icons and fonts kept in easel. Add it when a frame cannot load what it needs.
+- Deferred: images, icons and a team's own fonts kept in easel. easel holds only the fonts of the
+  seed look (the user, 2026-11-22). Add it when a frame cannot load what it needs.
 - Deferred: a way to take a frame into an app of the team. A frame can be a full React and Tinker
   app ([frame-apps](decisions/frame-apps.md)), so its code can go into an app, but easel gives no
   export. Add it when a team asks to turn a frame into app code.

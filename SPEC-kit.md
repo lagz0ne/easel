@@ -317,18 +317,26 @@ easel shows them as they are.
 
 The binary holds the seed. The first start writes it as kit version 1, with look revision 1.
 
-- The look comes from the shadcn/ui theme (MIT): its color names, and the values of its base
-  color "neutral", from oklch to sRGB. The font stacks, the type scale, the shadows and `--spacing`
-  are Tailwind's (MIT); the radii are those of shadcn/ui's `--radius` (10px).
+- The seed is the look of ui.shadcn.com (shadcn/ui, MIT). The user chose it on 2026-11-22: a look
+  with no color of its own does not push frames toward one style.
+- The colors are the shadcn/ui names and the values of its base color "neutral", from oklch to
+  sRGB. The chart colors are its grey scale (`chart-1` `#d4d4d4` to `chart-5` `#262626`).
+- The fonts are Geist and Geist Mono 1.9.2 (Vercel, OFL-1.1), then Tailwind's font stacks. The
+  radii are those of shadcn/ui's `--radius` (10px): `sm` 6px to `4xl` 26px. The type scale, the
+  shadows and `--spacing` are Tailwind's (MIT).
 - A shadcn/ui value that fails K8 is changed to the nearest value that passes, and its
   `$description` tells the change: `muted-foreground` (4.35:1 on `muted`), `destructive` (4.47:1
   on `muted`), `input` and `ring` (under 3:1 on `background`). The colors that shadcn/ui does not
   have (`success`, `warning`, the three `-soft` colors) come from Tailwind's palette, except
   `warning`, which is `#8a5a00` (5.44:1 on `muted`).
-- The kit's pieces are those of the E8 study (A+T): `src/kit/seed.server.ts`.
-- These values are a start, not the look of easel. A design ship on Doop (build order step 5 of
-  the decision) picks easel's own base color, font and radius, so that a frame does not look like
-  a template.
+- The kit's pieces have the class names of the E8 study (A+T) and the shapes of the shadcn/ui
+  "Maia" style: pill buttons, fields, badges and tabs, and round cards (`src/kit/seed.server.ts`).
+  A field keeps an edge of `input` (3.45:1), as K8 asks; the Maia field of the site has none.
+- The binary holds the two font files (`src/kit/fonts/`). `GET /api/fonts/geist-1.9.2/<file>`
+  serves each one, immutable, to any origin, as a frame's origin is `null`. The look's CSS
+  (`easel-look`) starts with an `@font-face` for each held font that a `--font-*` value names. A
+  picture gets each font as a `data:` URL, as it is drawn with no route to the easel.
+- An easel that has a kit keeps it (K11). A new seed reaches only a new easel.
 
 ### The make step
 
@@ -752,8 +760,8 @@ The statecharts [kit-piece](docs/statecharts/kit-piece.md), [kit-look](docs/stat
 ## Out of Scope (Deferred)
 
 From [E8](docs/epics.md#e8-one-look-fast): a look for each canvas, a dark theme, a look taken from
-a web site or a design file, a page that shows the kit to people, and images, icons and fonts kept
-in easel. The seed uses a system font stack for that reason.
+a web site or a design file, a page that shows the kit to people, and images, icons and a team's
+own fonts kept in easel. easel holds only the two fonts of the seed (§ The seed).
 
 Also deferred:
 
