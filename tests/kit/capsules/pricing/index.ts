@@ -3,7 +3,7 @@ import { z } from "zod";
 
 import { aboutShape } from "@/kit/capsules/about";
 
-import { texts } from "./copy";
+import { text, texts } from "./copy";
 import { planShape, plans, sample, samples } from "./entities";
 import { choose } from "./logic";
 import { View } from "./view";
@@ -24,11 +24,12 @@ export const pricing = capsule({
         View: "The page.",
         plans: "The plans that the page shows.",
         choose: "Choose a plan, by its id.",
-        texts: "The texts of the page, for the copy install.",
+        text: "The t of the page, in the locale of the scope.",
+        texts: "The texts of the page, in each locale.",
       },
     }),
   ],
-  exports: { View, plans, choose, texts },
+  exports: { View, plans, choose, text, texts },
   hooks: {
     async start({ config, load, raise, next }) {
       const rows = z.array(planShape).safeParse(samples[config.sample]);

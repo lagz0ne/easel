@@ -11,12 +11,12 @@ import { look } from "./look";
 // The pieces of the kit as a capsule (docs/decisions/kit-capsules.md): React components that use
 // the kit's classes, made from the copy that the scope installs. A frame composes them and does
 // not style them. Its start checks what the pieces need before any frame draws: the look meets
-// K8 (the contrast of each text and edge), and the copy has each text of the pieces.
+// K8 (the contrast of each text and edge). Their texts are a part of the copy (`ui.text`).
 
 const about = tag({ label: "ui.about", parse: aboutShape });
 
-/** The texts of the pieces: a frame's copy install lists them with its own. */
-const texts: Texts = {
+/** The texts of the pieces. */
+const texts = {
   en: {
     "ui.empty": "Nothing here yet",
     "ui.close": "Close",
@@ -25,7 +25,14 @@ const texts: Texts = {
     "ui.empty": "Chưa có gì",
     "ui.close": "Đóng",
   },
-};
+} satisfies Texts;
+
+/** The `t` of the pieces: their texts in the locale of the scope. */
+const text = resource({
+  label: "ui.text",
+  depends: { say: copy.say },
+  factory: ({ say }) => say(texts),
+});
 
 const tones = {
   primary: "btn-primary",
@@ -55,7 +62,7 @@ type ButtonProps = {
 /** The pieces: Button, Card, Badge, Stat and Empty. */
 const pieces = resource({
   label: "ui.pieces",
-  depends: { t: copy.t },
+  depends: { t: text },
   factory: ({ t }) => ({
     Button: ({
       tone = "primary",
@@ -104,19 +111,19 @@ export const ui = capsule({
   label: "ui",
   tags: [
     about({
-      does: "The pieces of the kit: React components with the kit's classes. Its start stops the scope when the look fails K8 or the copy has no text of a piece.",
+      does: "The pieces of the kit: React components with the kit's classes. Its start stops the scope when the look fails K8.",
       exports: {
         pieces: "Button, Card, Badge, Stat and Empty.",
-        texts: "The texts of the pieces, for the copy install.",
+        text: "The t of the pieces, in the locale of the scope.",
       },
     }),
   ],
-  exports: { pieces, texts },
+  exports: { pieces, text },
   hooks: {
     async start({ load, run, raise, next }) {
       const setup = {
         role: "setup" as const,
-        explain: "What the pieces need: a look that meets K8, and their texts",
+        explain: "The pieces need a look that meets K8",
       };
       const values = await load(look.values, setup);
       const styles = await load(look.styles, setup);
@@ -124,16 +131,6 @@ export const ui = capsule({
       const low = pairs.filter((pair) => !(pair.ratio >= pair.min));
       if (low.length > 0) raise("LookFailsK8", { pairs: low });
 
-      const say = await load(copy.t, setup);
-      const missing = Object.keys(texts.en).filter((key) => {
-        try {
-          say(key);
-          return false;
-        } catch {
-          return true;
-        }
-      });
-      if (missing.length > 0) raise("CopyMissing", { keys: missing });
       await next();
     },
   },

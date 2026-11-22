@@ -4,13 +4,14 @@ import { useData, useRun } from "@tinkered/react";
 import { copy } from "@/kit/capsules/copy";
 import { ui } from "@/kit/capsules/ui";
 
+import { text } from "./copy";
 import { chosen, type Plan, plans } from "./entities";
 import { choose } from "./logic";
 
 /** One plan: a component that the View depends on, as it depends on the pieces. */
 const PlanCard = resource({
   label: "pricing.PlanCard",
-  depends: { ui: ui.pieces, t: copy.t, format: copy.format },
+  depends: { ui: ui.pieces, t: text, format: copy.format },
   factory: ({ ui: { Card, Button, Badge }, t, format }) =>
     function PlanCard({ plan }: { plan: Plan }) {
       const picked = useData(chosen);
@@ -37,7 +38,7 @@ const PlanCard = resource({
 
 export const View = resource({
   label: "pricing.View",
-  depends: { ui: ui.pieces, t: copy.t, PlanCard },
+  depends: { ui: ui.pieces, t: text, PlanCard },
   factory: ({ ui: { Empty }, t, PlanCard }) =>
     function Pricing() {
       const rows = useData(plans);

@@ -3,10 +3,11 @@ import { z } from "zod";
 
 import { aboutShape } from "./about";
 
-// The copy as a capsule (docs/decisions/kit-capsules.md; E9): the locale and the texts are its
-// config; `t` gives the text of a key in that locale. Its start checks the texts first: each key
-// has a text in each locale, with the same parameters. A gap stops the scope, so no frame shows a
-// missing text or a key in place of a text.
+// The copy as a capsule (docs/decisions/kit-capsules.md; E9): the locale is its config. Each part
+// (the pieces of the kit, a frame) declares its texts, and its own `text` resource depends on
+// `copy.say`: `say(texts)` checks the part (each key has a text in each locale, with the same
+// parameters) and gives its `t`. So `t` is a dependency: a component depends on the `text` of a
+// part, its keys are typed, and the graph shows which component uses which texts.
 
 export const locales = ["en", "vi"] as const;
 
@@ -17,17 +18,25 @@ export type Locale = z.infer<typeof localeShape>;
 /** A text: a string with `{name}` parameters, or a form for one and a form for others (`{count}`). */
 const textShape = z.union([z.string(), z.object({ one: z.string(), other: z.string() })]);
 
-/** The texts of one part (a frame, the pieces of the kit), in each locale, by key. */
-export const textsShape = z.object({
+export type Text = z.infer<typeof textShape>;
+
+/** The texts of one part, in each locale, by key: each locale has each key, as the type says. */
+export type Texts<K extends string = string> = {
+  readonly [L in Locale]: Readonly<Record<K, Text>>;
+};
+
+/** The `t` of a part: the text of one of its keys in the locale, with its parameters filled. */
+export type Say<K extends string> = (
+  key: K,
+  params?: Readonly<Record<string, string | number>>,
+) => string;
+
+const textsShape = z.object({
   en: z.record(z.string(), textShape),
   vi: z.record(z.string(), textShape),
 });
 
-export type Texts = z.infer<typeof textsShape>;
-
 const locale = tag<Locale>({ label: "copy.locale", default: "en", parse: localeShape });
-
-const texts = tag({ label: "copy.texts", parse: z.array(textsShape) });
 
 const about = tag({ label: "copy.about", parse: aboutShape });
 
@@ -42,9 +51,13 @@ const paramsOf = operation({
   },
 });
 
-/** The gaps of one part: a key with no English, a key with no text, a text with other parameters. */
-const partGaps = operation({
-  label: "copy.partGaps",
+/**
+ * The gaps of one part: a key of a locale with no English, a key of English with no text in a
+ * locale, or a text whose parameters are not those of its English. The types find the first two
+ * in a frame that the agent type-checks; this finds them in each frame.
+ */
+export const textGaps = operation({
+  label: "copy.textGaps",
   input: textsShape,
   depends: { paramsOf },
   run: ({ paramsOf }, { input: part }) => {
@@ -71,38 +84,32 @@ const partGaps = operation({
   },
 });
 
-/** Each gap in the texts of each part (`partGaps`), in the order of the parts. */
-export const textGaps = operation({
-  label: "copy.textGaps",
-  input: z.array(textsShape),
-  depends: { partGaps },
-  run: ({ partGaps }, { input: parts }) => parts.flatMap((part) => partGaps.run({ input: part })),
-});
-
 /**
- * `t(key, params)`: the text of `key` in the locale, with its parameters filled. A text with a form
- * for one takes the form that `Intl.PluralRules` picks for `count`. A key that no part has throws:
- * the start checked the texts, so only a key that no part declares can be missing.
+ * `say(texts)`: the `t` of a part in the locale, after the check of its texts (`textGaps`); a gap
+ * raises `CopyGaps`, so the part's `text` does not build and its frame does not draw. A text with
+ * a form for one takes the form that `Intl.PluralRules` picks for `count`.
  */
-const t = resource({
-  label: "copy.t",
-  depends: { locale, texts },
-  factory: ({ locale, texts }) => {
-    const all = Object.assign({}, ...texts.map((part) => part[locale]));
-    const known = z.record(z.string(), textShape).parse(all);
+const say = resource({
+  label: "copy.say",
+  depends: { locale, textGaps },
+  factory: ({ locale, textGaps }, { raise }) => {
     const plural = new Intl.PluralRules(locale);
 
-    return (key: string, params: Readonly<Record<string, string | number>> = {}) => {
-      const text = known[key];
-      if (text === undefined) throw new Error(`copy: no text has the key ${key}`);
+    return <K extends string>(part: Texts<K>): Say<K> => {
+      const gaps = textGaps.run({ input: part });
+      if (gaps.length > 0) raise("CopyGaps", { gaps });
 
-      const form =
-        typeof text === "string"
-          ? text
-          : plural.select(Number(params.count)) === "one"
-            ? text.one
-            : text.other;
-      return form.replace(/\{(\w+)\}/g, (whole, name: string) => String(params[name] ?? whole));
+      const known = part[locale];
+      return (key, params = {}) => {
+        const text = known[key];
+        const form =
+          typeof text === "string"
+            ? text
+            : plural.select(Number(params.count)) === "one"
+              ? text.one
+              : text.other;
+        return form.replace(/\{(\w+)\}/g, (whole, name: string) => String(params[name] ?? whole));
+      };
     };
   },
 });
@@ -122,23 +129,15 @@ const format = resource({
 
 export const copy = capsule({
   label: "copy",
-  config: { locale, texts: texts.required },
+  config: { locale },
   tags: [
     about({
-      does: "The texts of the frames and the pieces, in one locale. Its start stops the scope at a gap.",
+      does: "The locale of a scope: the texts of each part and the formats of numbers, money and dates in it.",
       exports: {
-        t: "t(key, params): the text of a key in the locale, with its parameters.",
+        say: "say(texts) gives the t of a part: a part's text resource depends on it. A gap in the texts raises CopyGaps.",
         format: "format.number, format.money and format.date in the locale.",
       },
     }),
   ],
-  exports: { t, format },
-  hooks: {
-    async start({ config, run, raise, next }) {
-      const explain = "Each key has a text in each locale, with the same parameters";
-      const gaps = await run(textGaps, { input: config.texts }, { role: "setup", explain });
-      if (gaps.length > 0) raise("CopyGaps", { gaps });
-      await next();
-    },
-  },
+  exports: { say, format },
 });

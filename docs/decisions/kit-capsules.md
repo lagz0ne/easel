@@ -41,15 +41,15 @@ entities come last, but they change the design most.
 
 The kit is three capsules of Tinker, and each frame is drawn from capsules:
 
-| Capsule | Config                                      | Exports                       | Its start stops the scope when       |
-| ------- | ------------------------------------------- | ----------------------------- | ------------------------------------ |
-| `look`  | the look values and the kit's CSS           | `values`, `styles`            | (a value is not a CSS name: parse)   |
-| `copy`  | the locale (`en`, `vi`), the texts of parts | `t(key, params)`, `format`    | a key has no text, or other params   |
-| `ui`    | none                                        | `pieces` (React), `texts`     | the look fails K8; a text is missing |
-| a frame | its data state (`empty`, `one`, ...)        | `View`, its entities, its ops | a row of the state fails its schema  |
+| Capsule | Config                               | Exports                       | Its start stops the scope when      |
+| ------- | ------------------------------------ | ----------------------------- | ----------------------------------- |
+| `look`  | the look values and the kit's CSS    | `values`, `styles`            | (a value is not a CSS name: parse)  |
+| `copy`  | the locale (`en`, `vi`)              | `say(texts)`, `format`        | (a part's `text` refuses a gap)     |
+| `ui`    | none                                 | `pieces` (React), `text`      | the look fails K8                   |
+| a frame | its data state (`empty`, `one`, ...) | `View`, its entities, its ops | a row of the state fails its schema |
 
 A frame draws in a new scope of its install list:
-`[look({ values, css }), copy({ locale, texts: [ui.texts, frame.texts] }), ui(), frame({ sample })]`.
+`[look({ values, css }), copy({ locale }), ui(), frame({ sample })]`.
 Another locale or another data state is another install list, so another scope. Reactivity stays
 for the live look (K7).
 
@@ -61,9 +61,9 @@ for the live look (K7).
    its own.
 2. **The start hook.** Each capsule checks what it needs before any frame draws. A failed start
    rejects `ready` with a kind and a payload (`CopyGaps`, `LookFailsK8`, `SampleInvalid`). So a
-   frame that draws has whole texts, a look that meets K8, and data that fits its schema.
+   frame that draws has a look that meets K8 and data that fits its schema.
 3. **The dependency check of Tinker.** A unit of a capsule that the install does not have stops
-   the start: `CapsuleMissing { unit: "copy.t", capsule: "copy" }`. easel writes no code for it.
+   the start: `CapsuleMissing { unit: "copy.say", capsule: "copy" }`. easel writes no code for it.
 4. **Exports.** An exported cell is read only outside its capsule (ADR 0123 of Tinker): another
    frame reads the plans of `pricing`, and only `pricing.choose` changes state. An export can be a
    plain value (`texts`) or React components (`pieces`).
@@ -71,6 +71,20 @@ for the live look (K7).
    installed, the fixed tags and the exports. Each kit capsule has its own `<label>.about` tag,
    so the row says what the capsule and each export do. `describeCapsule` adds the schema of each
    config key and of each operation's input. This is the list that the MCP gives.
+
+### `t` is a dependency
+
+Each part (the pieces of the kit, each frame) declares its texts in each locale, and its own
+`text` resource: `resource({ label: "pricing.text", depends: { say: copy.say }, factory: ({ say })
+=> say(texts) })`. A component depends on it: `depends: { t: text }`. This gives three things:
+
+1. **Typed keys.** `t("pricing.title")` takes only a key of the part, and each locale must have
+   each key of the part (`Texts<K>`). An agent that type-checks its frame finds a gap at once.
+2. **A check when the part builds.** `say` runs `textGaps` (a key with no text, a key with no
+   English, a text with other parameters) and raises `CopyGaps`. easel does not type-check a put,
+   so this check holds for each frame.
+3. **The graph of the copy.** Each component names the texts that it uses. A tool lists the texts
+   of each frame, and a change of one text names the frames that show it.
 
 ### What the agent writes
 
@@ -119,7 +133,7 @@ A component depends on another component in the same way as on the pieces
   `describeCapsule` for the kit version of the board.
 - **Pictures.** Each install of the matrix (locale × data state) gets its picture, as a story in
   Chromatic does.
-- **Copy keys.** A key that a frame uses and no part declares throws when it draws. An oxc check
-  of each `t("...")` against the texts (E9) can find it before the put.
+- **Texts from a backend.** A part's texts are in its code. A team that keeps texts elsewhere can
+  give them as config of `copy` later (`copy({ locale, overrides })`); `say` merges them.
 - **Input checks.** An in-process run of Tinker does not parse the input of an operation; only the
   rpc door does. A frame's operation gets no input check from its schema.

@@ -1,6 +1,6 @@
 // Form 1 of a frame (docs/decisions/kit-capsules.md): a component in the body of a factory. It
-// sees only what it depends on: the pieces of the kit and the copy of its locale. Its own state is
-// a cell, and its texts go in the copy install of the frame.
+// sees only what it depends on: the pieces of the kit and the `t` of its own texts. Its own state
+// is a cell.
 import { data, operation, resource } from "@tinkered/core";
 import { useData, useRun } from "@tinkered/react";
 import { z } from "zod";
@@ -8,7 +8,7 @@ import { z } from "zod";
 import { copy, type Texts } from "@/kit/capsules/copy";
 import { ui } from "@/kit/capsules/ui";
 
-export const texts: Texts = {
+const texts = {
   en: {
     "invite.title": "Invite your team",
     "invite.access": { one: "{count} person has access", other: "{count} people have access" },
@@ -19,7 +19,14 @@ export const texts: Texts = {
     "invite.access": { one: "{count} người có quyền", other: "{count} người có quyền" },
     "invite.remove": "Xóa {email}",
   },
-};
+} satisfies Texts;
+
+/** The `t` of the frame: its texts in the locale of the scope. */
+export const text = resource({
+  label: "invite.text",
+  depends: { say: copy.say },
+  factory: ({ say }) => say(texts),
+});
 
 const people = data<string[]>({ label: "invite.people", initial: ["ana@acme.com", "bo@acme.com"] });
 
@@ -32,7 +39,7 @@ const remove = operation({
 
 export const View = resource({
   label: "invite.View",
-  depends: { ui: ui.pieces, t: copy.t },
+  depends: { ui: ui.pieces, t: text },
   factory: ({ ui: { Card, Button, Empty }, t }) =>
     function Invite() {
       const list = useData(people);

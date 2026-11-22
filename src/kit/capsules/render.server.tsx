@@ -1,4 +1,4 @@
-import { type Capsule, createScope, operation, type Resource } from "@tinkered/core";
+import { type Capsule, createScope, operation, type Resource, type Scope } from "@tinkered/core";
 import { ScopeProvider } from "@tinkered/react";
 import { type ComponentType, createElement } from "react";
 import { prerender } from "react-dom/static";
@@ -24,6 +24,25 @@ export type Rendered =
   | { kind: "refused"; refused: string; payload: unknown };
 
 /**
+ * The View of a frame and the styles of its look, built in its scope; `refused` when a unit does
+ * not build (a part whose texts have a gap raises `CopyGaps`).
+ */
+const buildFrame = operation({
+  label: "kit.capsules.build",
+  input: z.custom<{ scope: Scope.Handle; view: Resource.Handle<ComponentType> }>(),
+  run: (_, { input: { scope, view } }) => {
+    try {
+      const built = { View: scope.resolve(view), styles: scope.resolve(look.styles) };
+      return { kind: "built" as const, ...built };
+    } catch (error) {
+      const known = refusal.safeParse(error);
+      if (!known.success) throw error;
+      return { kind: "refused" as const, refused: known.data.kind, payload: known.data.payload };
+    }
+  },
+});
+
+/**
  * The frame `view` in a new scope of `capsules`: `rendered` with its HTML, the styles of its look
  * and the scope's list of capsules (as it was after the render), or `refused` with the kind and
  * the payload of the start that stopped the scope.
@@ -34,20 +53,28 @@ export const renderFrame = operation({
     capsules: Capsule.Installable[];
     view: Resource.Handle<ComponentType>;
   }>(),
-  run: async (_, { input }): Promise<Rendered> => {
+  depends: { buildFrame },
+  run: async (units, { input }): Promise<Rendered> => {
     const scope = createScope({ capsules: input.capsules });
     const started = await scope.ready.then(
-      () => null,
-      (error: unknown) => refusal.safeParse(error),
+      (live) => ({ live, refused: null }),
+      (error: unknown) => ({ live: null, refused: refusal.safeParse(error) }),
     );
-    if (started !== null) {
+    if (started.live === null) {
       await scope.close();
-      if (!started.success) throw new Error("kit: a start failed with no kind");
-      return { kind: "refused", refused: started.data.kind, payload: started.data.payload };
+      if (!started.refused.success) throw new Error("kit: a start failed with no kind");
+      const { kind, payload } = started.refused.data;
+      return { kind: "refused", refused: kind, payload };
     }
 
-    const View = scope.resolve(input.view);
-    const styles = scope.resolve(look.styles);
+    // A part whose texts have a gap does not build: its frame is refused too (`CopyGaps`).
+    const built = units.buildFrame.run({ input: { scope: started.live, view: input.view } });
+    if (built.kind === "refused") {
+      await scope.close();
+      return { kind: "refused", refused: built.refused, payload: built.payload };
+    }
+
+    const { View, styles } = built;
     // `prerender` waits for each read that suspends (a cell's first read), then gives the HTML.
     const { prelude } = await prerender(
       createElement(ScopeProvider, { scope, children: createElement(View) }),

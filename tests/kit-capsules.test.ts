@@ -1,5 +1,6 @@
 import { exits } from "@tinkered/cli/test";
-import { createScope } from "@tinkered/core";
+import { createScope, resource } from "@tinkered/core";
+import { createElement } from "react";
 import { afterAll, beforeAll, expect, test } from "vite-plus/test";
 
 import { describeCapsule } from "@/kit/capsules/about";
@@ -28,10 +29,10 @@ beforeAll(async () => {
 
 afterAll(() => server.close());
 
-/** The install list of the kit: the seed look, the copy in `locale` with the texts of the pieces. */
-const kit = (locale: Locale, texts: Texts[], values: Record<string, string> = seed) => [
+/** The install list of the kit: the seed look, the copy in `locale`, the pieces. */
+const kit = (locale: Locale, values: Record<string, string> = seed) => [
   look({ values, css: seedKitCss }),
-  copy({ locale, texts: [ui.texts, ...texts] }),
+  copy({ locale }),
   ui(),
 ];
 
@@ -44,14 +45,14 @@ async function drawn(input: Parameters<typeof renderFrame.run>[1]["input"]) {
 }
 
 test("form 1: a component in a factory draws from the pieces and the copy of each locale", async () => {
-  const en = await drawn({ capsules: kit("en", [invite.texts]), view: invite.View });
+  const en = await drawn({ capsules: kit("en"), view: invite.View });
   expect(en.html).toContain("<h2>Invite your team</h2>");
   expect(en.html).toContain("2 people have access");
   expect(en.html).toContain('aria-label="Remove ana@acme.com"');
   expect(en.html).toContain('class="btn btn-ghost btn-sm"');
   expect(en.styles).toContain("--primary: #171717;");
 
-  const vi = await drawn({ capsules: kit("vi", [invite.texts]), view: invite.View });
+  const vi = await drawn({ capsules: kit("vi"), view: invite.View });
   expect(vi.html).toContain("<h2>Mời nhóm của bạn</h2>");
   expect(vi.html).toContain("2 người có quyền");
 });
@@ -60,7 +61,7 @@ test("form 2: a capsule draws each locale and each data state, and the same inst
   const pages: Record<string, string> = {};
   for (const locale of locales) {
     for (const sample of sampleShape.options) {
-      const capsules = [...kit(locale, [pricing.texts]), pricing({ sample })];
+      const capsules = [...kit(locale), pricing({ sample })];
       pages[`${locale} ${sample}`] = (await drawn({ capsules, view: pricing.View })).html;
     }
   }
@@ -76,50 +77,62 @@ test("form 2: a capsule draws each locale and each data state, and the same inst
   expect(pages["en long"]).toContain("8 features");
 
   const again = await drawn({
-    capsules: [...kit("en", [pricing.texts]), pricing({ sample: "many" })],
+    capsules: [...kit("en"), pricing({ sample: "many" })],
     view: pricing.View,
   });
   expect(again.html).toBe(pages["en many"]);
 });
 
-test("a gap in the copy stops the scope before the frame draws", async () => {
-  const gaps: Texts = {
-    en: { "invite.title": "Invite", "invite.access": "{count} have access" },
-    vi: { "invite.access": "{n} có quyền" },
+test("a gap in the texts of a part stops its frame before it draws", async () => {
+  // Texts<string> lets any key in: a frame that the agent does not type-check can have gaps.
+  const gapped: Texts<string> = {
+    en: { "gap.title": "Invite", "gap.access": "{count} have access" },
+    vi: { "gap.access": "{n} có quyền" },
   };
-  const got = await server.run(renderFrame, {
-    input: { capsules: kit("en", [gaps]), view: invite.View },
+  const text = resource({
+    label: "gap.text",
+    depends: { say: copy.say },
+    factory: ({ say }) => say(gapped),
   });
+  const view = resource({
+    label: "gap.View",
+    depends: { t: text },
+    factory: ({ t }) =>
+      function Gap() {
+        return createElement("p", null, t("gap.title"));
+      },
+  });
+  const got = await server.run(renderFrame, { input: { capsules: kit("en"), view } });
 
   expect(got).toEqual({
     kind: "refused",
     refused: "CopyGaps",
     payload: {
       gaps: [
-        { locale: "vi", key: "invite.title", why: "no text" },
-        { locale: "vi", key: "invite.access", why: "the parameters are not {count}" },
+        { locale: "vi", key: "gap.title", why: "no text" },
+        { locale: "vi", key: "gap.access", why: "the parameters are not {count}" },
       ],
     },
   });
 });
 
 test("the copy check: a key with no English, a key with no text, and other parameters", async () => {
-  const parts: Texts[] = [
-    { en: { a: "A {name}" }, vi: { a: "A {name}" } },
-    { en: { b: { one: "{count} b", other: "{count} bs" } }, vi: { b: "{n} b", c: "C" } },
-  ];
+  const part: Texts<string> = {
+    en: { a: "A {name}", b: { one: "{count} b", other: "{count} bs" } },
+    vi: { a: "A {name}", b: "{n} b", c: "C" },
+  };
 
-  expect(await server.run(textGaps, { input: parts })).toEqual([
+  expect(await server.run(textGaps, { input: part })).toEqual([
     { locale: "vi", key: "c", why: "no English text" },
     { locale: "vi", key: "b", why: "the parameters are not {count}" },
   ]);
-  expect(await server.run(textGaps, { input: [ui.texts, invite.texts] })).toEqual([]);
+  expect(await server.run(textGaps, { input: pricing.texts })).toEqual([]);
 });
 
 test("a look that fails K8 stops the scope: the pieces do not draw with it", async () => {
   const pale = { ...seed, "--muted-foreground": "#d4d4d4" };
   const got = await server.run(renderFrame, {
-    input: { capsules: kit("en", [invite.texts], pale), view: invite.View },
+    input: { capsules: kit("en", pale), view: invite.View },
   });
 
   expect(got.kind === "refused" && got.refused).toBe("LookFailsK8");
@@ -136,14 +149,19 @@ test("a frame that needs a capsule the install does not have does not start", as
   expect(got).toEqual({
     kind: "refused",
     refused: "CapsuleMissing",
-    payload: { unit: "copy.t", capsule: "copy" },
+    payload: { unit: "copy.say", capsule: "copy" },
   });
 });
 
-test("the types hold the rules: a required config key, and an exported cell is read only", () => {
-  const unused = () => {
-    // @ts-expect-error copy needs its texts: the compiler names the key.
-    createScope({ capsules: [copy({ locale: "en" })] });
+test("the types hold the rules: required config, the keys of a part, and a read-only export", () => {
+  const unused = (say: <K extends string>(part: Texts<K>) => (key: K) => string) => {
+    // @ts-expect-error the look needs its values and the kit's CSS: the compiler names the keys.
+    createScope({ capsules: [look({ css: "" })] });
+    // @ts-expect-error each locale has each key: vi has no text for "a".
+    say({ en: { a: "A" }, vi: {} });
+    const t = say({ en: { a: "A" }, vi: { a: "Á" } });
+    // @ts-expect-error the part has no key "b".
+    t("b");
     // @ts-expect-error a frame cannot write the plans of the pricing capsule.
     return pricing.plans.controller;
   };
@@ -152,7 +170,7 @@ test("the types hold the rules: a required config key, and an exported cell is r
 
 test("the list of capsules: what each does, its config with its schema, and its exports", async () => {
   const got = await drawn({
-    capsules: [...kit("vi", [pricing.texts]), pricing({ sample: "one" })],
+    capsules: [...kit("vi"), pricing({ sample: "one" })],
     view: pricing.View,
   });
   const handles = { look, copy, ui, pricing };
@@ -172,12 +190,6 @@ test("the list of capsules: what each does, its config with its schema, and its 
       required: false,
       schema: expect.objectContaining({ enum: ["en", "vi"] }),
     },
-    {
-      key: "texts",
-      tag: "copy.texts",
-      required: true,
-      schema: expect.objectContaining({ type: "array" }),
-    },
   ]);
   // The data states of the frame are in the schema of its config: a tool can draw each one.
   expect(list[3]?.config[0]?.schema).toMatchObject({ enum: ["empty", "one", "many", "long"] });
@@ -185,6 +197,7 @@ test("the list of capsules: what each does, its config with its schema, and its 
     "View resource",
     "plans cell",
     "choose operation",
+    "text resource",
     "texts value",
   ]);
   expect(list[3]?.exports[2]?.input).toMatchObject({ type: "string" });
