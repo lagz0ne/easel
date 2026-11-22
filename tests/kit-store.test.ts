@@ -153,7 +153,8 @@ test("K1: a new easel's first frame shows in the seed look: compose holds the lo
   // K5: a seed fixture finds nothing.
   expect(answer).toMatchObject({ kind: "created", findings: [], more: 0 });
   expect(kit.kit).toBe(1);
-  expect(html.startsWith('<!doctype html>\n<style id="easel-look">:root {\n')).toBe(true);
+  expect(html.startsWith('<!doctype html>\n<style id="easel-look">@font-face {\n')).toBe(true);
+  expect(html).toContain("}\n:root {\n  --background: #ffffff;\n");
   expect(html).toContain("  --primary: #171717;\n");
   expect(html).toContain("  --warning: #8a5a00;\n");
   expect(html).toContain("  --text-sm: 0.875rem;\n");
@@ -175,7 +176,7 @@ test("K5: each seed fixture finds nothing at its put", async () => {
   }
 });
 
-test("K5 fixes in the seed look: a palette red or green gives the semantic color (destructive, success), not a chart color; a yellow, with no semantic color near it, gives chart-4", async () => {
+test("K5 fixes in the seed look: a palette red or green gives the semantic color (destructive, success); a yellow gives the nearest one, warning-soft, as the chart colors are grey", async () => {
   const { agent } = await easel();
   const html =
     '<p class="text-red-500">a</p><p class="bg-green-600">b</p><p class="text-yellow-400">c</p>' +
@@ -186,7 +187,7 @@ test("K5 fixes in the seed look: a palette red or green gives the semantic color
   expect(answer.findings.map((f) => f.fix)).toEqual([
     "use text-destructive",
     "use bg-success",
-    "use text-chart-4",
+    "use text-warning-soft",
     "use var(--destructive)",
   ]);
 });
@@ -213,8 +214,13 @@ test("the seed is kit version 1: a DTCG 2025.10 look with revision 1, from shadc
   expect(now.values["--font-display"]).toBe(now.values["--font-sans"]);
   expect(now.values["--shadow-sm"]).toBe("0px 1px 3px 0px #0000001a, 0px 1px 2px -1px #0000001a");
   expect(now.root).toContain(
-    '  --font-sans: ui-sans-serif, system-ui, sans-serif, "Apple Color Emoji"',
+    '  --font-sans: Geist, ui-sans-serif, system-ui, sans-serif, "Apple Color Emoji"',
   );
+  expect(now.root).toContain('  --font-mono: "Geist Mono", ui-monospace,');
+  expect(now.values["--radius-4xl"]).toBe("26px");
+  // The look names Geist and Geist Mono, which easel holds: their faces come before `:root`.
+  expect(now.root.startsWith('@font-face {\n  font-family: "Geist";\n')).toBe(true);
+  expect(now.root).toContain('src: url("/api/fonts/geist-1.9.2/GeistMono-Variable.woff2")');
 
   // NoStoredLookIsUnreadable: each pair of K8 passes, warning on muted with the fixed #8a5a00.
   const pairs = srv.server.run(contrast, { input: { look: now.values, css: now.source } });

@@ -39,6 +39,7 @@ import {
 } from "@/frames/pictures.server";
 import { bumpKeys, framesServer } from "@/frames/store.server";
 import { compose } from "@/kit/compose";
+import { inlineFonts } from "@/kit/fonts.server";
 import { makeFrame } from "@/kit/make.server";
 import { lookSet, lookUndo } from "@/kit/ops.server";
 import { frameKit, readKitAt } from "@/kit/store.server";
@@ -241,7 +242,8 @@ async function boot(options: Boot = {}) {
     },
     /**
      * What the test draw answers for a document with no class names: `drawn:` and the document
-     * composed with its made CSS and kit version `kit` (the current one by default).
+     * composed with its made CSS and kit version `kit` (the current one by default). Its look
+     * holds the held fonts as `data:` URLs (`inlineFonts`).
      */
     drawnAs: async (html: string, kit?: number) => {
       const shape = await server.run(frameKit);
@@ -249,7 +251,7 @@ async function boot(options: Boot = {}) {
       const row = await server.run(readKitAt, { input: kit ?? shape.version });
       if (made.kind !== "made" || row === null) throw new Error("no made CSS, or no kit version");
 
-      const look = { look: row.root, css: row.css };
+      const look = { look: server.run(inlineFonts, { input: row.root }), css: row.css };
       return `drawn:${server.run(compose, { input: { html, css: made.css, kit: look } })}`;
     },
     keyFor: (canvas: string, id: string, version: number, gen: number) =>

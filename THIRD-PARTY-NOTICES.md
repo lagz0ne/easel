@@ -48,9 +48,23 @@ is.
 
 - What: the names of the colors of the look, and the values of the seed
   look (`src/kit/seed.server.ts`), from its theme with the base color
-  "neutral". easel holds no code of shadcn/ui.
+  "neutral". The shapes of the seed's class pieces (pill buttons, fields
+  and badges, round cards) follow its "Maia" style. easel holds no code of
+  shadcn/ui.
 - Licence: MIT. Copyright (c) 2023 shadcn.
 - Source: <https://github.com/shadcn-ui/ui>.
+
+## Geist and Geist Mono 1.9.2
+
+- What: the fonts of the seed look. The binary holds the variable WOFF2
+  files `Geist-Variable.woff2` and `GeistMono-Variable.woff2`
+  (`src/kit/fonts/`), and serves them at `/api/fonts/geist-1.9.2/`.
+  easel does not change them.
+- Licence: SIL Open Font License 1.1. Copyright (c) 2023 Vercel, in
+  collaboration with basement.studio. The full licence is in
+  `src/kit/fonts/OFL.txt`.
+- Source: <https://github.com/vercel/geist-font>; the npm package
+  `geist@1.9.2`.
 
 ## The runtime of app frames
 

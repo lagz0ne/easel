@@ -106,8 +106,9 @@ link="$(easel share smoke 2>/dev/null)" || fail "easel share"
 "${AB[@]}" wait --fn 'document.querySelector("iframe[sandbox=\"allow-scripts\"]") !== null' >/dev/null ||
   fail "the frame's document never went live at rest"
 # The live document is composed with the kit (SPEC-kit.md § compose): the look and the kit's CSS
-# came over the socket in the board's cell `kit`, and the frame's made CSS with its document.
-"${AB[@]}" wait --fn 'document.querySelector("iframe[sandbox=\"allow-scripts\"]")?.srcdoc.includes("<style id=\"easel-look\">:root {")' >/dev/null ||
+# came over the socket in the board's cell `kit`, and the frame's made CSS with its document. The
+# seed look names Geist, so the font's face comes before `:root`.
+"${AB[@]}" wait --fn 'document.querySelector("iframe[sandbox=\"allow-scripts\"]")?.srcdoc.includes("<style id=\"easel-look\">@font-face {\n  font-family: \"Geist\";")' >/dev/null ||
   fail "the frame's live document is not in the look of the kit"
 zoom='document.querySelector("output[aria-label=Zoom]")?.textContent'
 world='document.querySelector(".e-world")?.style.transform'

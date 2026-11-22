@@ -24,6 +24,7 @@ import { greetOps } from "@/greet/greet.server";
 import { issues } from "@/issues";
 import { issueOps, membersOnly, signedIn } from "@/issues/ops.server";
 import { kit } from "@/kit";
+import { fontRoute } from "@/kit/fonts.server";
 import { kitOps } from "@/kit/ops.server";
 import { runtimeRoute } from "@/kit/runtime.server";
 import { ops } from "@/ops";
@@ -142,6 +143,8 @@ export default defineMain(async ({ env, args, signal, stdout, stderr, exit }) =>
       // The runtime of app frames: public code at an address that never changes (SPEC-kit § App
       // frames); a frame's origin is null, so no user and no pass.
       "GET /api/runtime/{kit}/{sha}/{file}": runtimeRoute,
+      // The fonts that easel holds (SPEC-kit § The seed): the same files for each team.
+      "GET /api/fonts/{dir}/{file}": fontRoute,
     },
   });
   const app = createScope({

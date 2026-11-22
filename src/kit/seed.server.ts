@@ -4,13 +4,12 @@ import { z } from "zod";
 // The seed (SPEC-kit.md § Terms): the look and the kit that the binary holds. The first start
 // writes them as kit version 1 (`seedKit`, fact rule 7). Only `seedKit` reads this file.
 //
-// A START, NOT THE LOOK OF EASEL. The look values come from the shadcn/ui theme (MIT; its color
-// names and the values of its base color "neutral", converted from oklch to sRGB), with
-// Tailwind's scales (MIT) for the rest, as the user decided on 2026-11-22. Where a shadcn/ui value
-// fails K8 (judged rule 7), the value here is the nearest one that passes, and its
-// `$description` says so. A later design ship on Doop (ADR kit-on-tailwind, build order step 5,
-// default 8) picks easel's own base color, font and radius, so that a frame does not look like a
-// template. The kit's pieces are those of the E8 study (A+T).
+// The look of shadcn/ui's own site (ui.shadcn.com, MIT): the "neutral" base color, converted from
+// oklch to sRGB; Geist and Geist Mono (OFL-1.1), which easel serves (`src/kit/fonts.ts`); and the
+// shapes of shadcn/ui's "Maia" style: pill buttons, fields and badges, round cards. Tailwind's
+// scales (MIT) give the rest. The user chose it on 2026-11-22: a look with no color of its own
+// does not push frames toward one style. Where a shadcn/ui value fails K8 (judged rule 7), the
+// value here is the nearest one that passes, and its `$description` says so.
 
 /** The colors of the look: name, sRGB hex, and why it is not the shadcn/ui value, if it is not. */
 export const seedColors: ReadonlyArray<readonly [string, string, string?]> = [
@@ -53,17 +52,18 @@ export const seedColors: ReadonlyArray<readonly [string, string, string?]> = [
     "#8a8a8a",
     "shadcn/ui has oklch(0.708 0 0), 2.58:1 on background; the focus ring needs 3:1 (K8)",
   ],
-  ["chart-1", "#ec5600"],
-  ["chart-2", "#009488"],
-  ["chart-3", "#104e64"],
-  ["chart-4", "#fabc00"],
-  ["chart-5", "#f69e00"],
+  ["chart-1", "#d4d4d4"],
+  ["chart-2", "#737373"],
+  ["chart-3", "#525252"],
+  ["chart-4", "#404040"],
+  ["chart-5", "#262626"],
   ["white", "#ffffff"],
   ["black", "#000000"],
 ];
 
-/** Tailwind's font stacks: a system font stack, as easel keeps no fonts (SPEC-kit § Out of Scope). */
+/** Geist, as on ui.shadcn.com, then Tailwind's font stack while it loads or for a missing glyph. */
 const sans = [
+  "Geist",
   "ui-sans-serif",
   "system-ui",
   "sans-serif",
@@ -74,6 +74,7 @@ const sans = [
 ];
 
 const mono = [
+  "Geist Mono",
   "ui-monospace",
   "SFMono-Regular",
   "Menlo",
@@ -101,12 +102,15 @@ const textSizes: ReadonlyArray<readonly [string, number]> = [
   ["9xl", 8],
 ];
 
-/** shadcn/ui's radii: `--radius` 0.625rem (10px), and sm, md and xl from it, in px. */
+/** shadcn/ui's radii: `--radius` 0.625rem (10px), and the others from it (0.6 to 2.6 times), in px. */
 const radii: ReadonlyArray<readonly [string, number]> = [
   ["sm", 6],
   ["md", 8],
   ["lg", 10],
   ["xl", 14],
+  ["2xl", 18],
+  ["3xl", 22],
+  ["4xl", 26],
 ];
 
 /** Tailwind's shadows: each layer is x, y, blur, spread (px) and the alpha of black. */
@@ -178,7 +182,7 @@ export const seedLook = operation({
   run: ({ srgbOf, groupOf }) => ({
     $schema: "https://www.designtokens.org/schemas/2025.10/format.json",
     $description:
-      "The look of one easel. Each look value is a CSS custom property: a color has its shadcn/ui name (color.primary is --primary), the others their Tailwind name (--text-sm, --radius-md, --spacing). The seed values are a start: a design ship picks easel's own.",
+      "The look of one easel. Each look value is a CSS custom property: a color has its shadcn/ui name (color.primary is --primary), the others their Tailwind name (--text-sm, --radius-md, --spacing). The seed is the look of ui.shadcn.com: the neutral base color, Geist and Geist Mono, and the radii of --radius 10px.",
     color: {
       $type: "color",
       ...Object.fromEntries(
@@ -227,7 +231,8 @@ export const seedLook = operation({
 
 /**
  * The kit's own CSS: its base rules (`@layer base`) and its class pieces (`@layer components`),
- * in Tailwind's syntax, as in the E8 study (A+T). Each uses only look values (judged rule 11).
+ * in Tailwind's syntax. The class names are those of the E8 study (A+T); the shapes are those of
+ * shadcn/ui's "Maia" style. Each uses only look values (judged rule 11).
  */
 export const seedKitCss = `@layer base {
   html {
@@ -246,7 +251,12 @@ export const seedKitCss = `@layer base {
     font-family: var(--font-display);
     font-weight: 600;
     line-height: 1.25;
-    letter-spacing: -0.01em;
+    letter-spacing: -0.02em;
+  }
+  h3,
+  h4 {
+    font-weight: 500;
+    letter-spacing: 0;
   }
   h1 {
     font-size: var(--text-2xl);
@@ -283,13 +293,15 @@ export const seedKitCss = `@layer base {
     height: 36px;
     padding: 0 12px;
     border: 1px solid var(--input);
-    border-radius: var(--radius-md);
-    background: var(--background);
+    border-radius: 9999px;
+    background: var(--muted);
+    color: var(--foreground);
   }
   textarea {
     height: auto;
     min-height: 80px;
     padding: 8px 12px;
+    border-radius: var(--radius-xl);
   }
   input::placeholder,
   textarea::placeholder {
@@ -336,7 +348,8 @@ export const seedKitCss = `@layer base {
     background: var(--muted);
   }
   progress::-webkit-progress-value {
-    background: var(--primary);
+    background: var(--chart-2);
+    border-radius: 9999px;
   }
 }
 
@@ -361,7 +374,7 @@ export const seedKitCss = `@layer base {
   .navbar nav a {
     color: var(--muted-foreground);
     padding: 4px 12px;
-    border-radius: var(--radius-md);
+    border-radius: 9999px;
     font-weight: 500;
   }
   .navbar nav a[aria-current] {
@@ -372,12 +385,12 @@ export const seedKitCss = `@layer base {
     background: var(--card);
     color: var(--card-foreground);
     border: 1px solid var(--border);
-    border-radius: var(--radius-lg);
+    border-radius: var(--radius-3xl);
     box-shadow: var(--shadow-sm);
     padding: 24px;
     display: flex;
     flex-direction: column;
-    gap: 16px;
+    gap: 24px;
   }
   .card > header {
     display: flex;
@@ -405,12 +418,12 @@ export const seedKitCss = `@layer base {
     display: inline-flex;
     align-items: center;
     justify-content: center;
-    gap: 8px;
+    gap: 6px;
     height: 36px;
-    padding: 0 16px;
-    border-radius: var(--radius-md);
-    border: 1px solid var(--input);
-    background: var(--card);
+    padding: 0 12px;
+    border-radius: 9999px;
+    border: 1px solid var(--border);
+    background: var(--background);
     color: var(--foreground);
     font: 500 var(--text-sm)/1 var(--font-sans);
     white-space: nowrap;
@@ -426,7 +439,16 @@ export const seedKitCss = `@layer base {
   }
   .btn-primary:hover {
     background: var(--primary);
-    filter: brightness(1.1);
+    opacity: 0.8;
+  }
+  .btn-secondary {
+    background: var(--secondary);
+    border-color: var(--secondary);
+    color: var(--secondary-foreground);
+  }
+  .btn-secondary:hover {
+    background: var(--secondary);
+    border-color: var(--border);
   }
   .btn-ghost {
     background: transparent;
@@ -438,13 +460,13 @@ export const seedKitCss = `@layer base {
     color: var(--primary-foreground);
   }
   .btn-sm {
-    height: 28px;
+    height: 32px;
     padding: 0 12px;
     font-size: var(--text-xs);
   }
   .btn-lg {
-    height: 44px;
-    padding: 0 24px;
+    height: 40px;
+    padding: 0 16px;
     font-size: var(--text-base);
   }
   .hint,
@@ -537,14 +559,14 @@ export const seedKitCss = `@layer base {
   .bars > i {
     flex: 1;
     height: var(--v, 50%);
-    background: var(--primary);
-    border-radius: var(--radius-sm) var(--radius-sm) 0 0;
+    background: var(--chart-2);
+    border-radius: var(--radius-md) var(--radius-md) 0 0;
   }
   .alert {
     display: flex;
     gap: 12px;
     padding: 12px 16px;
-    border-radius: var(--radius-md);
+    border-radius: var(--radius-2xl);
     background: var(--accent);
     color: var(--accent-foreground);
   }
@@ -561,20 +583,23 @@ export const seedKitCss = `@layer base {
     color: var(--destructive);
   }
   .tabs {
-    display: flex;
-    gap: 16px;
-    border-bottom: 1px solid var(--border);
+    display: inline-flex;
+    align-self: flex-start;
+    gap: 0;
+    padding: 3px;
+    border-radius: 9999px;
+    background: var(--muted);
   }
   .tabs > a {
     color: var(--muted-foreground);
-    padding: 8px 0;
-    border-bottom: 2px solid transparent;
-    margin-bottom: -1px;
+    padding: 4px 12px;
+    border-radius: 9999px;
     font-weight: 500;
   }
   .tabs > a[aria-current] {
     color: var(--foreground);
-    border-color: var(--primary);
+    background: var(--background);
+    box-shadow: var(--shadow-sm);
   }
   .empty {
     display: flex;

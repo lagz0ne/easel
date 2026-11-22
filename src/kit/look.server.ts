@@ -1,6 +1,7 @@
 import { operation } from "@tinkered/core";
 import { z } from "zod";
 
+import { fontFaces } from "./fonts.server";
 import { alias, lookPaths, lookType, valueOf } from "./shape";
 
 // The look in the DTCG format 2025.10 (SPEC-kit.md § Objective) and its CSS: each look value is a
@@ -175,12 +176,16 @@ export const lookValues = operation({
   },
 });
 
-/** The look as one unlayered `:root` block of look values: what `compose` puts in `easel-look`. */
+/**
+ * The look as one unlayered `:root` block of look values: what `compose` puts in `easel-look`.
+ * The `@font-face` rules of the held fonts that the look names come first.
+ */
 export const rootBlock = operation({
   label: "kit.rootBlock",
   input: z.record(z.string(), z.string()),
-  run: (_, { input }) =>
-    `:root {\n${Object.entries(input)
+  depends: { fontFaces },
+  run: ({ fontFaces }, { input }) =>
+    `${fontFaces.run({ input })}:root {\n${Object.entries(input)
       .map(([name, value]) => `  ${name}: ${value};\n`)
       .join("")}}\n`,
 });

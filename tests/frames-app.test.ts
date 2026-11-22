@@ -17,6 +17,7 @@ import { type PutInput, socketMaxPayload } from "@/frames/contract";
 import { framesLoads, framesOps, loadDocs, mayRead, putFrame } from "@/frames/ops.server";
 import { framesServer } from "@/frames/store.server";
 import { composeApp } from "@/kit/compose";
+import { fontRoute } from "@/kit/fonts.server";
 import { runtimeNames } from "@/kit/runtime";
 import { type BuiltRuntime, runtimeNamesOf, runtimeRoute } from "@/kit/runtime.server";
 import { readKit } from "@/kit/store.server";
@@ -338,17 +339,17 @@ test(
       },
     });
 
-    // The parent page and the runtime's route, at one origin, as easel serves them.
-    const files = /^\/api\/runtime\/([^/]+)\/([^/]+)\/([^/]+)$/;
+    // The parent page, the runtime's route and the fonts' route, at one origin, as easel serves
+    // them.
     const web = Bun.serve({
       port: 0,
       hostname: "127.0.0.1",
-      fetch: (request) => {
-        const path = new URL(request.url).pathname;
-        const [, kit = "", sha = "", file = ""] = files.exec(path) ?? [];
-        if (file) return srv.server.run(runtimeRoute, { input: { kit, sha, file } });
-        return new Response(parentPage(html), { headers: { "Content-Type": "text/html" } });
+      routes: {
+        "/api/runtime/:kit/:sha/:file": (request) =>
+          srv.server.run(runtimeRoute, { input: request.params }),
+        "/api/fonts/:dir/:file": (request) => srv.server.run(fontRoute, { input: request.params }),
       },
+      fetch: () => new Response(parentPage(html), { headers: { "Content-Type": "text/html" } }),
     });
     closers.push(() => web.stop(true));
     const browser = await chromium.launch({ executablePath });

@@ -8,6 +8,7 @@ import type { Browser } from "puppeteer-core";
 import { z } from "zod";
 
 import { compose } from "@/kit/compose";
+import { inlineFonts } from "@/kit/fonts.server";
 import { readKit, readKitAt } from "@/kit/store.server";
 import { readiness } from "@/ops/registry";
 import { seenView } from "@/queue/store.server";
@@ -754,12 +755,12 @@ const drawPicture = operation({
     scale: z.number(),
     region: box.nullable(),
   }),
-  depends: { readStill, render, pictureBox, refusal, compose },
-  run: async ({ readStill, render, pictureBox, refusal, compose }, { input }) => {
+  depends: { readStill, render, pictureBox, refusal, compose, inlineFonts },
+  run: async ({ readStill, render, pictureBox, refusal, compose, inlineFonts }, { input }) => {
     const region = pictureBox.run({ input });
     if (region === null) return refusal.run({ input: 400 });
 
-    const kit = { look: input.look, css: input.kitCss };
+    const kit = { look: inlineFonts.run({ input: input.look }), css: input.kitCss };
     const html = compose.run({ input: { html: input.html, css: input.css, kit } });
     const drawn = await render.run({
       input: { html, w: input.w, h: input.h, scale: input.scale, region },
