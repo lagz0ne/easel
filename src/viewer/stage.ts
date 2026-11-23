@@ -11,6 +11,7 @@ import {
   valuesPost,
 } from "@/kit/controls";
 import type { ControlShown, PanePlace } from "@/kit/controls";
+import { teamTexts } from "@/kit/texts";
 
 export const liveCap = 12;
 export const readZoom = 0.3;
@@ -124,6 +125,7 @@ export const kitMessage = z.object({
   kit: z.number(),
   look: z.string(),
   css: z.string(),
+  texts: teamTexts,
 });
 
 export type KitMessage = z.infer<typeof kitMessage>;

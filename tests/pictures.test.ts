@@ -41,7 +41,7 @@ import { bumpKeys, framesServer } from "@/frames/store.server";
 import { compose } from "@/kit/compose";
 import { inlineFonts } from "@/kit/fonts.server";
 import { makeFrame } from "@/kit/make.server";
-import { lookSet, lookUndo } from "@/kit/ops.server";
+import { lookSet, lookUndo, textsSet } from "@/kit/ops.server";
 import { frameKit, readKitAt } from "@/kit/store.server";
 import { messages as messageCells } from "@/queue/cells";
 import { claimRequest, endTry, queueServer, saveRequest } from "@/queue/store.server";
@@ -89,6 +89,16 @@ const importMap = z
   .transform((html) => /<script type="importmap">(.*?)<\/script>/s.exec(html)?.[1] ?? "{}")
   .transform((text): unknown => JSON.parse(text))
   .pipe(z.object({ imports: z.record(z.string(), z.string()) }));
+
+const textsInDoc = z
+  .string()
+  .transform(
+    (html) =>
+      /<script type="application\/json" id="easel-texts">(.*?)<\/script>/s.exec(html)?.[1] ??
+      "null",
+  )
+  .transform((text): unknown => JSON.parse(text))
+  .pipe(z.record(z.string(), z.unknown()));
 
 const primaryHtml = '<div class="fixed inset-0 bg-primary"></div>';
 
@@ -1300,6 +1310,26 @@ test("an app frame's picture is drawn from its composed app document (composeApp
   expect((await srv.get(await srv.address("apps", plain.id, "s=1"))).status).toBe(200);
   expect(srv.draws.seen[1]?.input.runtime).toBeNull();
 }, 30_000);
+
+test("a picture of an app frame is composed with the texts of its kit version: a change of the texts gives a new kit version, and its picture has the new text", async () => {
+  const srv = await boot();
+  await srv.canvas("Apps");
+  const made = await srv.put({ canvas: "apps", tsx: primaryTsx, size: { w: 200, h: 100 } });
+
+  expect((await srv.get(await srv.address("apps", made.id, "s=1"))).status).toBe(200);
+  const before = textsInDoc.parse(drawInput.parse(srv.draws.seen[0]?.input).html);
+  expect(before).toHaveProperty(["ui.close"], { en: "Close", vi: "Đóng" });
+  expect(before).not.toHaveProperty(["trial.start"]);
+
+  const texts = { "trial.start": { en: "Start the trial" } };
+  expect(await srv.server.run(textsSet, { input: { texts } })).toMatchObject({ kind: "updated" });
+  const address = await srv.address("apps", made.id, "s=1");
+  expect(address).toMatch(/&kit=2$/);
+  expect((await srv.get(address)).status).toBe(200);
+  const after = textsInDoc.parse(drawInput.parse(srv.draws.seen[1]?.input).html);
+  expect(after).toHaveProperty(["trial.start"], { en: "Start the trial" });
+  expect(after).toHaveProperty(["ui.close"], { en: "Close", vi: "Đóng" });
+});
 
 test("a real Chromium draws an app frame from its runtime: the same pixels as the HTML frame that draws the same thing", async () => {
   const srv = await boot({ chromium: localChromium(), real: true });

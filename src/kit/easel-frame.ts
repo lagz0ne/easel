@@ -26,6 +26,7 @@ import {
   linkPost,
 } from "./controls";
 import { portClient, portServer } from "./port-link";
+import { teamText } from "./texts";
 
 export const frameLogic = <
   const L extends { cells: Record<string, unknown>; ops: Record<string, unknown> },
@@ -66,6 +67,15 @@ const axesShape = z.object({
 });
 
 const refusal = z.object({ kind: z.string(), payload: z.unknown() });
+
+const teamShown = z.record(z.string(), teamText);
+
+const kitPost = z.object({
+  easel: z.literal("kit"),
+  look: z.string(),
+  css: z.string(),
+  texts: teamShown.optional().catch(undefined),
+});
 
 type FrameCapsule = Capsule.Installable &
   ((values: Record<string, unknown>) => Capsule.Installable);
@@ -165,7 +175,9 @@ const paneShape = z
 const axesNow = () => {
   const told = document.getElementById("easel-axes")?.textContent;
   const axes = axesShape.parse(JSON.parse(told || "{}"));
-  return { ...axes, css: document.getElementById("easel-kit")?.textContent ?? "" };
+  const given = document.getElementById("easel-texts")?.textContent;
+  const texts = teamShown.catch({}).parse(JSON.parse(given || "{}"));
+  return { ...axes, texts, css: document.getElementById("easel-kit")?.textContent ?? "" };
 };
 
 const mountPane = (app: MountApp, place: PanePlace) => {
@@ -188,11 +200,11 @@ const mountPane = (app: MountApp, place: PanePlace) => {
     const made: { scope: Root | null } = { scope: null };
     const shown = await Promise.resolve()
       .then(async () => {
-        const { locale, css } = axesNow();
+        const { locale, css, texts } = axesNow();
         const next = createScope({
           capsules: [
             look({ values: values(), css }),
-            copy({ locale }),
+            copy({ locale, team: texts }),
             ui(),
             portClient({ port: Promise.resolve(on) }),
             ...part.reach(portClient),
@@ -218,13 +230,16 @@ const mountPane = (app: MountApp, place: PanePlace) => {
   new ResizeObserver(size).observe(box);
 
   const take = (data: unknown, ends: readonly MessagePort[]) => {
-    const field = (key: string): unknown =>
-      typeof data === "object" && data !== null ? Reflect.get(data, key) : undefined;
-    const [easel, look, css] = [field("easel"), field("look"), field("css")];
-    if (easel === "kit" && typeof look === "string" && typeof css === "string") {
-      const styles = [document.getElementById("easel-look"), document.getElementById("easel-kit")];
-      if (styles[0]) styles[0].textContent = look;
-      if (styles[1]) styles[1].textContent = css;
+    const kit = kitPost.safeParse(data);
+    if (kit.success) {
+      const { look, css, texts } = kit.data;
+      const [shown, made, said] = ["easel-look", "easel-kit", "easel-texts"].map((id) =>
+        document.getElementById(id),
+      );
+      if (shown) shown.textContent = look;
+      if (made) made.textContent = css;
+      if (said && texts) said.textContent = JSON.stringify(texts);
+
       steps = steps.then(draw);
     }
     const end = ends[0];
@@ -336,7 +351,7 @@ export const mount = (app: MountApp) => {
     const made: { scope: Root | null; live: boolean } = { scope: null, live: false };
     const shown = await Promise.resolve()
       .then(async () => {
-        const { css, ...axes } = axesNow();
+        const { css, texts, ...axes } = axesNow();
         const own = app.frame ? [app.frame(axes.config)] : [];
         const served = app.part
           ? [...app.part.serve(), portServer({ services: app.part.services })]
@@ -345,7 +360,7 @@ export const mount = (app: MountApp) => {
         const next = createScope({
           capsules: [
             look({ values: values(), css }),
-            copy({ locale: axes.locale }),
+            copy({ locale: axes.locale, team: texts }),
             ui(),
             ...own,
             ...served,
@@ -377,14 +392,19 @@ export const mount = (app: MountApp) => {
   const take = (data: unknown) => {
     const field = (key: string): unknown =>
       typeof data === "object" && data !== null ? Reflect.get(data, key) : undefined;
-    const [easel, look, css] = [field("easel"), field("look"), field("css")];
-    if (easel === "kit" && typeof look === "string" && typeof css === "string") {
-      const styles = [document.getElementById("easel-look"), document.getElementById("easel-kit")];
-      if (styles[0]) styles[0].textContent = look;
-      if (styles[1]) styles[1].textContent = css;
+    const kit = kitPost.safeParse(data);
+    if (kit.success) {
+      const { look, css, texts } = kit.data;
+      const [shown, made, said] = ["easel-look", "easel-kit", "easel-texts"].map((id) =>
+        document.getElementById(id),
+      );
+      if (shown) shown.textContent = look;
+      if (made) made.textContent = css;
+      if (said && texts) said.textContent = JSON.stringify(texts);
+
       steps = steps.then(draw);
     }
-    if (easel !== "close" || closing) return;
+    if (field("easel") !== "close" || closing) return;
 
     closing = true;
     steps = steps

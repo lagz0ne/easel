@@ -256,7 +256,8 @@ const kitFeed = resource({
     const now = kit.get();
     if (!now) return null;
 
-    const message: KitMessage = { easel: "kit", kit: now.kit, look: now.look, css: now.css };
+    const { kit: version, look, css, texts } = now;
+    const message: KitMessage = { easel: "kit", kit: version, look, css, texts };
     at.sendKit(message);
     return now.kit;
   },

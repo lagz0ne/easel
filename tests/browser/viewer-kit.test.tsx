@@ -12,6 +12,7 @@ import { frames } from "@/frames";
 import { frames as frameCells, framesBoard } from "@/frames/contract";
 import { kit as kitCells } from "@/kit/cells";
 import { compose } from "@/kit/compose";
+import { type TeamTexts, teamTexts } from "@/kit/texts";
 import { Canvas } from "@/viewer/canvas";
 
 const canvas = "home";
@@ -33,6 +34,9 @@ const probeJs = (id: string) =>
 
 const capsuleJs = (id: string) =>
   `const me=Math.random();let port=null;const hello=()=>{if(port)return;parent.postMessage({easel:"hello"},"*");setTimeout(hello,50)};addEventListener("message",(e)=>{if(e.source!==parent)return;if(e.ports[0]&&!port){port=e.ports[0];port.postMessage({easel:"axes",locales:["en","vi"],config:{sample:{values:["many","empty"],default:"many"}}})}const d=e.data;if(d&&typeof d.probe==="number")parent.postMessage({probe:d.probe,id:${JSON.stringify(id)},me,color:document.getElementById("easel-axes").textContent},"*")});hello();`;
+
+const textsJs = (id: string) =>
+  `const me=Math.random();let port=null;let texts=JSON.parse(document.getElementById("easel-texts").textContent);const take=(d)=>{if(d&&d.easel==="kit")texts=d.texts};const hello=()=>{if(port)return;parent.postMessage({easel:"hello"},"*");setTimeout(hello,50)};addEventListener("message",(e)=>{if(e.source!==parent)return;if(e.ports[0]&&!port){port=e.ports[0];port.onmessage=(m)=>take(m.data);port.postMessage({easel:"axes",locales:["en","vi"],config:{}})}take(e.data);const d=e.data;if(d&&typeof d.probe==="number")parent.postMessage({probe:d.probe,id:${JSON.stringify(id)},me,color:JSON.stringify({locale:JSON.parse(document.getElementById("easel-axes").textContent).locale??"en",texts})},"*")});hello();`;
 
 const closerJs = (id: string) =>
   `let port=null;const hello=()=>{if(port)return;parent.postMessage({easel:"hello"},"*");setTimeout(hello,50)};const take=(d,via)=>{if(!d||d.easel!=="close")return;parent.postMessage({seen:"close",id:${JSON.stringify(id)},via},"*");setTimeout(()=>port?port.postMessage({easel:"closed"}):parent.postMessage({easel:"closed"},"*"),300)};addEventListener("message",(e)=>{if(e.source!==parent)return;if(e.ports[0]&&!port){port=e.ports[0];port.onmessage=(m)=>take(m.data,"port")}take(e.data,"window");if(e.data&&typeof e.data.probe==="number")parent.postMessage({probe:e.data.probe,id:${JSON.stringify(id)},me:0,color:port?"port":"none"},"*")});hello();`;
@@ -61,17 +65,25 @@ const paneedJs = (id: string) =>
 
 const appJs = (
   id: string,
-  kind: { capsule?: boolean; closer?: boolean; controls?: true | "placed"; panes?: boolean },
+  kind: {
+    capsule?: boolean;
+    closer?: boolean;
+    controls?: true | "placed";
+    panes?: boolean;
+    texts?: boolean;
+  },
 ) =>
-  kind.panes
-    ? paneedJs(id)
-    : kind.controls
-      ? controlsJs(id, kind.controls === "placed")
-      : kind.closer
-        ? closerJs(id)
-        : kind.capsule
-          ? capsuleJs(id)
-          : probeJs(id);
+  kind.texts
+    ? textsJs(id)
+    : kind.panes
+      ? paneedJs(id)
+      : kind.controls
+        ? controlsJs(id, kind.controls === "placed")
+        : kind.closer
+          ? closerJs(id)
+          : kind.capsule
+            ? capsuleJs(id)
+            : probeJs(id);
 
 const noRuntime = { address: "/api/runtime/1/none/", imports: {} };
 
@@ -106,16 +118,17 @@ const put = operation({
     closer: z.boolean().optional(),
     controls: z.union([z.literal(true), z.literal("placed")]).optional(),
     panes: z.boolean().optional(),
+    texts: z.boolean().optional(),
     version: z.number().optional(),
   }),
   depends: { cells: frameCells.controller, invalidate: framesBoard.invalidate },
   run: async (
     { cells, invalidate },
-    { input: { app, capsule, closer, controls, panes, version = 1, ...input } },
+    { input: { app, capsule, closer, controls, panes, texts, version = 1, ...input } },
   ) => {
-    const js = appJs(input.id, { capsule, closer, controls, panes });
+    const js = appJs(input.id, { capsule, closer, controls, panes, texts });
     const served: ServedDoc =
-      app || capsule || closer || controls || panes
+      app || capsule || closer || controls || panes || texts
         ? { version, html: "", app: { js, kit: 1, runtime: noRuntime } }
         : { version, html: probeDoc(input.id) };
     htmls.set(input.id, served);
@@ -143,6 +156,14 @@ const setKit = operation({
     cells.set({ canvas, kit: input, look: looks[input].look, css: "", pieces: [], texts: {} }),
 });
 
+const setTexts = operation({
+  label: "test.setTexts",
+  input: z.object({ kit: z.number(), texts: teamTexts }),
+  depends: { cells: kitCells.atScope.controller },
+  run: async ({ cells }, { input: { kit, texts } }) =>
+    cells.set({ canvas, kit, look: looks[1].look, css: "", pieces: [], texts }),
+});
+
 async function boot(
   ids: Array<{
     id: string;
@@ -154,6 +175,7 @@ async function boot(
     closer?: boolean;
     controls?: true | "placed";
     panes?: boolean;
+    texts?: boolean;
   }>,
 ) {
   htmls.clear();
@@ -353,6 +375,57 @@ test("X1 kit-frame-axes: a capsule frame posts its axes; the page offers the loc
   await sample.selectOptions("many");
   await expect.poll(() => colorOf("b")).toBe("{}");
   expect(await drawnOf("a")).toBe(plain);
+});
+
+const firstTexts: TeamTexts = {
+  "trial.start": { en: "Start the trial", vi: "Dùng thử" },
+  "people.empty": { en: "No people yet" },
+};
+
+const changedTexts: TeamTexts = {
+  "trial.start": { en: "Try it free", vi: "Dùng thử miễn phí" },
+  "people.empty": { en: "No people yet" },
+};
+
+const shownTexts = (locale: string, texts: TeamTexts) => JSON.stringify({ locale, texts });
+
+test("L5: after one change of the texts, a live app frame gets the new texts within 1 s on its port, in the same document, with no new frame version", async () => {
+  const server = await boot([{ id: "t", x: 0, y: 0, texts: true }]);
+  await server.run(setTexts, { input: { kit: 1, texts: firstTexts } });
+  const at = await tab(server);
+  await rested(at, 1);
+
+  await expect.poll(() => colorOf("t")).toBe(shownTexts("en", firstTexts));
+  const [iframe, drawn, doc] = [docOf("t"), await drawnOf("t"), docOf("t")?.srcdoc];
+  expect(doc).toContain(
+    `<script type="application/json" id="easel-texts">${JSON.stringify(firstTexts)}</script>`,
+  );
+
+  const sent = performance.now();
+  await server.run(setTexts, { input: { kit: 2, texts: changedTexts } });
+  await expect
+    .poll(() => colorOf("t"), { timeout: 1_000, interval: 10 })
+    .toBe(shownTexts("en", changedTexts));
+  console.log(
+    `speed: L5 one live document had the new texts ${(performance.now() - sent).toFixed(0)} ms after the write`,
+  );
+  expect(docOf("t")).toBe(iframe);
+  expect(docOf("t")?.srcdoc).toBe(doc);
+  expect(await drawnOf("t")).toBe(drawn);
+  expect(at.scope.resolve(frames.board.frames.of({ canvas, id: "t" })).get()?.version).toBe(1);
+});
+
+test("L12: the locale pick vi composes the app frame again with the locale vi and the texts of the kit", async () => {
+  const server = await boot([{ id: "t", x: 0, y: 0, texts: true }]);
+  await server.run(setTexts, { input: { kit: 2, texts: changedTexts } });
+  const at = await tab(server);
+  await rested(at, 1);
+
+  const locale = page.getByRole("combobox", { name: "Locale" });
+  await expect.element(locale).toBeInTheDocument();
+  await locale.selectOptions("vi");
+  await expect.poll(() => colorOf("t")).toBe(shownTexts("vi", changedTexts));
+  expect(docOf("t")?.srcdoc).toContain(`id="easel-texts">${JSON.stringify(changedTexts)}</script>`);
 });
 
 const seenClose = z.object({ seen: z.literal("close"), id: z.string(), via: z.string() });

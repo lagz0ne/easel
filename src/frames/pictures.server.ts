@@ -606,7 +606,8 @@ const placePicture = operation({
       input: { canvas: at.canvas, id: at.id, version: asked, current, kit: at.kit },
     });
     if (doc && view.look) {
-      return { ...doc, look: view.look.root, kitCss: view.look.css, gen, version: asked };
+      const { root: look, css: kitCss, texts } = view.look;
+      return { ...doc, look, kitCss, texts, gen, version: asked };
     }
     if (current === null || asked > current) return refusal.run({ input: 404 });
 
@@ -686,6 +687,7 @@ const drawPicture = operation({
     kit: z.number().nullable(),
     look: z.string(),
     kitCss: z.string(),
+    texts: z.record(z.string(), z.unknown()),
     w: z.number(),
     h: z.number(),
     gen: z.number(),
@@ -697,7 +699,11 @@ const drawPicture = operation({
     const region = pictureBox.run({ input });
     if (region === null) return refusal.run({ input: 400 });
 
-    const look = { look: inlineFonts.run({ input: input.look }), css: input.kitCss };
+    const look = {
+      look: inlineFonts.run({ input: input.look }),
+      css: input.kitCss,
+      texts: input.texts,
+    };
     const { html, runtime } = await pictureDoc.run({ input: { ...input, look } });
     const drawn = await render.run({
       input: { html, runtime, w: input.w, h: input.h, scale: input.scale, region },

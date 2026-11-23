@@ -1,7 +1,7 @@
 import { capsule, operation, resource, tag } from "@tinkered/core";
 import { z } from "zod";
 
-import { paramsOf, type Text, textShape } from "@/kit/texts";
+import { paramsOf, type TeamTexts, teamText, type Text, textShape } from "@/kit/texts";
 
 import { aboutShape } from "./about";
 
@@ -31,6 +31,12 @@ const about = tag({ label: "copy.about", parse: aboutShape });
 
 const texts = tag<Texts>({ label: "copy.texts", parse: textsShape });
 
+const team = tag<TeamTexts>({
+  label: "copy.team",
+  default: {},
+  parse: z.record(z.string(), teamText),
+});
+
 export const textGaps = operation({
   label: "copy.textGaps",
   input: textsShape,
@@ -59,19 +65,36 @@ export const textGaps = operation({
   },
 });
 
+export type SayFrom = {
+  <const K extends string>(keys: readonly K[]): Say<K>;
+  <K extends string>(part: Texts<K>): Say<K>;
+};
+
 const say = resource({
   label: "copy.say",
-  depends: { locale, textGaps },
-  factory: ({ locale, textGaps }, { raise }) => {
+  depends: { locale, team, textGaps },
+  factory: ({ locale, team, textGaps }, { raise }): SayFrom => {
     const plural = new Intl.PluralRules(locale);
 
-    return <K extends string>(part: Texts<K>): Say<K> => {
-      const gaps = textGaps.run({ input: part });
+    return (given: readonly string[] | Texts) => {
+      const gaps =
+        "en" in given
+          ? textGaps.run({ input: given }).filter((gap) => team[gap.key] === undefined)
+          : given
+              .filter((key) => team[key] === undefined)
+              .map((key) => ({ locale: "en" as const, key, why: "no text of the team" }));
       if (gaps.length > 0) raise("CopyGaps", { gaps });
 
-      const known = part[locale];
-      return (key, params = {}) => {
+      const own: Readonly<Record<string, Text>> = "en" in given ? given[locale] : {};
+      const shared = Object.entries(team).map(([key, text]): [string, Text] => [
+        key,
+        text[locale] ?? text.en,
+      ]);
+      const known: Readonly<Record<string, Text>> = { ...own, ...Object.fromEntries(shared) };
+      return (key: string, params: Readonly<Record<string, string | number>> = {}) => {
         const text = known[key];
+        if (text === undefined) return key;
+
         const form =
           typeof text === "string"
             ? text
@@ -98,16 +121,16 @@ const format = resource({
 
 export const copy = capsule({
   label: "copy",
-  config: { locale },
+  config: { locale, team },
   tags: [
     about({
-      does: "The locale of a scope: the texts of each part and the formats of numbers, money and dates in it.",
+      does: "The locale of a scope: the texts of the team, the texts of each part, and the formats of numbers, money and dates in it.",
       install:
-        'easel installs it for each frame: copy({ locale }), with each locale of the board ("en", "vi").',
+        'easel installs it for each frame: copy({ locale, team }), with each locale of the board ("en", "vi") and the texts of the team of the kit version.',
       exports: {
         say: {
-          does: "say(texts) gives the t of a part, after the check of its texts: a gap raises CopyGaps.",
-          use: 'const text = resource({ label: "<part>.text", tags: [copy.texts(texts)], depends: { say: copy.say }, factory: ({ say }) => say(texts) }); // texts = { en: { "<part>.title": "..." }, vi: { ... } } satisfies Texts',
+          does: 'say(["<text key>", ...]) gives the t of those text keys from the texts of the team only: the text in the locale, else its en text. A text key that the team does not have raises CopyGaps. say(texts) gives the t of a part: the text of the team in the locale, else its en text, else the text of the part. A gap in the texts of a part, for a text key that the team does not have, raises CopyGaps.',
+          use: 'const text = resource({ label: "<part>.text", depends: { say: copy.say }, factory: ({ say }) => say(["trial.start", "people.empty"]) }); // or, with texts of the part: tags: [copy.texts(texts)], factory: ({ say }) => say(texts), with texts = { en: { "<part>.title": "..." }, vi: { ... } } satisfies Texts',
         },
         texts: {
           does: "The tag of a part's texts, on its text resource, so a tool can list them.",

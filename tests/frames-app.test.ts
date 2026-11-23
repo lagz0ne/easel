@@ -261,7 +261,8 @@ test("the composed document of an app frame: the look, the CSS, the import map o
   expect(html).toContain('const t = "<\\/script><\\!--";');
   expect(html).toContain('<script type="application/json" id="easel-axes">{}</script>');
   expect(html).toContain('import{mount}from"@easel/frame"');
-  expect(html.match(/<\/script>/g)?.length).toBe(3);
+  expect(html).toContain('<script type="application/json" id="easel-texts">{}</script>');
+  expect(html.match(/<\/script>/g)?.length).toBe(4);
 
   const axes = srv.server.run(composeApp, {
     input: { js: "", css: "", kit, runtime: doc.app.runtime, axes: { locale: "</script>" } },

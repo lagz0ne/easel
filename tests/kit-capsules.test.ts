@@ -1,15 +1,24 @@
 import { exits } from "@tinkered/cli/test";
-import { createScope, resource } from "@tinkered/core";
+import { createScope, type Resource, resource } from "@tinkered/core";
 import { createElement } from "react";
 import { afterAll, beforeAll, expect, expectTypeOf, test } from "vite-plus/test";
 
 import { describeCapsule } from "@/kit/capsules/about";
-import { copy, type Locale, locales, type Say, textGaps, type Texts } from "@/kit/capsules/copy";
+import {
+  copy,
+  type Locale,
+  locales,
+  type Say,
+  type SayFrom,
+  textGaps,
+  type Texts,
+} from "@/kit/capsules/copy";
 import { look } from "@/kit/capsules/look";
 import { renderFrame } from "@/kit/capsules/render.server";
 import { ui } from "@/kit/capsules/ui";
 import { lookValues } from "@/kit/look.server";
 import { seedKitCss, seedLook } from "@/kit/seed.server";
+import type { TeamTexts } from "@/kit/texts";
 
 import * as invite from "./kit/capsules/invite";
 import { texts as pricingTexts } from "./kit/capsules/pricing/copy";
@@ -25,9 +34,9 @@ beforeAll(async () => {
 
 afterAll(() => server.close());
 
-const kit = (locale: Locale, values: Record<string, string> = seed) => [
+const kit = (locale: Locale, values: Record<string, string> = seed, team: TeamTexts = {}) => [
   look({ values, css: seedKitCss }),
-  copy({ locale }),
+  copy({ locale, team }),
   ui(),
 ];
 
@@ -123,6 +132,109 @@ test("the copy check: a key with no English, a key with no text, and other param
   expect(await server.run(textGaps, { input: pricingTexts })).toEqual([]);
 });
 
+const team: TeamTexts = {
+  "trial.start": { en: "Start the trial", vi: "Dùng thử" },
+  "people.empty": { en: "No people yet" },
+};
+
+const shownBy = <K extends string>(
+  label: string,
+  text: Resource.Handle<Say<K>>,
+  keys: readonly K[],
+) =>
+  resource({
+    label,
+    depends: { t: text },
+    factory: ({ t }) =>
+      function Shown() {
+        return createElement("p", null, keys.map((key) => t(key)).join(" | "));
+      },
+  });
+
+const ownTexts: Texts<"trial.start" | "people.empty" | "own.title"> = {
+  en: { "trial.start": "Own start", "people.empty": "Own empty", "own.title": "Own title" },
+  vi: { "trial.start": "Bắt đầu", "people.empty": "Trống", "own.title": "Tiêu đề" },
+};
+
+const ownText = resource({
+  label: "own.text",
+  depends: { say: copy.say },
+  factory: ({ say }) => say(ownTexts),
+});
+
+const teamOnly = resource({
+  label: "team.text",
+  depends: { say: copy.say },
+  factory: ({ say }) => say(["trial.start", "people.empty"]),
+});
+
+test("say(texts) gives the text of the team in the locale, else its en text, else the text of the part (L12)", async () => {
+  const view = shownBy("own.View", ownText, ["trial.start", "people.empty", "own.title"]);
+
+  const vi = await drawn({ capsules: kit("vi", seed, team), view });
+  expect(vi.html).toBe("<p>Dùng thử | No people yet | Tiêu đề</p>");
+
+  const en = await drawn({ capsules: kit("en", seed, team), view });
+  expect(en.html).toBe("<p>Start the trial | No people yet | Own title</p>");
+
+  const alone = await drawn({ capsules: kit("vi"), view });
+  expect(alone.html).toBe("<p>Bắt đầu | Trống | Tiêu đề</p>");
+});
+
+test("say(texts): a gap in the texts of the part for a text key of the team is no gap; a text key with no text anywhere raises CopyGaps", async () => {
+  const part: Texts<string> = {
+    en: { "trial.start": "Own start", "own.title": "Own title" },
+    vi: {},
+  };
+  const text = resource({
+    label: "gapped.text",
+    depends: { say: copy.say },
+    factory: ({ say }) => say(part),
+  });
+  const view = shownBy("gapped.View", text, ["trial.start"]);
+
+  expect(
+    await server.run(renderFrame, { input: { capsules: kit("vi", seed, team), view } }),
+  ).toEqual({
+    kind: "refused",
+    refused: "CopyGaps",
+    payload: { gaps: [{ locale: "vi", key: "own.title", why: "no text" }] },
+  });
+
+  const filled = { ...team, "own.title": { en: "Team title" } };
+  const shown = await drawn({ capsules: kit("vi", seed, filled), view });
+  expect(shown.html).toBe("<p>Dùng thử</p>");
+});
+
+test("say([text keys]) gives the t of those text keys from the texts of the team only; a text key that the team does not have raises CopyGaps", async () => {
+  const view = shownBy("team.View", teamOnly, ["trial.start", "people.empty"]);
+
+  const vi = await drawn({ capsules: kit("vi", seed, team), view });
+  expect(vi.html).toBe("<p>Dùng thử | No people yet</p>");
+
+  const changed = { ...team, "trial.start": { en: "Try it free" } };
+  const en = await drawn({ capsules: kit("vi", seed, changed), view });
+  expect(en.html).toBe("<p>Try it free | No people yet</p>");
+
+  const got = await server.run(renderFrame, { input: { capsules: kit("en"), view } });
+  expect(got).toEqual({
+    kind: "refused",
+    refused: "CopyGaps",
+    payload: {
+      gaps: [
+        { locale: "en", key: "trial.start", why: "no text of the team" },
+        { locale: "en", key: "people.empty", why: "no text of the team" },
+      ],
+    },
+  });
+});
+
+test("the types of say: the text keys of the array are the keys of its t", () => {
+  expectTypeOf<SayFrom>().toBeCallableWith(["trial.start"]);
+  expectTypeOf(teamOnly).toEqualTypeOf<Resource.Handle<Say<"trial.start" | "people.empty">>>();
+  expectTypeOf<"own.title">().not.toExtend<Parameters<Say<"trial.start" | "people.empty">>[0]>();
+});
+
 test("a look that fails K8 stops the scope: the pieces do not draw with it", async () => {
   const pale = { ...seed, "--muted-foreground": "#d4d4d4" };
   const got = await server.run(renderFrame, {
@@ -174,6 +286,12 @@ test("the list of capsules: what each does, its config with its schema, and its 
       tag: "copy.locale",
       required: false,
       schema: expect.objectContaining({ enum: ["en", "vi"] }),
+    },
+    {
+      key: "team",
+      tag: "copy.team",
+      required: false,
+      schema: expect.objectContaining({ type: "object" }),
     },
   ]);
   expect(list[3]?.config[0]?.schema).toMatchObject({ enum: ["empty", "one", "many", "long"] });
