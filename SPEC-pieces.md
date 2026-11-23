@@ -229,6 +229,12 @@ frame pick, `Use the board`, and a reload. Its rules:
 - A frame that does not take the switch never draws again for a pick.
 - A reload shows each frame as before the reload.
 
+The charts are [design-change](docs/statecharts/design-change.md) (384 states, each rule holds)
+and [board-switch](docs/statecharts/board-switch.md) (324 states, each rule holds).
+[design-change-unchecked](docs/statecharts/design-change-unchecked.md) and
+[board-switch-board-only](docs/statecharts/board-switch-board-only.md) break on purpose: a
+`design.put` that does not check the ready frames, and an address with no frame values.
+
 ## Fact rules
 
 1. Only `design.put` writes `design/`. A kit version never changes.

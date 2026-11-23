@@ -45,3 +45,7 @@ copy-status	models/copy/Status.tla	models/copy/Status.cfg	models/copy/Status.vie
 copy-status-remove	models/copy/Status.tla	models/copy/StatusRemove.cfg	models/copy/Status.view.mjs	breaks
 viewer-pages	models/pages/ViewerPages.tla	models/pages/ViewerPages.cfg	models/pages/ViewerPages.view.mjs	holds
 viewer-pages-old-page	models/pages/ViewerPages.tla	models/pages/ViewerPagesOldPage.cfg	models/pages/ViewerPages.view.mjs	breaks
+design-change	models/pieces/DesignChange.tla	models/pieces/DesignChange.cfg	models/pieces/DesignChange.view.mjs	holds
+design-change-unchecked	models/pieces/DesignChange.tla	models/pieces/DesignChangeUnchecked.cfg	models/pieces/DesignChange.view.mjs	breaks
+board-switch	models/pieces/BoardSwitch.tla	models/pieces/BoardSwitch.cfg	models/pieces/BoardSwitch.view.mjs	holds
+board-switch-board-only	models/pieces/BoardSwitch.tla	models/pieces/BoardSwitchBoardOnly.cfg	models/pieces/BoardSwitch.view.mjs	breaks
