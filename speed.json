@@ -46,7 +46,7 @@
     },
     {
       "kind": "request",
-      "name": "/api/fonts/inter-*",
+      "name": "/api/fonts/inter-5.3.0/inter-latin-wght-normal.woff2",
       "reason": "Inter, the font of the design system (SPEC-design.md). The text shows at once in the system font (font-display: swap), so it holds back no frame. One file of 48 KB for Latin letters, kept a year."
     }
   ]

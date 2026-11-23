@@ -138,7 +138,7 @@ test("speed.json holds the budgets of SPEC-speed and of one move handler of a pa
     "request /assets/index-*.css",
     "request /api/pictures/*",
     "request /api/telemetry",
-    "request /api/fonts/inter-*",
+    "request /api/fonts/inter-5.3.0/inter-latin-wght-normal.woff2",
   ]);
   const app = await scope();
   expect(app.run(hotPathFindings, { input: { seen: [], list: read.hotPath } })).toEqual([]);
