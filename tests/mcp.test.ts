@@ -136,7 +136,7 @@ test("easel mcp lists list_canvases with its schemas, and a call answers the use
 
   const { client, served } = await mcp(a);
   const { tools } = await client.listTools();
-  expect(tools).toHaveLength(35);
+  expect(tools).toHaveLength(38);
   for (const tool of tools) {
     expect([tool.name, tool.inputSchema.type, tool.outputSchema?.type]).toEqual([
       tool.name,

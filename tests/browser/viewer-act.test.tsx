@@ -163,13 +163,19 @@ const seed = operation({
     clocks: serverClock.controller,
   },
   run: ({ cells, versions, gone, rows, thread, clocks }) => {
-    const homeAt = { canvas: "home", id: home, ...homeBox };
+    const homeAt = { canvas: "home", id: home, page: "page-1", ...homeBox };
     if (store.home) cells.set({ ...homeAt, ...store.home, status: "exploring" });
     else gone.set({ ...homeAt, removed: serverNow - minute });
 
     if (store.side) {
       const box = { name: "Side", x: 3000, y: 0, w: 400, h: 300, version: 1 };
-      cells.set({ canvas: "home", id: "5ide5ide5ide", ...box, status: "exploring" });
+      cells.set({
+        canvas: "home",
+        id: "5ide5ide5ide",
+        page: "page-1",
+        ...box,
+        status: "exploring",
+      });
     }
     for (const v of store.kept) versions.set({ canvas: "home", id: home, ...v });
     clocks.set({ canvas: "home", now: serverNow });

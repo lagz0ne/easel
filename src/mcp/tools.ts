@@ -75,7 +75,25 @@ export const tools = {
   put_frame: {
     address: "frame.put",
     annotations: write,
-    description: `Make a frame, or change one with \`id\` and \`base\` (an older version answers \`stale\`); an app frame is exploring until \`ready\`, which needs the texts of the team and fixes colors to the look. ${kitFirst}`,
+    description: `Make a frame, or change one with \`id\` and \`base\` (an older version answers \`stale\`); a new frame goes on \`page\` (else the first page) at \`x\`, \`y\` (else right of the frames of its page, at y 0); an app frame is exploring until \`ready\`, which needs the texts of the team and fixes colors to the look. ${kitFirst}`,
+  },
+  move_frame: {
+    address: "frame.move",
+    annotations: idempotent,
+    description:
+      "Move a frame to `x`, `y` (0 to 100000), and to another `page` when you give one. A move makes no version, so a request on the frame stays on it, and each open tab shows the move.",
+  },
+  list_pages: {
+    address: "page.list",
+    annotations: readOnly,
+    description:
+      "List the pages of a canvas in their order: key, name and the count of frames. Use a key as `page` in `put_frame` and `move_frame`.",
+  },
+  create_page: {
+    address: "page.create",
+    annotations: write,
+    description:
+      "Add a page with a name (1 to 80 characters) at the end of a canvas: it answers the key, `taken` when a page has that name or key, or `full` at 50 pages.",
   },
   ready_frame: {
     address: "frame.ready",
@@ -256,6 +274,9 @@ export const noTool = {
   "channel.set": "an owner sets a channel up with its token file: `easel channel set`",
   "channel.list": "an owner's setup: `easel channel ls`",
   "channel.remove": "an owner's setup: `easel channel rm`",
+  "page.rename": "a person names the pages: `easel page rename`",
+  "page.order": "a person orders the pages: `easel page order`",
+  "page.delete": "a person removes a page: `easel page rm`",
   "ops.handOff": "the fixer gives up through the CLI",
   "ops.fixerTick": "the fixer's tick runs through the CLI",
 } as const;

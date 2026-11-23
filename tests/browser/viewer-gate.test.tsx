@@ -120,6 +120,7 @@ const putFrame = operation({
     cells.set({
       ...input,
       canvas: "home",
+      page: "page-1",
       x: 0,
       y: 0,
       w: 100,

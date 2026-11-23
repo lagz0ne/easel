@@ -215,6 +215,7 @@ test("an agent puts a new frame: version 1, the first at 0,0, each next right of
       {
         id: first.kind === "created" ? first.id : "",
         name: "home",
+        page: "page-1",
         x: 0,
         y: 0,
         w: 390,
@@ -225,6 +226,7 @@ test("an agent puts a new frame: version 1, the first at 0,0, each next right of
       {
         id: second.kind === "created" ? second.id : "",
         name: "untitled",
+        page: "page-1",
         x: 470,
         y: 0,
         w: 1440,
@@ -235,6 +237,7 @@ test("an agent puts a new frame: version 1, the first at 0,0, each next right of
       {
         id: third.kind === "created" ? third.id : "",
         name: "untitled",
+        page: "page-1",
         x: 1990,
         y: 0,
         w: 100,
@@ -276,6 +279,7 @@ test("a put on the current version saves a new document, and raises the version 
     frame: {
       id,
       name: "untitled",
+      page: "page-1",
       x: 0,
       y: 0,
       w: 1440,

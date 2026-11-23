@@ -749,7 +749,7 @@ export const shotFrame = operation({
   depends: { state: pictureState, cells: frames.atScope.controller, pictureAddress, kitNow },
   run: async ({ state, cells, pictureAddress, kitNow }, { input }) => {
     if (state.current.chromium === null) return { kind: "off" as const };
-    const frame = cells.of({ canvas: input.canvas, id: input.id }).get();
+    const [frame] = cells.where({ canvas: input.canvas, id: input.id }).get();
     if (frame?.k === undefined) return { kind: "gone" as const };
 
     const kit = (await kitNow.run()).version;

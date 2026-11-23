@@ -209,7 +209,7 @@ const boardMember = operation({
   label: "test.boardMember",
   input: z.object({ canvas: z.string(), id: z.string() }),
   depends: { cells: frameCells.atScope.controller },
-  run: ({ cells }, { input }) => cells.of(input).get(),
+  run: ({ cells }, { input }) => cells.where(input).get()[0],
 });
 
 test("a password set or changed, and an unshare, end the old picture links: the picture key changes and its old address answers 404; the same password, no field and --no-password keep them", async () => {

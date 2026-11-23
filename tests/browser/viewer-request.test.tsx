@@ -225,8 +225,8 @@ const agent = operation({
   input: z.enum(["write", "delete"]),
   depends: { cells: frameCells.controller },
   run: ({ cells }, { input }) => {
-    const frame = cells.of({ canvas: "home", id: home }).get();
-    if (input === "delete") return cells.delete({ canvas: "home", id: home });
+    const frame = cells.of({ canvas: "home", page: "page-1", id: home }).get();
+    if (input === "delete") return cells.delete({ canvas: "home", page: "page-1", id: home });
     if (frame) cells.set({ ...frame, version: frame.version + 1 });
   },
 });
@@ -244,6 +244,7 @@ const seed = operation({
     cells.set({
       canvas: "home",
       id: home,
+      page: "page-1",
       name: "Home",
       x: 0,
       y: 0,

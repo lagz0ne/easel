@@ -70,7 +70,7 @@ const put = operation({
   run: async ({ cells, invalidate }, { input: { html, status = "exploring", ...box } }) => {
     const version = (htmls.get(box.id)?.version ?? 0) + 1;
     htmls.set(box.id, { version, html });
-    cells.set({ ...box, canvas, version, status });
+    cells.set({ ...box, canvas, page: "page-1", version, status });
     await invalidate.run({ input: { docs: { canvas, id: box.id } } });
   },
 });
@@ -80,7 +80,7 @@ const mark = operation({
   input: z.object({ id: z.string(), status: frameStatus }),
   depends: { cells: frameCells.controller },
   run: ({ cells }, { input: { id, status } }) => {
-    const now = cells.of({ canvas, id }).get();
+    const now = cells.of({ canvas, page: "page-1", id }).get();
     if (now) cells.set({ ...now, status });
   },
 });
@@ -91,7 +91,7 @@ const drop = operation({
   depends: { cells: frameCells.controller, invalidate: framesBoard.invalidate },
   run: async ({ cells, invalidate }, { input }) => {
     htmls.delete(input);
-    cells.delete({ canvas, id: input });
+    cells.delete({ canvas, page: "page-1", id: input });
     await invalidate.run({ input: { docs: { canvas, id: input } } });
   },
 });

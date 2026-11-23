@@ -637,6 +637,7 @@ export const readClaimed = operation({
     const box = z.object({
       id: z.string(),
       name: z.string(),
+      page: z.string(),
       x: z.number(),
       y: z.number(),
       w: z.number(),
@@ -647,7 +648,7 @@ export const readClaimed = operation({
     if (row.frameId === null) {
       const frames = db
         .query(
-          "SELECT id, name, x, y, w, h, version FROM frames_frames WHERE canvas = $canvas ORDER BY made, rowid",
+          "SELECT id, name, page, x, y, w, h, version FROM frames_frames WHERE canvas = $canvas ORDER BY made, rowid",
         )
         .all({ $canvas: row.canvas })
         .map((f) => box.parse(f));
@@ -660,7 +661,7 @@ export const readClaimed = operation({
       .parse(
         db
           .query(
-            "SELECT id, name, x, y, w, h, version, status, html FROM frames_frames WHERE canvas = $canvas AND id = $id",
+            "SELECT id, name, page, x, y, w, h, version, status, html FROM frames_frames WHERE canvas = $canvas AND id = $id",
           )
           .get({ $canvas: row.canvas, $id: row.frameId }),
       );

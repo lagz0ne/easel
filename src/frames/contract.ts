@@ -39,6 +39,27 @@ export const canvasName = z
     "a canvas name needs a letter or a digit",
   );
 
+export const pageKey = z
+  .string()
+  .max(40)
+  .regex(/^[a-z0-9]+(-[a-z0-9]+)*$/, "not a page key: 1 to 40 of a-z, 0-9 and -");
+
+export const pageName = z
+  .string()
+  .trim()
+  .min(1)
+  .max(80)
+  .refine(
+    (name) => pageKey.safeParse(keyOfName.parse(name)).success,
+    "a page name needs a letter or a digit",
+  );
+
+export const maxPages = 50;
+
+export const firstPage = { key: "page-1", name: "Page 1" } as const;
+
+export const placeAt = z.number().int().min(0).max(100_000);
+
 export const frameId = z.string().regex(/^[0-9a-f]{12}$/, "not a frame id");
 
 export const frameName = z.string().trim().min(1).max(200);
@@ -65,6 +86,7 @@ export type FrameStatus = z.infer<typeof frameStatus>;
 export const frameInfo = z.object({
   id: z.string(),
   name: z.string(),
+  page: z.string(),
   x: z.number(),
   y: z.number(),
   w: z.number(),
@@ -109,7 +131,22 @@ export const frames = data({
   label: "frames.frames",
   mode: "keyed",
   parse: boardFrame,
-  key: (f) => ({ canvas: f.canvas, id: f.id }),
+  key: (f) => ({ canvas: f.canvas, page: f.page, id: f.id }),
+});
+
+export const pageInfo = z.object({ key: z.string(), name: z.string(), frames: z.number() });
+
+export type PageInfo = z.infer<typeof pageInfo>;
+
+const boardPage = pageInfo.extend({ canvas: z.string(), order: z.number() });
+
+export type BoardPage = z.infer<typeof boardPage>;
+
+export const pages = data({
+  label: "frames.pages",
+  mode: "keyed",
+  parse: boardPage,
+  key: (p) => ({ canvas: p.canvas, key: p.key }),
 });
 
 export const docs = data({
@@ -153,6 +190,7 @@ export const pageClient = data({
 
 export const framesBoard = remoteData({
   frames,
+  pages,
   docs,
   kept,
   removed,
@@ -183,12 +221,19 @@ const unsettled = z.object({
   more: z.number(),
 });
 
+const placeOfNew = {
+  page: pageKey.optional(),
+  x: placeAt.optional(),
+  y: placeAt.optional(),
+};
+
 export const putInput = z.union([
   z.strictObject({
     canvas: canvasKey,
     html: z.string(),
     name: frameName.optional(),
     size: size.optional(),
+    ...placeOfNew,
   }),
   z.strictObject({ canvas: canvasKey, html: z.string(), id: frameId, base: version }),
   z.strictObject({
@@ -197,6 +242,7 @@ export const putInput = z.union([
     name: frameName.optional(),
     size: size.optional(),
     ready: z.boolean().optional(),
+    ...placeOfNew,
   }),
   z.strictObject({
     canvas: canvasKey,
@@ -211,6 +257,7 @@ export const putInput = z.union([
     name: frameName.optional(),
     size: size.optional(),
     ready: z.boolean().optional(),
+    ...placeOfNew,
   }),
   z.strictObject({
     canvas: canvasKey,
@@ -312,6 +359,56 @@ export const framesContracts = {
       gone,
     ]),
   },
+  "frame.move": {
+    input: z.strictObject({
+      canvas: canvasKey,
+      id: frameId,
+      x: placeAt,
+      y: placeAt,
+      page: pageKey.optional(),
+    }),
+    output: z.discriminatedUnion("kind", [
+      z.object({ kind: z.enum(["moved", "unchanged"]) }),
+      gone,
+    ]),
+  },
+  "page.list": {
+    input: z.strictObject({ canvas: canvasKey }),
+    output: z.discriminatedUnion("kind", [
+      z.object({ kind: z.literal("found"), pages: z.array(pageInfo) }),
+      gone,
+    ]),
+  },
+  "page.create": {
+    input: z.strictObject({ canvas: canvasKey, name: pageName }),
+    output: z.discriminatedUnion("kind", [
+      z.object({ kind: z.literal("created"), key: z.string() }),
+      z.object({ kind: z.literal("taken") }),
+      z.object({ kind: z.literal("full") }),
+      gone,
+    ]),
+  },
+  "page.rename": {
+    input: z.strictObject({ canvas: canvasKey, page: pageKey, name: pageName }),
+    output: z.discriminatedUnion("kind", [
+      z.object({ kind: z.literal("renamed") }),
+      z.object({ kind: z.literal("taken") }),
+      gone,
+    ]),
+  },
+  "page.order": {
+    input: z.strictObject({ canvas: canvasKey, pages: z.array(pageKey).min(1).max(maxPages) }),
+    output: z.discriminatedUnion("kind", [z.object({ kind: z.literal("ordered") }), gone]),
+  },
+  "page.delete": {
+    input: z.strictObject({ canvas: canvasKey, page: pageKey }),
+    output: z.discriminatedUnion("kind", [
+      z.object({ kind: z.literal("deleted") }),
+      z.object({ kind: z.literal("notEmpty"), frames: z.number() }),
+      z.object({ kind: z.literal("last") }),
+      gone,
+    ]),
+  },
   "frame.shot": {
     input: z.strictObject({
       canvas: canvasKey,
@@ -355,6 +452,12 @@ export const framesSuccessKinds = {
   "frame.ready": ["ready", "unchanged"],
   "frame.explore": ["exploring", "unchanged"],
   "frame.shot": ["ready"],
+  "frame.move": ["moved", "unchanged"],
+  "page.list": ["found"],
+  "page.create": ["created"],
+  "page.rename": ["renamed"],
+  "page.order": ["ordered"],
+  "page.delete": ["deleted"],
 } as const satisfies {
   readonly [A in FramesAddress]: KindOf<A> extends never ? "always" : readonly KindOf<A>[];
 };

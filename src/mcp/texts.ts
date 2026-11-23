@@ -6,7 +6,9 @@ import { findingShape } from "@/kit/schema";
 import { textFinding } from "@/kit/texts";
 
 export const kindTexts: Readonly<Record<string, string>> = {
-  taken: "taken: a canvas with that key is there. Pick another name, or use that canvas.",
+  taken:
+    "taken: a canvas or a page with that key or name is there. Pick another name, or use the one that is there.",
+  full: "full: the canvas has 50 pages, the most it can have. Put the frame on a page that is there.",
   gone: "gone: it is not there (deleted, or a wrong key or id). List again, and use one that is there.",
   stale:
     "stale: it changed since the version that you gave, so nothing was written. Get it again, and make your change on the new version.",

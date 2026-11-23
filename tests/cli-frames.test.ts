@@ -487,7 +487,17 @@ test("ls exits 0 with the frames, and 1 for a canvas that is not there", async (
     {
       kind: "found",
       frames: [
-        { id, name: "untitled", x: 0, y: 0, w: 1440, h: 900, version: 1, status: "exploring" },
+        {
+          id,
+          name: "untitled",
+          page: "page-1",
+          x: 0,
+          y: 0,
+          w: 1440,
+          h: 900,
+          version: 1,
+          status: "exploring",
+        },
       ],
     },
   ]);
@@ -504,7 +514,17 @@ test("get -o writes the document to the file and prints the version; without -o 
   expect(a.lines()).toEqual([
     {
       kind: "found",
-      frame: { id, name: "untitled", x: 0, y: 0, w: 1440, h: 900, version: 1, status: "exploring" },
+      frame: {
+        id,
+        name: "untitled",
+        page: "page-1",
+        x: 0,
+        y: 0,
+        w: 1440,
+        h: 900,
+        version: 1,
+        status: "exploring",
+      },
       file: out,
     },
   ]);

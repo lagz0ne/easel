@@ -118,6 +118,7 @@ const seed = operation({
     cells.set({
       canvas: "home",
       id: home,
+      page: "page-1",
       name: "Home",
       x: 0,
       y: 0,
@@ -129,12 +130,19 @@ const seed = operation({
 
     if (store.farGone) {
       const box = { name: "Far", x: 3000, y: 2000, w: 400, h: 300 };
-      gone.set({ canvas: "home", id: far, ...box, removed: serverNow - 5 * minute });
+      gone.set({
+        canvas: "home",
+        id: far,
+        page: "page-1",
+        ...box,
+        removed: serverNow - 5 * minute,
+      });
     }
     if (store.far) {
       cells.set({
         canvas: "home",
         id: far,
+        page: "page-1",
         name: "Far",
         x: 3000,
         y: 2000,

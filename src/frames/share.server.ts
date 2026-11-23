@@ -91,6 +91,7 @@ const endPasses = operation({
     await invalidate.run({
       input: {
         frames: canvas,
+        pages: canvas,
         docs: canvas,
         requests: canvas,
         messages: canvas,

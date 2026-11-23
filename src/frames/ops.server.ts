@@ -30,6 +30,7 @@ import {
   type PutInput,
   putInput,
 } from "./contract";
+import { createPage, deletePage, listPages, orderPages, renamePage } from "./pages.server";
 import { shotFrame } from "./pictures.server";
 import { endedRefusal, lockedRefusal, passMeta } from "./share";
 import { passCanvas, shareCanvas, unshareCanvas } from "./share.server";
@@ -37,6 +38,7 @@ import {
   canvases,
   dropFrame,
   markFrame,
+  moveFrame,
   readDoc,
   readStatus,
   readStatuses,
@@ -213,6 +215,9 @@ const writeOf = operation({
       canvas: put.canvas,
       id: newFrameId.run(),
       name,
+      page: put.page ?? null,
+      x: put.x ?? null,
+      y: put.y ?? null,
       ...box,
       html,
       css,
@@ -319,9 +324,10 @@ export const listFrames = operation({
     const statuses = await readStatuses.run({ input });
     return {
       kind: "found" as const,
-      frames: list.map(({ id, name, x, y, w, h, version }) => ({
+      frames: list.map(({ id, name, page, x, y, w, h, version }) => ({
         id,
         name,
+        page,
         x,
         y,
         w,
@@ -445,6 +451,14 @@ export const deleteFrame = operation({
   },
 });
 
+export const moveFrameTo = operation({
+  label: "frame.move.do",
+  input: framesApi["frame.move"].input,
+  depends: { moveFrame },
+  run: async ({ moveFrame }, { input }) =>
+    moveFrame.run({ input: { ...input, page: input.page ?? null } }),
+});
+
 export const framesOps = {
   "canvas.create": createCanvas,
   "canvas.list": listCanvases,
@@ -457,6 +471,12 @@ export const framesOps = {
   "frame.ready": readyFrame,
   "frame.explore": exploreFrame,
   "frame.shot": shotFrame,
+  "frame.move": moveFrameTo,
+  "page.list": listPages,
+  "page.create": createPage,
+  "page.rename": renamePage,
+  "page.order": orderPages,
+  "page.delete": deletePage,
 } as const;
 
 export const loadClient = operation({

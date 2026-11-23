@@ -7,7 +7,7 @@ import { z } from "zod";
 import { kitRuntime } from "@/kit/runtime.server";
 import { kitStart, showKit } from "@/kit/store.server";
 
-import { canvasInfo, frameStatus, frames, kept, removed } from "./contract";
+import { canvasInfo, firstPage, frameStatus, frames, kept, pages, removed } from "./contract";
 import { boardKey } from "./keys.server";
 
 export const canvases = data({
@@ -38,7 +38,15 @@ CREATE TABLE IF NOT EXISTS frames_frames (
   kit INTEGER,
   js TEXT,
   status TEXT NOT NULL DEFAULT 'exploring',
+  page TEXT,
   PRIMARY KEY (canvas, id)
+);
+CREATE TABLE IF NOT EXISTS frames_pages (
+  canvas TEXT NOT NULL,
+  key TEXT NOT NULL,
+  name TEXT NOT NULL,
+  ord INTEGER NOT NULL,
+  PRIMARY KEY (canvas, key)
 );
 CREATE TABLE IF NOT EXISTS frames_keygen (
   canvas TEXT PRIMARY KEY NOT NULL,
@@ -67,6 +75,7 @@ CREATE TABLE IF NOT EXISTS frames_removed (
   w INTEGER NOT NULL,
   h INTEGER NOT NULL,
   removed INTEGER NOT NULL,
+  page TEXT,
   PRIMARY KEY (canvas, id)
 );`;
 
@@ -78,7 +87,11 @@ const addedColumns = [
   ["frames_frames", "js", "TEXT"],
   ["frames_kept", "js", "TEXT"],
   ["frames_frames", "status", "TEXT NOT NULL DEFAULT 'exploring'"],
+  ["frames_frames", "page", "TEXT"],
+  ["frames_removed", "page", "TEXT"],
 ] as const;
+
+const frameColumns = "canvas, id, name, page, x, y, w, h, version, status";
 
 const genOf = "COALESCE((SELECT gen FROM frames_keygen WHERE canvas = ?), 0)";
 
@@ -91,6 +104,7 @@ const frameRow = z.object({
   canvas: z.string(),
   id: z.string(),
   name: z.string(),
+  page: z.string(),
   x: z.number(),
   y: z.number(),
   w: z.number(),
@@ -134,6 +148,7 @@ const removedRow = z.object({
   canvas: z.string(),
   id: z.string(),
   name: z.string(),
+  page: z.string(),
   x: z.number(),
   y: z.number(),
   w: z.number(),
@@ -151,20 +166,123 @@ const stdout = tag<{ write(chunk: string): unknown } | null>({
   default: null,
 });
 
+const pageRow = z.object({
+  canvas: z.string(),
+  key: z.string(),
+  name: z.string(),
+  order: z.number(),
+  frames: z.number(),
+});
+
+const pagesOf = `SELECT p.canvas, p.key, p.name, p.ord AS "order",
+  (SELECT COUNT(*) FROM frames_frames f WHERE f.canvas = p.canvas AND f.page = p.key) AS frames
+  FROM frames_pages p`;
+
+export const readPages = operation({
+  label: "frames.readPages",
+  input: z.object({ canvas: z.string(), db: z.custom<Database>() }),
+  run: (_, { input: { canvas, db } }) =>
+    db
+      .query(`${pagesOf} WHERE p.canvas = ? ORDER BY p.ord, p.rowid`)
+      .all(canvas)
+      .map((row) => pageRow.parse(row)),
+});
+
+export const showPages = operation({
+  label: "frames.showPages",
+  input: z.object({ canvas: z.string(), db: z.custom<Database>() }),
+  depends: { cells: pages.atScope.controller, readPages },
+  run: ({ cells, readPages }, { input }) => {
+    const { canvas } = input;
+    const now = readPages.run({ input });
+
+    const keys = new Set(now.map((page) => page.key));
+    for (const old of cells.where({ canvas }).get()) {
+      if (!keys.has(old.key)) cells.delete({ canvas, key: old.key });
+    }
+    for (const page of now) cells.set(page);
+    return now;
+  },
+});
+
+export const firstPageOf = operation({
+  label: "frames.firstPageOf",
+  input: z.object({ canvas: z.string(), db: z.custom<Database>() }),
+  run: (_, { input: { canvas, db } }) =>
+    z
+      .object({ key: z.string() })
+      .nullable()
+      .parse(
+        db
+          .query("SELECT key FROM frames_pages WHERE canvas = ? ORDER BY ord, rowid LIMIT 1")
+          .get(canvas),
+      )?.key ?? null,
+});
+
+export const hasPage = operation({
+  label: "frames.hasPage",
+  input: z.object({ canvas: z.string(), page: z.string(), db: z.custom<Database>() }),
+  run: (_, { input: { canvas, page, db } }) =>
+    db.query("SELECT 1 FROM frames_pages WHERE canvas = ? AND key = ?").get(canvas, page) !== null,
+});
+
+const newPlace = operation({
+  label: "frames.newPlace",
+  input: z.object({
+    canvas: z.string(),
+    page: z.string().nullable(),
+    x: z.number().nullable(),
+    y: z.number().nullable(),
+    db: z.custom<Database>(),
+  }),
+  depends: { firstPageOf, hasPage },
+  run: ({ firstPageOf, hasPage }, { input: { canvas, x, y, db, ...asked } }) => {
+    const page = asked.page ?? firstPageOf.run({ input: { canvas, db } });
+    if (page === null || !hasPage.run({ input: { canvas, page, db } })) return null;
+    if (x !== null) return { page, x, y: y ?? 0 };
+
+    const right = z
+      .object({ right: z.number().nullable() })
+      .parse(
+        db
+          .query("SELECT MAX(x + w) AS right FROM frames_frames WHERE canvas = ? AND page = ?")
+          .get(canvas, page),
+      ).right;
+    return { page, x: right === null ? 0 : right + frameGap, y: y ?? 0 };
+  },
+});
+
 export const saveCanvas = operation({
   label: "frames.saveCanvas",
   input: z.object({ key: z.string(), name: z.string() }),
-  depends: { connection: bunSqlite.connection, cells: canvases.atScope.controller, showKit },
-  run: async ({ connection, cells, showKit }, { input, clock }) => {
+  depends: {
+    connection: bunSqlite.connection,
+    cells: canvases.atScope.controller,
+    showKit,
+    showPages,
+  },
+  run: async ({ connection, cells, showKit, showPages }, { input, clock }) => {
     const created = clock.currentTimeMillis();
-    const made = connection.db.$client
-      .query(
-        "INSERT INTO frames_canvases (key, name, created) VALUES (?, ?, ?) ON CONFLICT (key) DO NOTHING",
-      )
-      .run(input.key, input.name, created);
-    if (!made.changes) return { kind: "taken" as const };
+    const db = connection.db.$client;
+    const made = db.transaction(() => {
+      const one = db
+        .query(
+          "INSERT INTO frames_canvases (key, name, created) VALUES (?, ?, ?) ON CONFLICT (key) DO NOTHING",
+        )
+        .run(input.key, input.name, created);
+      if (!one.changes) return false;
+
+      db.query("INSERT INTO frames_pages (canvas, key, name, ord) VALUES (?, ?, ?, 0)").run(
+        input.key,
+        firstPage.key,
+        firstPage.name,
+      );
+      return true;
+    })();
+    if (!made) return { kind: "taken" as const };
 
     cells.set({ ...input, created, shared: false });
+    showPages.run({ input: { canvas: input.key, db } });
     await showKit.run({ input: [input.key] });
     return { kind: "created" as const, key: input.key };
   },
@@ -178,6 +296,9 @@ const frameWrite = z.discriminatedUnion("kind", [
     canvas: z.string(),
     id: z.string(),
     name: z.string(),
+    page: z.string().nullable(),
+    x: z.number().nullable(),
+    y: z.number().nullable(),
     w: z.number(),
     h: z.number(),
     html: z.string(),
@@ -229,7 +350,7 @@ const keptWrite = operation({
       .query(
         `UPDATE frames_frames SET status = 'ready'
          WHERE canvas = ? AND id = ? AND ? = 'ready' AND status = 'exploring'
-         RETURNING canvas, id, name, x, y, w, h, version, status, ${genOf} AS gen`,
+         RETURNING ${frameColumns}, ${genOf} AS gen`,
       )
       .get(input.canvas, input.id, input.mode, input.canvas);
     if (marked !== null) return { kind: "marked" as const, row: keyedRow.parse(marked) };
@@ -247,34 +368,32 @@ export const saveFrame = operation({
     boardFrame,
     boardKept,
     keptWrite,
+    newPlace,
+    showPages,
   },
   run: async (units, { input, clock }) => {
     const { connection, cells, keptCells, boardFrame, boardKept, keptWrite } = units;
+    const { newPlace, showPages } = units;
     const db = connection.db.$client;
     const answer = db.transaction(() => {
       if (input.kind === "new") {
-        const open = db.query("SELECT 1 FROM frames_canvases WHERE key = ?").get(input.canvas);
-        if (!open) return { kind: "gone" as const };
+        const place = newPlace.run({ input: { ...input, db } });
+        if (place === null) return { kind: "gone" as const };
 
-        const edge = z
-          .object({ right: z.number().nullable() })
-          .parse(
-            db
-              .query("SELECT MAX(x + w) AS right FROM frames_frames WHERE canvas = ?")
-              .get(input.canvas),
-          ).right;
         const row = keyedRow.parse(
           db
             .query(
-              `INSERT INTO frames_frames (canvas, id, name, x, y, w, h, version, html, made, css, kit, js, status)
-               VALUES (?, ?, ?, ?, 0, ?, ?, 1, ?, ?, ?, ?, ?, ?)
-               RETURNING canvas, id, name, x, y, w, h, version, status, ${genOf} AS gen`,
+              `INSERT INTO frames_frames (canvas, id, name, page, x, y, w, h, version, html, made, css, kit, js, status)
+               VALUES (?, ?, ?, ?, ?, ?, ?, ?, 1, ?, ?, ?, ?, ?, ?)
+               RETURNING ${frameColumns}, ${genOf} AS gen`,
             )
             .get(
               input.canvas,
               input.id,
               input.name,
-              edge === null ? 0 : edge + frameGap,
+              place.page,
+              place.x,
+              place.y,
               input.w,
               input.h,
               input.html,
@@ -286,6 +405,7 @@ export const saveFrame = operation({
               input.canvas,
             ),
         );
+        showPages.run({ input: { canvas: input.canvas, db } });
         return { kind: "created" as const, row, keptBase: false };
       }
 
@@ -297,7 +417,7 @@ export const saveFrame = operation({
              status = CASE ? WHEN 'ready' THEN 'ready' WHEN 'html' THEN 'exploring' ELSE status END
            WHERE canvas = ? AND id = ? AND version = ? AND (? <> 'exploring' OR status = 'exploring')
              AND (html IS NOT ? OR (js IS NOT NULL) <> ? OR (js IS NOT NULL AND ${sameRuntime} = 0))
-           RETURNING canvas, id, name, x, y, w, h, version, status, ${genOf} AS gen`,
+           RETURNING ${frameColumns}, ${genOf} AS gen`,
         )
         .get(
           input.html,
@@ -366,7 +486,7 @@ export const markFrame = operation({
         .query(
           `UPDATE frames_frames SET status = ?
            WHERE canvas = ? AND id = ? AND status IS NOT ? AND (? IS NULL OR version = ?)
-           RETURNING canvas, id, name, x, y, w, h, version, status, ${genOf} AS gen`,
+           RETURNING ${frameColumns}, ${genOf} AS gen`,
         )
         .get(
           input.status,
@@ -433,13 +553,15 @@ export const dropFrame = operation({
     keptCells: kept.atScope.controller,
     removedCells: removed.atScope.controller,
     boardKept,
+    showPages,
   },
-  run: async ({ connection, cells, keptCells, removedCells, boardKept }, { input, clock }) => {
+  run: async (units, { input, clock }) => {
+    const { connection, cells, keptCells, removedCells, boardKept, showPages } = units;
     const db = connection.db.$client;
     const answer = db.transaction(() => {
       const found = db
         .query(
-          `SELECT canvas, id, name, x, y, w, h, version, status, ${genOf} AS gen
+          `SELECT ${frameColumns}, ${genOf} AS gen
            FROM frames_frames WHERE canvas = ? AND id = ?`,
         )
         .get(input.canvas, input.canvas, input.id);
@@ -449,11 +571,21 @@ export const dropFrame = operation({
       const gone = removedRow.parse(
         db
           .query(
-            `INSERT OR REPLACE INTO frames_removed (canvas, id, name, x, y, w, h, removed)
-             VALUES (?, ?, ?, ?, ?, ?, ?, ?)
-             RETURNING canvas, id, name, x, y, w, h, removed`,
+            `INSERT OR REPLACE INTO frames_removed (canvas, id, name, page, x, y, w, h, removed)
+             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+             RETURNING canvas, id, name, page, x, y, w, h, removed`,
           )
-          .get(row.canvas, row.id, row.name, row.x, row.y, row.w, row.h, clock.currentTimeMillis()),
+          .get(
+            row.canvas,
+            row.id,
+            row.name,
+            row.page,
+            row.x,
+            row.y,
+            row.w,
+            row.h,
+            clock.currentTimeMillis(),
+          ),
       );
       db.query("DELETE FROM frames_frames WHERE canvas = ? AND id = ?").run(input.canvas, input.id);
       const keptLast = db.query(isKept).get(row.canvas, row.id, row.version) !== null;
@@ -462,8 +594,9 @@ export const dropFrame = operation({
     if (answer === null) return { kind: "gone" as const };
 
     const { row, gone, keptLast } = answer;
-    cells.delete(input);
+    cells.delete({ canvas: row.canvas, page: row.page, id: row.id });
     removedCells.set(gone);
+    showPages.run({ input: { canvas: row.canvas, db } });
     if (keptLast) {
       keptCells.set(
         boardKept.run({
@@ -472,6 +605,70 @@ export const dropFrame = operation({
       );
     }
     return { kind: "deleted" as const };
+  },
+});
+
+const moveRow = operation({
+  label: "frames.moveRow",
+  input: z.object({
+    canvas: z.string(),
+    id: z.string(),
+    x: z.number(),
+    y: z.number(),
+    page: z.string().nullable(),
+    db: z.custom<Database>(),
+  }),
+  depends: { hasPage },
+  run: ({ hasPage }, { input: { canvas, id, x, y, db, ...asked } }) => {
+    const found = db
+      .query(
+        `SELECT ${frameColumns}, ${genOf} AS gen FROM frames_frames WHERE canvas = ? AND id = ?`,
+      )
+      .get(canvas, canvas, id);
+    if (found === null) return { kind: "gone" as const };
+    const was = keyedRow.parse(found);
+    const page = asked.page ?? was.page;
+    if (!hasPage.run({ input: { canvas, page, db } })) return { kind: "gone" as const };
+    if (was.x === x && was.y === y && was.page === page) return { kind: "unchanged" as const };
+
+    const row = keyedRow.parse(
+      db
+        .query(
+          `UPDATE frames_frames SET x = ?, y = ?, page = ? WHERE canvas = ? AND id = ?
+           RETURNING ${frameColumns}, ${genOf} AS gen`,
+        )
+        .get(x, y, page, canvas, id, canvas),
+    );
+    return { kind: "moved" as const, was, row };
+  },
+});
+
+export const moveFrame = operation({
+  label: "frames.moveFrame",
+  input: z.object({
+    canvas: z.string(),
+    id: z.string(),
+    x: z.number(),
+    y: z.number(),
+    page: z.string().nullable(),
+  }),
+  depends: {
+    connection: bunSqlite.connection,
+    cells: frames.atScope.controller,
+    boardFrame,
+    moveRow,
+    showPages,
+  },
+  run: async ({ connection, cells, boardFrame, moveRow, showPages }, { input }) => {
+    const db = connection.db.$client;
+    const answer = db.transaction(() => moveRow.run({ input: { ...input, db } }))();
+    if (answer.kind !== "moved") return answer;
+
+    const { was, row } = answer;
+    if (was.page !== row.page) cells.delete({ canvas: was.canvas, page: was.page, id: was.id });
+    cells.set(boardFrame.run({ input: row }));
+    if (was.page !== row.page) showPages.run({ input: { canvas: row.canvas, db } });
+    return { kind: "moved" as const };
   },
 });
 
@@ -493,9 +690,7 @@ export const bumpKeys = operation({
       ).run(input.canvas);
       return {
         rows: db
-          .query(
-            `SELECT canvas, id, name, x, y, w, h, version, status, ${genOf} AS gen FROM frames_frames WHERE canvas = ?`,
-          )
+          .query(`SELECT ${frameColumns}, ${genOf} AS gen FROM frames_frames WHERE canvas = ?`)
           .all(input.canvas, input.canvas)
           .map((row) => keyedRow.parse(row)),
         versions: db
@@ -592,7 +787,7 @@ export const readDoc = operation({
       .safeParse(
         connection.db.$client
           .query(
-            "SELECT canvas, id, name, x, y, w, h, version, status, html, css, js, kit FROM frames_frames WHERE canvas = ? AND id = ?",
+            `SELECT ${frameColumns}, html, css, js, kit FROM frames_frames WHERE canvas = ? AND id = ?`,
           )
           .get(input.canvas, input.id),
       ).data,
@@ -635,6 +830,30 @@ const mountOldJs = operation({
   },
 });
 
+const onFirstPage = [
+  `UPDATE frames_frames SET page = (SELECT p.key FROM frames_pages p
+     WHERE p.canvas = frames_frames.canvas ORDER BY p.ord, p.rowid LIMIT 1) WHERE page IS NULL`,
+  `UPDATE frames_removed SET page = (SELECT p.key FROM frames_pages p
+     WHERE p.canvas = frames_removed.canvas ORDER BY p.ord, p.rowid LIMIT 1) WHERE page IS NULL`,
+];
+
+const putOnFirstPages = operation({
+  label: "frames.putOnFirstPages",
+  depends: { connection: bunSqlite.connection },
+  run: async ({ connection }) => {
+    const db = connection.db.$client;
+    db.transaction(() => {
+      db.query(
+        `INSERT INTO frames_pages (canvas, key, name, ord)
+         SELECT c.key, ?, ?, 0 FROM frames_canvases c
+         WHERE NOT EXISTS (SELECT 1 FROM frames_pages p WHERE p.canvas = c.key)`,
+      ).run(firstPage.key, firstPage.name);
+      for (const sql of onFirstPage) db.exec(sql);
+      db.exec("CREATE INDEX IF NOT EXISTS frames_frames_page ON frames_frames (canvas, page)");
+    })();
+  },
+});
+
 const load = operation({
   label: "frames.load",
   depends: {
@@ -643,35 +862,39 @@ const load = operation({
     frameCells: frames.atScope.controller,
     keptCells: kept.atScope.controller,
     removedCells: removed.atScope.controller,
+    pageCells: pages.atScope.controller,
     out: stdout,
     boardFrame,
     boardKept,
     addColumns,
     mountOldJs,
+    putOnFirstPages,
     kitStart,
     showKit,
   },
   run: async (deps) => {
-    const { connection, canvasCells, frameCells, keptCells, removedCells, out } = deps;
-    const { boardFrame, boardKept, addColumns, mountOldJs, kitStart, showKit } = deps;
+    const { connection, canvasCells, frameCells, keptCells, removedCells, pageCells, out } = deps;
+    const { boardFrame, boardKept, addColumns, mountOldJs, putOnFirstPages } = deps;
+    const { kitStart, showKit } = deps;
     const db = connection.db.$client;
     db.exec("PRAGMA synchronous = FULL");
     db.exec(schema);
     await addColumns.run();
     await mountOldJs.run();
+    await putOnFirstPages.run();
     await kitStart.run();
 
     const canvasRows = db.query("SELECT key, name, created FROM frames_canvases").all();
     const frameRows = db
       .query(
-        `SELECT f.canvas, f.id, f.name, f.x, f.y, f.w, f.h, f.version, f.status, COALESCE(g.gen, 0) AS gen
+        `SELECT f.canvas, f.id, f.name, f.page, f.x, f.y, f.w, f.h, f.version, f.status, COALESCE(g.gen, 0) AS gen
          FROM frames_frames f LEFT JOIN frames_keygen g ON g.canvas = f.canvas
          ORDER BY f.made, f.rowid`,
       )
       .all();
     const keptRows = db.query(keptOf).all();
     const removedRows = db
-      .query("SELECT canvas, id, name, x, y, w, h, removed FROM frames_removed")
+      .query("SELECT canvas, id, name, page, x, y, w, h, removed FROM frames_removed")
       .all();
     const goodCanvases = canvasRows.flatMap((row) => canvasRow.safeParse(row).data ?? []);
     const goodFrames = frameRows.flatMap((row) => keyedRow.safeParse(row).data ?? []);
@@ -686,6 +909,10 @@ const load = operation({
     for (const row of goodFrames) frameCells.set(boardFrame.run({ input: row }));
     for (const row of goodKept) keptCells.set(boardKept.run({ input: row }));
     for (const row of goodRemoved) removedCells.set(row);
+    const pageRows = db.query(`${pagesOf} ORDER BY p.ord, p.rowid`).all();
+    for (const page of pageRows.flatMap((row) => pageRow.safeParse(row).data ?? [])) {
+      pageCells.set(page);
+    }
   },
 });
 

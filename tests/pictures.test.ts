@@ -139,7 +139,7 @@ const boardMember = operation({
   label: "test.boardMember",
   input: z.object({ canvas: z.string(), id: z.string() }),
   depends: { cells: frameCells.atScope.controller },
-  run: ({ cells }, { input }) => cells.of(input).get(),
+  run: ({ cells }, { input }) => cells.where(input).get()[0],
 });
 
 const boardKept = operation({
@@ -492,6 +492,7 @@ test("an agent deletes the frame: its kept versions are still drawn, at the box 
       canvas: "flow",
       id: srv.id,
       name: "untitled",
+      page: "page-1",
       x: 0,
       y: 0,
       w: 400,

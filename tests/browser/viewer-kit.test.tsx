@@ -135,6 +135,7 @@ const put = operation({
     cells.set({
       ...input,
       canvas,
+      page: "page-1",
       name: `Frame ${input.id}`,
       w: 320,
       h: 200,
@@ -151,7 +152,7 @@ const drop = operation({
   depends: { cells: frameCells.controller, invalidate: framesBoard.invalidate },
   run: async ({ cells, invalidate }, { input }) => {
     htmls.delete(input);
-    cells.delete({ canvas, id: input });
+    cells.delete({ canvas, page: "page-1", id: input });
     await invalidate.run({ input: { docs: { canvas, id: input } } });
   },
 });
@@ -420,7 +421,9 @@ test("L5: after one change of the texts, a live app frame gets the new texts wit
   expect(docOf("t")).toBe(iframe);
   expect(docOf("t")?.srcdoc).toBe(doc);
   expect(await drawnOf("t")).toBe(drawn);
-  expect(at.scope.resolve(frames.board.frames.of({ canvas, id: "t" })).get()?.version).toBe(1);
+  expect(
+    at.scope.resolve(frames.board.frames.of({ canvas, page: "page-1", id: "t" })).get()?.version,
+  ).toBe(1);
 });
 
 test("L12: the locale pick vi composes the app frame again with the locale vi and the texts of the kit", async () => {

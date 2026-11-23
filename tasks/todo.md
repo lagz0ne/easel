@@ -718,14 +718,14 @@ Decisions of 2026-11-23 (the coordinator, for the spec):
 
 ### P8-1: pages and places on the server
 
-- [ ] `frames_pages`; a new canvas has `Page 1`. A migration puts each old frame and each removed
+- [x] `frames_pages`; a new canvas has `Page 1`. A migration puts each old frame and each removed
       frame on the first page, and keeps each frame.
-- [ ] `page.list`, `page.create`, `page.rename`, `page.order`, `page.delete`, `frame.move` with
+- [x] `page.list`, `page.create`, `page.rename`, `page.order`, `page.delete`, `frame.move` with
       each kind of the Contract. `frame.put` takes `page`, `x` and `y`.
-- [ ] The board: the cell `frames` has the page in its key; a new cell `pages` has the names and
+- [x] The board: the cell `frames` has the page in its key; a new cell `pages` has the names and
       the counts.
-- [ ] The tools `move_frame`, `list_pages` and `create_page`; `put_frame` takes the place.
-- [ ] A test reaches each exit, the 3 fact rules, and the restart test of the migration.
+- [x] The tools `move_frame`, `list_pages` and `create_page`; `put_frame` takes the place.
+- [x] A test reaches each exit, the 3 fact rules, and the restart test of the migration.
 
 **Estimated scope:** M.
 

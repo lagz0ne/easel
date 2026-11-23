@@ -37,11 +37,11 @@ async function gaps(list: string[], lists: { tooled?: string[]; skipped?: string
 
 test("each call of easel's contracts is a tool or on the no-tool list, and none is both", async () => {
   expect(await gaps(addresses)).toEqual({ missing: [], both: [] });
-  expect(Object.keys(tools)).toHaveLength(35);
+  expect(Object.keys(tools)).toHaveLength(38);
 });
 
 test("the check finds a call that is in neither list, and one that is in both", async () => {
-  expect(await gaps([...addresses, "frame.move"])).toEqual({ missing: ["frame.move"], both: [] });
+  expect(await gaps([...addresses, "frame.fly"])).toEqual({ missing: ["frame.fly"], both: [] });
   const tooled = [...Object.values(tools).map((row) => row.address), "login.start"];
   expect(await gaps(addresses, { tooled, skipped: Object.keys(noTool) })).toEqual({
     missing: [],

@@ -30,7 +30,7 @@ function PanePicture({
   id: string;
   pane: { label: string; version: number; kit: number | null };
 }) {
-  const frame = useData(frames.board.frames.of({ canvas, id }));
+  const [frame] = useData(frames.board.frames.where({ canvas, id }));
   const now = useData(frames.board.kit.of({ canvas }));
   const held = useData(frames.board.kept.of({ canvas, id, version: pane.version }));
   const gone = useData(frames.board.removed.of({ canvas, id }));
