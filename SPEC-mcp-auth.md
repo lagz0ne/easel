@@ -92,9 +92,12 @@ Prior art:
 1. easel makes the tokens of a connector, not the client. It gives each token one time, in the
    answer of the token endpoint, and keeps only its SHA-256 digest.
 2. An access token works for 1 hour, and only at `https://<server>/mcp`.
-3. A refresh token gives a new access token and a new refresh token. The old refresh token stops
-   at once. A refresh token that is used a second time stops the connector, as a revoke does
-   (the reuse rule of OAuth 2.1, section 4.3.1).
+3. A refresh token gives a new access token and a new refresh token. The refresh token that was
+   used last still works until the new one is used, so a lost answer does not stop the connector
+   (as `workers-oauth-provider`; the chart
+   [access-connector-strict](docs/statecharts/access-connector-strict.md) shows why). An older
+   refresh token stops the connector, as a revoke does (the reuse rule of OAuth 2.1, section
+   4.3.1).
 4. A token of `easel login` works at `/mcp` as before, with no expiry.
 
 ## Contract
@@ -124,8 +127,8 @@ The 401 of `/mcp` becomes
 
 ## Rules
 
-A TLA+ model and its chart (`scripts/statecharts.sh`) of the password, the sign-in and the tokens
-come before the code. The chart `access-connector` sits next to
+The model of the password, the sign-in and the tokens is the chart
+[access-connector](docs/statecharts/access-connector.md). It sits next to
 [access-login](docs/statecharts/access-login.md), and uses the same revoke.
 
 ### Fact rules (the code graph decides)
@@ -161,6 +164,9 @@ come before the code. The chart `access-connector` sits next to
   24 hours, gets the connector. The person who waits for it then sees "This password does not
   work now", and the owner sees the client and the time of the sign-in in `easel users`. The
   owner revokes it, and makes a new password.
+- When the answer of the token endpoint to a code does not reach Claude, Claude asks again with
+  the same code. The code is used, so its tokens stop, and the person needs a new password. This
+  is rare (Claude waits 10 s), and safe: a copy of a code never gives tokens.
 
 ## Success Criteria
 
@@ -169,8 +175,8 @@ come before the code. The chart `access-connector` sits next to
   revoke (401 and `invalid_grant` after it).
 - A test reaches each failure above: a wrong password, a used password, one that ran out, a name
   in use for `users.add`, an unknown client, a wrong
-  redirect address, a wrong PKCE verifier, a used code, a wrong resource, a refresh token used two
-  times, and the rate limit.
+  redirect address, a wrong PKCE verifier, a used code, a wrong resource, a lost refresh answer (the connector keeps working), a refresh
+  token older than the last two, and the rate limit.
 - A token of `easel login` still works at `/mcp`, and the MCP client tests of SPEC-mcp stay green.
 - By hand: a person adds easel to the Claude web app at `https://easel.vibea.dev/mcp`, signs in,
   and an agent in the Claude mobile app lists the canvases. Then `easel users revoke` stops it.

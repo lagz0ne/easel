@@ -39,3 +39,5 @@ viewer-card	models/viewer/ViewerCard.tla	models/viewer/ViewerCard.cfg	models/vie
 viewer-find	models/viewer/FindFrame.tla	models/viewer/FindFrame.cfg	models/viewer/FindFrame.view.mjs	holds
 viewer-hover	models/viewer/PartHover.tla	models/viewer/PartHover.cfg	models/viewer/PartHover.view.mjs	holds
 viewer-version	models/viewer/NewVersion.tla	models/viewer/NewVersion.cfg	models/viewer/NewVersion.view.mjs	holds
+access-connector	models/access/Connector.tla	models/access/Connector.cfg	models/access/Connector.view.mjs	holds
+access-connector-strict	models/access/Connector.tla	models/access/ConnectorStrict.cfg	models/access/Connector.view.mjs	breaks

@@ -508,22 +508,25 @@ with no link from a page: the routes work, but no client finds them until MA-6 c
 
 **Description:** A TLA+ model of one connector: an owner makes its password, a person signs in
 with it, the token endpoint gives and rotates the tokens, and an owner revokes it. A second
-person who has the password, a lost token answer and a refresh token that is used two times are
+person who has the password, a lost token answer and a copy of an old refresh token are
 steps of the model. The chart `access-connector` sits next to `access-login`.
 
 **Acceptance criteria:**
 
-- [ ] The rules of the spec are rules of the model: the password works one time and runs out;
+- [x] The rules of the spec are rules of the model: the password works one time and runs out;
       a code works one time; a used refresh token stops the connector; after a revoke, no call
       and no refresh is answered; a token of `easel login` is not changed.
-- [ ] The model is less than 500 states, and TLC finds each rule true.
-- [ ] A second config breaks one rule on purpose (a refresh token that works two times), so the
+- [x] The model is less than 500 states, and TLC finds each rule true.
+- [x] A second config breaks one rule on purpose (a refresh token that stops at once), so the
       chart shows why the rule is necessary.
 
 **Verification:**
 
-- [ ] `scripts/statecharts.sh --check access-connector access-connector-reuse` is OK.
-- [ ] The page names each rule, its spec anchor, and what the model leaves out.
+- [x] `scripts/statecharts.sh --check access-connector access-connector-strict` is OK.
+- [x] The page names each rule, its spec anchor, and what the model leaves out.
+
+Done: 71 states, each rule holds. The strict config breaks `ALostAnswerNeverStopsTheConnector`,
+so the spec keeps the refresh token that was used last (as `workers-oauth-provider`).
 
 **Dependencies:** none. **Files likely touched:** `docs/statecharts/models/access/Connector*.{tla,cfg}`,
 its view, `docs/statecharts/access-connector*.md`, `charts.tsv`. **Estimated scope:** M.
