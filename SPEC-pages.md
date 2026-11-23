@@ -1,6 +1,6 @@
 # Spec delta: `pages`, the pages of a canvas and the place of each frame
 
-Status: proposed (2026-11-23).
+Status: approved (user, 2026-11-23: "Approve").
 
 ## Objective
 
