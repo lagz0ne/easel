@@ -816,12 +816,16 @@ test("the popover of a saved request names its state with the words of § Follow
   }
 });
 
-function outlineBox() {
-  const outline = document.querySelector<HTMLElement>(".e-outline");
+function boxOf(selector: string) {
+  const outline = document.querySelector<HTMLElement>(selector);
   if (!outline) return null;
   const { left, top, width, height } = outline.style;
   return { left, top, width, height };
 }
+
+const outlineBox = () => boxOf(".e-outline:not([data-hover])");
+
+const hoverBox = () => boxOf(".e-outline[data-hover]");
 
 test("in request mode, a click on a part of a live frame outlines that part: the frame's own script gives the box of the element there, and the frame stays sandboxed with scripts only (Ask for a change 2, judged rule 4)", async () => {
   const server = await boot(() => {
@@ -850,4 +854,40 @@ test("in request mode, a click on a part of a live frame outlines that part: the
   await expect.poll(outlineBox).not.toBeNull();
   await userEvent.keyboard("{Escape}");
   await expect.poll(outlineBox).toBeNull();
+});
+
+test("in request mode, the part of a live frame under the pointer gets a 1 px outline before a click; it goes over the page's body, when the pointer leaves the frames, when a draft opens, and in view mode (Ask for a change 1, AnOutlineOnlyWhileHovering)", async () => {
+  const server = await boot(() => {
+    store.doc =
+      '<!doctype html><html><body style="margin:0"><div style="position:absolute;left:20px;top:40px;width:100px;height:50px;background:#ccc"></div></body></html>';
+  });
+  localStorage.setItem(nameKey, "Mai");
+  const at = await tab(server);
+  at.clock.advance(restMs);
+  const card = () => frameOf("Home").element().querySelector<HTMLElement>(".e-card");
+  await expect.poll(() => card()?.hidden, { timeout: 5_000 }).toBe(true);
+  const part = { left: "20px", top: "40px", width: "100px", height: "50px" };
+
+  await frameOf("Home").hover({ position: { x: 50, y: 60 } });
+  await tick(100);
+  expect(hoverBox()).toBeNull();
+
+  await requestButton().click();
+  await frameOf("Home").hover({ position: { x: 50, y: 60 } });
+  await expect.poll(hoverBox).toEqual(part);
+  const line = document.querySelector(".e-outline[data-hover]");
+  if (!line) throw new Error("no outline");
+  expect(getComputedStyle(line).borderTopWidth).toBe("1px");
+
+  await frameOf("Home").hover({ position: { x: 300, y: 200 } });
+  await expect.poll(hoverBox).toBeNull();
+  await frameOf("Home").hover({ position: { x: 60, y: 70 } });
+  await expect.poll(hoverBox).toEqual(part);
+  await page.getByRole("toolbar", { name: "Canvas" }).hover();
+  await expect.poll(hoverBox).toBeNull();
+
+  await frameOf("Home").click({ position: { x: 50, y: 60 } });
+  await expect.element(textbox()).toBeVisible();
+  await expect.poll(() => outlineBox()).toEqual(part);
+  expect(hoverBox()).toBeNull();
 });

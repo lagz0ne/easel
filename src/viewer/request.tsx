@@ -20,7 +20,7 @@ import type { Draft, Place as DraftPlace } from "./draft";
 import { doneStates, requestViews } from "./follow";
 import type { RequestView, Shown } from "./follow";
 import { Initial } from "./panel";
-import { partBox, stage } from "./stage";
+import { hoverPart, partBox, stage } from "./stage";
 
 export function RequestButton() {
   const on = useData(requestMode);
@@ -201,7 +201,7 @@ export function Requests({
   return (
     <div className="e-pins">
       <Pins canvas={canvas} list={list} />
-      {here ? <DraftAt d={here} lost={lost} /> : null}
+      {here ? <DraftAt d={here} lost={lost} /> : <HoverOutline list={list} />}
       {opened?.canvas === canvas ? <OpenedAt canvas={canvas} n={opened.n} list={list} /> : null}
     </div>
   );
@@ -287,6 +287,23 @@ function Outline({ place, at }: { place: DraftPlace; at: { x: number; y: number 
       className="e-outline"
       aria-hidden="true"
       style={{ left: at.x + box.x, top: at.y + box.y, width: box.w, height: box.h }}
+    />
+  );
+}
+
+function HoverOutline({ list }: { list: readonly FrameInfo[] }) {
+  const asking = useData(requestMode);
+  const over = useData(hoverPart);
+  const frame = list.find((f) => f.id === over?.id);
+  if (!asking || !over?.box || !frame) return null;
+  const box = over.box;
+
+  return (
+    <div
+      className="e-outline"
+      data-hover=""
+      aria-hidden="true"
+      style={{ left: frame.x + box.x, top: frame.y + box.y, width: box.w, height: box.h }}
     />
   );
 }

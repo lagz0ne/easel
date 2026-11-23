@@ -141,7 +141,12 @@ chart is [viewer-find](docs/statecharts/viewer-find.md).
 
 1. A viewer presses the button `Request` (it shows pressed), and the canvas goes into request mode.
    The pointer over the canvas is then the speech bubble of `Request`, with its tip at the tail
-   (as in the comment mode of Figma and Miro).
+   (as in the comment mode of Figma and Miro). While the pointer moves over a live frame, the part
+   under it gets a 1 px accent outline, as the comment modes of Figma and Vercel do (request #10).
+   The page asks the paint script in the frame for that box, at most once in each animation frame,
+   and shows only the answer to its last ask. The outline goes over the page's body, out of the
+   frames, when a draft opens, and in view mode. The chart is
+   [viewer-hover](docs/statecharts/viewer-hover.md).
 2. They click a part of a frame. The part gets an outline and a draft pin. The page cannot read
    the frame's document in its sandbox, so it asks the paint script in the frame for the box of
    the element at the place clicked, and draws the outline from the answer, cut to the frame (as

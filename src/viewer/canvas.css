@@ -481,6 +481,10 @@
   pointer-events: none;
 }
 
+.e-outline[data-hover] {
+  border-width: calc(1px * var(--e-unzoom, 1));
+}
+
 .e-gone {
   position: absolute;
   border: 2px dashed var(--e-muted);

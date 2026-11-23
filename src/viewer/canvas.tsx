@@ -14,6 +14,7 @@ import "./canvas.css";
 import { aimFromLink, openFromLink } from "./act";
 import {
   closeCard,
+  drafts,
   escapeKey,
   openedRequest,
   openRequest,
@@ -794,6 +795,8 @@ export function Canvas({ canvas, opening }: { canvas: string; opening: React.Rea
   useResource(slashKey);
   const pick = useRun(pickPlace);
   const asking = useData(requestMode);
+  const drafting = useData(drafts, (d) => d?.canvas === canvas);
+  const hovering = asking && !drafting;
   const mode = useData(requestMode, (on) => (on ? "request" : "view"));
   useData(clockTicker({ canvas }));
   const kitNow = useData(kitFeed({ canvas }));
@@ -807,6 +810,10 @@ export function Canvas({ canvas, opening }: { canvas: string; opening: React.Rea
         ref={at.viewport}
         className="e-viewport e-light"
         aria-label="Frames"
+        onPointerMove={(event) => {
+          if (hovering && event.buttons === 0) at.hover(event.clientX, event.clientY);
+        }}
+        onPointerLeave={() => at.hoverOff()}
         onClick={(event) => {
           const spot = at.pick(event.nativeEvent);
           if (!spot) return;

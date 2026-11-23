@@ -37,3 +37,4 @@ kit-runtime-same-text	models/kit/KitRuntime.tla	models/kit/KitRuntimeSameText.cf
 kit-control-link	models/kit/ControlLink.tla	models/kit/ControlLink.cfg	models/kit/ControlLink.view.mjs	holds
 viewer-card	models/viewer/ViewerCard.tla	models/viewer/ViewerCard.cfg	models/viewer/ViewerCard.view.mjs	holds
 viewer-find	models/viewer/FindFrame.tla	models/viewer/FindFrame.cfg	models/viewer/FindFrame.view.mjs	holds
+viewer-hover	models/viewer/PartHover.tla	models/viewer/PartHover.cfg	models/viewer/PartHover.view.mjs	holds

@@ -137,12 +137,11 @@ const partPost = z.object({
   box: partArea.nullable(),
 });
 
-export const partBox = data<{
-  id: string;
-  x: number;
-  y: number;
-  box: z.infer<typeof partArea> | null;
-} | null>({ label: "viewer.partBox", initial: null });
+type PartAt = { id: string; x: number; y: number; box: z.infer<typeof partArea> | null };
+
+export const partBox = data<PartAt | null>({ label: "viewer.partBox", initial: null });
+
+export const hoverPart = data<PartAt | null>({ label: "viewer.hoverPart", initial: null });
 
 const box = z.object({
   id: z.string(),
@@ -166,12 +165,16 @@ export const stage = resource({
     paints: painted.controller,
     zoom: zoomShown.controller,
     part: partBox.controller,
+    hover: hoverPart.controller,
     offered: offeredAxes.controller,
     shown: shownControls.controller,
     panes: shownPanes.controller,
     popPlace,
   },
-  factory: ({ live, hold, done, paints, zoom, part, offered, shown, panes, popPlace }, ctx) => {
+  factory: (
+    { live, hold, done, paints, zoom, part, hover, offered, shown, panes, popPlace },
+    ctx,
+  ) => {
     let cam = { x: 0, y: 0, z: 1 };
     let view = { w: 0, h: 0, left: 0, top: 0 };
     let vp: HTMLElement | null = null;
@@ -197,6 +200,8 @@ export const stage = resource({
     let aimAt: { x: number; y: number } | null = null;
     let held: { x: number; y: number } | null = null;
     let found: Shell | null = null;
+    let hoverAt: { x: number; y: number } | null = null;
+    let hoverFrame = 0;
     const pointers = new Map<number, { x: number; y: number }>();
     const showedAt = new Map<string, number>();
     const pinned = new Set<string>();
@@ -697,22 +702,72 @@ export const stage = resource({
 
       onPart: (event: MessageEvent) => {
         const post = partPost.safeParse(event.data);
-        const asked = part.get();
-        if (!post.success || !asked || !at.fromAsked(asked.id, event)) return;
+        if (!post.success) return;
 
-        const { x, y, box } = post.data;
-        if (x === asked.x && y === asked.y && box) at.showPart(asked, box);
+        at.answerClick(event, post.data);
+        at.answerHover(event, post.data);
       },
 
-      showPart: (asked: { id: string; x: number; y: number }, b: z.infer<typeof partArea>) => {
-        const shell = shells.get(asked.id);
-        if (!shell) return;
+      answerClick: (event: MessageEvent, { x, y, box }: z.infer<typeof partPost>) => {
+        const asked = part.get();
+        if (!asked || !box || !at.answers(asked, event, x, y)) return;
+
+        part.set({ ...asked, box: at.cutToFrame(asked.id, box) });
+      },
+
+      answerHover: (event: MessageEvent, { x, y, box }: z.infer<typeof partPost>) => {
+        const over = hover.get();
+        if (!over || !at.answers(over, event, x, y)) return;
+
+        hover.set({ ...over, box: box && at.cutToFrame(over.id, box) });
+      },
+
+      answers: (asked: PartAt, event: MessageEvent, x: number, y: number) =>
+        at.fromAsked(asked.id, event) && x === asked.x && y === asked.y,
+
+      cutToFrame: (id: string, b: z.infer<typeof partArea>) => {
+        const shell = shells.get(id);
+        if (!shell) return null;
 
         const left = Math.max(b.x, 0);
         const top = Math.max(b.y, 0);
         const w = Math.min(b.x + b.w, shell.box.w) - left;
         const h = Math.min(b.y + b.h, shell.box.h) - top;
-        if (w > 0 && h > 0) part.set({ ...asked, box: { x: left, y: top, w, h } });
+        return w > 0 && h > 0 ? { x: left, y: top, w, h } : null;
+      },
+
+      hover: (clientX: number, clientY: number) => {
+        hoverAt = { x: clientX, y: clientY };
+        if (!hoverFrame) hoverFrame = requestAnimationFrame(at.askHover);
+      },
+
+      askHover: () => {
+        hoverFrame = 0;
+        if (!hoverAt) return;
+        at.measure();
+        const x = (hoverAt.x - view.left - cam.x) / cam.z;
+        const y = (hoverAt.y - view.top - cam.y) / cam.z;
+        const under = [...shells.entries()]
+          .filter(
+            ([, s]) =>
+              x >= s.box.x && x <= s.box.x + s.box.w && y >= s.box.y && y <= s.box.y + s.box.h,
+          )
+          .at(-1);
+        const doc = under && docs.get(under[0]);
+        if (!under || !doc) return hover.set(null);
+
+        const [id, shell] = under;
+        const was = hover.get();
+        const asked = { id, x: x - shell.box.x, y: y - shell.box.y };
+        hover.set({ ...asked, box: was?.id === id ? was.box : null });
+        doc.contentWindow?.postMessage({ easel: "part", x: asked.x, y: asked.y }, "*");
+      },
+
+      hoverOff: () => {
+        hoverAt = null;
+        cancelAnimationFrame(hoverFrame);
+        hoverFrame = 0;
+        hover.set(null);
       },
 
       fromAsked: (id: string, event: MessageEvent) => {
@@ -957,6 +1012,7 @@ export const stage = resource({
 
     ctx.defer(() => {
       closed = true;
+      cancelAnimationFrame(hoverFrame);
       for (const port of ports.values()) port.close();
       restWait?.abort();
       at.stopAdding();
