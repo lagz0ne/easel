@@ -49,8 +49,10 @@ Prior art:
    times. It reads the marks and prints one line for each step: p50, p95 and the budget.
 3. **The gate.** `bun run speed -- --gate --base <sha>` builds the binary of `<sha>` and of the
    tree, and runs the two interleaved. A step fails when its p50 is over its budget (Q2). A step
-   whose p50 is more than 10% over the p50 of the base gives an alert, not a failure. A failed
-   step runs one time again before the gate says red. The gate is the `speed` job of CI `gates`,
+   whose p50 is more than 10% over the p50 of the base, and over it by at least 5% of its budget,
+   gives an alert, not a failure. The floor of 5% keeps a change that no person sees from an
+   alert: on the same code, `change` on a live document was 62 ms against 54 ms (2026-11-23). A
+   failed step runs one time again before the gate says red. The gate is the `speed` job of CI `gates`,
    on each push to `main`, with the commit before the push as the base. A red stops the deploy
    and opens `trunk-red`, as each red gate does. An alert opens a `speed-slower` issue. Prior
    art: Chromium and Mozilla (Perfherder) measure time after the commit and alert; Lighthouse CI
@@ -74,7 +76,8 @@ smoke), zod for `speed.json`.
 ```
 Measure:  bun run speed                         # each step on the tree, a table
 Gate:     bun run speed -- --gate --base HEAD   # the tree against the base
-On vibea2: offload -- bun run speed -- --gate --base HEAD
+On vibea2: offload --dir <dir> --rm -- bun run speed -- --gate --base-dir base
+           # <dir>: the tree's files, and `git archive <sha>` in <dir>/base (vibea2 has no .git)
 In CI:    .github/workflows/gates.yml, job speed # each push to main, before the deploy
 Check:    bun run check:plain                   # the tests of the gate's logic
 ```

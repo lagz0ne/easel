@@ -24,12 +24,14 @@ export const speedStats = operation({
 });
 
 /**
- * A step's verdict: over its budget; else more than `alert` over the base's value (an alert, not
- * a failure); else in time. The value is the stat that the budget is of.
+ * A step's verdict: over its budget; else more than `alert` over the base's value, by at least
+ * `floor` of the budget (an alert, not a failure); else in time. The value is the stat that the
+ * budget is of. The floor keeps a change that no person sees, such as 8 ms of a 1000 ms budget,
+ * from an alert.
  */
 export const speedVerdict = operation({
   label: "speed.verdict",
-  input: z.object({ runs, base: runs.optional(), budget, alert: z.number() }),
+  input: z.object({ runs, base: runs.optional(), budget, alert: z.number(), floor: z.number() }),
   depends: { speedStats },
   run: ({ speedStats }, { input }) => {
     const now = speedStats.run({ input: input.runs });
@@ -40,11 +42,27 @@ export const speedVerdict = operation({
     }
 
     const base = input.base ? speedStats.run({ input: input.base })[input.budget.of] : undefined;
-    if (base !== undefined && value > base * (1 + input.alert)) {
+    const seen = base !== undefined && value - base >= input.budget.ms * input.floor;
+    if (base !== undefined && seen && value > base * (1 + input.alert)) {
       return { kind: "slowerThanBase", ...told, base } as const;
     }
 
     return { kind: "inTime", ...told } as const;
+  },
+});
+
+/**
+ * The gate (SPEC-speed.md § The design 3): red when a step is over its budget, which stops the
+ * deploy; an alert when a step is only slower than the base, which stops nothing; else green.
+ */
+export const speedGate = operation({
+  label: "speed.gate",
+  input: z.array(z.enum(["inTime", "overBudget", "slowerThanBase"])),
+  run: (_, { input }) => {
+    if (input.includes("overBudget")) return { kind: "red" } as const;
+    if (input.includes("slowerThanBase")) return { kind: "alert" } as const;
+
+    return { kind: "green" } as const;
   },
 });
 

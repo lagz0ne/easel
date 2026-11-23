@@ -336,7 +336,7 @@ throttled run (4× CPU, 40 ms round trip) to the report only.
 - [x] The first numbers of each step, at 20 and 200 frames, are in `docs/canvas-speed.md`
       ("Budgets").
 - [ ] A step that is over its budget today gets a task before phase 4.
-- [ ] Review with the user.
+- [x] Review with the user (2026-11-23: "Go"; the cold open goes to SPD-6, the hot path list).
 
 ## Phase 4: `speed` gate
 
@@ -348,15 +348,26 @@ after one run again. A step more than 10% slower than the base is an alert.
 
 **Acceptance criteria:**
 
-- [ ] The tree with no change passes, with no alert.
-- [ ] A test change that adds 300 ms to `open` gives an alert. A test change that puts `open`
+- [x] The tree with no change passes, with no alert.
+- [x] A test change that adds 300 ms to `open` gives an alert. A test change that puts `open`
       over 2000 ms is red.
-- [ ] The exit code is 0 for green, 1 for red, and 0 with an alert line for an alert.
+- [x] The exit code is 0 for green, 1 for red, and 0 with an alert line for an alert.
 
 **Verification:**
 
-- [ ] `offload -- bun run speed -- --gate --base HEAD`, 3 times: on the tree, with +300 ms, and
-      over the budget. Their output goes in the ship message.
+- [x] The gate on vibea2, 3 times: on the tree, with +300 ms, and with +1500 ms (over the
+      budget). Their output is in the ship message.
+
+**Notes (done 2026-11-23):**
+
+- vibea2 has no .git, so `--base HEAD` cannot run there. `--base-dir <dir>` takes the base's
+  files, and `offload --dir` sends a directory with the tree's files and `git archive HEAD` in
+  `base/`. CI has .git, so SPD-7 uses `--base <sha>`.
+- The first gate on the tree with no change gave a false alert: `change live` was 62 ms against
+  54 ms (15%, but 8 ms). So an alert also needs a change of at least 5% of the budget (`floor`
+  in `speed.json`), as alert systems use a size and not only a ratio. Then the tree with no
+  change was green, and the floor also kept `ask` (117 against 93 ms) from a false alert.
+- The test changes were in copies of the tree only: `easel:open` came 300 ms or 1500 ms later.
 
 **Dependencies:** SPD-2, SPD-4.
 

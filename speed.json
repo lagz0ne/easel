@@ -1,5 +1,6 @@
 {
   "alert": 0.1,
+  "floor": 0.05,
   "budgets": {
     "open": { "ms": 2000, "of": "p50" },
     "change": { "ms": 1000, "of": "p50" },
