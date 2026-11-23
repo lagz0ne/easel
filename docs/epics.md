@@ -130,11 +130,11 @@ Decided:
 
 #### Design changes that Round 1 needs
 
-| Req.            | Gap in the design now                                                                                          | Spec or file                                    |
-| --------------- | -------------------------------------------------------------------------------------------------------------- | ----------------------------------------------- |
-| C1, C2          | `/mcp` takes a fixed token only. The Claude web app needs each person to sign in with their own easel account. | [SPEC-mcp-auth](../SPEC-mcp-auth.md) (approved) |
-| L1, L3, L5, L12 | Each frame keeps its own texts. Nothing keeps the texts of the team in one place.                              | SPEC-kit                                        |
-| Q3              | No measure shows which work is on the critical path and which is not.                                          | docs/canvas-speed.md                            |
+| Req.            | Gap in the design now                                                                                                                                                                                               | Spec or file                                    |
+| --------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------- |
+| C1, C2          | The sign-in of the Claude web app is live with the easel token, and a script passed each step on the live easel (2026-11-23). Left: the check in the Claude web app by a person, then the hardening (MA-2 to MA-6). | [SPEC-mcp-auth](../SPEC-mcp-auth.md) (approved) |
+| L1, L3, L5, L12 | Each frame keeps its own texts. Nothing keeps the texts of the team in one place.                                                                                                                                   | SPEC-kit                                        |
+| Q3              | No measure shows which work is on the critical path and which is not.                                                                                                                                               | docs/canvas-speed.md                            |
 
 Closed before: R2 (`c79d841`, `6a5a0ec`: the install script and [the start steps](start.md); MCP in them on 2026-11-23), C3 and W1 to W6 (SPEC-mcp, built), R5
 and R8 (`8d452f6`: the design of the backups and the delete).

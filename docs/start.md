@@ -70,8 +70,18 @@ An agent on a different machine connects over HTTP with a token. Get the token w
 claude mcp add --transport http easel https://acme.easel.example/mcp --header "Authorization: Bearer <token>"
 ```
 
-Not built: the Claude web app (claude.ai), where each person signs in with their own easel
-account. It waits for `mcp-auth` ([map](../MAP-round-1.md)).
+In the Claude web app (claude.ai), each person connects with their own easel user
+([mcp-auth](../SPEC-mcp-auth.md#built-first)):
+
+1. An owner runs `easel users add <name>`, for example `easel users add ana-claude`. It prints a
+   token one time. Give it to the person in a private message.
+2. In the Claude web app, add a custom connector with the address
+   `https://acme.easel.example/mcp`.
+3. Claude opens the page "Connect to easel". Paste the token, then select `Connect`.
+4. Ask Claude to list the canvases of easel.
+
+To stop the access of that connector, an owner runs `easel users revoke <name>`. Its next call
+fails. The other agents keep working.
 
 ## 4. The agent makes the first frame
 

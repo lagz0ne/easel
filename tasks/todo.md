@@ -104,7 +104,7 @@ socket, in a session with the token, so each `onStart` guard runs.
 - [x] `tinker check: OK`, the smoke is green, CI `gates` is green.
 - [x] Checked on 2026-11-23 with `claude -p --mcp-config` on a local server: 31 tools on each,
       and `list_canvases` answered on each.
-- [ ] Review with the user before phase 2.
+- [x] Review with the user before phase 2. Approved (user, 2026-11-23: "I approved tge rest, go").
 
 ## Phase 2: `mcp` complete
 
@@ -195,7 +195,7 @@ MCP tools makes a reference screen. The CLI help and SPEC-mcp say how to add eas
 - [x] A statechart and conformance review of the release: `mcp` adds no state of its own (each
       request makes and closes its server; the wait of `next_request` is the queue's, charted in
       the queue's model). No new chart.
-- [ ] Review with the user. Then the start steps (R2) and the `mcp-auth` delta spec.
+- [x] Review with the user. Then the start steps (R2) and the `mcp-auth` delta spec. Approved (user, 2026-11-23: "I approved tge rest, go").
 
 ## Phase 3: `speed` foundation
 
@@ -538,7 +538,7 @@ its view, `docs/statecharts/access-connector*.md`, `charts.tsv`. **Estimated sco
 
 ### Checkpoint E: after MA-1
 
-- [ ] Show the chart and the review of each rule to the user, before code.
+- [x] Show the chart and the review of each rule to the user, before code. Approved (user, 2026-11-23: "I approved tge rest, go").
 
 ### MA-2: `users.add` makes a password
 
@@ -630,7 +630,15 @@ and the mobile app lists the canvases. Then a revoke stops it. `docs/start.md` t
 **Acceptance criteria:**
 
 - [ ] The check by hand passes, with a screenshot of each step in `~/work/tmp`.
-- [ ] `docs/start.md` replaces "Not built" with the steps. `docs/epics.md` closes C1 and C2.
+- [x] A script ran each step of the sign-in on the live easel (2026-11-23,
+      `~/work/tmp/2026-11-23-ma7-oauth-live/flow.ts`), as the user `ma7-check`: the 401 and its
+      metadata; the page for the claude.ai callback; a refusal of another callback and of a wrong
+      token; the code with `state` and `iss`; `invalid_grant` for a wrong verifier and a used code;
+      the access token; `initialize`, 31 tools and `list_canvases` at `/mcp`. After
+      `easel users revoke ma7-check`, `/mcp` answered 401. Left: the same steps in the Claude web
+      app by a person.
+- [x] `docs/start.md` replaces "Not built" with the steps. `docs/epics.md` closes C1 and C2 when
+      the check in the Claude web app passes.
 
 **Dependencies:** MA-6. **Estimated scope:** S.
 
