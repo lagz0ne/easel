@@ -43,36 +43,45 @@ Prior art:
    (1 to 80 characters) and a key, its slug, as a canvas has.
 2. `page.create`, `page.rename`, `page.order` and `page.delete` change the pages. A delete of a page
    with frames is refused `notEmpty`, with the count. The last page cannot be deleted.
+   - The key of a page is the slug of its name at create, and it does not change. A rename changes
+     the name only, so a `?page=` link and the page of a request stay good (as Figma `node-id`).
+   - `taken`: another page of the canvas has the same name (case does not count), or, at create,
+     the slug of the name is the key of another page.
+   - `page.order` takes `{ canvas, pages: key[] }`. The named pages go first, in that order. The
+     other pages keep their order after them. A key that the canvas does not have is `gone`.
 3. Each frame is on one page. A frame made before this delta is on the first page.
+4. A request with no frame (a click on the empty board) is on the page of the tab where the person
+   made it. Its pin shows on that page only. A request with no frame made before this delta is on
+   the first page.
 
 ### The place of a frame
 
-4. `frame.put` that makes a frame takes `page`, and `x` and `y` (whole numbers, 0 to 100 000). With
+5. `frame.put` that makes a frame takes `page`, and `x` and `y` (whole numbers, 0 to 100 000). With
    no place, the frame goes to the right of the frames of its page, at y 0, as today.
-5. `frame.move` takes `x`, `y` and `page`. It changes the place, and the page if one is given. It
+6. `frame.move` takes `x`, `y` and `page`. It changes the place, and the page if one is given. It
    makes no frame version: a request on the frame stays on it.
-6. The CLI: `easel put <canvas> <file> --page <page> --at <x>,<y>`, `easel move <canvas> <id>
+7. The CLI: `easel put <canvas> <file> --page <page> --at <x>,<y>`, `easel move <canvas> <id>
 --at <x>,<y> [--page <page>]`, `easel pages <canvas>`, `easel page new <canvas> <name>`,
    `easel page rename|rm <canvas> <page>`. MCP: `put_frame` takes `page`, `x` and `y`; new tools
    `move_frame`, `list_pages`, `create_page`.
 
 ### The viewer
 
-7. The viewer shows the frames of one page. A list of the pages, in the dock, shows each name and
+8. The viewer shows the frames of one page. A list of the pages, in the dock, shows each name and
    the count of its frames. A pick shows that page at Fit.
-8. The address names the page: `/s/<link>?page=<page>`. A link with no page opens the first page. A
+9. The address names the page: `/s/<link>?page=<page>`. A link with no page opens the first page. A
    reload keeps the page.
-9. Find (S15) finds a frame on each page. A pick shows its page, then the frame.
-10. The Requests panel lists the requests of each page, with the name of the page. A pick of a
+10. Find (S15) finds a frame on each page. A pick shows its page, then the frame.
+11. The Requests panel lists the requests of each page, with the name of the page. A pick of a
     request on another page shows that page, then the frame.
-11. If an agent moves a marked frame (picked or found) to another page, the tab stays on its page,
+12. If an agent moves a marked frame (picked or found) to another page, the tab stays on its page,
     and the mark ends.
-12. A switch of the board (SPEC-pieces § Switches) is for the canvas: a pick stays when the person
+13. A switch of the board (SPEC-pieces § Switches) is for the canvas: a pick stays when the person
     goes to another page.
 
 ### Speed
 
-13. The open of a share link loads the frames of one page only. The list of pages is names and
+14. The open of a share link loads the frames of one page only. The list of pages is names and
     counts. So Q1 holds for each page: a page of 200 frames opens in the budget of 200 frames, and
     the other pages cost nothing.
 

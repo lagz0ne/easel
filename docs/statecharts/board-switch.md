@@ -96,7 +96,7 @@ stateDiagram-v2
 - More tabs. The values are of the tab, so each tab acts on its own.
 - A link that opens with values in its address. It is a reload with those values.
 - The pages of a canvas: a board value stays when the person goes to another page
-  (SPEC-pages.md § The viewer, rule 11). [viewer-pages](viewer-pages.md) proves the page of a tab.
+  (SPEC-pages.md § The viewer, rule 13). [viewer-pages](viewer-pages.md) proves the page of a tab.
 - The look of each theme, and how a frame draws: one new scope with the value.
 
 ## What the chart shows

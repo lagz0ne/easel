@@ -11,7 +11,7 @@ was made. TLC finds that `APickShowsThePageOfTheFrame` breaks in 3 steps:
 3. The answer comes. The tab shows Page 2, and `m` is not there.
 
 A move before the pick breaks it too, in 4 steps. So the pick of a request asks the server for its
-frame, and the answer gives the page where the frame is now (SPEC-pages.md § The viewer, rule 10).
+frame, and the answer gives the page where the frame is now (SPEC-pages.md § The viewer, rule 11).
 The name of the page in the Requests panel is only a label.
 
 ```mermaid
@@ -121,7 +121,7 @@ stateDiagram-v2
 
 | Rule                                                                                         | In plain words                                                               | Spec anchor                                      |
 | -------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------- | ------------------------------------------------ |
-| `APickShowsThePageOfTheFrame`                                                                | Breaks: the tab shows the old page of the frame, and the frame is not there. | SPEC-pages.md § The viewer, rule 10; criterion 3 |
+| `APickShowsThePageOfTheFrame`                                                                | Breaks: the tab shows the old page of the frame, and the frame is not there. | SPEC-pages.md § The viewer, rule 11; criterion 3 |
 | `TypeOK`, `ATabShowsOnePageAndEachOfItsFrames`, `AReloadShowsTheSamePage`, `TheTabCatchesUp` | Hold.                                                                        | [viewer-pages](viewer-pages.md)                  |
 
 ## What the model leaves out

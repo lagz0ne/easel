@@ -1,5 +1,5 @@
 ---- MODULE ViewerPages ----
-\* easel pages: the page that a tab of the viewer shows (SPEC-pages.md § The viewer, rules 7-10).
+\* easel pages: the page that a tab of the viewer shows (SPEC-pages.md § The viewer, rules 8-12).
 \* A canvas has two pages. Frame "s" stays on page 1. Frame "m" starts on page 2, and an agent
 \* moves it from page to page (frame.move) at any time. One tab shows one page: the address names
 \* it (?page=), and a link with no page opens the first page. The tab loads the frames of its page
