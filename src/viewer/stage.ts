@@ -297,6 +297,14 @@ export const stage = resource({
     /** The place that `aim` showed, until the viewer pans or zooms: a new size shows it again. */
     let held: { x: number; y: number } | null = null;
     const pointers = new Map<number, { x: number; y: number }>();
+    /**
+     * The marks of the critical path (SPEC-speed.md § The design 1): the newest version of each
+     * frame that showed (its document said that it painted, or its picture came), each request
+     * whose pin showed, and `easel:open`, once.
+     */
+    const showedAt = new Map<string, number>();
+    const pinned = new Set<string>();
+    let opened = false;
 
     const at = {
       /** How far a box is outside the view, in views (0: it is in view). */
@@ -428,6 +436,7 @@ export const stage = resource({
         at.cull(hideAtRestMargin);
         at.writeLabels();
         at.settleLive();
+        at.markOpen();
 
         for (const el of pops) at.placePop(el);
       },
@@ -530,6 +539,7 @@ export const stage = resource({
         placed = true;
         held = aimAt;
         aimAt = null;
+        at.markOpen();
         if (held) return at.show(held.x, held.y);
 
         at.move();
@@ -609,6 +619,42 @@ export const stage = resource({
       },
 
       onUp: (event: PointerEvent) => void pointers.delete(event.pointerId),
+
+      /**
+       * Version `version` of a frame showed: `easel:change:<id>:<version>`, once for each version.
+       * The paint cap (`paintCapMs`) takes a card off with no paint, so it is no show.
+       */
+      showed: (id: string, version: number) => {
+        if ((showedAt.get(id) ?? 0) >= version) return;
+        showedAt.set(id, version);
+        performance.mark(`easel:change:${id}:${version}`);
+        at.markOpen();
+      },
+
+      /** `easel:open`, once: after the first Fit, each frame in view showed a version. */
+      markOpen: () => {
+        if (opened || !placed) return;
+        for (const [id, s] of shells) {
+          if (!s.hidden && at.away(s.box) === 0 && !showedAt.has(id)) return;
+        }
+        opened = true;
+        performance.mark("easel:open");
+      },
+
+      /** A card's picture came: its frame showed the version that the picture is of. */
+      onPicture: (event: Event) => {
+        const img = event.target;
+        if (!(img instanceof HTMLImageElement) || !img.matches(".e-card > .e-pic")) return;
+        const id = img.closest<HTMLElement>(".e-shell")?.dataset.id;
+        if (id !== undefined) at.showed(id, Number(img.dataset.version));
+      },
+
+      /** A request's pin is in the page: `easel:ask:<request id>`, once for each request. */
+      pin: (id: string) => (el: HTMLElement | null) => {
+        if (!el || pinned.has(id)) return;
+        pinned.add(id);
+        performance.mark(`easel:ask:${id}`);
+      },
 
       markPainted: (id: string, version: number) => {
         if (paints.get()[id] !== version) paints.update((p) => ({ ...p, [id]: version }));
@@ -827,7 +873,9 @@ export const stage = resource({
         if (!post.success) return at.onPart(event);
         for (const [id, frame] of docs) {
           if (frame.contentWindow !== event.source) continue;
-          if (Number(frame.dataset.version) === post.data.v) at.markPainted(id, post.data.v);
+          if (Number(frame.dataset.version) !== post.data.v) continue;
+          at.markPainted(id, post.data.v);
+          at.showed(id, post.data.v);
         }
       },
 
@@ -972,7 +1020,10 @@ export const stage = resource({
         if (!el) return;
         world = el;
         at.write();
+        // A load does not bubble: the world hears each picture's on the way down.
+        el.addEventListener("load", at.onPicture, { capture: true });
         return () => {
+          el.removeEventListener("load", at.onPicture, { capture: true });
           world = null;
         };
       },

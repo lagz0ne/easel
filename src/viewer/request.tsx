@@ -254,6 +254,7 @@ function Pins({ canvas, list }: { canvas: string; list: readonly FrameInfo[] }) 
   const views = useData(requestViews({ canvas }));
   const opened = useData(openedRequest);
   const open = useRun(openRequest);
+  const at = useResource(stage);
   const openN = opened?.canvas === canvas ? opened.n : null;
 
   return (
@@ -263,6 +264,7 @@ function Pins({ canvas, list }: { canvas: string; list: readonly FrameInfo[] }) 
         .map(({ r, shown }) => (
           <AtRequest key={r.n} r={r} list={list}>
             <button
+              ref={at.pin(r.id)}
               type="button"
               className="e-pin"
               data-look={pinLooks[shown]}

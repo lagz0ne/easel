@@ -41,17 +41,20 @@ const picRetry = resource({
 });
 
 /**
- * A picture: its address `src`, with the kit version `kit` when the page has it. An img decodes
+ * A picture of frame version `version`: its address `src`, with the kit version `kit` when the page
+ * has it. An img decodes
  * off the main thread, and the card's colour shows until it has. `wide`: the frame is wider than
  * its card, so the card shows all of its width.
  */
 function Picture({
   src,
+  version,
   kit,
   alt,
   wide,
 }: {
   src: string;
+  version: number;
   kit: number | null | undefined;
   alt: string;
   wide: boolean;
@@ -62,6 +65,7 @@ function Picture({
     <img
       className="e-pic"
       data-wide={wide}
+      data-version={version}
       src={typeof kit === "number" ? `${src}&kit=${kit}` : src}
       alt={alt}
       decoding="async"
@@ -102,6 +106,7 @@ export function FramePicture({
   return (
     <Picture
       src={`${picturePrefix}${canvas}/${frame.id}/${version}?s=${scale}&k=${k}`}
+      version={version}
       kit={kit}
       alt={alt ?? frame.name}
       wide={card > 0 && frame.w / frame.h > card}

@@ -840,3 +840,110 @@ test("K7: each frame in view that is not live asks for the picture of the new ki
     cards.map((id) => `/api/pictures/${canvas}/${id}/1`),
   );
 });
+
+const paintPost = z.object({ easel: z.literal("painted"), v: z.number() });
+
+/**
+ * The paint posts of the live documents. While `shut` is true, the page does not hear them: this
+ * listener is first on the window, and it keeps each one. `release` gives them to the page, in
+ * order, from the window that said them.
+ */
+function paintGate() {
+  const held: MessageEvent[] = [];
+  const gate = {
+    shut: false,
+    held,
+    release: () => {
+      gate.shut = false;
+      for (const e of held.splice(0)) {
+        dispatchEvent(new MessageEvent("message", { data: e.data, source: e.source }));
+      }
+    },
+  };
+  const listen = (event: MessageEvent) => {
+    if (!gate.shut || !paintPost.safeParse(event.data).success) return;
+    held.push(event);
+    event.stopImmediatePropagation();
+  };
+  addEventListener("message", listen, { capture: true });
+  onTestFinished(() => removeEventListener("message", listen, { capture: true }));
+
+  return gate;
+}
+
+/** The names of the page's marks that start with `prefix`, in order. */
+const marks = (prefix: string) =>
+  performance
+    .getEntriesByType("mark")
+    .filter((m) => m.name.startsWith(prefix))
+    .map((m) => m.name);
+
+const markAt = (name: string) => performance.getEntriesByName(name, "mark")[0]?.startTime ?? -1;
+
+test("SPEC-speed marks: easel:open comes once, after the last frame in view shows its live document or its picture, and not before; the paint cap is no show", async () => {
+  performance.clearMarks();
+  const gate = paintGate();
+  gate.shut = true;
+  const grid = Array.from({ length: 20 }, (_, i) => ({
+    id: `f${String(i).padStart(2, "0")}`,
+    x: (i % 5) * 340,
+    y: Math.floor(i / 5) * 220,
+    k: `key-${i}`,
+  }));
+  const server = await boot(grid);
+  const at = await tab(server);
+  await rested(at, 20, 12);
+  await expect.poll(() => gate.held.length).toBe(12);
+
+  // The cap takes each card off its live document, but no document said that it painted.
+  at.clock.advance(1_500);
+  await tick();
+  expect(marks("easel:")).toEqual([]);
+
+  // The 12 live documents paint; the 8 pictures have not come.
+  gate.release();
+  expect(marks("easel:change:")).toHaveLength(12);
+  expect(marks("easel:open")).toEqual([]);
+  const live = new Set(docs().map((d) => d.dataset.id ?? ""));
+  const pics = grid
+    .filter((f) => !live.has(f.id))
+    .map((f) => region().querySelector(`[data-id="${f.id}"] .e-card img.e-pic`));
+  expect(pics).toHaveLength(8);
+  for (const img of pics.slice(0, 7)) img?.dispatchEvent(new Event("load"));
+  expect(marks("easel:open")).toEqual([]);
+
+  // The last picture comes: open, after each frame's first version showed.
+  pics[7]?.dispatchEvent(new Event("load"));
+  expect(marks("easel:open")).toEqual(["easel:open"]);
+  expect(marks("easel:change:")).toHaveLength(20);
+  const last = Math.max(...grid.map((f) => markAt(`easel:change:${f.id}:1`)));
+  expect(markAt("easel:open")).toBeGreaterThanOrEqual(last);
+  for (const img of pics) img?.dispatchEvent(new Event("load"));
+  expect(marks("easel:open")).toEqual(["easel:open"]);
+});
+
+test("SPEC-speed marks: easel:change:<id>:<v> comes when version v shows, and not before; the paint cap is no show, and a version shows once", async () => {
+  performance.clearMarks();
+  const gate = paintGate();
+  const server = await boot([{ id: "a", x: 0, y: 0 }]);
+  const at = await tab(server);
+  await rested(at, 1);
+  await expect.poll(() => marks("easel:change:a:")).toEqual(["easel:change:a:1"]);
+  expect(marks("easel:open")).toEqual(["easel:open"]);
+
+  // An agent puts version 2: its document has not said that it painted.
+  gate.shut = true;
+  await server.run(put, { input: { id: "a", x: 0, y: 0, version: 2 } });
+  await expect.poll(() => gate.held.length).toBe(1);
+  at.clock.advance(1_500);
+  await tick();
+  expect(marks("easel:change:a:")).toEqual(["easel:change:a:1"]);
+
+  gate.release();
+  expect(marks("easel:change:a:")).toEqual(["easel:change:a:1", "easel:change:a:2"]);
+  // The same post again, or the picture of that version, marks nothing more.
+  dispatchEvent(
+    new MessageEvent("message", { data: { easel: "painted", v: 2 }, source: winOf("a") }),
+  );
+  expect(marks("easel:")).toEqual(["easel:change:a:1", "easel:open", "easel:change:a:2"]);
+});

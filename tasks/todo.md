@@ -207,14 +207,24 @@ and `easel:ask:<request id>` when a pin shows. A mark is one `performance.mark`.
 
 **Acceptance criteria:**
 
-- [ ] `easel:open` comes after the last frame in view shows, and not before.
-- [ ] `easel:change:*` comes with the new version, and not before it shows.
-- [ ] `easel:ask:*` comes when the pin shows in another tab.
+- [x] `easel:open` comes after the last frame in view shows, and not before.
+- [x] `easel:change:*` comes with the new version, and not before it shows.
+- [x] `easel:ask:*` comes when the pin shows in another tab.
 
 **Verification:**
 
-- [ ] `tests/browser/viewer-kit.test.tsx`: three new tests.
-- [ ] `bun run smoke` is green.
+- [x] Three new tests: open and change in `tests/browser/viewer-kit.test.tsx`, ask in
+      `tests/browser/viewer-follow.test.tsx` (the pins are there).
+- [x] `bun run smoke` is green (the ship gate).
+
+**Notes (done 2026-11-23):**
+
+- A frame shows when its document posts that it painted, or when its card's picture loads. The
+  paint cap (1.5 s) takes a card off with no paint, so it is no show.
+- Each version of a frame marks once, also at the first show: `easel:change:<id>:1` comes for
+  each frame at open.
+- A frame that is not live shows only its picture. With pictures off (no `EASEL_CHROMIUM`), such
+  a frame never shows, and `easel:open` does not come. So SPD-3's server needs Chromium.
 
 **Dependencies:** none.
 

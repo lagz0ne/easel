@@ -5,7 +5,7 @@ import type { Scope } from "@tinkered/core";
 import { makeTestClock, memory } from "@tinkered/core/testing";
 import { ScopeProvider } from "@tinkered/react";
 import { createRoot } from "react-dom/client";
-import { expect, onTestFinished, test } from "vite-plus/test";
+import { expect, onTestFinished, test, vi } from "vite-plus/test";
 import { page, userEvent } from "vite-plus/test/browser/context";
 import { z } from "zod";
 
@@ -186,6 +186,19 @@ const write = operation({
   run: ({ rows, thread }, { input }) => {
     const { row, m } = changeStored(input);
     rows.set(row);
+    if (m) thread.set(m);
+  },
+});
+
+/** A new request `n`, as a viewer's send in another tab writes it: the board pushes it. */
+const ask = operation({
+  label: "test.followAsk",
+  input: z.number(),
+  depends: { rows: requests.controller, thread: messages.controller },
+  run: ({ rows, thread }, { input }) => {
+    const row = stored(input, "Make it blue.");
+    rows.set(row);
+    const m = store.messages.at(-1);
     if (m) thread.set(m);
   },
 });
@@ -763,4 +776,31 @@ test("while the socket is down the list may be behind and says Reconnecting; whe
   }
   await expect.poll(() => markOf(1)).toBe("Question for you");
   await expect.element(requestsButton()).toHaveAccessibleName("Requests, 1 wait for you");
+});
+
+test("SPEC-speed marks: easel:ask:<request id> comes when the pin of a new request shows, and not before", async () => {
+  performance.clearMarks();
+  const server = await boot();
+  await tab(server);
+  const real = performance.mark.bind(performance);
+  const calls: Array<{ name: string; pin: boolean }> = [];
+  vi.spyOn(performance, "mark").mockImplementation((name, options) => {
+    calls.push({ name, pin: document.querySelector('[aria-label="Request #1"]') !== null });
+    return real(name, options);
+  });
+  const asks = () => calls.filter((c) => c.name.startsWith("easel:ask:"));
+  expect(asks()).toEqual([]);
+
+  await requestsButton().click();
+  server.run(ask, { input: 1 });
+  await expect.poll(asks, { timeout: 1_000 }).toEqual([{ name: "easel:ask:r1", pin: true }]);
+  // The pin draws again when its request changes: its mark comes once.
+  server.run(write, {
+    input: {
+      n: 1,
+      patch: { claimedBy: "claude-1", claimedUntil: serverNow + 5 * minute, tries: 1 },
+    },
+  });
+  await expect.poll(() => markOf(1)).toBe("claude-1");
+  expect(asks()).toEqual([{ name: "easel:ask:r1", pin: true }]);
 });
