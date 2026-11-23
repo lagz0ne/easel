@@ -45,8 +45,11 @@ Prior art:
    pin shows. A mark costs one `performance.mark`, so it stays in production. The page keeps no
    other code for the measure.
 2. **The run.** `scripts/speed.ts` starts a built binary with a seed of 20 and of 200 frames,
-   opens Chromium (with the flags of canvas-speed.md "How to measure"), and does each step 7
-   times. It reads the marks and prints one line for each step: p50, p95 and the budget.
+   opens Chromium (with the flags of canvas-speed.md "How to measure"), and does each step 5
+   times (the pan 3 times: one pan of 2 s gives ~120 frames). The base and the tree start at
+   once, and are measured in turn. It reads the marks and prints one line for each step: p50,
+   p95 and the budget. (Changed on 2026-11-23 from 7 runs and a start in turn: the gate took
+   ~150 s; the user asked for speed.)
 3. **The gate.** `bun run speed -- --gate --base <sha>` builds the binary of `<sha>` and of the
    tree, and runs the two interleaved. A step fails when its p50 is over its budget (Q2). A step
    whose p50 is more than 10% over the p50 of the base, and over it by at least 5% of its budget,

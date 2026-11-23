@@ -37,7 +37,7 @@ import { speedFile } from "@/speed/budget";
 import { hotName, hotPathFindings, speedGate, speedVerdict } from "@/speed/verdict";
 
 const root = join(import.meta.dir, "..");
-const runs = 7;
+const runs = 5;
 
 const flags = [
   "--enable-unsafe-swiftshader",
@@ -69,8 +69,11 @@ type Runner = {
   done?: () => Promise<void>;
 };
 
-/** A step: its lines, and the runner that it makes on a side. */
-type Step = { rows: Row[]; make: (side: Side) => Promise<Runner> };
+/**
+ * A step: its lines, the runner that it makes on a side, and its runs on each side (5 when not
+ * set). A pan of 2 s gives ~120 frames by itself, so 3 runs are enough for its max and p95.
+ */
+type Step = { rows: Row[]; make: (side: Side) => Promise<Runner>; runs?: number };
 
 type Side = Awaited<ReturnType<typeof start>>;
 type Mcp = ReturnType<typeof tools>;
@@ -109,8 +112,14 @@ const sides: Side[] = [];
 const notes: string[] = [];
 
 try {
-  if (baseRoot) sides.push(await start(browser, "base", baseRoot));
-  sides.push(await start(browser, "tree", root));
+  // The two sides start at once: each has its own server, database and port. They are measured
+  // in turn after this, never at once.
+  const [base, ours] = await Promise.all([
+    baseRoot ? start(browser, "base", baseRoot) : null,
+    start(browser, "tree", root),
+  ]);
+  if (base) sides.push(base);
+  sides.push(ours);
   const tree = sides.at(-1);
   if (!tree) throw new Error("speed: no tree");
 
@@ -284,7 +293,7 @@ async function measure(step: Step) {
   for (const side of sides) pairs.push({ side, runner: await step.make(side) });
 
   const got: Record<"base" | "tree", Record<string, number[]>> = { base: {}, tree: {} };
-  for (let i = 0; i < runs; i++) {
+  for (let i = 0; i < (step.runs ?? runs); i++) {
     for (const { side, runner } of i % 2 === 0 ? pairs : [...pairs].reverse()) {
       keep(got[side.name], await runner.once(i));
     }
@@ -401,6 +410,7 @@ function steps(): Step[] {
         { key: "pan200", step: "pan", frames: 200 },
         { key: "handler200", step: "panHandler", frames: 200 },
       ],
+      runs: 3,
       make: async (side) => {
         const tab = await opened(side.many, side.big.link);
         await zoomTo(tab, 40);
