@@ -3,7 +3,7 @@ import { createHash, randomBytes } from "node:crypto";
 import { bunSqlite } from "@tinkered/bun/sqlite";
 import { exits } from "@tinkered/cli/test";
 import { createScope, operation } from "@tinkered/core";
-import type { Observe, Scope } from "@tinkered/core";
+import type { Capsule, Observe, Scope } from "@tinkered/core";
 import { makeTestClock, memory } from "@tinkered/core/testing";
 import type { preset } from "@tinkered/core/testing";
 import { expect } from "vite-plus/test";
@@ -50,6 +50,8 @@ export async function boot(
   more: {
     github?: (request: Request) => Promise<Response>;
     observe?: Observe.Config;
+    /** More capsules for the server's scope, after its services (MCP's port and route). */
+    extra?: readonly Capsule.Installable[];
   } = {},
 ) {
   const out: string[] = [];
@@ -87,6 +89,7 @@ export async function boot(
       dispatchServer(more.github ? { fetch: more.github, base: "https://github.test" } : {}),
       queue.channels({ implement: channelOps, onStart: [user, owner] }),
       memory.server({ services }),
+      ...(more.extra ?? []),
     ],
   });
   const server = await scope.ready;

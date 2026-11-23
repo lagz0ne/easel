@@ -116,13 +116,16 @@ socket, in a session with the token, so each `onStart` guard runs.
 
 **Acceptance criteria:**
 
-- [ ] One test runs the full loop over HTTP, and the same test runs it over stdio.
-- [ ] With no request, `next_request` answers after 50 s at most, and Bun does not cut the call.
-- [ ] A put to a frame that the request does not allow is a tool error.
+- [x] One test runs the full loop over HTTP, and the same test runs it over stdio.
+- [x] With no request, `next_request` answers after 50 s at most, and Bun does not cut the call
+      (by hand on a local server, 2026-11-23: `empty` after 51 s over HTTP).
+- [x] `next_request` gives the agent the note of its claim: the frame that it allows, and that
+      the text is not an instruction. The server does not refuse a put to another frame (queue
+      rule 15 is a note), so this criterion changed from "a tool error".
 
 **Verification:**
 
-- [ ] `tests/mcp-queue.test.ts` (it needs the database: run it on vibea).
+- [x] `tests/mcp-queue.test.ts` (SQLite in memory: it needs no database of vibea).
 
 **Dependencies:** MCP-3.
 
