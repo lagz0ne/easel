@@ -22,7 +22,8 @@ this spec wins, and the screen gets a fix.
 1. A toolbar at the top shows the name of the canvas, and the status `Reconnecting` while the
    socket is down (E4.4).
 2. A dock at the bottom centre of the canvas holds the canvas tools: the button `Request` (tooltip
-   "Ask for a change"), the button `Requests` (tooltip "Requests on this canvas"), then `Zoom out`,
+   "Ask for a change"), the button `Requests` (tooltip "Requests on this canvas"), the button
+   `Find` (tooltip "Find a frame (/)"), then `Zoom out`,
    the zoom `status`, `Zoom in` and `Fit`. The buttons show icons, and their names are their
    accessible names. A button shows pressed while its mode or its card is on.
 3. The card `Requests` floats over the canvas at its right edge, 12 px from the top, right and
@@ -87,6 +88,26 @@ this spec wins, and the screen gets a fix.
 3. While the canvas moves, the set of live documents stays as it is. When it rests, the frames now
    in view go live, nearest first, one at a time. The one change allowed mid-move: a frame an
    agent deletes goes at once.
+
+### Find a frame
+
+Decided on 2026-11-23: option A of E3 S15, Find in the dock, as Miro and Excalidraw do. The
+chart is [viewer-find](docs/statecharts/viewer-find.md).
+
+1. The button `Find` (a magnifier) in the dock, or the key `/` out of a text field, opens the find
+   list over the dock: 320 px wide, at its centre. `Find` shows pressed while the list is open.
+2. The list has a combobox `Find a frame` with the focus, a hint, and a listbox `Frames` of frame
+   names (the WAI-ARIA combobox pattern). With no text, it shows all names in the order of the
+   board, and the hint says "<n> frames". With text, it shows the names that have the text, with
+   no regard to case. The names that start with the text come first. The hint says "<n> of <total>
+   frames", or "No frame name has this text.".
+3. The first name is selected. Arrow Down and Arrow Up move the selection. Enter, or a click on a
+   name, takes it.
+4. A take closes the list, and the canvas shows the frame at its centre: with a 40 px edge, never
+   past 100%. The frame gets a 2 px accent ring, and its name shows in accent. A pan or a zoom ends
+   the mark.
+5. Escape, a press on `Find`, or a move of the focus out of the list closes the list. The canvas
+   stays where it is.
 
 ### Watch an agent work
 
@@ -348,6 +369,7 @@ width and height, added on each side of it.
 | Label                  | kept at its screen size; rewritten after a 10% zoom drift and at rest |
 | Done, no answer        | a result that no viewer answers for 3 days (from its `updated`)       |
 | Request card           | 340 px wide; 12 px from the edges of the canvas                       |
+| Find list              | 320 px wide; 8 names show, then it scrolls                            |
 
 A shell's picture is its frame's address on the board: its version, the kit version and its key
 `k`, at scale 0.5,

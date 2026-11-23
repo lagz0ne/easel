@@ -36,3 +36,4 @@ kit-runtime	models/kit/KitRuntime.tla	models/kit/KitRuntime.cfg	models/kit/KitRu
 kit-runtime-same-text	models/kit/KitRuntime.tla	models/kit/KitRuntimeSameText.cfg	models/kit/KitRuntime.view.mjs	breaks
 kit-control-link	models/kit/ControlLink.tla	models/kit/ControlLink.cfg	models/kit/ControlLink.view.mjs	holds
 viewer-card	models/viewer/ViewerCard.tla	models/viewer/ViewerCard.cfg	models/viewer/ViewerCard.view.mjs	holds
+viewer-find	models/viewer/FindFrame.tla	models/viewer/FindFrame.cfg	models/viewer/FindFrame.view.mjs	holds

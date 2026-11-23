@@ -21,6 +21,8 @@ import {
   requestMode,
   resendOnBack,
 } from "./draft";
+import { slashKey } from "./find";
+import { FindButton, FindList } from "./find-list";
 import { clockTicker, controlsFor, panelOpen, requestPlaces, requestViews } from "./follow";
 import type { RequestView } from "./follow";
 import { Panel, RequestsButton } from "./panel";
@@ -682,6 +684,7 @@ function Dock({ at, canvas }: { at: Stage; canvas: string }) {
     <div className="e-dock" role="toolbar" aria-label="Canvas">
       <RequestButton />
       <RequestsButton canvas={canvas} />
+      <FindButton />
       <LocalePick />
       <span className="e-dock-sep" aria-hidden="true" />
       <button
@@ -788,6 +791,7 @@ export function Canvas({ canvas, opening }: { canvas: string; opening: React.Rea
   const drawn = useData(shownFrames({ canvas }));
   useResource(resendOnBack);
   useResource(escapeKey);
+  useResource(slashKey);
   const pick = useRun(pickPlace);
   const asking = useData(requestMode);
   const mode = useData(requestMode, (on) => (on ? "request" : "view"));
@@ -846,6 +850,7 @@ export function Canvas({ canvas, opening }: { canvas: string; opening: React.Rea
         <Status lost={lost} fault={state?.status === "fault"} />
       </div>
       <Dock at={at} canvas={canvas} />
+      <FindList canvas={canvas} />
       <CardAt at={at} canvas={canvas} list={list} />
       <ControlsPanel list={list} />
     </main>

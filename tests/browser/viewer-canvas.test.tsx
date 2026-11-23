@@ -7,7 +7,7 @@ import { Profiler } from "react";
 import { createRoot } from "react-dom/client";
 import { expect, onTestFinished, test } from "vite-plus/test";
 import type {} from "vite-plus/test/browser-playwright";
-import { cdp, page } from "vite-plus/test/browser/context";
+import { cdp, page, userEvent } from "vite-plus/test/browser/context";
 import { z } from "zod";
 
 import { frames } from "@/frames";
@@ -937,4 +937,119 @@ test("a shell asks for its picture at 0.5, at 0.25 when 0.5 is over 8 megapixels
   expect(picOf("edge")?.getAttribute("src")).toBe(`/api/pictures/${canvas}/edge/1?s=0.25&k=key-e`);
   expect(picOf("huge")).toBeNull();
   expect(cardOf("huge")).toBeTruthy();
+});
+
+const findBox = () => page.getByRole("combobox", { name: "Find a frame" });
+const findButton = () => page.getByRole("button", { name: "Find", exact: true });
+
+const names = () =>
+  page
+    .getByRole("listbox", { name: "Frames" })
+    .getByRole("option")
+    .elements()
+    .map((o) => o.textContent);
+
+const hint = () => document.querySelector(".e-find-hint")?.textContent;
+
+test("Find in the dock, or the key /, opens the list over the dock with all names; a typed text shows the names that have it, those that start with it first; the hint counts them, or says that no name has the text (Find a frame 1 to 2, E3 S15, Open, Type)", async () => {
+  const server = await boot([
+    frame("a1", 0, 0, { name: "Checkout · pay" }),
+    frame("a2", 400, 0, { name: "Payments" }),
+    frame("a3", 800, 0, { name: "Account · payments" }),
+    frame("a4", 0, 320, { name: "Home" }),
+  ]);
+  const at = await tab(server);
+  await opened(at, 4);
+
+  expect(findButton().element()).toHaveAttribute("title", "Find a frame (/)");
+  expect(findButton().element()).toHaveAttribute("aria-pressed", "false");
+  await userEvent.keyboard("/");
+  await expect.element(findBox()).toHaveFocus();
+  expect(findButton().element()).toHaveAttribute("aria-pressed", "true");
+  expect(findBox().element()).toHaveValue("");
+  expect(names()).toEqual(["Checkout · pay", "Payments", "Account · payments", "Home"]);
+  expect(hint()).toBe("4 frames");
+  const list = document.querySelector(".e-find")?.getBoundingClientRect();
+  const dock = page.getByRole("toolbar", { name: "Canvas" }).element().getBoundingClientRect();
+  expect(list?.width).toBe(320);
+  expect(list?.bottom).toBeLessThan(dock.top);
+  expect(Math.abs((list?.left ?? 0) + 160 - (dock.left + dock.width / 2))).toBeLessThan(2);
+
+  await userEvent.keyboard("PAY");
+  await expect.poll(names).toEqual(["Payments", "Checkout · pay", "Account · payments"]);
+  expect(hint()).toBe("3 of 4 frames");
+  expect(page.getByRole("option", { selected: true }).element().textContent).toBe("Payments");
+
+  await userEvent.keyboard("x");
+  await expect.poll(names).toEqual([]);
+  expect(hint()).toBe("No frame name has this text.");
+});
+
+test("Enter takes the selected name: the list closes, the canvas shows the frame at its centre, never past 100%, and marks it with an accent ring; a pan ends the mark (Find a frame 3 to 4, E3 S15, Take, Pan, AMarkIsInView)", async () => {
+  const server = await boot(grid);
+  const at = await tab(server);
+  await expect.poll(() => shells().length).toBe(200);
+  await rafs(2);
+  expect(Number.parseFloat(zoomText() ?? "")).toBeLessThan(30);
+
+  const started = performance.now();
+  await findButton().click();
+  await userEvent.keyboard("f137");
+  await expect.poll(names).toEqual(["Frame f137"]);
+  await userEvent.keyboard("{Enter}");
+  const took = performance.now() - started;
+
+  await expect.poll(() => findBox().elements().length).toBe(0);
+  const found = shellOf("f137");
+  if (!found) throw new Error("no f137");
+  expect(found).toHaveAttribute("data-found", "");
+  expect(fromCentre(found)).toBe(0);
+  expect(zoomText()).toBe("100%");
+  const ring = getComputedStyle(found);
+  expect([ring.outlineStyle, ring.outlineWidth, ring.outlineColor]).toEqual([
+    "solid",
+    "2px",
+    "rgb(26, 102, 201)",
+  ]);
+  expect(took).toBeLessThan(10_000);
+
+  drag(30, 0);
+  await rest(at.clock);
+  expect(found.hasAttribute("data-found")).toBe(false);
+});
+
+test("Arrow Down moves the selection, and a click takes a name; Escape or Find closes the list and the canvas stays (Find a frame 3, 5; Close, OnlyATakeOrAPanMovesTheCanvas)", async () => {
+  const server = await boot([
+    frame("a1", 0, 0, { name: "Pricing" }),
+    frame("a2", 3000, 2000, { name: "Pricing, mobile" }),
+  ]);
+  const at = await tab(server);
+  await opened(at, 2);
+  const before = shellOf("a2")?.getBoundingClientRect();
+
+  await findButton().click();
+  await userEvent.keyboard("pric");
+  await userEvent.keyboard("{Escape}");
+  await expect.poll(() => findBox().elements().length).toBe(0);
+  expect(shellOf("a2")?.getBoundingClientRect()).toEqual(before);
+
+  await findButton().click();
+  await expect.element(findBox()).toBeVisible();
+  await findButton().click();
+  await expect.poll(() => findBox().elements().length).toBe(0);
+  expect(shellOf("a2")?.getBoundingClientRect()).toEqual(before);
+
+  await userEvent.keyboard("/");
+  await userEvent.keyboard("pric{ArrowDown}");
+  expect(page.getByRole("option", { selected: true }).element().textContent).toBe(
+    "Pricing, mobile",
+  );
+  await userEvent.keyboard("{ArrowUp}");
+  expect(page.getByRole("option", { selected: true }).element().textContent).toBe("Pricing");
+  await page.getByRole("option", { name: "Pricing, mobile" }).click();
+  await expect.poll(() => findBox().elements().length).toBe(0);
+  const found = shellOf("a2");
+  if (!found) throw new Error("no a2");
+  expect(fromCentre(found)).toBe(0);
+  expect(found).toHaveAttribute("data-found", "");
 });

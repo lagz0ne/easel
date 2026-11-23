@@ -4,6 +4,7 @@ import { z } from "zod";
 import { frames } from "@/frames";
 import { queue } from "@/queue";
 
+import { closeFind, findOpen } from "./find";
 import type { Shown } from "./follow";
 import { controlsFor, listMenu, panelOpen } from "./follow";
 import { keepName, keptName } from "./gate";
@@ -134,9 +135,13 @@ export const escape = operation({
     mode: requestMode.controller,
     opened: openedRequest.controller,
     panel: panelOpen.controller,
+    find: findOpen.controller,
     backToList,
+    closeFind,
   },
-  run: ({ drafts, mode, opened, panel, backToList }) => {
+  run: ({ drafts, mode, opened, panel, find, backToList, closeFind }) => {
+    if (find.get()) return closeFind.run();
+
     const draft = drafts.get();
     if (heldDraft.safeParse(draft).success) return;
     if (draft) {

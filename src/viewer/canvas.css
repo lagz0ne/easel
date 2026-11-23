@@ -1458,3 +1458,95 @@ span.e-opt[data-picked="false"] {
   outline: 2px solid var(--e-focus);
   outline-offset: 2px;
 }
+
+.e-shell[data-found] {
+  outline: calc(2px * var(--e-unzoom, 1)) solid var(--e-accent);
+  outline-offset: calc(2px * var(--e-unzoom, 1));
+}
+
+.e-shell[data-found] .e-label {
+  color: var(--e-accent);
+}
+
+.e-find {
+  position: absolute;
+  bottom: calc(var(--e-4) + 40px + var(--e-2));
+  left: 50%;
+  z-index: 3;
+  display: flex;
+  flex-direction: column;
+  box-sizing: border-box;
+  width: 320px;
+  max-width: calc(100% - var(--e-3) * 2);
+  padding: var(--e-2);
+  font-family: var(--e-font);
+  font-size: var(--e-size-2);
+  line-height: var(--e-leading-2);
+  color: var(--e-text);
+  background-color: var(--e-surface);
+  border: 1px solid var(--e-line);
+  border-radius: var(--e-radius-l);
+  box-shadow: var(--e-shadow);
+  transform: translateX(-50%);
+}
+
+.e-find-label {
+  margin: 0 0 var(--e-1);
+  font-size: var(--e-size-1);
+  font-weight: 600;
+}
+
+.e-find-box {
+  box-sizing: border-box;
+  width: 100%;
+  height: 32px;
+  padding: 0 var(--e-2);
+  font: inherit;
+  color: var(--e-text);
+  background-color: var(--e-surface);
+  border: 1px solid var(--e-line);
+  border-radius: var(--e-radius);
+}
+
+.e-find-box:focus-visible {
+  outline: 2px solid var(--e-focus);
+  outline-offset: 0;
+}
+
+.e-find-hint {
+  margin: var(--e-1) var(--e-1) 0;
+  font-size: var(--e-size-1);
+  color: var(--e-muted);
+}
+
+.e-find-names {
+  max-height: calc(28px * 8);
+  margin: var(--e-1) 0 0;
+  padding: 0;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  list-style: none;
+}
+
+.e-find-names [role="option"] {
+  padding: var(--e-1) var(--e-2);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  border-radius: var(--e-radius);
+  cursor: pointer;
+}
+
+.e-find-names [aria-selected="true"] {
+  background-color: var(--e-accent-bg);
+}
+
+@media (hover: hover) and (pointer: fine) {
+  .e-find-names [role="option"]:hover {
+    background-color: var(--e-hover);
+  }
+
+  .e-find-names [aria-selected="true"]:hover {
+    background-color: var(--e-accent-bg);
+  }
+}

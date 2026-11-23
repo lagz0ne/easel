@@ -196,6 +196,7 @@ export const stage = resource({
     const pops = new Set<HTMLElement>();
     let aimAt: { x: number; y: number } | null = null;
     let held: { x: number; y: number } | null = null;
+    let found: Shell | null = null;
     const pointers = new Map<number, { x: number; y: number }>();
     const showedAt = new Map<string, number>();
     const pinned = new Set<string>();
@@ -373,12 +374,14 @@ export const stage = resource({
 
       pan: (dx: number, dy: number) => {
         held = null;
+        at.endMark();
         cam = { ...cam, x: cam.x + dx, y: cam.y + dy };
         at.move();
       },
 
       zoomAt: (px: number, py: number, by: number) => {
         held = null;
+        at.endMark();
         const z = Math.min(maxZoom, Math.max(minZoom, cam.z * by));
         cam = { x: px - ((px - cam.x) * z) / cam.z, y: py - ((py - cam.y) * z) / cam.z, z };
         at.move();
@@ -386,6 +389,7 @@ export const stage = resource({
 
       fit: () => {
         if (!shells.size || !view.w || !view.h) return;
+        at.endMark();
         const boxes = [...shells.values()].map((s) => s.box);
         const x0 = Math.min(...boxes.map((b) => b.x));
         const y0 = Math.min(...boxes.map((b) => b.y));
@@ -761,6 +765,7 @@ export const stage = resource({
         placed = false;
         aimAt = null;
         held = null;
+        found = null;
 
         moving = false;
         labelZoom = 0;
@@ -905,6 +910,30 @@ export const stage = resource({
       unpaint: (id: string) => {
         if (closed || !(id in paints.get())) return;
         paints.update((p) => Object.fromEntries(Object.entries(p).filter(([key]) => key !== id)));
+      },
+
+      showFrame: (id: string) => {
+        const shell = shells.get(id);
+        if (!shell) return;
+        at.measure();
+        at.endMark();
+
+        const b = shell.box;
+        const across = Math.max(view.w - 2 * fitEdge, 1) / b.w;
+        const down = Math.max(view.h - 2 * fitEdge, 1) / b.h;
+        const z = Math.max(minZoom, Math.min(across, down, 1));
+        cam = { x: (view.w - b.w * z) / 2 - b.x * z, y: (view.h - b.h * z) / 2 - b.y * z, z };
+        held = null;
+        at.move();
+
+        shell.el.dataset.found = "";
+        found = shell;
+      },
+
+      endMark: () => {
+        if (!found) return;
+        delete found.el.dataset.found;
+        found = null;
       },
 
       show: (x: number, y: number) => {
