@@ -24,9 +24,11 @@ this spec wins, and the screen gets a fix.
 2. A dock at the bottom centre of the canvas holds the canvas tools: the button `Request` (tooltip
    "Ask for a change"), the button `Requests` (tooltip "Requests on this canvas"), then `Zoom out`,
    the zoom `status`, `Zoom in` and `Fit`. The buttons show icons, and their names are their
-   accessible names. A button shows pressed while its mode or its panel is on.
-3. The panel `Requests` opens at the right edge, over the full height under the toolbar. The
-   canvas and the dock use the rest of the width.
+   accessible names. A button shows pressed while its mode or its card is on.
+3. The card `Requests` floats over the canvas at its right edge, 12 px from the edges, under the
+   toolbar and above the band of the dock. The canvas and the dock keep the full width. Nothing
+   on the canvas moves when the card opens, changes or closes, as the comments of Figma and
+   Linear. Decided on 2026-11-23 (E4.4, requests #4 and #11).
 
 ### Open the link
 
@@ -92,7 +94,7 @@ this spec wins, and the screen gets a fix.
    the live document reloads with no white flash.
 2. An agent adds a frame. It shows in every tab.
 3. An agent moves or removes a frame. Every tab shows it moved, or gone along with its pins. The
-   requests of a removed frame stay in the panel, marked "may be outdated" ([queue](SPEC-queue.md)).
+   requests of a removed frame stay in the card, marked "may be outdated" ([queue](SPEC-queue.md)).
    A move is unreached until `frame.move` ships: the stage reads a shell's box once, so a moved
    frame would keep its old box for `Fit` and for what shows and goes live. The `frame.move` work
    fixes that, with a test that moves a frame far away and back.
@@ -130,8 +132,8 @@ this spec wins, and the screen gets a fix.
    the frame version that it shows.
 3. They type and press `Send`, or Enter. It sends `request.add` with the key and the version.
    While it sends, the text stays in the textbox, muted. When easel saves it, a pin (button
-   `Request #<n>`) shows at that place, in every tab on the canvas within 1 s. The popover shows
-   the new request, waiting, and the button `Request` turns off. The request shows in the list
+   `Request #<n>`) shows at that place, in every tab on the canvas within 1 s. The textbox goes,
+   the card opens on the new request, waiting, and the button `Request` turns off. The request shows in the list
    (E4.1 N5).
 4. Escape, or a press on `Request`, closes the textbox and sends nothing.
 5. If the call is refused, nothing is saved. The textbox stays with the text, gets a danger edge,
@@ -172,7 +174,8 @@ this spec wins, and the screen gets a fix.
    question, a result to check, or "needs a person" (E4.4 F2). Its name says the count, for
    example `Requests, 2 wait for you`. When the count is 0, the button has no count. The button
    shows no other number.
-2. The button opens and closes the panel (a `complementary` region named `Requests`). Its head
+2. The button opens and closes the card (a `complementary` region named `Requests`). The card
+   shows the list, or one request (step 10). The head of the list
    shows `Requests`, the same count, and a menu button that names the list on show: `Open` or
    `Done`. The menu gives the two lists, each with its count of rows.
 3. The list `Open` has two groups, each with a heading, newest first:
@@ -213,32 +216,35 @@ outdated: the frame was removed`, or `May be outdated: a long wait`. Only a wait
 7. Pins show on the canvas for the requests of the list `Open`. A pin is a bubble with the
    author's initial. It has the accent look while the request waits for a viewer, the danger look
    while it needs a person, and a quiet look else. A done or closed request has no pin, except
-   while its popover is open. The pins of a removed frame go with it.
+   while it is open in the card. The pins of a removed frame go with it.
 8. Each change of a request shows in every tab within 1 s, with no reload (E4.4 F4). A lease that
    runs out shows with no write to the board: the board stores no "in work" and no "needs a
    person". The page derives each state as the queue spec says, from the board and its estimate
    of the server's time. The board carries the server's clock offset, and a clock capsule keeps
    the estimate.
-9. A click on a row moves the canvas to the place of the request and opens it. A click on a pin
-   opens its request (E4.4 F3). The place comes to 40% of the canvas's width and height, at the
-   zoom as it is, so the popover has room. A request of a removed frame moves the canvas to where
+9. A click on a row opens the request in the card, and moves the canvas to the place of the
+   request. A click on a pin opens its request in the card, and the canvas stays (E4.4 F3). The place comes to 40% of the canvas's width and height, at the
+   zoom as it is, so the card does not cover it. A request of a removed frame moves the canvas to where
    the frame was: a dashed area that says "<frame> was removed", with the pin of the request in
    it. The board's cell `removed` gives the name and the last box of the frame. The area goes
-   when the popover closes.
-10. An open request is a popover next to its pin (a `dialog` named `Request #<n>`), and the list
-    stays open. It opens below its pin. With no room below, it goes above the pin, then to its
-    right, then to its left, as Floating UI's `flip`. It moves along that side to stay in the
-    canvas, as Floating UI's `shift`. It keeps 8 px from the edges of the canvas, and out of the
-    band of the dock (64 px at the bottom). It never covers its pin. It is placed again when its
-    size changes and when the canvas stops moving. The textbox of a new request is placed the
-    same way. Escape or its button `Close` (×) closes the popover; the request does not change.
-11. The head of the popover shows the state mark, `#<n>` and the place, then the button `More`
+   when the request leaves the card.
+10. An open request shows in the card in the place of the list (a `region` named
+    `Request #<n>`). Its pin shows pressed. The head has the button `Back` (an arrow) to go to the
+    list. `Back` or Escape goes back to the list, and Escape on the list closes the card. The
+    button `Close` (×) closes the card. A press on another pin or row opens that request in its
+    place. None of these changes the request. The textbox of a new request (§ Ask for a change)
+    stays a popover next to its pin. It opens below its pin; with no room below, it goes above
+    the pin, then to its right, then to its left, as Floating UI's `flip`. It moves along that
+    side to stay in the canvas, as Floating UI's `shift`. It keeps 8 px from the edges of the
+    canvas, out of the band of the dock (64 px at the bottom), and out of the card. It never
+    covers its pin. The chart is [viewer-card](docs/statecharts/viewer-card.md).
+11. The head of an open request shows `Back`, the state mark, `#<n>` and the place, then the button `More`
     and the button `Close` (×). `More` opens a menu: `Correct the request` (off while an agent works,
     with the hint "Agent works"), `Copy link`, and `Take back` (danger). `Take back` shows while
     the request is waiting, in work, a question, or needs a person. Then a viewer who is not the
     author sees `Close request` in its place. `Copy link` copies the link of the page with
-    `#request-<n>` after it. When the canvas opens at such a link, the panel and the popover of
-    request `<n>` open, and the canvas moves to the request as a click on its row does (step 9),
+    `#request-<n>` after it. When the canvas opens at such a link, the card opens on request
+    `<n>`, and the canvas moves to the request as a click on its row does (step 9),
     after the first Fit. Until the viewer pans or zooms, the place stays at 40% when the canvas
     changes size.
 12. The thread shows all the messages, oldest first, with a hairline above each message after
@@ -291,14 +297,14 @@ outdated: the frame was removed`, or `May be outdated: a long wait`. Only a wait
     is always `Close request`, as GitHub's "Close issue", so it never shares the name `Close` of
     the ×.
 
-16. If another viewer acted first (`wrongState`), nothing is saved. The popover shows the new
+16. If another viewer acted first (`wrongState`), nothing is saved. The card shows the new
     state, keeps the typed text in its textbox, and says who acted: "Not sent: Tom accepted this
     first. Your text is kept." When the new state takes the same text in another call, the text
     says so, and `Send` makes that call: after an accept, "Send it to open the request again"
     (`reopen`). A correction that an agent started on first says "Not saved: claude-1 started work
     on it first. Your text is kept.", with `Copy text` and `Take back` (E4.2 M20, E4.1 N10).
     `full` and `slow` keep the text too and say why. The page checks first: a text typed for a
-    state that the request left is not sent, and the popover says who acted, as above. Its
+    state that the request left is not sent, and the card says who acted, as above. Its
     `Send` is off when no call of the new state takes the text. The copy for the other answers:
     "Not sent: this request is not on the canvas any more. Your text is kept." (`gone`), "Not sent: this canvas
     has too many open requests. Your text is kept. Send again when some are done." (`full`),
@@ -339,7 +345,7 @@ width and height, added on each side of it.
 | Zoom status            | rounded down: steps of 10%; under 10% of 1%; under 1% of 0.1%         |
 | Label                  | kept at its screen size; rewritten after a 10% zoom drift and at rest |
 | Done, no answer        | a result that no viewer answers for 3 days (from its `updated`)       |
-| Request panel          | 340 px wide                                                           |
+| Request card           | 340 px wide; 12 px from the edges of the canvas                       |
 
 A shell's picture is its frame's address on the board: its version, the kit version and its key
 `k`, at scale 0.5,
@@ -394,9 +400,9 @@ camera controls.
    ([kit](SPEC-kit.md)). The look, the kit and the piece script come only from `compose`. No server
    module and no stored document carries the paint script. The script posts that the document painted, and answers a
    place with the box of the element there. It posts nothing else.
-9. The panel reads time only from the clock capsule, never from `Date.now()`.
+9. The card reads time only from the clock capsule, never from `Date.now()`.
 10. One page function derives the state of a request (queue spec, table `State`), and "done, no
-    answer" and "taken back" from it. The panel, the pin, the popover and the count all use it.
+    answer" and "taken back" from it. The card, the pin and the count all use it.
 
 ### Judged rules (need reading the code)
 
