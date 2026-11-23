@@ -284,6 +284,9 @@ when the link opens (S7).
 
 Decided on 2026-11-23: the viewer finds a frame by its name only (S15). Deferred: a find in the text
 that a frame shows. Add it when a viewer cannot find a frame by its name.
+Decided on 2026-11-23: the design of S15 is option A, Find in the dock: a button `Find` and the key
+`/` open a small list of frame names over the dock, as Miro and Excalidraw do. The user chose it on
+the easel canvas `s15-find-a-frame` (request #9), over a palette (B) and a Frames panel (C).
 
 ### E3.1 Share a canvas
 
@@ -493,6 +496,11 @@ Decided:
 - A viewer gets no notice outside the browser (mail, chat). A viewer has no address, and nothing
   blocks while a viewer is away. F6 covers the return.
 - A viewer sees the requests of one canvas only. An owner who needs all canvases uses the CLI.
+- The list and an open request show in one card, docked at the right edge of the view, over the
+  canvas. The card does not move when the canvas pans, and the canvas does not move when the card
+  opens. A press on a pin or a row opens its request in the card. The user decided it on
+  2026-11-23 (requests #4 and #11 on the canvas `s15-find-a-frame`): the drawer moved the canvas,
+  and the popover by the pin moved with each pan. Prior art: the comments panel of Miro.
 
 ### E4.5 Work reaches the agents of the team
 
