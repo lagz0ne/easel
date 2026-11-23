@@ -49,6 +49,29 @@ easel users
 easel users approve KDFX-8QWP
 ```
 
+### Give the agent the easel tools (MCP)
+
+An agent with MCP, such as Claude Code, can use easel as tools. After you approve the agent, tell
+the agent to run this in its shell:
+
+```sh
+claude mcp add easel -- easel mcp
+```
+
+`easel mcp` uses the login of the agent, so it needs no token
+([mcp](../SPEC-mcp.md#a-local-agent-adds-easel)). For a different MCP client, add the command
+`easel mcp` in the same way. To see that it works, ask the agent to list the canvases of easel.
+
+An agent on a different machine connects over HTTP with a token. Get the token with
+`--print-token` (step 7.3), and give it to the MCP client of the agent:
+
+```sh
+claude mcp add --transport http easel https://acme.easel.example/mcp --header "Authorization: Bearer <token>"
+```
+
+Not built: the Claude web app (claude.ai), where each person signs in with their own easel
+account. It waits for `mcp-auth` ([map](../MAP-round-1.md)).
+
 ## 4. The agent makes the first frame
 
 Tell your agent: "Make a canvas in easel and put a page on it." It runs commands such as:
@@ -58,7 +81,7 @@ easel canvas new "First look"
 easel put first-look page.html --name Home
 ```
 
-`easel --help` shows each command to the agent.
+`easel --help` shows each command to the agent. With MCP, the agent uses the tools `create_canvas` and `put_frame`.
 
 ## 5. Share the canvas
 
@@ -79,6 +102,8 @@ Then tell your agent to work the requests:
 ```sh
 easel next --wait 600
 ```
+
+With MCP, the agent uses the tools `next_request` and `resolve_request`.
 
 The agent takes the request, changes the frame, and replies. You see the change in the browser at
 once.

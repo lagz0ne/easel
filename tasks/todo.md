@@ -195,7 +195,7 @@ MCP tools makes a reference screen. The CLI help and SPEC-mcp say how to add eas
 - [x] A statechart and conformance review of the release: `mcp` adds no state of its own (each
       request makes and closes its server; the wait of `next_request` is the queue's, charted in
       the queue's model). No new chart.
-- [x] Review with the user (2026-11-23): SPD-8 done; SPD-9 deferred, and Q2 changed. Then the start steps (R2) and the `mcp-auth` delta spec.
+- [ ] Review with the user. Then the start steps (R2) and the `mcp-auth` delta spec.
 
 ## Phase 3: `speed` foundation
 
