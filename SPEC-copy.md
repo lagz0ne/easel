@@ -14,7 +14,7 @@ through MCP. Today each frame keeps its own texts. So two agents name one action
 a change of a name means a change to each frame.
 
 After this delta, each easel keeps the texts of the team in one place, next to the look. Each text
-has a text key. A ready frame shows each text by its text key. One change of a text reaches each
+has a text key. A ready frame shows each text of the team by its text key. One change of a text reaches each
 frame, and no frame changes. A second language is one more text for each text key.
 
 An agent that explores a design is not slowed by these rules. A frame is `exploring` until an
@@ -66,8 +66,13 @@ Prior art:
    `people.empty`: `^[a-z][a-z0-9-]*(\.[a-z0-9-]+)+$`, 80 characters at most.
 3. `texts.set` writes one or more texts. It makes a new kit version, as `look.set` does. With a
    base, a change made on an old revision is refused `stale` (as K14). No call removes a text key.
-4. In an app frame, `say("trial.start")` gives the text of the team in the locale of the frame. If
-   the team has no text for that text key, `say` gives the text of the part, if it has one.
+4. A part of an app frame gets its `t` from `say` in one of two forms:
+   - `say(["trial.start", "people.empty"])`: a list of text keys. `t` gives the texts of the team
+     only. This is the form of a ready frame.
+   - `say(texts)`: the own texts of the part (`Texts<K>`), as before. `t` gives the text of the
+     team for a text key that the team has, else the text of the part. This is the form of an
+     exploring frame.
+     In both forms, `t` gives the text of the locale of the frame, else the `en` text.
 5. The kit message carries the texts. The mount of each live document draws the frame again in a
    new scope, as for a new look. Each picture asks for the new kit version.
 6. `easel texts set <text key> "<text>" --locale vi` gives a text in `vi`. The locale pick of the
@@ -81,8 +86,10 @@ Prior art:
    before this delta is `exploring`.
 9. **The settle rules.** The check finds these in an app frame:
    - `copy/text`: a text key that the texts of the team do not have.
-   - `copy/own`: a text of a part that is not the text of the team for its text key.
-   - `copy/key`: a text key that is not written as it is (a variable).
+   - `copy/own`: each own text of a part (`say(texts)`), also a text that is the same as the text
+     of the team. So a change of the texts of the team cannot make a ready frame unsettled.
+   - `copy/key`: a first argument of `say` that is not a list of text keys or the texts of the
+     part (a variable that the check cannot read).
    - `look/color` and `look/size`: a color or a size that is not in the look.
      Each finding names the place, what is there, and the fix: `easel texts set <text key>
 "<text>"`, remove the text from the part, or the class of the look.
@@ -92,7 +99,9 @@ Prior art:
 11. **Mark a frame ready.** `frame.ready` checks the current version. With no finding of the
     settle rules, the status becomes `ready`. Else the answer is `unsettled`, with each finding
     and its fix, and nothing changes.
-12. **A ready frame.** A put applies the fixes by position, as today. A finding with no fix (each
+12. **A ready frame.** A put applies the fixes by position, as today, and easel keeps the fixed
+    TSX. An HTML frame stays exploring: `frame.ready` on it answers `unsettled`, with one finding
+    "only an app frame can be ready". A finding with no fix (each
     `copy/*` finding) refuses the put `unsettled`. The frame keeps its version and its status.
     `frame.put` with `ready: true` makes or changes a frame and marks it ready in one call.
 13. `frame.explore` gives a ready frame the status `exploring` again.
