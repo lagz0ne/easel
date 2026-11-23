@@ -905,6 +905,8 @@ export function Canvas({ canvas, opening }: { canvas: string; opening: React.Rea
   useResource(escapeKey);
   const pick = useRun(pickPlace);
   const asking = useData(requestMode);
+  // The CSS gives request mode its pointer.
+  const mode = useData(requestMode, (on) => (on ? "request" : "view"));
   const panel = useData(panelOpen);
   useData(clockTicker({ canvas }));
   const kitNow = useData(kitFeed({ canvas }));
@@ -913,7 +915,7 @@ export function Canvas({ canvas, opening }: { canvas: string; opening: React.Rea
   if (state?.status === "fault" && ended.safeParse(state.fault.payload).success) return opening;
 
   return (
-    <main className="e-canvas" data-panel={panel ? "open" : "closed"}>
+    <main className="e-canvas" data-panel={panel ? "open" : "closed"} data-mode={mode}>
       <section
         ref={at.viewport}
         className="e-viewport"

@@ -501,6 +501,18 @@ test("the dock at the bottom centre holds the canvas tools as icons, named: Requ
   expect(requestButton().element()).toHaveAttribute("aria-pressed", "false");
 });
 
+test("in request mode the pointer over the canvas is the request pointer, a speech bubble; out of it, the hand (Ask for a change 1)", async () => {
+  const server = await boot();
+  await tab(server);
+  const pointer = () => getComputedStyle(frameList().element()).cursor;
+
+  expect(pointer()).toBe("grab");
+  await requestButton().click();
+  expect(pointer()).toMatch(/^url\("data:image\/svg\+xml,.+"\) 2 22, crosshair$/);
+  await requestButton().click();
+  expect(pointer()).toBe("grab");
+});
+
 test("a browser that kept a name sends it at open, so its first Send asks nothing; Enter sends (E3 V4)", async () => {
   const server = await boot();
   localStorage.setItem(nameKey, "Bo");

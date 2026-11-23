@@ -114,6 +114,8 @@ this spec wins, and the screen gets a fix.
 ### Ask for a change
 
 1. A viewer presses the button `Request` (it shows pressed), and the canvas goes into request mode.
+   The pointer over the canvas is then the speech bubble of `Request`, with its tip at the tail
+   (as in the comment mode of Figma and Miro).
 2. They click a part of a frame. The part gets an outline and a draft pin. The page cannot read
    the frame's document in its sandbox, so it asks the paint script in the frame for the box of
    the element at the place clicked, and draws the outline from the answer, cut to the frame (as
