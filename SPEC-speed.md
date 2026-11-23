@@ -1,6 +1,6 @@
 # Spec: speed — V1
 
-Status: proposed (2026-11-23), for review.
+Status: approved (2026-11-23).
 
 Module `speed` of [SPEC.md](SPEC.md). It measures the viewer ([viewer](SPEC-viewer.md)) and the
 frames ([frames](SPEC-frames.md)), and changes them only to take work off the critical path. Map:
@@ -48,9 +48,13 @@ Prior art:
    opens Chromium (with the flags of canvas-speed.md "How to measure"), and does each step 7
    times. It reads the marks and prints one line for each step: p50, p95 and the budget.
 3. **The gate.** `bun run speed -- --gate --base <sha>` builds the binary of `<sha>` and of the
-   tree, and runs the two interleaved. A step fails when its p50 is over its budget, or more than
-   10% over the p50 of the base. A failed step runs one time again before the gate says red.
-   The gate runs on vibea2 (`offload`), as the other heavy runs do.
+   tree, and runs the two interleaved. A step fails when its p50 is over its budget (Q2). A step
+   whose p50 is more than 10% over the p50 of the base gives an alert, not a failure. A failed
+   step runs one time again before the gate says red. The gate is the `speed` job of CI `gates`,
+   on each push to `main`, with the commit before the push as the base. A red stops the deploy
+   and opens `trunk-red`, as each red gate does. An alert opens a `speed-slower` issue. Prior
+   art: Chromium and Mozilla (Perfherder) measure time after the commit and alert; Lighthouse CI
+   fails a run over its budget. By hand, `offload` runs the same command on vibea2.
 4. **The hot path (Q3).** `speed.json` holds the budgets and the hot path list: each resource
    that the page may load, and each long task that it may run, before `easel:open`, each with
    its reason. The run records the requests (Playwright) and the long tasks (a
@@ -71,6 +75,7 @@ smoke), zod for `speed.json`.
 Measure:  bun run speed                         # each step on the tree, a table
 Gate:     bun run speed -- --gate --base HEAD   # the tree against the base
 On vibea2: offload -- bun run speed -- --gate --base HEAD
+In CI:    .github/workflows/gates.yml, job speed # each push to main, before the deploy
 Check:    bun run check:plain                   # the tests of the gate's logic
 ```
 
@@ -110,10 +115,11 @@ export const speedVerdict = operation({
 
 ## Boundaries
 
-- Always: interleave the base and the tree; run the gate on vibea2; give each item of the hot
-  path list its reason; show the change of each step in the ship that moves work off the path.
-- Ask first: add the gate to `scripts/ship.sh` (all agents use it, and it adds time to each
-  ship); change a budget; change the reference flags of Chromium.
+- Always: interleave the base and the tree; run the gate in CI, and by hand only on vibea2; give
+  each item of the hot path list its reason; show the change of each step in the ship that moves
+  work off the path.
+- Ask first: make the 10% alert a failure; add the gate to `scripts/ship.sh`; change a budget;
+  change the reference flags of Chromium.
 - Never: make a step faster by a change that the person sees as worse (a white box, a late
   picture, a lost pin); raise a budget to make the gate green; measure on vibea while it runs
   the live apps.
@@ -123,7 +129,9 @@ export const speedVerdict = operation({
 - `bun run speed` prints p50 and p95 of each step at 20 and 200 frames, against its budget.
 - `open` is at most 2000 ms, `change` and `ask` at most 1000 ms, and a 2 s pan on 200 frames has
   no frame over 100 ms (Q1, Q2).
-- The gate fails a test change that adds 300 ms to `open`, and passes the tree with no change.
+- The gate passes the tree with no change. It gives an alert for a test change that adds 300 ms
+  to `open`, and it fails a test change that puts `open` over its budget. A red `speed` job
+  stops the deploy.
 - Before `easel:open`, the page loads only what the hot path list holds, each with a reason (Q3).
   A test change that loads one more script before `easel:open` fails the run.
 - `tinker check` is OK.
@@ -138,9 +146,8 @@ export const speedVerdict = operation({
 
 ## Open Questions
 
-1. The reference: Chromium on vibea2 with no CPU or network throttle, or with a throttle that
-   is like a laptop of the team (for example 4× CPU, 40 ms round trip)? I recommend no throttle
-   for the gate (stable numbers, compared with the base), and one throttled run in the report.
-2. The gate in `scripts/ship.sh` for each ship that changes `src/`: it adds about 3 minutes on
-   vibea2. I recommend it for each ship that changes `src/viewer`, `src/frames` or `src/kit`, and
-   not for the others.
+1. Decided (2026-11-23): the reference has no CPU or network throttle, for stable numbers that
+   the gate compares with the base. The report has one throttled run (4× CPU, 40 ms round trip).
+2. Decided (2026-11-23): the gate is a job of CI `gates`, not a step of `scripts/ship.sh`. Q2 asks
+   that a slower change "does not reach the teams", and a change reaches them at the deploy, which
+   waits for `gates`. So no ship takes more time, and a noisy run blocks no agent.

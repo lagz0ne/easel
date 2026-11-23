@@ -1,0 +1,366 @@
+# Tasks: Round 1, modules `mcp` and `speed`
+
+The plan is in [plan.md](plan.md). Each task ends green and lands with
+`scripts/ship.sh -m "<type>(<scope>): <msg>" -- <paths>`. Write the failing test first
+(`test-driven-development`). Run heavy tests on vibea2: `offload -- bun run test <file>`. The
+tests that need the database of vibea stay on vibea.
+
+Each task passes these checks before its ship:
+
+- `bun run check:plain` prints `tinker check: OK`.
+- `bun run check:style` is clean.
+- `offload -- bun run test <the task's test files>` is green.
+
+## Phase 1: `mcp` foundation
+
+### MCP-1: `easel mcp` over stdio, with one tool
+
+**Description:** A person runs `easel mcp`, and an MCP client lists one tool, `list_canvases`, and
+calls it. The call goes through the rpc client of the CLI with the token of `hosts.json`. This
+task makes the full path: the table builder, the server, the stdio command and the result
+(`structuredContent`, and `isError` from the success list).
+
+**Acceptance criteria:**
+
+- [ ] An SDK `Client` over stdio lists `list_canvases`, with its input and output JSON Schema
+      from the contract and the annotation `readOnlyHint: true`.
+- [ ] A call answers the canvases of the token's user in `structuredContent`, unchanged.
+- [ ] With no `hosts.json` entry, the command exits with the same text as the other commands
+      ("run `easel login`").
+
+**Verification:**
+
+- [ ] `tests/mcp-stdio.test.ts`: a server in the same process, `easel mcp` as a child process,
+      the SDK client.
+- [ ] By hand: `claude mcp add easel-dev -- bun cmds/easel.ts mcp`, then `/mcp` shows 1 tool.
+
+**Dependencies:** none.
+
+**Files likely touched:** `src/mcp/tools.ts`, `src/mcp/server.ts`, `src/cli/mcp.ts`,
+`cmds/easel.ts`, `tests/mcp-stdio.test.ts`.
+
+**Estimated scope:** M.
+
+### MCP-2: the full tool table, from the contract
+
+**Description:** Each row of the SPEC-mcp contract table becomes a tool, with its description,
+its annotations, and the `instructions` of the server. A test reads each rpc contract of easel and
+finds each address that is in neither list or in both (fact rule 2).
+
+**Acceptance criteria:**
+
+- [ ] `tools/list` gives the 37 tools of the table, and no other.
+- [ ] The fact rule 2 test fails when a test contract adds one call that is in neither list.
+- [ ] Each description has two sentences at most (judged rule 3). The queue tools add the sentence
+      on the frame that a request allows.
+
+**Verification:**
+
+- [ ] `tests/mcp-table.test.ts`.
+- [ ] By hand: read the `tools/list` output one time for the descriptions.
+
+**Dependencies:** MCP-1.
+
+**Files likely touched:** `src/mcp/tools.ts`, `src/mcp/server.ts`, `tests/mcp-table.test.ts`.
+
+**Estimated scope:** S.
+
+### MCP-3: `POST /mcp` over HTTP, with the bearer token
+
+**Description:** A remote client posts to `/mcp` with `Authorization: Bearer <token>`. The
+route runs the `user` guard one time, then one server and one transport serve the request, and
+both close after it. A tool call runs the contract operation through the api capsules of the
+socket, in a session with the token, so each `onStart` guard runs.
+
+**Acceptance criteria:**
+
+- [ ] A missing, wrong or revoked token answers 401, with the header
+      `WWW-Authenticate: Bearer realm="easel"`. A foreign `Origin` answers 403.
+- [ ] An owner tool (`list_users`) with a user token is refused over HTTP and over stdio
+      (fact rule 3).
+- [ ] Two requests in a row share no server and no transport (judged rule 2).
+
+**Verification:**
+
+- [ ] `tests/mcp-http.test.ts`: the SDK client with `StreamableHTTPClientTransport` against the
+      server in the same process.
+- [ ] `bun run build`, then `bun run smoke` is green.
+
+**Dependencies:** MCP-2.
+
+**Files likely touched:** `src/mcp/http.server.ts`, `cmds/server.ts`, `tests/mcp-http.test.ts`.
+
+**Estimated scope:** M.
+
+### Checkpoint A: after MCP-1 to MCP-3
+
+- [ ] Claude Code lists the 37 tools over stdio, and over HTTP with
+      `claude mcp add --transport http easel <url>/mcp --header "Authorization: Bearer <token>"`.
+- [ ] `tinker check: OK`, the smoke is green, CI `gates` is green.
+- [ ] Review with the user before phase 2.
+
+## Phase 2: `mcp` complete
+
+### MCP-4: the queue loop through MCP
+
+**Description:** An agent works a request only through the tools: `next_request`, `get_frame`,
+`put_frame`, `shot_frame`, `resolve_request`, `ask_request`, `decline_request` and
+`release_request`. `next_request` waits 50 s at most for each call.
+
+**Acceptance criteria:**
+
+- [ ] One test runs the full loop over HTTP, and the same test runs it over stdio.
+- [ ] With no request, `next_request` answers after 50 s at most, and Bun does not cut the call.
+- [ ] A put to a frame that the request does not allow is a tool error.
+
+**Verification:**
+
+- [ ] `tests/mcp-queue.test.ts` (it needs the database: run it on vibea).
+
+**Dependencies:** MCP-3.
+
+**Files likely touched:** `src/mcp/tools.ts`, `cmds/server.ts` (the idle timeout of the route),
+`tests/mcp-queue.test.ts`.
+
+**Estimated scope:** M.
+
+### MCP-5: each kind and each fault of each tool
+
+**Description:** Each kind of each call that has a tool is reached in a test through MCP. Each of
+the 7 Tinker faults becomes one line of text that says what to do next. No tool error carries a
+trace, a token, a password, a share token, a pass or an input value.
+
+**Acceptance criteria:**
+
+- [ ] `tinker check` finds no exit of `src/mcp` that a test does not reach.
+- [ ] A test for each fault (`refused`, `failed`, `invalid`, `encode`, `decode`, `missing`,
+      `link`) checks its text.
+- [ ] A test puts a known secret in the input of each kind of error, and does not find it in
+      the answer (judged rule 1).
+
+**Verification:**
+
+- [ ] `tests/mcp-kinds.test.ts`, `tests/mcp-faults.test.ts`.
+
+**Dependencies:** MCP-3. It can run at the same time as MCP-4.
+
+**Files likely touched:** `src/mcp/faults.ts`, `src/mcp/server.ts`, `tests/mcp-kinds.test.ts`,
+`tests/mcp-faults.test.ts`.
+
+**Estimated scope:** M.
+
+### MCP-6: a real client, and the docs
+
+**Description:** Claude Code adds easel and uses it as a person does. A new agent with only the
+MCP tools makes a reference screen. The CLI help and SPEC-mcp say how to add easel.
+
+**Acceptance criteria:**
+
+- [ ] `claude mcp add easel -- easel mcp` (the built binary), then `list_canvases` answers.
+- [ ] A new subagent with only the easel MCP tools reads `kit_guide` and puts a reference screen
+      with no finding.
+- [ ] `easel --help` has an `mcp` line.
+
+**Verification:**
+
+- [ ] By hand: the two runs above, with their output in the ship message.
+- [ ] `tests/cli-help.test.ts` (or the test that holds the help text).
+
+**Dependencies:** MCP-4, MCP-5.
+
+**Files likely touched:** `src/cli/index.ts`, `SPEC-mcp.md` (Status), the CLI help test.
+
+**Estimated scope:** S.
+
+### Checkpoint B: after MCP-4 to MCP-6
+
+- [ ] Each success criterion of SPEC-mcp is met.
+- [ ] A statechart and conformance review of the release (the `next_request` wait, if it has
+      state of its own).
+- [ ] Review with the user. Then the start steps (R2) and the `mcp-auth` delta spec.
+
+## Phase 3: `speed` foundation
+
+### SPD-1: the marks of the critical path
+
+**Description:** The page marks the end of each step: `easel:open` when each frame in view shows
+its picture or its live document, `easel:change:<frame id>:<version>` when a new version shows,
+and `easel:ask:<request id>` when a pin shows. A mark is one `performance.mark`.
+
+**Acceptance criteria:**
+
+- [ ] `easel:open` comes after the last frame in view shows, and not before.
+- [ ] `easel:change:*` comes with the new version, and not before it shows.
+- [ ] `easel:ask:*` comes when the pin shows in another tab.
+
+**Verification:**
+
+- [ ] `tests/browser/viewer-kit.test.tsx`: three new tests.
+- [ ] `bun run smoke` is green.
+
+**Dependencies:** none.
+
+**Files likely touched:** `src/viewer/stage.ts`, `src/viewer/canvas.tsx`,
+`tests/browser/viewer-kit.test.tsx`.
+
+**Estimated scope:** S.
+
+### SPD-2: the verdict, and `speed.json`
+
+**Description:** The operation `speedVerdict` gives the verdict of one step: `inTime`,
+`overBudget` or `slowerThanBase`. `speed.json` holds the budgets and the hot path list, and a zod
+schema reads it. An item of the list with no reason is a finding.
+
+**Acceptance criteria:**
+
+- [ ] A test reaches each kind of `speedVerdict`.
+- [ ] A test finds an item that is not on the list, and an item with no reason.
+- [ ] `speed.json` holds the 4 budgets of SPEC-speed and an empty list.
+
+**Verification:**
+
+- [ ] `tests/speed.test.ts`.
+
+**Dependencies:** none.
+
+**Files likely touched:** `src/speed/verdict.ts`, `src/speed/budget.ts`, `speed.json`,
+`tests/speed.test.ts`.
+
+**Estimated scope:** S.
+
+### SPD-3: the run, for `open` and `change` at 20 frames
+
+**Description:** `bun run speed` builds the binary, starts it with a seed of 20 frames, opens
+Chromium with the flags of canvas-speed.md, and does `open` (warm, and one cold) and `change` 7
+times each. It prints p50, p95 and the budget of each step.
+
+**Acceptance criteria:**
+
+- [ ] The output has one line for each step, with p50, p95, the budget and the verdict.
+- [ ] Two runs in a row on vibea2 give p50 values within 10% of each other.
+
+**Verification:**
+
+- [ ] `offload -- bun run speed`: its output goes in the ship message.
+
+**Dependencies:** SPD-1, SPD-2.
+
+**Files likely touched:** `scripts/speed.ts`, `scripts/speed-seed.ts`, `package.json` (the
+`speed` script).
+
+**Estimated scope:** M.
+
+### SPD-4: the run, for `ask`, `pan`, and 200 frames
+
+**Description:** The run adds `ask` (two tabs), `pan` (a 2 s pan, with the long frames from a
+`PerformanceObserver`), and a seed of 200 frames for `open`, `change` and `pan`. It adds one
+throttled run (4× CPU, 40 ms round trip) to the report only.
+
+**Acceptance criteria:**
+
+- [ ] The output has each step at 20 frames, and `open`, `change` and `pan` at 200 frames.
+- [ ] `pan` gives the longest frame in ms, against its budget of 100 ms.
+
+**Verification:**
+
+- [ ] `offload -- bun run speed`: its output goes in the ship message.
+
+**Dependencies:** SPD-3.
+
+**Files likely touched:** `scripts/speed.ts`, `scripts/speed-seed.ts`.
+
+**Estimated scope:** M.
+
+### Checkpoint C: after SPD-1 to SPD-4
+
+- [ ] The first numbers of each step, at 20 and 200 frames, are in `docs/canvas-speed.md`
+      ("Budgets").
+- [ ] A step that is over its budget today gets a task before phase 4.
+- [ ] Review with the user.
+
+## Phase 4: `speed` gate
+
+### SPD-5: the gate against a base
+
+**Description:** `bun run speed -- --gate --base <sha>` builds the binary of the base from
+`git archive` and of the tree. It runs the two in turn, 7 times. A step over its budget is red
+after one run again. A step more than 10% slower than the base is an alert.
+
+**Acceptance criteria:**
+
+- [ ] The tree with no change passes, with no alert.
+- [ ] A test change that adds 300 ms to `open` gives an alert. A test change that puts `open`
+      over 2000 ms is red.
+- [ ] The exit code is 0 for green, 1 for red, and 0 with an alert line for an alert.
+
+**Verification:**
+
+- [ ] `offload -- bun run speed -- --gate --base HEAD`, 3 times: on the tree, with +300 ms, and
+      over the budget. Their output goes in the ship message.
+
+**Dependencies:** SPD-2, SPD-4.
+
+**Files likely touched:** `scripts/speed.ts`, `src/speed/verdict.ts`, `tests/speed.test.ts`.
+
+**Estimated scope:** M.
+
+### SPD-6: the hot path list
+
+**Description:** The run records each request and each long task before `easel:open`. An item
+that is not in the list of `speed.json` fails the run, with its name and the fix. The first run
+writes the list of today, and each item gets a reason.
+
+**Acceptance criteria:**
+
+- [ ] `speed.json` holds the list of today, each item with a reason.
+- [ ] A test change that loads one more script before `easel:open` fails the run, with the name
+      of the script and the fix.
+
+**Verification:**
+
+- [ ] `offload -- bun run speed`, with and without the test change.
+- [ ] `tests/speed.test.ts`: the finding of the list.
+
+**Dependencies:** SPD-3.
+
+**Files likely touched:** `scripts/speed.ts`, `speed.json`, `src/speed/budget.ts`,
+`tests/speed.test.ts`.
+
+**Estimated scope:** S.
+
+### SPD-7: the `speed` job in CI `gates`
+
+**Description:** A `speed` job in `gates.yml` runs the gate on each push to `main`, with the
+commit before the push as the base. A red job makes `gates` red, so the deploy does not run and
+`trunk-red` opens. An alert opens a `speed-slower` issue and blocks nothing.
+
+**Acceptance criteria:**
+
+- [ ] A push with no change of speed keeps `gates` green, and the deploy runs.
+- [ ] A red `speed` job stops the deploy.
+- [ ] An alert opens one `speed-slower` issue with the step, the two p50 values and the commit.
+
+**Verification:**
+
+- [ ] The first push: the job is green, and its numbers are in the job log.
+- [ ] `gh workflow run gates` on a test commit that is over the budget: the job is red, and
+      `deploy` does not run. Revert it with `scripts/ship.sh -r <sha>`.
+
+**Dependencies:** SPD-5, SPD-6.
+
+**Files likely touched:** `.github/workflows/gates.yml`. It is shared: tell the other agents
+before the ship.
+
+**Estimated scope:** S.
+
+### Checkpoint D: after SPD-5 to SPD-7
+
+- [ ] Each success criterion of SPEC-speed is met.
+- [ ] Write SPD-8 and after: one task for each item of the first hot path list that the first
+      view does not show. Each moves after `easel:open` in its own ship, with the change of
+      `open` in the ship message.
+- [ ] Review with the user.
+
+## Phase 5: off the hot path
+
+Written at checkpoint D.
