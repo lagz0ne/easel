@@ -530,6 +530,7 @@
   transform-origin: top left;
 }
 
+/* A popover (the design system's Popover): 340 px, a hairline edge, the large radius. */
 .e-pop {
   position: absolute;
   top: var(--e-2);
@@ -537,13 +538,16 @@
   display: flex;
   flex-direction: column;
   gap: var(--e-3);
-  width: 320px;
-  padding: var(--e-3);
+  box-sizing: border-box;
+  width: 340px;
+  padding: var(--e-3) var(--e-4) var(--e-4);
   font-family: var(--e-font);
   font-size: var(--e-size-2);
+  line-height: var(--e-leading-2);
   color: var(--e-text);
   background-color: var(--e-surface);
-  border-radius: var(--e-radius);
+  border: 1px solid var(--e-line);
+  border-radius: var(--e-radius-l);
   box-shadow: var(--e-shadow);
 }
 
@@ -557,23 +561,26 @@
   align-items: flex-start;
 }
 
+/* An avatar (the design system's Avatar, size m): a 24 px circle; an agent's is a square. */
 .e-avatar {
   display: grid;
   flex: none;
   place-items: center;
-  width: var(--e-5);
-  height: var(--e-5);
-  font-size: var(--e-size-1);
-  font-weight: 600;
-  background-color: var(--e-bg);
-  border-radius: 50%;
+  width: 24px;
+  height: 24px;
+  font-size: var(--e-size-0);
+  font-weight: var(--e-w-strong);
+  line-height: 1;
+  background-color: var(--e-hover);
+  border-radius: var(--e-radius-full);
+  box-shadow: inset 0 0 0 1px var(--e-line);
 }
 
 .e-field {
   display: flex;
   flex: 1;
   flex-direction: column;
-  gap: var(--e-1);
+  gap: var(--e-0);
   min-width: 0;
 }
 
@@ -697,25 +704,62 @@
   border: 0;
 }
 
+/* The head of a request (the design system's ThreadHead): one 40 px line over the top edge of the
+   popover, with a hairline under it. Its fill says that the request waits for the viewer. */
 .e-head {
   display: flex;
+  gap: var(--e-2);
   align-items: center;
   justify-content: space-between;
+  box-sizing: border-box;
+  height: 40px;
+  padding: 0 var(--e-2) 0 var(--e-4);
+  margin: calc(var(--e-3) * -1) calc(var(--e-4) * -1) 0;
   font-size: var(--e-size-1);
+  line-height: var(--e-leading-1);
   color: var(--e-muted);
+  border-bottom: 1px solid var(--e-line);
+  border-radius: var(--e-radius-l) var(--e-radius-l) 0 0;
 }
 
+.e-head[data-tone="waits"] {
+  background-color: var(--e-accent-bg);
+}
+
+.e-head[data-tone="person"] {
+  background-color: var(--e-danger-bg);
+}
+
+/* More and Close: a 14 px icon in a 28 px button. */
 .e-close {
-  padding: 0 var(--e-1);
-  font-size: var(--e-size-3);
+  display: grid;
+  flex: none;
+  place-items: center;
+  width: 28px;
+  height: 28px;
+  padding: 0;
   color: var(--e-muted);
   background: none;
   border: 0;
+  border-radius: var(--e-radius);
   cursor: pointer;
 }
 
+@media (hover: hover) and (pointer: fine) {
+  .e-close:hover {
+    color: var(--e-text);
+    background-color: var(--e-hover);
+  }
+}
+
 .e-who {
-  font-weight: 600;
+  font-weight: var(--e-w-normal);
+}
+
+.e-who strong {
+  font-size: var(--e-size-2);
+  font-weight: var(--e-w-strong);
+  color: var(--e-text);
 }
 
 /* The gate pages keep the text of a request being typed, to copy. */
@@ -1181,7 +1225,7 @@
 .e-thread {
   display: flex;
   flex-direction: column;
-  gap: var(--e-2);
+  gap: var(--e-3);
   padding: 0;
   margin: 0;
   list-style: none;
@@ -1195,20 +1239,25 @@
 
 /* A hairline above each message after the first. */
 .e-msg ~ .e-msg {
-  padding-top: var(--e-2);
-  border-top: 1px solid var(--e-divider, var(--e-bg));
+  padding-top: var(--e-3);
+  border-top: 1px solid var(--e-divider);
 }
 
 .e-avatar[data-agent="true"] {
   color: var(--e-surface);
   background-color: var(--e-text);
-  border-radius: var(--e-1);
+  border-radius: var(--e-radius-s);
+  box-shadow: none;
 }
 
+/* The name and the time of a message (the design system's Message head). */
 .e-msg .e-who {
   display: flex;
   gap: var(--e-2);
   align-items: baseline;
+  font-size: var(--e-size-1);
+  line-height: var(--e-leading-3);
+  color: var(--e-muted);
 }
 
 .e-when {

@@ -776,6 +776,54 @@ test("a wheel over the thread of a popover scrolls the thread, not the canvas: t
   expect(getComputedStyle(thread).overscrollBehaviorY).toBe("contain");
 });
 
+test("the popover has the look of the design system: a 40 px head with a line under it, filled while a question waits; 13/20 text; a name of weight 600; a round 24 px avatar, square for an agent; icons for More and Close (Popover, ThreadHead, Message)", async () => {
+  const server = await boot(() => {
+    const r = stored(1, "Make the logo bigger.", { status: "asking", claimedBy: "claude-1" });
+    store.messages.push(said(r, "question", "claude-1", "Which logo?", r.created + 1));
+  });
+  await tab(server);
+  await pin(1).click();
+  const dialog = page.getByRole("dialog", { name: "Request #1" });
+  await expect.element(dialog.getByText("Which logo?")).toBeVisible();
+  const pop = dialog.element();
+  const all = (selector: string) =>
+    [...pop.querySelectorAll(selector)].map((el) => getComputedStyle(el));
+  const one = (selector: string) => {
+    const [first] = all(selector);
+    if (!first) throw new Error(`no ${selector}`);
+    return first;
+  };
+
+  const box = getComputedStyle(pop);
+  expect([box.width, box.borderTopWidth, box.borderTopLeftRadius]).toEqual([
+    "340px",
+    "1px",
+    "12px",
+  ]);
+  const head = one("header");
+  expect([head.height, head.borderBottomWidth]).toEqual(["40px", "1px"]);
+  expect(head.backgroundColor).toBe("rgb(238, 244, 252)");
+  const text = one(".e-text");
+  expect([text.fontSize, text.lineHeight]).toEqual(["13px", "20px"]);
+  const name = one(".e-who strong");
+  expect([name.fontSize, name.fontWeight]).toEqual(["13px", "600"]);
+  const [person, agent] = all(".e-avatar");
+  expect([person?.width, person?.height, person?.borderTopLeftRadius]).toEqual([
+    "24px",
+    "24px",
+    "999px",
+  ]);
+  expect(agent?.borderTopLeftRadius).toBe("6px");
+  for (const label of ["More", "Close"]) {
+    const button = dialog.getByRole("button", { name: label, exact: true }).element();
+    expect(button.querySelector("svg")).not.toBeNull();
+    expect([getComputedStyle(button).width, getComputedStyle(button).height]).toEqual([
+      "28px",
+      "28px",
+    ]);
+  }
+});
+
 test("while the socket is down the list may be behind and says Reconnecting; when it is back, the board read brings each change (s16 to s19, s19 to s16, PanelShowsLatest)", async () => {
   const server = await boot(() => stored(1, "Make the logo bigger."));
   const t = await tab(server);

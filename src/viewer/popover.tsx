@@ -403,6 +403,22 @@ function Decide({ v, here }: { v: RequestView; here: Acts }) {
 /** The states whose controls are `Open again`, and `Accept` for a result (step 15). */
 const decided: readonly Shown[] = ["result", "accepted", "doneNoAnswer"];
 
+/**
+ * The fill of the head (ThreadHead `tone`): `waits` while a question or a result waits for the
+ * viewer, `person` while the request needs a person, `plain` for the rest.
+ */
+const headTone: Record<Shown, "plain" | "waits" | "person"> = {
+  waiting: "plain",
+  inWork: "plain",
+  question: "waits",
+  result: "waits",
+  person: "person",
+  accepted: "plain",
+  doneNoAnswer: "plain",
+  closed: "plain",
+  takenBack: "plain",
+};
+
 /** The controls of the request's state (step 15), or the textbox the viewer opened. */
 function Controls({ v, here }: { v: RequestView; here: Acts }) {
   if (here.box) return <BoxForm v={v} box={here.box} here={here} />;
@@ -470,7 +486,11 @@ function More({ v }: { v: RequestView }) {
         aria-expanded={open}
         onClick={() => toggle.run()}
       >
-        ⋯
+        <svg width="14" height="14" viewBox="0 0 14 14" aria-hidden="true">
+          <circle cx="3" cy="7" r="1.2" fill="currentColor" />
+          <circle cx="7" cy="7" r="1.2" fill="currentColor" />
+          <circle cx="11" cy="7" r="1.2" fill="currentColor" />
+        </svg>
       </button>
       {open ? <MoreMenu v={v} /> : null}
     </div>
@@ -502,7 +522,7 @@ export function Opened({ v, list }: { v: RequestView; list: readonly FrameInfo[]
 
   return (
     <section ref={at.pop} className="e-pop e-req" role="dialog" aria-label={`Request #${r.n}`}>
-      <header className="e-head">
+      <header className="e-head" data-tone={headTone[v.shown]}>
         <StateMark shown={v.shown} agent={r.claimedBy} />
         {v.outdated ? <OutdatedMark cause={v.outdated.cause} /> : null}
         <span className="e-head-ref">
@@ -511,7 +531,14 @@ export function Opened({ v, list }: { v: RequestView; list: readonly FrameInfo[]
         </span>
         <More v={v} />
         <button type="button" className="e-close" aria-label="Close" onClick={() => close.run()}>
-          ×
+          <svg width="14" height="14" viewBox="0 0 14 14" aria-hidden="true">
+            <path
+              d="M3.5 3.5l7 7M10.5 3.5l-7 7"
+              stroke="currentColor"
+              strokeWidth="1.5"
+              strokeLinecap="round"
+            />
+          </svg>
         </button>
       </header>
       <Thread v={v} box={here.box} />
