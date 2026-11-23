@@ -50,6 +50,9 @@ cannot offer the round, so there is no value in building the others.
   "Decided" in its epic, as "Deferred:", with the case that brings it back.
 - Gaps and edges are permitted. A gap in the goal of the round is not permitted. When the round
   can start, stop adding to it.
+- Each round has one outcome: what the customer can do at its end. Match each requirement, each
+  decision and each deferred item against it. A need that the outcome does not need is deferred;
+  a need that it needs cannot be deferred (the user, 2026-11-23).
 
 ## The parts of an offer
 
@@ -95,6 +98,7 @@ two apart.
 ```markdown
 ## Round N: <name>
 
+- **Outcome:** <what the customer can do at the end of the round, in one sentence>.
 - **Offer:** <what the company offers, in one sentence>.
 - **Customer:** <who gets it, and who pays>.
 - **Base:** <the rounds that it builds on, or "none">.
