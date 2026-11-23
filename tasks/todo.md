@@ -761,12 +761,12 @@ Decisions of 2026-11-23 (the coordinator, for the spec):
 
 ### P8-5: speed
 
-- [ ] `bun run speed` opens a page of 20 frames on a canvas of 5 pages of 20 frames. Its `open` is
+- [x] `bun run speed` opens a page of 20 frames on a canvas of 5 pages of 20 frames. Its `open` is
       in the budget of 20 frames (criterion 5).
 
 **Dependencies:** P8-4. **Estimated scope:** S.
 
 ### Checkpoint G: after P8-5
 
-- [ ] Criteria 2 to 6 of SPEC-pages hold, each with its proof.
-- [ ] A look at the viewer with `agent-browser` on a local server.
+- [x] Criteria 2 to 6 of SPEC-pages hold, each with its proof.
+- [x] A look at the viewer with `agent-browser` on a local server.

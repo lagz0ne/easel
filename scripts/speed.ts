@@ -278,13 +278,15 @@ async function start(browser: Browser, name: "base" | "tree", dir: string) {
   const mcp = tools(url, signIn({ url, log, binary, home: join(own, "home") }));
   const small = await seed(mcp, url, "Speed 20", 20);
   const big = await seed(mcp, url, "Speed 200", 200);
+  const paged = await seedPages(mcp, url, "Speed pages", 5, 20);
 
   const warm = await browser.newContext({ viewport });
   await warmUp(warm, small.link, 60_000);
+  await warmUp(warm, paged.link, 60_000);
   const many = await browser.newContext({ viewport });
   await warmUp(many, big.link, 300_000);
 
-  return { name, url, mcp, small, big, warm, many, asked: 0, stop };
+  return { name, url, mcp, small, big, paged, warm, many, asked: 0, stop };
 }
 
 /** The runs of a step on each side, in turn, the order swapped each run. */
@@ -384,6 +386,13 @@ function steps(): Step[] {
       make: async (side) => {
         const asker = await asking(side);
         return { once: async () => one("ask20", [await asker.once()]), done: asker.done };
+      },
+    },
+    {
+      rows: [{ key: "openPage", step: "open", frames: 20, where: "page" }],
+      make: async (side) => {
+        if (side.name === "tree") notes.push(await drawnOf(side.warm, side.paged.link));
+        return { once: async () => one("openPage", await opens(side.warm, side.paged.link, 1)) };
       },
     },
     {
@@ -513,6 +522,37 @@ async function seed(mcp: Mcp, url: string, name: string, n: number) {
   const shared = await mcp("share_canvas", { canvas });
   const path = z.object({ path: z.string() }).parse(shared.answer).path;
   return { canvas, versions, link: `${url}${path}` };
+}
+
+async function seedPages(mcp: Mcp, url: string, name: string, pages: number, n: number) {
+  const made = await mcp("create_canvas", { name });
+  const canvas = z.object({ key: z.string() }).parse(made.answer).key;
+  const listed = await mcp("list_pages", { canvas });
+  const first = z.object({ pages: z.array(z.object({ key: z.string() })) }).parse(listed.answer);
+  const keys = first.pages.map((p) => p.key);
+  for (let p = keys.length + 1; p <= pages; p++) {
+    const page = await mcp("create_page", { canvas, name: `Page ${p}` });
+    keys.push(z.object({ key: z.string() }).parse(page.answer).key);
+  }
+
+  for (const [p, page] of keys.entries()) {
+    for (let i = 0; i < n; i++) {
+      const html = doc(`p${p + 1}s${i}`, 1);
+      await mcp("put_frame", { canvas, html, name: `Screen ${p + 1}.${i + 1}`, page });
+    }
+  }
+
+  const shared = await mcp("share_canvas", { canvas });
+  const path = z.object({ path: z.string() }).parse(shared.answer).path;
+  const middle = keys[Math.floor(keys.length / 2)] ?? "";
+  return { canvas, keys, link: `${url}${path}?page=${middle}` };
+}
+
+async function drawnOf(context: BrowserContext, link: string) {
+  const page = await opened(context, link);
+  const drawn = await page.evaluate(() => document.querySelectorAll(".e-shell").length);
+  await page.close();
+  return `a page of 20 frames on a canvas of 5 pages: ${drawn} frames drawn`;
 }
 
 /** The time of a mark as the epoch in ms, when it comes; it waits `timeout` ms at most. */
