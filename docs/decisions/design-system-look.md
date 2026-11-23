@@ -102,10 +102,11 @@ Components) are now the level pages of `easel · Design system`; see
   users shows that people miss fields, darken
   `--e-field` to 3:1 (about `#949491` in
   light).
-- `src/design/tokens.css` still has the old
-  values. Its ship changes the values, loads
-  Inter, and adds the contrast test from
-  `SPEC-design.md`.
+- `src/design/tokens.css` has the values of
+  the library canvas, and
+  `tests/design-tokens.test.ts` checks the
+  contrast table (2026-11-23). The page does
+  not load Inter yet.
 - Focus, changed the same day after a look: a
   solid ink ring was too harsh. `--e-focus` is
   now a mid grey (`#858582` light, `#7a7a77`

@@ -527,9 +527,9 @@ test("in a dark system theme the canvas stays light gray, as in Doop, and its la
   const label = shellOf("a")?.querySelector(".e-label");
   const dock = page.getByRole("toolbar", { name: "Canvas" }).element();
 
-  expect(getComputedStyle(region()).backgroundColor).toBe("rgb(236, 234, 230)");
-  expect(label && getComputedStyle(label).color).toBe("rgb(102, 98, 91)");
-  expect(getComputedStyle(dock).backgroundColor).toBe("rgb(39, 38, 35)");
+  expect(getComputedStyle(region()).backgroundColor).toBe("rgb(243, 243, 242)");
+  expect(label && getComputedStyle(label).color).toBe("rgb(97, 97, 94)");
+  expect(getComputedStyle(dock).backgroundColor).toBe("rgb(31, 31, 31)");
 });
 
 test("a trackpad pinch (small Ctrl+wheel steps) zooms 1% for each pixel, as tldraw and Excalidraw; a wheel notch stays ×1.25", async () => {

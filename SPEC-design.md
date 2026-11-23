@@ -16,8 +16,9 @@ own. Blue (`--e-accent`) means only selected, live, or "waits for you", never "g
 The source of the system is the Doop library canvas `easel · Design system` (`zPdfXgdRrQ`): its
 tokens and its components. The screens are on `easel · Product design` (`xFJSTXA-v5`). See
 [docs/design-canvas.md](docs/design-canvas.md).
-`src/design` follows it. Status: the canvas has the look of 2026-11-20; `src/design/tokens.css`
-still has the values from before, and changes in its own ship (with Inter and the contrast test).
+`src/design` follows it. Status: `src/design/tokens.css` has the values of the library canvas,
+light and dark, and `tests/design-tokens.test.ts` checks the contrast table (2026-11-23). The page
+does not load Inter yet: until it does, the font is Inter only where it is installed.
 
 Prior art, as ideas only:
 

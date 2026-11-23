@@ -1,32 +1,67 @@
 /* The design tokens (SPEC-design.md): every colour, space and type size a viewer module uses.
+   The values are the tokens of the Doop library canvas `easel · Design system` (`zPdfXgdRrQ`),
+   light and dark. Change them there first, then here.
    `--e-card` is the plain card that stands in for a frame's picture until pictures are built.
+   `--e-shadow` is the one shadow of a floating part (a popover, a status, the dock).
    `.e-light` keeps the light values in a dark theme: the canvas space is light gray, as in Doop. */
 :root,
 .e-light {
-  --e-bg: #eceae6;
+  --e-bg: #f3f3f2;
   --e-surface: #ffffff;
-  --e-card: #d6d2ca;
-  --e-text: #1d1c1a;
-  --e-muted: #66625b;
-  --e-accent: #2b55c7;
-  --e-danger: #b3261e;
-  --e-focus: #2b55c7;
+  --e-card: #e6e6e4;
+  --e-text: #151515;
+  --e-muted: #61615e;
+  --e-faint: #8e8e8b;
+  --e-primary: #151515;
+  --e-on-primary: #ffffff;
+  --e-accent: #1a66c9;
+  --e-on-accent: #ffffff;
+  --e-accent-bg: #eef4fc;
+  --e-focus: #858582;
+  --e-focus-halo: rgb(133 133 130 / 0.4);
+  --e-line: #e1e1de;
+  --e-divider: #ececea;
+  --e-field: #c9c9c6;
+  --e-tint: #ededeb;
+  --e-hover: #f6f6f5;
+  --e-ok: #1d6b40;
+  --e-warn: #8f5600;
+  --e-danger: #c42a1e;
+  --e-danger-bg: #fcf1f0;
+  --e-scrim: rgb(0 0 0 / 0.16);
+  --e-shadow-low: rgb(0 0 0 / 0.05);
+  --e-shadow-mid: rgb(0 0 0 / 0.09);
+  --e-shadow: 0 1px 2px var(--e-shadow-low), 0 8px 24px var(--e-shadow-mid);
 
+  --e-0: 2px;
   --e-1: 4px;
   --e-2: 8px;
   --e-3: 12px;
   --e-4: 16px;
   --e-5: 24px;
-  --e-6: 40px;
+  --e-6: 32px;
+  --e-7: 48px;
 
-  --e-radius: 6px;
-  --e-shadow: 0 1px 3px rgb(0 0 0 / 0.18);
+  --e-radius-xs: 4px;
+  --e-radius-s: 6px;
+  --e-radius: 8px;
+  --e-radius-l: 12px;
+  --e-radius-xl: 16px;
+  --e-radius-full: 999px;
 
-  --e-font: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  --e-font: "Inter", "Noto Sans Thai", "Noto Sans", system-ui, sans-serif;
+  --e-size-0: 11px;
   --e-size-1: 12px;
-  --e-size-2: 14px;
-  --e-size-3: 16px;
+  --e-size-2: 13px;
+  --e-size-3: 15px;
   --e-size-4: 20px;
+  --e-leading-1: 16px;
+  --e-leading-2: 20px;
+  --e-leading-3: 24px;
+  --e-leading-4: 28px;
+  --e-w-normal: 400;
+  --e-w-medium: 500;
+  --e-w-strong: 600;
 }
 
 :root {
@@ -39,14 +74,31 @@
 
 @media (prefers-color-scheme: dark) {
   :root {
-    --e-bg: #1b1a18;
-    --e-surface: #272623;
-    --e-card: #3b3934;
-    --e-text: #ecebe8;
-    --e-muted: #a8a49c;
-    --e-accent: #93b2ff;
+    --e-bg: #161616;
+    --e-surface: #1f1f1f;
+    --e-card: #2c2c2b;
+    --e-text: #ededec;
+    --e-muted: #a3a3a0;
+    --e-faint: #74746f;
+    --e-primary: #ededec;
+    --e-on-primary: #151515;
+    --e-accent: #6aa6ff;
+    --e-on-accent: #0d1626;
+    --e-accent-bg: #16233a;
+    --e-focus: #7a7a77;
+    --e-focus-halo: rgb(122 122 119 / 0.45);
+    --e-line: #33332f;
+    --e-divider: #2b2b2a;
+    --e-field: #4a4a46;
+    --e-tint: #2e2e2d;
+    --e-hover: #262626;
+    --e-ok: #5cc98a;
+    --e-warn: #e0a54a;
     --e-danger: #ff8a80;
-    --e-focus: #93b2ff;
-    --e-shadow: 0 1px 3px rgb(0 0 0 / 0.6);
+    --e-danger-bg: #3a1f1d;
+    --e-scrim: rgb(0 0 0 / 0.5);
+    --e-shadow-low: rgb(0 0 0 / 0.3);
+    --e-shadow-mid: rgb(0 0 0 / 0.45);
+    --e-shadow: 0 1px 2px var(--e-shadow-low), 0 8px 24px var(--e-shadow-mid);
   }
 }
