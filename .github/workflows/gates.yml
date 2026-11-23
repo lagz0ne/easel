@@ -63,3 +63,73 @@ jobs:
       - run: bun run check:style
       # No plain helper functions: every named function is an operation.
       - run: bun run check:plain
+
+  # The speed gate (SPEC-speed.md § The design 3): the tree against the commit before the push, on
+  # the built binary in Chromium. A step over its budget (or a request before `easel:open` that is
+  # not on the hot path list) makes the job red: `gates` is red, so `deploy` does not run and
+  # `trunk-status` opens `trunk-red`. A step only slower than the base gives an alert: the job
+  # `speed-alert` opens a `speed-slower` issue, and blocks nothing.
+  speed:
+    runs-on: ubuntu-latest
+    timeout-minutes: 40
+    container:
+      image: mcr.microsoft.com/playwright:v1.63.0-noble
+    env:
+      # A push names the commit before it; a weekly or manual run takes the commit before HEAD.
+      BASE: ${{ github.event_name == 'push' && github.event.before || '' }}
+    outputs:
+      alert: ${{ steps.gate.outputs.alert }}
+      base: ${{ steps.gate.outputs.base }}
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          fetch-depth: 0
+      - name: Bun 1.4.4
+        run: npm install --global --allow-scripts=bun bun@1.4.4
+      - run: bun install --frozen-lockfile
+      # git in the container: the checkout's owner is not the job's user.
+      - run: git config --global --add safe.directory "$GITHUB_WORKSPACE"
+      - name: The gate
+        id: gate
+        shell: bash
+        run: |
+          base="${BASE:-$(git rev-parse HEAD^)}"
+          echo "base=$base" >> "$GITHUB_OUTPUT"
+          set +e
+          bun run speed -- --gate --base "$base" 2>&1 | tee speed.log
+          code="${PIPESTATUS[0]}"
+          set -e
+          if grep -q '^speed: alert' speed.log; then
+            { echo "alert<<SPEED_EOF"; grep '^speed: ' speed.log; echo "SPEED_EOF"; } >> "$GITHUB_OUTPUT"
+          fi
+          exit "$code"
+
+  # An alert of the speed gate: one open `speed-slower` issue, with a comment for each new alert.
+  speed-alert:
+    needs: speed
+    if: needs.speed.outputs.alert != ''
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      issues: write
+    env:
+      GH_TOKEN: ${{ github.token }}
+      GH_REPO: ${{ github.repository }}
+      ALERT: ${{ needs.speed.outputs.alert }}
+      BASE: ${{ needs.speed.outputs.base }}
+    steps:
+      - name: Open or comment the speed-slower issue
+        run: |
+          body="Commit \`$GITHUB_SHA\` against the base \`$BASE\`.
+          Run: $GITHUB_SERVER_URL/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID
+
+          \`\`\`
+          $ALERT
+          \`\`\`"
+          open=$(gh issue list --state open --label speed-slower --json number --jq '.[0].number // empty')
+          if [ -n "$open" ]; then
+            gh issue comment "$open" --body "$body"
+          else
+            gh label create speed-slower --color FBCA04 --description "a step is slower than its base" --force
+            gh issue create --title "speed: slower than the base at ${GITHUB_SHA:0:7}" --label speed-slower --body "$body"
+          fi
