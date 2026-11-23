@@ -383,14 +383,23 @@ writes the list of today, and each item gets a reason.
 
 **Acceptance criteria:**
 
-- [ ] `speed.json` holds the list of today, each item with a reason.
-- [ ] A test change that loads one more script before `easel:open` fails the run, with the name
+- [x] `speed.json` holds the list of today, each item with a reason.
+- [x] A test change that loads one more script before `easel:open` fails the run, with the name
       of the script and the fix.
 
 **Verification:**
 
-- [ ] `offload -- bun run speed`, with and without the test change.
-- [ ] `tests/speed.test.ts`: the finding of the list.
+- [x] `offload -- bun run speed`, with and without the test change.
+- [x] `tests/speed.test.ts`: the finding of the list.
+
+**Notes (done 2026-11-23):**
+
+- The list of today, from a cold open of 20 frames: the script, the CSS, the pictures, and
+  `/api/telemetry` (5 posts). No font and no runtime file loads before `easel:open`.
+- A name is the path: each picture is `/api/pictures/*`, and the hash of a built file is `*`.
+- Long frames before `easel:open` are reported, not checked: their count moves with the load of
+  the machine (1 frame of 92 ms here), so a check of them would fail only sometimes.
+- For Checkpoint D: the telemetry posts, and the pictures at half size in a view at 3%.
 
 **Dependencies:** SPD-3.
 

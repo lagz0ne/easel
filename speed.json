@@ -2,11 +2,47 @@
   "alert": 0.1,
   "floor": 0.05,
   "budgets": {
-    "open": { "ms": 2000, "of": "p50" },
-    "change": { "ms": 1000, "of": "p50" },
-    "ask": { "ms": 1000, "of": "p50" },
-    "pan": { "ms": 100, "of": "max" },
-    "panHandler": { "ms": 8, "of": "p95" }
+    "open": {
+      "ms": 2000,
+      "of": "p50"
+    },
+    "change": {
+      "ms": 1000,
+      "of": "p50"
+    },
+    "ask": {
+      "ms": 1000,
+      "of": "p50"
+    },
+    "pan": {
+      "ms": 100,
+      "of": "max"
+    },
+    "panHandler": {
+      "ms": 8,
+      "of": "p95"
+    }
   },
-  "hotPath": []
+  "hotPath": [
+    {
+      "kind": "request",
+      "name": "/assets/index-*.js",
+      "reason": "The page: React, Tinker and the canvas. No frame shows without it."
+    },
+    {
+      "kind": "request",
+      "name": "/assets/index-*.css",
+      "reason": "The look of the canvas and the shells: with no CSS, no frame has its box."
+    },
+    {
+      "kind": "request",
+      "name": "/api/pictures/*",
+      "reason": "A frame that is not live shows its picture, so no frame is a white box (canvas-speed.md 6). Each is at half size, also at 3%: a task of Checkpoint D asks for the size that the view needs (canvas-speed.md 4)."
+    },
+    {
+      "kind": "request",
+      "name": "/api/telemetry",
+      "reason": "The tab's spans and errors. The first view does not need them: a task of Checkpoint D moves them after easel:open."
+    }
+  ]
 }

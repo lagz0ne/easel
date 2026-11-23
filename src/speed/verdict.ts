@@ -52,17 +52,37 @@ export const speedVerdict = operation({
 });
 
 /**
- * The gate (SPEC-speed.md § The design 3): red when a step is over its budget, which stops the
- * deploy; an alert when a step is only slower than the base, which stops nothing; else green.
+ * The gate (SPEC-speed.md § The design 3 and 4): red when a step is over its budget or the hot
+ * path list has a finding, which stops the deploy; an alert when a step is only slower than the
+ * base, which stops nothing; else green.
  */
 export const speedGate = operation({
   label: "speed.gate",
-  input: z.array(z.enum(["inTime", "overBudget", "slowerThanBase"])),
+  input: z.object({
+    steps: z.array(z.enum(["inTime", "overBudget", "slowerThanBase"])),
+    findings: z.number(),
+  }),
   run: (_, { input }) => {
-    if (input.includes("overBudget")) return { kind: "red" } as const;
-    if (input.includes("slowerThanBase")) return { kind: "alert" } as const;
+    if (input.steps.includes("overBudget") || input.findings > 0) return { kind: "red" } as const;
+    if (input.steps.includes("slowerThanBase")) return { kind: "alert" } as const;
 
     return { kind: "green" } as const;
+  },
+});
+
+/**
+ * A request's name on the hot path list: its path, with no query. Each picture is one name, and
+ * the hash of a built file (8 characters after a dash, as Vite names a file) is `*`, so a new
+ * build keeps its names.
+ */
+export const hotName = operation({
+  label: "speed.hotName",
+  input: z.string(),
+  run: (_, { input }) => {
+    const path = new URL(input, "http://easel.invalid").pathname;
+    if (path.startsWith("/api/pictures/")) return "/api/pictures/*";
+
+    return path.replace(/-[\w-]{8}(?=\.\w+$)/, "-*");
   },
 });
 

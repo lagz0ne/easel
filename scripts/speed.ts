@@ -34,7 +34,7 @@ import type { Browser, BrowserContext, Page } from "playwright";
 import { z } from "zod";
 
 import { speedFile } from "@/speed/budget";
-import { speedGate, speedVerdict } from "@/speed/verdict";
+import { hotName, hotPathFindings, speedGate, speedVerdict } from "@/speed/verdict";
 
 const root = join(import.meta.dir, "..");
 const runs = 7;
@@ -114,7 +114,10 @@ try {
   const tree = sides.at(-1);
   if (!tree) throw new Error("speed: no tree");
 
-  notes.push(`open   20 frames  cold ${ms(await coldOpen(browser, tree.small.link))}`);
+  const cold = await coldOpen(browser, tree.small.link);
+  notes.push(`open   20 frames  cold ${ms(cold.open)}`);
+  const longest = Math.max(0, ...cold.frames);
+  notes.push(`before easel:open: ${cold.frames.length} long frames, the longest ${ms(longest)}`);
   notes.push(
     `open   20 frames  4x CPU, 40 ms round trip ${ms(await throttledOpen(browser, tree.small.link))}`,
   );
@@ -160,7 +163,15 @@ try {
     console.log(`speed: ${note}  (report only)`);
   }
 
-  const verdict = scope.run(speedGate, { input: kinds });
+  // The hot path (SPEC-speed.md § The design 4): each request before `easel:open` is on the list.
+  const seen = [...new Set(cold.requests.map((url) => scope.run(hotName, { input: url })))];
+  const findings = scope.run(hotPathFindings, {
+    input: { seen: seen.map((name) => ({ kind: "request", name })), list: budgets.hotPath },
+  });
+  for (const finding of findings) console.log(`speed: ${finding.text}`);
+  console.log(`speed: before easel:open: ${seen.join(", ")}`);
+
+  const verdict = scope.run(speedGate, { input: { steps: kinds, findings: findings.length } });
   if (verdict.kind === "alert") {
     console.log(
       `speed: alert, slower than the base by more than ${budgets.alert * 100}% and ${budgets.floor * 100}% of the budget: ${alerts.join("; ")}`,
@@ -534,13 +545,38 @@ async function opens(context: BrowserContext, link: string, n: number) {
   return times;
 }
 
-/** One open with an empty cache, in a new browser context, for the report. */
+/**
+ * One open with an empty cache, in a new browser context: its time (for the report), each request
+ * that started before `easel:open` (for the hot path list), and its long animation frames before
+ * it (for the report: their count moves with the load of the machine, so they fail nothing).
+ */
 async function coldOpen(browser: Browser, link: string) {
   const context = await browser.newContext({ viewport });
-  const [time = 0] = await opens(context, link, 1);
-  await context.close();
+  const page = await opened(context, link);
 
-  return time;
+  const seen = await page.evaluate(async () => {
+    const open = performance.getEntriesByName("easel:open", "mark")[0]?.startTime ?? 0;
+    const requests = performance
+      .getEntriesByType("resource")
+      .filter((e) => e.startTime < open)
+      .map((e) => e.name);
+    const frames = await new Promise<number[]>((done) => {
+      const got: number[] = [];
+      const watch = new PerformanceObserver((list) => {
+        for (const e of list.getEntries()) if (e.startTime < open) got.push(e.duration);
+      });
+      watch.observe({ type: "long-animation-frame", buffered: true });
+      setTimeout(() => {
+        watch.disconnect();
+        done(got);
+      }, 200);
+    });
+
+    return { open, requests, frames };
+  });
+
+  await context.close();
+  return seen;
 }
 
 /** One open with 4x CPU and a 40 ms round trip (Chrome DevTools' throttles), for the report. */

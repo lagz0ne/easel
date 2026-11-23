@@ -3,7 +3,7 @@ import { createScope } from "@tinkered/core";
 import { afterEach, expect, test } from "vite-plus/test";
 
 import { speedFile } from "@/speed/budget";
-import { hotPathFindings, speedGate, speedStats, speedVerdict } from "@/speed/verdict";
+import { hotName, hotPathFindings, speedGate, speedStats, speedVerdict } from "@/speed/verdict";
 
 // SPEC-speed.md § The design 3 and 4: the verdict of each step (its value against its budget, then
 // against the base), and the findings of the hot path list. `speed.json` holds the budgets.
@@ -65,14 +65,16 @@ test("a step is in time, over its budget, or slower than the base by more than t
   expect(panned).toMatchObject({ kind: "overBudget", value: 120, budget: 100 });
 });
 
-test("the gate is red when a step is over its budget, an alert when a step is only slower than the base, else green", async () => {
+test("the gate is red when a step is over its budget or the hot path list has a finding, an alert when a step is only slower than the base, else green", async () => {
   const app = await scope();
-  const gate = (kinds: Array<"inTime" | "overBudget" | "slowerThanBase">) =>
-    app.run(speedGate, { input: kinds });
+  const gate = (steps: Array<"inTime" | "overBudget" | "slowerThanBase">, findings = 0) =>
+    app.run(speedGate, { input: { steps, findings } });
 
   expect(gate(["inTime", "inTime"])).toEqual({ kind: "green" });
   expect(gate(["inTime", "slowerThanBase"])).toEqual({ kind: "alert" });
   expect(gate(["slowerThanBase", "overBudget"])).toEqual({ kind: "red" });
+  // A finding of the hot path list is red too, also when each step is in time.
+  expect(gate(["inTime", "slowerThanBase"], 1)).toEqual({ kind: "red" });
 });
 
 test("the hot path: an item that loads before easel:open and is not on the list is a finding, and so is an item of the list with no reason", async () => {
@@ -102,6 +104,22 @@ test("the hot path: an item that loads before easel:open and is not on the list 
   ).toEqual([]);
 });
 
+test("a request's name on the hot path list: its path, with each picture as one name and the hash of a built file as *", async () => {
+  const app = await scope();
+  const name = (url: string) => app.run(hotName, { input: url });
+
+  expect(name("http://127.0.0.1:4000/assets/index-SEn1SACi.js")).toBe("/assets/index-*.js");
+  expect(name("http://127.0.0.1:4000/assets/index-BwLHzdJv.css")).toBe("/assets/index-*.css");
+  expect(name("http://127.0.0.1:4000/assets/extra-a_B-9xYz.js")).toBe("/assets/extra-*.js");
+  expect(name("http://127.0.0.1:4000/api/pictures/home/75847ac7f859/1?s=0.5&k=u-e5&kit=1")).toBe(
+    "/api/pictures/*",
+  );
+  expect(name("http://127.0.0.1:4000/api/telemetry")).toBe("/api/telemetry");
+  expect(name("http://127.0.0.1:4000/api/fonts/geist/Geist-Regular.woff2")).toBe(
+    "/api/fonts/geist/Geist-Regular.woff2",
+  );
+});
+
 test("speed.json holds the budgets of SPEC-speed and of one move handler of a pan, the alert of 10% with its floor, and the hot path list", async () => {
   const read = speedFile.parse(await Bun.file(new URL("../speed.json", import.meta.url)).json());
 
@@ -114,5 +132,13 @@ test("speed.json holds the budgets of SPEC-speed and of one move handler of a pa
   });
   expect(read.alert).toBe(0.1);
   expect(read.floor).toBe(0.05);
-  expect(read.hotPath).toEqual([]);
+  // The list of today (SPD-6): each item with a reason, so the list itself has no finding.
+  expect(read.hotPath.map((item) => `${item.kind} ${item.name}`)).toEqual([
+    "request /assets/index-*.js",
+    "request /assets/index-*.css",
+    "request /api/pictures/*",
+    "request /api/telemetry",
+  ]);
+  const app = await scope();
+  expect(app.run(hotPathFindings, { input: { seen: [], list: read.hotPath } })).toEqual([]);
 });
