@@ -72,9 +72,18 @@ function PasswordGate({ link, alert, changed }: Omit<PasswordPage, "page">) {
   );
 }
 
-/** The link is still opening: the first call, or a call again after a flood `slow`. */
+/**
+ * The link is still opening: the first call, or a call again after a flood `slow`. The eye sees
+ * the empty canvas, as in Figma and Miro; the status is for a screen reader.
+ */
 export function Opening() {
-  return <p role="status">Opening the link</p>;
+  return (
+    <main className="e-canvas e-light">
+      <p role="status" className="e-unseen">
+        Opening the link
+      </p>
+    </main>
+  );
 }
 
 /** The link's page: opening, the password gate, the canvas, or ended. It asks no name. */

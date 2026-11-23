@@ -11,6 +11,16 @@
   font-family: var(--e-font);
 }
 
+/* Text for a screen reader only: it takes no room and does not show. */
+.e-unseen {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  white-space: nowrap;
+  clip-path: inset(50%);
+}
+
 /* The top of the canvas: the status `Reconnecting`, or an alert on a fault. */
 .e-top {
   position: absolute;

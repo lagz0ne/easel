@@ -38,7 +38,10 @@ this spec wins, and the screen gets a fix.
    password again. A browser that kept a name sends it with `share.open`, so its first `Send` asks
    nothing. Decided on 2026-11-21 in the E3 design (page `Work · E3 Share and look`),
    as Pastel, BugHerd and Markup.io do.
-2. The rest of the gate (password, wrong tries, an unknown link) is in
+2. While the link opens, the page shows the empty canvas and no text, as Figma and Miro do. The
+   status `Opening the link` is for a screen reader only (user, 2026-11-23: "if I have the link
+   already, I expect the page to open right off").
+3. The rest of the gate (password, wrong tries, an unknown link) is in
    [frames](SPEC-frames.md).
 
 ### See the frames

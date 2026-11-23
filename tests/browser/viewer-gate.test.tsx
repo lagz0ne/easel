@@ -362,8 +362,10 @@ test("past the flood limit the page stays on Opening, with no wait page, and cal
   const server = await boot();
   const shown = await tab(server, `/s/${flooded}`);
 
-  // The slow comes while the route loads: the page says Opening there.
+  // The slow comes while the route loads: the page says Opening there, to a screen reader only.
+  // The eye sees the empty canvas, as in Figma and Miro (user, 2026-11-23).
   await expect.element(page.getByRole("status")).toHaveTextContent("Opening the link");
+  expect(getComputedStyle(page.getByRole("status").element()).clipPath).toBe("inset(50%)");
   expect(callsTo(flooded)).toBe(1);
   expectNoControl();
   expect(page.getByRole("heading").elements()).toHaveLength(0);
