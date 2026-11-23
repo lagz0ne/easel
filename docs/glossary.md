@@ -87,6 +87,8 @@ You must know these terms to read any spec.
 | look value   | noun | One named value of the look, such as the main color. It is not a token: a token is only an access token.                      |
 | piece        | noun | One part of the kit: a class for a common control, or a short tag that the frame expands.                                     |
 | kit version  | noun | The number of one state of the look and the kit. It starts at 1 and increases at each change of either. It never changes.     |
+| text key     | noun | The name of one text of the team, such as `trial.start`. A frame shows a text by its text key.                                |
+| team text    | noun | One text in the one list of texts of an easel, in `en` and, if given, in `vi`. It is in the kit version.                      |
 | made CSS     | noun | The CSS that easel makes from the class names of a frame version or a kit version, and keeps with it.                         |
 | pane         | noun | A control of an app frame that the viewer draws beside it, in its own iframe and scope. It is a React component of the frame. |
 | pane link    | noun | The channel between a pane and the scope of its frame. The pane reads the frame and calls it on the pane link.                |
@@ -130,15 +132,15 @@ You must know these terms to read any spec.
 
 These words break the rules above. The right column gives the recommended change.
 
-| Word  | Problem                                                                                  | Change                                                                   |
-| ----- | ---------------------------------------------------------------------------------------- | ------------------------------------------------------------------------ |
-| shell | Two meanings: the CLI "shell" (SPEC-cli) and the frame shell (SPEC-viewer).              | Use "frame shell" for the page. Use "CLI" for the command line.          |
-| board | Two meanings: the Tinker remote data board, and a canvas ("open a board" in AGENTS.md).  | Use "canvas" for the product. Use "board" only for Tinker remote data.   |
-| issue | Three meanings: a GitHub issue, an ops "issue" (SPEC.md), and the template `src/issues`. | Use "error group" for ops. Use "issue" only for a GitHub issue.          |
-| key   | Five meanings: canvas key, picture key, key generation, client key, picture secret.      | Always write the full term. Do not write "key" alone.                    |
-| claim | A verb and a noun (STE Rule 1.7).                                                        | Use "claim" as a verb only. For the noun, use "claim handle" or "lease". |
-| put   | A verb and a noun ("a put", STE Rule 1.7).                                               | Use "put" as a verb only. For the noun, use "write".                     |
-| user  | In common English, any person. In easel, a token holder.                                 | Use "person" for a human. Use "user" only for a token holder.            |
+| Word  | Problem                                                                                      | Change                                                                   |
+| ----- | -------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------ |
+| shell | Two meanings: the CLI "shell" (SPEC-cli) and the frame shell (SPEC-viewer).                  | Use "frame shell" for the page. Use "CLI" for the command line.          |
+| board | Two meanings: the Tinker remote data board, and a canvas ("open a board" in AGENTS.md).      | Use "canvas" for the product. Use "board" only for Tinker remote data.   |
+| issue | Three meanings: a GitHub issue, an ops "issue" (SPEC.md), and the template `src/issues`.     | Use "error group" for ops. Use "issue" only for a GitHub issue.          |
+| key   | Six meanings: canvas key, picture key, key generation, client key, picture secret, text key. | Always write the full term. Do not write "key" alone.                    |
+| claim | A verb and a noun (STE Rule 1.7).                                                            | Use "claim" as a verb only. For the noun, use "claim handle" or "lease". |
+| put   | A verb and a noun ("a put", STE Rule 1.7).                                                   | Use "put" as a verb only. For the noun, use "write".                     |
+| user  | In common English, any person. In easel, a token holder.                                     | Use "person" for a human. Use "user" only for a token holder.            |
 
 ## Terms that are not in this list
 
