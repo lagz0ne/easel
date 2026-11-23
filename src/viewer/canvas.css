@@ -876,19 +876,22 @@
   margin: 0;
 }
 
-/* A count (the library's Count): an accent pill. */
+/* A count (the library's Count): an accent pill, 16 px for one or two digits. */
 .e-count {
   display: inline-flex;
   align-items: center;
   justify-content: center;
+  box-sizing: border-box;
   min-width: 16px;
   height: 16px;
   padding: 0 var(--e-1);
-  font-size: var(--e-size-1);
-  font-weight: 600;
-  color: var(--e-surface);
+  font-size: var(--e-size-0);
+  font-weight: var(--e-w-strong);
+  font-variant-numeric: tabular-nums;
+  line-height: 1;
+  color: var(--e-on-accent);
   background-color: var(--e-accent);
-  border-radius: 999px;
+  border-radius: var(--e-radius-full);
 }
 
 .e-dock-btn .e-count {
@@ -1191,8 +1194,14 @@
   background-color: var(--e-danger);
 }
 
+/* The reference and the place (ThreadHead): one line, cut with "…". */
 .e-head-ref {
+  min-width: 0;
   margin-right: auto;
+  overflow: hidden;
+  font-variant-numeric: tabular-nums;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .e-head .e-sb {

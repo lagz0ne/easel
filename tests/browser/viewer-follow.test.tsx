@@ -803,6 +803,13 @@ test("the popover has the look of the design system: a 40 px head with a line un
   const head = one("header");
   expect([head.height, head.borderBottomWidth]).toEqual(["40px", "1px"]);
   expect(head.backgroundColor).toBe("rgb(238, 244, 252)");
+  // The reference and the place stay on one line, and end in "…" when they are too long.
+  const ref = one(".e-head-ref");
+  expect([ref.whiteSpace, ref.textOverflow, ref.overflow]).toEqual([
+    "nowrap",
+    "ellipsis",
+    "hidden",
+  ]);
   const text = one(".e-text");
   expect([text.fontSize, text.lineHeight]).toEqual(["13px", "20px"]);
   const name = one(".e-who strong");
@@ -814,6 +821,11 @@ test("the popover has the look of the design system: a 40 px head with a line un
     "999px",
   ]);
   expect(agent?.borderTopLeftRadius).toBe("6px");
+  // The count on Requests in the dock (the design system's Count): 16 by 16 px, an 11 px number.
+  const count = document.querySelector(".e-dock-btn .e-count");
+  if (!count) throw new Error("no count");
+  const drawn = count.getBoundingClientRect();
+  expect([drawn.width, drawn.height, getComputedStyle(count).fontSize]).toEqual([16, 16, "11px"]);
   for (const label of ["More", "Close"]) {
     const button = dialog.getByRole("button", { name: label, exact: true }).element();
     expect(button.querySelector("svg")).not.toBeNull();
