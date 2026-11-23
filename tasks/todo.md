@@ -268,12 +268,23 @@ times each. It prints p50, p95 and the budget of each step.
 
 **Acceptance criteria:**
 
-- [ ] The output has one line for each step, with p50, p95, the budget and the verdict.
-- [ ] Two runs in a row on vibea2 give p50 values within 10% of each other.
+- [x] The output has one line for each step, with p50, p95, the budget and the verdict.
+- [x] Two runs in a row on vibea2 give p50 values within 10% of each other (open 747, 750 and
+      750 ms; change 118, 117 and 113 ms).
 
 **Verification:**
 
-- [ ] `offload -- bun run speed`: its output goes in the ship message.
+- [x] `offload -- bun run speed`: its output goes in the ship message.
+
+**Notes (done 2026-11-23):**
+
+- A put has no place, so easel puts the 20 frames in one row: Fit shows them at 3%, with no live
+  frame. `open` and `change` measure the pictures. SPD-4 adds a run zoomed in to a frame, so
+  `change` also measures a live document.
+- The puts go through `/mcp` over HTTP: the answer is the start of `change`, with no start-up of
+  a CLI in it.
+- The cold open is 2.1 to 2.2 s, over the budget of 2000 ms. It is only reported (the plan:
+  measure warm, report cold).
 
 **Dependencies:** SPD-1, SPD-2.
 
