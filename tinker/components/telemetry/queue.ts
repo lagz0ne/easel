@@ -6,21 +6,25 @@ import { consoleOutput } from "./console";
 import { delivery } from "./delivery";
 import { exportHealth } from "./health";
 import type { Telemetry } from "./records";
-import { telemetrySide } from "./settings";
+import { firstSendMark, firstSendMaxMs, telemetrySide } from "./settings";
 
 export const queue = resource({
   label: "telemetry.queue",
   target: "scope",
   depends: {
     side: telemetrySide,
+    mark: firstSendMark,
+    maxMs: firstSendMaxMs,
     health: exportHealth.controller,
     delivery,
     console: consoleOutput,
   },
-  factory: ({ side, health, delivery, console }, ctx) => {
+  factory: ({ side, mark, maxMs, health, delivery, console }, ctx) => {
     const encoder = new TextEncoder();
     let records: Telemetry.Record[] = [];
     const browser = side === "browser";
+    const openedAt = ctx.clock.currentTimeMillis();
+    let shown = !browser || mark === "";
     const batchLimit = browser ? 32_000 : 48_000;
     const recordLimit = browser ? batchLimit - 24 : batchLimit;
     const frameBytes = browser ? 23 : 0;
@@ -43,6 +47,15 @@ export const queue = resource({
     let failed = false;
 
     const owned = {
+      held() {
+        shown ||=
+          performance.getEntriesByName(mark).length > 0 ||
+          ctx.clock.currentTimeMillis() - openedAt >= maxMs;
+        return !shown;
+      },
+      sendable() {
+        return state === "open" && !owned.held();
+      },
       ingest(batch: Telemetry.Batch) {
         for (let index = 0; index < batch.traces.length; index++) {
           const { side, ...value } = batch.traces[index]!;
@@ -117,7 +130,7 @@ export const queue = resource({
               : { kind: pending ? "sending" : "queued", pending: records.length, dropped },
           );
         }
-        if (state === "open" && (records.length >= 64 || queueBytes >= batchLimit)) {
+        if (owned.sendable() && (records.length >= 64 || queueBytes >= batchLimit)) {
           draining = true;
           pending ??= owned.flush();
         }
@@ -132,7 +145,7 @@ export const queue = resource({
                 if (!stopTimer.signal.aborted) throw error;
                 return;
               }
-              if (!stopTimer.signal.aborted) await flush();
+              if (!stopTimer.signal.aborted && !owned.held()) await flush();
             }
           });
         }

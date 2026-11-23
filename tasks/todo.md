@@ -459,16 +459,19 @@ analytics scripts wait for `load` or idle before they send.
 
 **Acceptance criteria:**
 
-- [ ] In the browser, no telemetry send starts before `easel:open`, and the records wait.
-- [ ] After `easel:open`, the records go in the next send; with no `easel:open`, they go at 10 s.
-- [ ] The server and the worker send as before.
-- [ ] `/api/telemetry` is off the hot path list, and the gate is green with the shorter list.
+- [x] In the browser, no telemetry send starts before `easel:open`, and the records wait.
+- [x] After `easel:open`, the records go in the next send; with no `easel:open`, they go at 10 s.
+- [x] The server and the worker send as before.
+- [x] `/api/telemetry` is off the hot path list, and the gate is green with the shorter list.
 
 **Verification:**
 
-- [ ] A test of the queue on the test clock: no send before the mark, a send after it, a send
+- [x] A test of the queue on the test clock: no send before the mark, a send after it, a send
       at 10 s with no mark.
-- [ ] `bun run speed` on vibea2: `before easel:open` does not list `/api/telemetry`.
+- [x] `bun run speed` on vibea2: `before easel:open` does not list `/api/telemetry`.
+
+Done: tests/telemetry-hold.test.ts (3 tests). On vibea2, `before easel:open` lists the JS, the
+CSS, Inter and the pictures; the cold open is 2136 ms (2218 ms before: within the noise).
 
 **Dependencies:** none. **Files likely touched:** `tinker/components/telemetry/queue.ts`, a test,
 `speed.json`. **Estimated scope:** S.

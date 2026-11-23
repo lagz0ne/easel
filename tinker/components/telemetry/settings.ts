@@ -12,6 +12,18 @@ export const telemetryService = tag({
   parse: z.string().min(1),
 });
 
+export const firstSendMark = tag({
+  label: "telemetry.firstSendMark",
+  default: "",
+  parse: z.string(),
+});
+
+export const firstSendMaxMs = tag({
+  label: "telemetry.firstSendMaxMs",
+  default: 10_000,
+  parse: z.number().int().min(0),
+});
+
 export const tracesUrl = tag({ label: "telemetry.tracesUrl", parse: z.instanceof(URL) });
 export const logsUrl = tag({ label: "telemetry.logsUrl", parse: z.instanceof(URL) });
 

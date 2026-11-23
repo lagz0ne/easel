@@ -21,7 +21,7 @@ const stop = new AbortController();
 const app = createScope({
   signal: stop.signal,
   capsules: [
-    telemetry.browser({ service: "tinker-browser", console }),
+    telemetry.browser({ service: "tinker-browser", console, firstSendMark: "easel:open" }),
     ws.client({ url: `${location.origin.replace(/^http/, "ws")}/rpc`, meta: tabMeta }),
     greet.api({ remote: ws.client }),
     todo.board({ read: ws.client }),
