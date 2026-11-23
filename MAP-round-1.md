@@ -17,7 +17,9 @@ Build order: `mcp` and `speed` at the same time, then `mcp-auth` and `copy`.
 
 Tasks that are not modules:
 
-- Name X1 to X5 in the tests of the controls (E10).
+- Name X1 to X5 in the tests of the controls (E10). Done: the titles in
+  `tests/browser/viewer-kit.test.tsx` name them, with a check for X4 (a refusal changes nothing) and
+  X5 (the same size at each zoom).
 - Add MCP to the start steps (R2), after `mcp`.
 - Write the short note on data (R7).
 

@@ -326,7 +326,7 @@ test("an app frame draws its JS in the composed document (composeApp), with the 
   expect(await colorOf("a")).toBe(looks[1].rgb);
 });
 
-test("kit-frame-axes: a capsule frame posts its axes; the page offers the locale and its data states; a pick composes it again with them, and the other frame is not drawn again", async () => {
+test("X1 kit-frame-axes: a capsule frame posts its axes; the page offers the locale and its data states; a pick composes it again with them, and the other frame is not drawn again", async () => {
   const server = await boot([
     { id: "a", x: 0, y: 0 },
     { id: "b", x: 400, y: 0, capsule: true },
@@ -453,7 +453,7 @@ function controlsSeen() {
   return seen;
 }
 
-test("kit-frame-controls: an app frame posts its controls; the panel draws them with its values; each change goes to the live document and shows its new values; a new document starts them again", async () => {
+test("X1, X2, X4 kit-frame-controls: an app frame posts its controls; the panel draws them with its values; each change goes to the live document and shows its new values within 1 s; a refused change changes nothing and says why; a new document starts them again", async () => {
   const seen = controlsSeen();
   const server = await boot([
     { id: "a", x: 0, y: 0, controls: true },
@@ -499,6 +499,9 @@ test("kit-frame-controls: an app frame posts its controls; the panel draws them 
 
   await panel.getByRole("button", { name: "Fail" }).click();
   await expect.element(panel.getByRole("alert")).toHaveTextContent("The frame refused it: Nope.");
+  await expect.element(count).toHaveValue(7);
+  await expect.element(on).toBeChecked();
+  expect(docOf("a")).toBe(iframe);
 
   await server.run(put, { input: { id: "a", x: 0, y: 0, controls: true, version: 2 } });
   await expect.poll(() => docOf("a")?.dataset.version).toBe("2");
@@ -522,7 +525,7 @@ function shellOf(id: string) {
 
 const long = "alpha-with-a-long-name";
 
-test("kit-frame-controls places: the frame places each control in its label row, in a column at its left or right edge, or in the panel; each place shows the same live values", async () => {
+test("X5 kit-frame-controls places: the frame places each control in its label row, in a column at its left or right edge, or in the panel, at the same size at each zoom; each place shows the same live values", async () => {
   const seen = controlsSeen();
   const server = await boot([
     { id: "b", x: 0, y: 0 },
@@ -559,6 +562,21 @@ test("kit-frame-controls places: the frame places each control in its label row,
   const frameBox = shell.getBoundingClientRect();
   expect(left.element().getBoundingClientRect().right).toBeLessThanOrEqual(frameBox.left);
   expect(right.element().getBoundingClientRect().left).toBeGreaterThanOrEqual(frameBox.right);
+
+  const sizeOf = (el: Element) => {
+    const box = el.getBoundingClientRect();
+    return { w: Math.round(box.width), h: Math.round(box.height) };
+  };
+  const placed = [on.element(), left.element(), right.element()];
+  const before = placed.map(sizeOf);
+  const zoom = page.getByRole("status", { name: "Zoom" });
+  const zoomBefore = zoom.element().textContent;
+  await page.getByRole("button", { name: "Zoom in" }).click();
+  await expect.poll(() => zoom.element().textContent).not.toBe(zoomBefore);
+  await expect
+    .poll(() => shellOf(long).getBoundingClientRect().width)
+    .toBeGreaterThan(frameBox.width);
+  expect(placed.map(sizeOf)).toEqual(before);
 
   await right.getByRole("button", { name: "Add one" }).click();
   await on.click();
@@ -600,7 +618,7 @@ function panesSeen() {
   return seen;
 }
 
-test("kit-control-link: the page draws an iframe for each pane of a frame's current document, at its place and the size of its content, and gives each link of the frame to its pane, unread; a new document gives new links", async () => {
+test("X3 kit-control-link: the page draws an iframe for each pane of a frame's current document, at its place and the size of its content, and gives each link of the frame to its pane, unread; a new document gives new links", async () => {
   const seen = panesSeen();
   const server = await boot([{ id: "a", x: 0, y: 0, panes: true }]);
   const at = await tab(server);
