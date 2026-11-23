@@ -1,8 +1,8 @@
 # Spec delta: `copy`, the texts of the team by text key
 
-Status: approved (user, 2026-11-23: "Yes"). After it ships, it goes into [SPEC-kit.md](SPEC-kit.md) as
-§ The texts, and into [SPEC-frames.md](SPEC-frames.md) as § Exploring and ready. Then this file
-gets `Status: implemented`.
+Status: implemented (CP-1 to CP-5, 2026-11-23). Approved by the user on 2026-11-23 ("Yes").
+[SPEC-kit.md](SPEC-kit.md) § The texts and [SPEC-frames.md](SPEC-frames.md) § Exploring and ready
+give the short form. This file keeps the detail.
 
 Module `copy` of [MAP-round-1.md](MAP-round-1.md). Requirements: L1, L3, L5 and L12 of
 [E9](docs/epics.md#e9-one-voice).

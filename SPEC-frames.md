@@ -256,7 +256,7 @@ imports }`, the address of its files and the file of each name), and its `html` 
 written. `app` is null for an HTML frame.
 The page composes it with `composeApp` ([kit](SPEC-kit.md) § App frames; the live mount is build
 order item 5).
-A frame on the board carries its picture key `k`. The cell `kept` carries the key of each kept
+A frame on the board carries its picture key `k` and its status (§ Exploring and ready). The cell `kept` carries the key of each kept
 view (§ Pictures). The cell `removed` keeps each removed frame: `{ canvas, id, name, x, y, w, h,
 removed }`, its name and its last box, and when it was removed, so the viewer shows the requests
 of a removed frame where it was ([viewer](SPEC-viewer.md)). Every board read runs the `mayRead`
@@ -319,6 +319,26 @@ kit version of the tab when the viewer asked, at the claim, or at the result
 - `bumpKeys` raises a canvas's key generation and writes its frames' cells, and the keys of its
   kept versions, again with new keys.
   `easel unshare` and a password set or changed call it.
+
+### Exploring and ready
+
+The detail is in [SPEC-copy.md](SPEC-copy.md) § Exploring and ready (rules 8 to 15). In short:
+
+- Each app frame has a status: `exploring` or `ready`. A new frame, and a frame made before the
+  status, is `exploring`. An HTML frame stays `exploring`.
+- The check finds the settle rules: `copy/text`, `copy/own`, `copy/key`, `look/color` and
+  `look/size` ([kit](SPEC-kit.md) § The texts).
+- An exploring put keeps the frame as the agent wrote it, and lists the findings as notes.
+- `frame.ready` marks the current version ready only if it has no finding. Else it answers
+  `unsettled` with each finding and its fix, and nothing changes. `frame.explore` makes a ready
+  frame exploring again.
+- A put on a ready frame applies the fixes by position. A finding with no fix refuses it
+  `unsettled`, and the frame keeps its version and its status. `frame.put` with `ready: true`
+  makes or changes a frame and marks it ready in one call.
+- `frame.list`, `frame.get` and the board cell `frames` carry the status. The viewer shows `Ready`
+  in the label row of a ready frame (SPEC-copy rule 14).
+- The tools are `ready_frame`, `explore_frame` and `put_frame` with `ready`. The commands are
+  `easel ready`, `easel explore` and `easel put --ready`.
 
 ## Rules
 

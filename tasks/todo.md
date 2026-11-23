@@ -668,21 +668,32 @@ The spec is [SPEC-copy.md](../SPEC-copy.md). The plan is in [plan.md](plan.md#mo
 
 ### CP-3: the texts live in the frames
 
-- [ ] The kit cell and the kit message carry the texts. `say` gives the text of the team first.
-- [ ] A picture is composed with the texts of its kit version.
-- [ ] A browser test: L5 (the same iframe, the new text within 1 s) and L12 (`vi`).
-- [ ] `offload -- bun run speed`, before and after, in the ship message.
+- [x] The kit cell and the kit message carry the texts. `say` gives the text of the team first.
+- [x] A picture is composed with the texts of its kit version.
+- [x] A browser test: L5 (the same iframe, the new text within 1 s) and L12 (`vi`).
+- [x] `offload -- bun run speed`, before and after, in the ship message.
 
 ### CP-4: exploring and ready
 
-- [ ] A frame has a status; a frame made before is `exploring`.
-- [ ] The check finds `copy/text`, `copy/own` and `copy/key`. An exploring put keeps the frame as
+- [x] A frame has a status; a frame made before is `exploring`.
+- [x] The check finds `copy/text`, `copy/own` and `copy/key`. An exploring put keeps the frame as
       written and lists the findings. A put on a ready frame applies the fixes, or is `unsettled`.
-- [ ] `frame.ready`, `frame.explore`, `put` with `ready`; their tools and commands.
-- [ ] A test for each finding, each kind, and fact rule 5.
+- [x] `frame.ready`, `frame.explore`, `put` with `ready`; their tools and commands.
+- [x] A test for each finding, each kind, and fact rule 5.
+
+Done in `b15c263` (CP-3) and `6b4efcd` (CP-4). CP-4 has 6 deviations from SPEC-copy:
+
+1. The board cell `frames` did not carry the status before CP-5. `frame.list` and `frame.get` did.
+2. A ready put with a style color (`style={{ color: "#f00" }}`) is refused `unsettled`: that
+   finding has no fix by position.
+3. An HTML put on a ready app frame makes it `exploring`.
+4. The findings of `offKit` list the refusing findings first.
+5. `easel ls` prints the status of each frame.
+6. `frame.ready` fails (a server fault, "changed while it was checked; mark it again") if the
+   frame changes during the check. It does not try again.
 
 ### CP-5: the mark, the agent check, the docs
 
-- [ ] The label row of a ready frame says `Ready`.
-- [ ] L3 over MCP: two users, `set_texts`, `list_texts`, `put_frame` with `ready`.
-- [ ] SPEC-kit § The texts and SPEC-frames § Exploring and ready; SPEC-copy `implemented`.
+- [x] The label row of a ready frame says `Ready`.
+- [x] L3 over MCP: two users, `set_texts`, `list_texts`, `put_frame` with `ready`.
+- [x] SPEC-kit § The texts and SPEC-frames § Exploring and ready; SPEC-copy `implemented`.

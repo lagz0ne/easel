@@ -886,6 +886,22 @@ gets. So it cannot be older than the kit, and an agent learns each part before i
 what exists, how to install it, a line that uses it, what it depends on, and the texts that it can
 use again.
 
+### The texts
+
+The detail is in [SPEC-copy.md](SPEC-copy.md) § The texts of the team (rules 1 to 7). In short:
+
+- Each kit version holds the texts of the team: one text for each text key, in `en`, and in `vi`
+  if a person gave one. Kit version 1 holds `ui.empty` and `ui.close`.
+- Only `texts.set` writes them. Each change makes a new kit version, as `look.set` does. No call
+  removes a text key.
+- A part gets its `t` from `say`. `say(["trial.start"])` gives the texts of the team only: this is
+  the form of a ready frame. `say(texts)` gives the text of the team first, then the own text of
+  the part: this is the form of an exploring frame.
+- The kit message and the composed document carry the texts. So one `texts.set` reaches each live
+  document in the same iframe, and each picture asks for the new kit version.
+- The calls are `texts.list` and `texts.set`, the tools `list_texts` and `set_texts`, and the
+  commands `easel texts ls` and `easel texts set`.
+
 ## Rules
 
 The statecharts [kit-piece](docs/statecharts/kit-piece.md), [kit-look](docs/statecharts/kit-look.md),
