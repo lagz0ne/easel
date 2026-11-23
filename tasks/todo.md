@@ -241,13 +241,17 @@ schema reads it. An item of the list with no reason is a finding.
 
 **Acceptance criteria:**
 
-- [ ] A test reaches each kind of `speedVerdict`.
-- [ ] A test finds an item that is not on the list, and an item with no reason.
-- [ ] `speed.json` holds the 4 budgets of SPEC-speed and an empty list.
+- [x] A test reaches each kind of `speedVerdict`.
+- [x] A test finds an item that is not on the list, and an item with no reason.
+- [x] `speed.json` holds the 4 budgets of SPEC-speed and an empty list.
 
 **Verification:**
 
-- [ ] `tests/speed.test.ts`.
+- [x] `tests/speed.test.ts`.
+
+**Notes (done 2026-11-23):** a budget is of a stat: `p50`, or `max` for `pan` (its longest
+frame). `speed.json` also holds the alert, 0.1. A list item matches by its kind and its exact
+name; SPD-5 decides how a hashed asset name matches.
 
 **Dependencies:** none.
 
