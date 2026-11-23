@@ -8,10 +8,6 @@ import { afterEach, expect, test } from "vite-plus/test";
 
 import { builtPlaces } from "@/kit/lint.server";
 
-// The rule `kit/class-built` as an Oxlint JS plugin (SPEC-kit.md § App frames; fact rule 9): the
-// one walk of the server check, so Oxlint reports the same places, at their line and column.
-// Oxlint runs here on Bun (`bun --bun`), as `vp lint` runs the Tinker plugin.
-
 const root = new URL("..", import.meta.url).pathname;
 const scopes: Array<{ close: () => Promise<unknown> }> = [];
 

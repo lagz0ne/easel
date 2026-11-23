@@ -97,7 +97,6 @@ test("a fixed path after a param row that also fits it: the param row still wins
 const encoder = new TextEncoder();
 const decoder = new TextDecoder();
 
-/** Waits up to `ms` for a promise; "late" when it is still pending then: the reply waited. */
 const within = <T>(promise: Promise<T>, ms = 1000) =>
   Promise.race([promise, Bun.sleep(ms).then(() => "late" as const)]);
 

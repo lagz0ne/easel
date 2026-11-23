@@ -20,47 +20,28 @@ import { routeTree } from "@/routes";
 import { nameKey, tabMeta } from "@/viewer/gate";
 import { restMs } from "@/viewer/stage";
 
-// A viewer asks for a change, in a real Chromium, over `memory` (SPEC-viewer.md § Ask for a
-// change, § When the link ends, § When a password is set). The oracle is the viewer-pin-post
-// chart (the socket drops; full, slow and a server fault) and the viewer-pin-link chart (the
-// link ends, the password changes, the frame changes): each test names its arrows and rules.
-// The server stands in for share.server.ts and the queue: `share.open` gives the one pass;
-// `share.name` names it once; `request.add` answers as the test plans, saves a key once, and
-// writes the board's `requests` and `messages`. The tab reaches the server through `peer`, which
-// a test points at a new server after the old one closed: the socket drops and comes back.
-
 const live = "a".repeat(32);
-/** The time of the stub server: the board's `serverClock` says it. */
 const serverNow = 1_800_000_000_000;
-/** The frame Home's id. */
 const home = "0123456789ab";
 const pass = "1".repeat(32);
 
-/** What `request.add` answers next: `drop` saves it, then the server closes before it answers. */
 type Plan = "added" | "gone" | "full" | "slow" | "fail" | "drop";
 
 type AddInput = z.infer<typeof addInput>;
 
-/** The stub server's state; it outlives a server, as a database does. */
 const store = {
-  /** The name each pass holds. */
   names: new Map<string, string>(),
-  /** Each `share.name` input's name, and each `share.open` input's name, in order. */
   named: [] as string[],
   opened: [] as Array<string | undefined>,
   requests: [] as Request[],
   messages: [] as Message[],
   keys: new Map<string, number>(),
-  /** Each `request.add` input that reached the server, in order. */
   adds: [] as AddInput[],
   plan: [] as Plan[],
-  /** What every guard refuses now: a link that ended, or a password set or changed. */
   refusal: null as null | { ended: true } | { locked: true },
-  /** Home's document, if the test gives it one: then Home goes live. */
   doc: null as string | null,
 };
 
-/** The server the tab's `peer` points at now. */
 let current: Scope.Handle | null = null;
 
 const open = operation({
@@ -85,7 +66,6 @@ const nameIt = operation({
 
 const tick = (ms = 30) => new Promise((done) => setTimeout(done, ms));
 
-/** The answer the test planned that saves nothing: `gone`, `full`, `slow`, or a server fault. */
 const refusedPlan = operation({
   label: "test.refusedPlan",
   input: z.enum(["added", "gone", "full", "slow", "fail", "drop"]),
@@ -105,7 +85,6 @@ const refusedPlan = operation({
   },
 });
 
-/** The request and its first message, as the queue's store writes them. */
 const save = operation({
   label: "test.save",
   input: addInput,
@@ -159,7 +138,6 @@ const save = operation({
   },
 });
 
-/** A request on the board, as the store holds it, with its ask: `n`, its text, and a patch. */
 function stored(n: number, text: string, patch: Partial<Request> = {}) {
   const row: Request = {
     canvas: "home",
@@ -204,7 +182,6 @@ function stored(n: number, text: string, patch: Partial<Request> = {}) {
   return row;
 }
 
-/** `request.add`: a key seen answers `added` first; then the planned answer; then the save. */
 const add = operation({
   label: "test.requestAdd",
   input: addInput,
@@ -220,7 +197,6 @@ const add = operation({
 
     const n = save.run({ input });
     if (plan === "drop") {
-      // The server goes before it answers: the tab cannot know whether it saved.
       void current?.close();
       await tick(50);
     }
@@ -228,7 +204,6 @@ const add = operation({
   },
 });
 
-/** Every guard: the refusal the test set, else the pass reads `home`. */
 const passOnly = operation({
   label: "test.passOnly",
   input: transport.hook.start,
@@ -239,14 +214,12 @@ const passOnly = operation({
   },
 });
 
-/** `mayAct`'s name half: a live pass with no name is refused `{ name: true }`. */
 const named = operation({
   label: "test.named",
   input: transport.hook.start,
   run: (_, { input }) => (store.names.has(pass) ? undefined : input.refuse({ name: true })),
 });
 
-/** An agent's write to frame Home (a new version), or its delete. */
 const agent = operation({
   label: "test.agent",
   input: z.enum(["write", "delete"]),
@@ -258,7 +231,6 @@ const agent = operation({
   },
 });
 
-/** The board as the store holds it: the frame, and each request and its messages. */
 const seed = operation({
   label: "test.seed",
   depends: {
@@ -279,7 +251,6 @@ const seed = operation({
   },
 });
 
-/** A refusal for every pass, pushed to each open tab, as share.server.ts's `endPasses` does. */
 const refuseAll = operation({
   label: "test.refuseAll",
   input: z.enum(["ended", "locked"]),
@@ -291,10 +262,6 @@ const refuseAll = operation({
   },
 });
 
-/**
- * The server's side of `request.add` alone: the queue's other viewer calls are not this test's,
- * and the wire knows a call by its address.
- */
 const addOnly = capsule({
   label: "test.queue",
   exports: {
@@ -312,7 +279,6 @@ const addOnly = capsule({
   },
 });
 
-/** A server with the stubs, on the store; the tab's `peer` points at it. */
 async function serve() {
   const server = await createScope({
     capsules: [
@@ -333,7 +299,6 @@ async function serve() {
   return server;
 }
 
-/** A fresh store; `fill` puts requests on it before the server seeds the board. */
 async function boot(fill?: () => void) {
   localStorage.removeItem(nameKey);
   store.names.clear();
@@ -351,7 +316,6 @@ async function boot(fill?: () => void) {
   return serve();
 }
 
-/** A tab with the app's routes at the link, on the server `current` points at. */
 async function tab(first: Scope.Handle) {
   await page.viewport(1200, 800);
   const peer = new Proxy(first, {
@@ -401,19 +365,16 @@ const pin = (n: number) => page.getByRole("button", { name: `Request #${n}` });
 const alertText = () => page.getByRole("alert").element().textContent;
 const reconnecting = () => page.getByRole("status").filter({ hasText: "Reconnecting" });
 
-/** You press Request and click the Home frame at (50, 60) on it. */
 async function openOnHome() {
   await requestButton().click();
   await frameOf("Home").click({ position: { x: 50, y: 60 } });
   await expect.element(textbox()).toBeVisible();
 }
 
-/** You type `text` in the textbox. */
 async function type(text = "Add a short FAQ here.") {
   await textbox().fill(text);
 }
 
-/** The server closes and, after `ms` on the tab's clock, a new one takes its place. */
 async function backAfterDrop(at: { clock: ReturnType<typeof makeTestClock> }) {
   await expect.element(reconnecting()).toBeVisible();
   await serve();
@@ -434,7 +395,6 @@ test("the first Send asks the name; share.name names the pass, the browser keeps
   await type();
   await sendButton().click();
 
-  // The first Send asks the name, in the same popover; nothing is sent yet.
   await expect.element(nameBox()).toBeVisible();
   expect(
     page
@@ -461,14 +421,12 @@ test("the first Send asks the name; share.name names the pass, the browser keeps
   expect(sent?.key.length).toBeGreaterThanOrEqual(16);
   expect(store.requests.map((r) => r.author)).toEqual(["Mai"]);
 
-  // The popover shows the new request, waiting, and Request is off.
   const shown = page.getByRole("dialog", { name: "Request #1" });
   await expect.element(shown.getByRole("img", { name: "Waiting for an agent" })).toBeVisible();
   expect(shown.getByText("Add a short FAQ here.").elements()).toHaveLength(1);
   expect(shown.getByText("#1 · On Home").elements()).toHaveLength(1);
   expect(requestButton().element()).toHaveAttribute("aria-pressed", "false");
   expect(textbox().elements()).toHaveLength(0);
-  // Another tab on the canvas shows the pin too: two pins, one in each tab.
   await tab(server);
   await expect.poll(() => pin(1).elements().length).toBe(2);
 });
@@ -487,7 +445,6 @@ test("the dock at the bottom centre holds the canvas tools as icons, named: Requ
   expect(requestButton().element()).toHaveAttribute("title", "Ask for a change");
   expect(requestButton().element().querySelector("svg")).not.toBeNull();
 
-  // At the bottom centre of the canvas.
   const box = dock.element().getBoundingClientRect();
   const view = frameList().element().getBoundingClientRect();
   expect(Math.abs(box.left + box.width / 2 - (view.left + view.width / 2))).toBeLessThan(2);
@@ -540,7 +497,6 @@ test("a name kept after the link opened: request.add is refused name, the page g
 
   await expect.element(pin(1)).toBeVisible();
   expect(store.named).toEqual(["Bo"]);
-  // The refused try never reached the op; the second one did, once.
   expect(store.adds).toHaveLength(1);
   expect(store.requests.map((r) => r.author)).toEqual(["Bo"]);
 });
@@ -723,7 +679,6 @@ test("a server fault: not known yet if it saved, no Escape; Send sends it again 
 const kept = () => page.getByRole("region", { name: "Your request" });
 const endedHeading = () => page.getByRole("heading", { name: "This link does not work" });
 
-/** The password page after a password change ended the pass: it says so (E3 S4, frame UEKzhvtyYt). */
 const passwordHeading = () =>
   page.getByRole("heading", { name: "The password of this link changed" });
 
@@ -745,7 +700,6 @@ test("the link ends while the text is typed: the ended page keeps it to copy, an
   expect(textbox().elements()).toHaveLength(0);
   expect(page.getByRole("button", { name: /^Request #/ }).elements()).toHaveLength(0);
 
-  // Copy text puts the text on the clipboard.
   const copied = vi.spyOn(navigator.clipboard, "writeText").mockResolvedValue(undefined);
   onTestFinished(() => void vi.restoreAllMocks());
   await kept().getByRole("button", { name: "Copy text" }).click();
@@ -774,7 +728,6 @@ test("Send, and the call is refused ended: the ended page keeps the text, and sa
 
   await openOnHome();
   await type();
-  // The link ends; the push has not come yet when Send goes.
   store.refusal = { ended: true };
   await sendButton().click();
   await server.run(refuseAll, { input: "ended" });
@@ -818,7 +771,6 @@ test("a press on a pin opens its request; a pin goes with its removed frame; a r
   await sendButton().click();
   await expect.element(pin(2)).toBeVisible();
 
-  // Escape closes the popover of #2; a press on the pin of #1 opens its own.
   await userEvent.keyboard("{Escape}");
   await expect
     .poll(() => page.getByRole("dialog", { name: "Request #2" }).elements().length)
@@ -864,7 +816,6 @@ test("the popover of a saved request names its state with the words of § Follow
   }
 });
 
-/** The outline's box on the canvas, as its style places it; null with no outline. */
 function outlineBox() {
   const outline = document.querySelector<HTMLElement>(".e-outline");
   if (!outline) return null;
@@ -880,7 +831,6 @@ test("in request mode, a click on a part of a live frame outlines that part: the
   localStorage.setItem(nameKey, "Mai");
   const at = await tab(server);
 
-  // The canvas rests, and Home goes live; its document paints.
   at.clock.advance(restMs);
   const card = () => frameOf("Home").element().querySelector<HTMLElement>(".e-card");
   await expect.poll(() => card()?.hidden, { timeout: 5_000 }).toBe(true);
@@ -892,12 +842,10 @@ test("in request mode, a click on a part of a live frame outlines that part: the
     .poll(outlineBox)
     .toEqual({ left: "20px", top: "40px", width: "100px", height: "50px" });
 
-  // A click on the page's own body is on no part: no outline, the pin shows the place.
   await frameOf("Home").click({ position: { x: 300, y: 200 } });
   await expect.poll(outlineBox).toBeNull();
   expect(textbox().elements()).toHaveLength(1);
 
-  // Escape closes the textbox, and its outline with it.
   await frameOf("Home").click({ position: { x: 50, y: 60 } });
   await expect.poll(outlineBox).not.toBeNull();
   await userEvent.keyboard("{Escape}");

@@ -14,9 +14,6 @@ import { issueOps, membersOnly, signedIn } from "@/issues/ops.server";
 import { signIn, whoMeta } from "@/issues/sign-in";
 import { routeTree } from "@/routes";
 
-// In a real Chromium: the board's pages over `memory`, with the app's own routes. Two tabs are
-// two scopes; tab B is drawn, tab A only calls.
-
 test("an issue made and moved on one tab moves on the drawn tab; a thread takes a comment", async () => {
   const server = await createScope({
     capsules: [
@@ -45,7 +42,6 @@ test("an issue made and moved on one tab moves on the drawn tab; a thread takes 
   const history = createMemoryHistory({ initialEntries: ["/issues/ENG"] });
   const router = createRouter({ routeTree, history, context: { scope: bo } });
   const root = createRoot(document.body.appendChild(document.createElement("div")));
-  // A test that fails leaves no page behind for the next one.
   onTestFinished(() => root.unmount());
   root.render(
     <ScopeProvider scope={bo}>
@@ -78,8 +74,6 @@ test("an issue made and moved on one tab moves on the drawn tab; a thread takes 
   await server.close();
 });
 
-// P1: the home page signs the person in and opens a team. Nobody made the team before, so the
-// page makes it: the board that follows is read as a member.
 test('"Open team" on a new key makes the team and shows its board', async () => {
   const server = await createScope({
     capsules: [
@@ -100,7 +94,6 @@ test('"Open team" on a new key makes the team and shows its board', async () => 
   const history = createMemoryHistory({ initialEntries: ["/issues"] });
   const router = createRouter({ routeTree, history, context: { scope: dee } });
   const root = createRoot(document.body.appendChild(document.createElement("div")));
-  // A test that fails leaves no page behind for the next one.
   onTestFinished(() => root.unmount());
   root.render(
     <ScopeProvider scope={dee}>
@@ -142,7 +135,6 @@ test('a tab that is not in the team sees why; "Try again" shows the team once it
   const history = createMemoryHistory({ initialEntries: ["/issues/OPS"] });
   const router = createRouter({ routeTree, history, context: { scope: cy } });
   const root = createRoot(document.body.appendChild(document.createElement("div")));
-  // A test that fails leaves no page behind for the next one.
   onTestFinished(() => root.unmount());
   root.render(
     <ScopeProvider scope={cy}>
@@ -161,8 +153,6 @@ test('a tab that is not in the team sees why; "Try again" shows the team once it
   await server.close();
 });
 
-// The thread's part is read on its own, so it waits on its own: a refused thread says so in the
-// thread, with "Try again", in place of an empty list that reads as "no comments".
 test('a refused thread says why; "Try again" shows its comments once it is allowed', async () => {
   let shut = true;
   const threads = operation({
@@ -197,7 +187,6 @@ test('a refused thread says why; "Try again" shows its comments once it is allow
   const history = createMemoryHistory({ initialEntries: [`/issues/ENG/${id}`] });
   const router = createRouter({ routeTree, history, context: { scope: ana } });
   const root = createRoot(document.body.appendChild(document.createElement("div")));
-  // A test that fails leaves no page behind for the next one.
   onTestFinished(() => root.unmount());
   root.render(
     <ScopeProvider scope={ana}>
@@ -235,7 +224,6 @@ test("a call that breaks on the server shows a ref, and the server's trace has t
       memory.server({ services: [issues.board, issues.api] }),
     ],
   }).ready;
-  // The tab observes, as the real page does (`telemetry.browser`): the fault's ref is its trace.
   const ana = await createScope({
     observe: { export: () => undefined },
     capsules: [
@@ -250,7 +238,6 @@ test("a call that breaks on the server shows a ref, and the server's trace has t
   const history = createMemoryHistory({ initialEntries: ["/issues/ENG"] });
   const router = createRouter({ routeTree, history, context: { scope: ana } });
   const root = createRoot(document.body.appendChild(document.createElement("div")));
-  // A test that fails leaves no page behind for the next one.
   onTestFinished(() => root.unmount());
   root.render(
     <ScopeProvider scope={ana}>
@@ -273,9 +260,6 @@ test("a call that breaks on the server shows a ref, and the server's trace has t
   await server.close();
 });
 
-// `link` on a read: the server goes away with the page open. Its close ends the open watch
-// (Core 0.17.6), so the part is a fault, and the page says so in place of the form. Core asks
-// again by itself.
 test("the server goes away with the page open: the page says that it is offline", async () => {
   const server = await createScope({
     capsules: [
@@ -298,7 +282,6 @@ test("the server goes away with the page open: the page says that it is offline"
   const history = createMemoryHistory({ initialEntries: ["/issues/ENG"] });
   const router = createRouter({ routeTree, history, context: { scope: ana } });
   const root = createRoot(document.body.appendChild(document.createElement("div")));
-  // A test that fails leaves no page behind for the next one.
   onTestFinished(() => root.unmount());
   root.render(
     <ScopeProvider scope={ana}>
@@ -317,11 +300,8 @@ test("the server goes away with the page open: the page says that it is offline"
   await ana.close();
 });
 
-// `link` on a call: the reads and the calls go over two links here (as sse and http), so the
-// board stays ready when only the calls get no answer. A call is never sent again by itself.
 const calls = createMemory();
 
-/** The page of `ana` on team ENG: the board from `reads`, the calls to `api` over `calls`. */
 const pageOf = operation({
   label: "test.issues.page",
   input: z.custom<{ reads: Scope.Handle; api: Scope.Handle }>(),
@@ -338,7 +318,6 @@ const pageOf = operation({
     const history = createMemoryHistory({ initialEntries: ["/issues/ENG"] });
     const router = createRouter({ routeTree, history, context: { scope: ana } });
     const root = createRoot(document.body.appendChild(document.createElement("div")));
-    // A test that fails leaves no page behind for the next one.
     onTestFinished(() => root.unmount());
     root.render(
       <ScopeProvider scope={ana}>
@@ -368,7 +347,7 @@ test("a call that did not leave says that nothing was sent", async () => {
   const { ana } = await reads.run(pageOf, { input: { reads, api } });
   await page.getByLabelText("New issue").fill("Login fails");
 
-  await api.close(); // the server of the calls is away: a call cannot leave
+  await api.close();
   await page.getByRole("button", { name: "Add issue" }).click();
 
   await expect
@@ -380,7 +359,6 @@ test("a call that did not leave says that nothing was sent", async () => {
 });
 
 test("a call that left and got no answer says that it may be saved", async () => {
-  // The server does the work, then goes away before its answer leaves.
   const work = Promise.withResolvers<void>();
   const done = Promise.withResolvers<void>();
   const create = operation({
@@ -424,10 +402,7 @@ test("a call that left and got no answer says that it may be saved", async () =>
   await reads.close();
 });
 
-// `missing` is the server's answer: it does not have the address. On a page that means an old
-// page against a new server, so the page says to load it again. Nothing asks again.
 test("a call to an address the server does not have says that the page is old", async () => {
-  // A server that serves the board, and no `issues.api`: every call to it is `missing`.
   const server = await createScope({
     capsules: [
       exits({ store: localStorage }),
@@ -447,7 +422,6 @@ test("a call to an address the server does not have says that the page is old", 
   const history = createMemoryHistory({ initialEntries: ["/issues/ENG"] });
   const router = createRouter({ routeTree, history, context: { scope: ana } });
   const root = createRoot(document.body.appendChild(document.createElement("div")));
-  // A test that fails leaves no page behind for the next one.
   onTestFinished(() => root.unmount());
   root.render(
     <ScopeProvider scope={ana}>

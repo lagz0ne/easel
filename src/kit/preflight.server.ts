@@ -1,9 +1,3 @@
-// Tailwind CSS 4.3.5 preflight.css (MIT, Tailwind Labs; THIRD-PARTY-NOTICES.md): a copy of the
-// file with no change, so the binary holds it (`bun build --compile` reads no node_modules at run
-// time). It is the base of the kit (SPEC-kit.md § The make step, "For a kit version"). A test holds
-// it to the file of the pinned package.
-
-/** Tailwind's preflight, the base layer of the kit's made CSS. */
 export const preflight = `/*
   1. Prevent padding and border from affecting element width. (https://github.com/mozdevs/cssremedy/issues/4)
   2. Remove default margins and padding

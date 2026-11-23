@@ -3,7 +3,6 @@ import { z } from "zod";
 
 import { chosen } from "./entities";
 
-/** The viewer chooses a plan, by its id. */
 export const choose = operation({
   label: "pricing.choose",
   input: z.string(),

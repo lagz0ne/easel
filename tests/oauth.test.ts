@@ -19,11 +19,6 @@ import { createWs, listen } from "./support/ws";
 
 const { hook } = transport;
 
-// Duke's stress case, whole: a public and a signed transport, EACH ON ITS OWN BASE (two
-// SSE bases), on both sides. The signed side sends a short access token; when it expires, the
-// client uses the refresh token (OAuth 2.0, RFC 6749 s6) and tries once more. One trace links
-// the call, the refresh and the retry, across both transports.
-
 const closers: Array<() => unknown> = [];
 
 afterEach(async () => {
@@ -32,7 +27,6 @@ afterEach(async () => {
 
 const tick = (ms = 30) => new Promise((r) => setTimeout(r, ms));
 
-// ---- shared definitions
 const tokensOut = z.object({
   kind: z.literal("in"),
   who: z.string(),
@@ -58,11 +52,10 @@ const notes = data({ initial: [] as string[] });
 const board = remoteData({ notes });
 const api = rpc({ "note.add": { input: z.string(), output: z.number() } });
 
-// ---- the server: two transports, one route table each.
 async function boot(ttl: number) {
-  const sessions = new Map<string, string>(); // cookie sid -> who
+  const sessions = new Map<string, string>();
   const access = new Map<string, { who: string; until: number }>();
-  const refreshes = new Map<string, string>(); // refresh token -> who
+  const refreshes = new Map<string, string>();
   let n = 0;
   const grant = (who: string) => {
     const token = `a${++n}`;
@@ -92,7 +85,6 @@ async function boot(ttl: number) {
   });
   const whoOf = (meta: Record<string, string>) =>
     access.get(/^Bearer (.+)$/.exec(meta.authorization ?? "")?.[1] ?? "");
-  /** RFC 6750: an unknown token asks for sign-in; an old one says it expired. */
   const bearer = operation({
     label: "bearer",
     input: hook.start,
@@ -133,15 +125,8 @@ async function boot(ttl: number) {
   return { url, sessions, refreshes, spans };
 }
 
-// ---- the client: two transports. Tokens live in a client cell.
 const held = data<{ access: string; refresh: string } | null>({ initial: null });
 
-/**
- * Where the tokens live is picked by usage, not by `held`. The transport runs `meta` and `renew`
- * inside calls that carry a `signal`: each is a child session (ADR 0090), and a plain
- * `held.controller` write would stay there. A `scope`-target resource takes the controller at
- * the root, so every write through it lands there (Core 0.11.0).
- */
 const tokens = resource({
   label: "tokens",
   target: "scope",
@@ -151,7 +136,6 @@ const tokens = resource({
 
 const counts = { status: 0, refresh: 0 };
 
-/** Before each signed request: the access token, after one auth check if there is none. */
 const credentials = operation({
   label: "credentials",
   depends: { status: auth["auth.status"], tokens },
@@ -166,15 +150,14 @@ const credentials = operation({
   },
 });
 
-/** On a refusal (OkHttp's Authenticator): expired -> refresh; true means try once more. */
 const renew = operation({
   label: "renew",
   input: z.object({ payload: z.unknown(), sent: z.record(z.string(), z.string()) }),
   depends: { refresh: auth["auth.refresh"], tokens },
   run: async ({ refresh, tokens }, { input }) => {
     const now = tokens.get();
-    if (now && input.sent.authorization !== `Bearer ${now.access}`) return true; // renewed meanwhile
-    if (!now || !Object(input.payload).expired) return (tokens.set(null), Boolean(now)); // sign in again, once
+    if (now && input.sent.authorization !== `Bearer ${now.access}`) return true;
+    if (!now || !Object(input.payload).expired) return (tokens.set(null), Boolean(now));
     counts.refresh++;
     const next = await refresh.run({ input: { refresh: now.refresh } });
     tokens.set(next.kind === "in" ? { ...now, access: next.access } : null);
@@ -212,7 +195,6 @@ test("each transport on its own path: /public answers the auth check, /api the r
   expect(await scope.run(api["note.add"], { input: "hi" })).toBe(1);
   await tick();
   expect(scope.resolve(board.notes).get()).toEqual(["duke: hi"]);
-  // The signed path has no auth.status; the public path has no note.add.
   const first = async (path: string, a: string, t: string) => {
     const socket = new WebSocket(`${url}${path}`);
     const got = await new Promise<{ e?: number }>((done) => {
@@ -234,7 +216,7 @@ test("the access token expires: one refresh, the call tries once more and works"
   const before = { ...counts };
 
   expect(await scope.run(api["note.add"], { input: "one" })).toBe(1);
-  await tick(200); // the access token is now old
+  await tick(200);
   expect(await scope.run(api["note.add"], { input: "two" })).toBe(2);
   expect([counts.status - before.status, counts.refresh - before.refresh]).toEqual([0, 1]);
 });
@@ -290,27 +272,23 @@ test("one trace: the call, its refused try, the refresh on /public, the retry on
   const client_ = mine(spans);
   const server_ = mine(server.spans);
 
-  // Client: two credentials runs, one renew, one refresh call, three sends (try, refresh, retry).
   expect([
     count(client_, "credentials"),
     count(client_, "renew"),
     count(client_, "auth.refresh"),
     count(client_, "ws.send"),
   ]).toEqual([2, 1, 1, 3]);
-  // Server: three requests in the same trace; the first is refused, the retry runs the op.
   expect([
     count(server_, "ws.serve"),
     count(server_, "bearer"),
     count(server_, "auth.refresh.do"),
     count(server_, "note.add.do"),
   ]).toEqual([3, 2, 1, 1]);
-  // The refresh is a child of renew, which is a child of the call (not a new trace).
   const byId = new Map(spans.map((x) => [x.spanId, x]));
   const up = (x: Observe.Span | undefined): string[] =>
     x ? [x.name, ...up(byId.get(x.parentSpanId ?? ""))] : [];
   expect(up(spans.find((x) => x.name === "auth.refresh"))).toContain("renew");
   expect(up(spans.find((x) => x.name === "renew"))).toContain("note.add");
-  // Every server span of this call sits under a client ws.send span.
   const sends = new Set(spans.filter((x) => x.name === "ws.send").map((x) => x.spanId));
   const roots = server.spans
     .filter((x) => x.traceId === trace && x.name === "ws.serve")

@@ -13,11 +13,6 @@ import { runtimeNamesOf } from "./runtime.server";
 import { maxAppBytes, utf8Bytes } from "./schema";
 import { acceptRuntime, frameKit, readKit, readKitAt, saveLook, undoLook } from "./store.server";
 
-// The kit's calls (SPEC-kit.md § Contract; the kit-look chart). Each runs after the `user` guard
-// (cmds/server.ts, fact rule 1). A change of the look writes through `saveLook` only (fact rule
-// 2), measures with the one `contrast` (fact rule 6), and makes no CSS (fact rule 4).
-
-/** The current kit version; the store has one from the first start (`kitStart`). */
 const currentKit = operation({
   label: "kit.currentKit",
   depends: { readKit },
@@ -29,7 +24,6 @@ const currentKit = operation({
   },
 });
 
-/** `look.get`: the look of the current kit version, or of the kit version `at`. */
 export const lookGet = operation({
   label: "look.get.do",
   input: kitApi["look.get"].input,
@@ -43,12 +37,6 @@ export const lookGet = operation({
   },
 });
 
-/**
- * `look.set`: an old base is `stale` at once. Else the patch is merged into the current look
- * (values only). A look that fails a pair of K8 is `unreadable`, with each failing pair, and
- * nothing is written (judged rules 1, 7). Else `saveLook` writes it on the base, with its `:root`
- * block made once; a change on the same base that landed first makes it `stale` there.
- */
 export const lookSet = operation({
   label: "look.set.do",
   input: kitApi["look.set"].input,
@@ -71,7 +59,6 @@ export const lookSet = operation({
   },
 });
 
-/** `look.undo`: one step back, as a new kit version (judged rule 8). */
 export const lookUndo = operation({
   label: "look.undo.do",
   input: kitApi["look.undo"].input,
@@ -79,12 +66,6 @@ export const lookUndo = operation({
   run: async ({ undoLook }, { input }) => undoLook.run({ input: input.base }),
 });
 
-/**
- * `kit.check`: the check of `frame.put` on a document against the current kit version, with
- * nothing written (fact rule 6: the one `check`, and the one `checkApp` of an app frame). An app
- * frame gets the findings of its module too, with the names of the kit version's runtime. Over
- * the size limit of its kind, `tooBig`.
- */
 export const checkKit = operation({
   label: "kit.check.do",
   input: kitApi["kit.check"].input,
@@ -111,10 +92,6 @@ export const checkKit = operation({
   },
 });
 
-/**
- * `kit.capsules`: the kit's capsules, installed with the look and the kit's CSS of the current
- * kit version (`kitCapsules`), each described.
- */
 export const listCapsules = operation({
   label: "kit.capsules.do",
   input: kitApi["kit.capsules"].input,
@@ -128,7 +105,6 @@ export const listCapsules = operation({
   },
 });
 
-/** `kit.accept`: the runtime of this easel for the next kit version, by the one write. */
 export const kitAccept = operation({
   label: "kit.accept.do",
   input: kitApi["kit.accept"].input,
@@ -136,7 +112,6 @@ export const kitAccept = operation({
   run: async ({ acceptRuntime }) => acceptRuntime.run(),
 });
 
-/** The kit's calls, by address. */
 export const kitOps = {
   "kit.accept": kitAccept,
   "kit.capsules": listCapsules,

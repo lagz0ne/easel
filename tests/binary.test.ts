@@ -10,9 +10,6 @@ import { afterAll, afterEach, expect, test } from "vite-plus/test";
 
 import { greet } from "@/greet";
 
-// The built server is one binary: Vite's client, its files and the telemetry worker are inside it.
-// It runs from any folder, with nothing beside it.
-
 const out = mkdtempSync(join(tmpdir(), "binary-"));
 const children: Subprocess[] = [];
 
@@ -22,7 +19,6 @@ afterEach(() => {
 
 afterAll(() => rmSync(out, { recursive: true, force: true }));
 
-/** The real `build:client`, then the real `build:server` with its outputs in a temp folder. */
 async function build() {
   const client = Bun.spawn(["bun", "run", "build:client"], {
     cwd: new URL("..", import.meta.url).pathname,
@@ -43,7 +39,6 @@ async function build() {
   expect(await made.exited).toBe(0);
 }
 
-/** Runs the binary from an empty folder; resolves once it listens. */
 async function start(collector: string) {
   const child = Bun.spawn([join(out, "server"), "serve"], {
     cwd: mkdtempSync(join(tmpdir(), "binary-cwd-")),
@@ -79,13 +74,11 @@ test("the binary serves the page, its files and rpc, and sends traces from its w
   });
   const { child, url } = await start(`http://localhost:${collector.port}`);
 
-  // A deep link gets the page; each file it links loads from the root.
   const html = await fetch(new URL("/a/b", url)).then((reply) => reply.text());
   const links = [...html.matchAll(/(?:src|href)="(\/[^"]+)"/g)].map((match) => match[1]!);
   expect(links.length).toBeGreaterThan(0);
   for (const link of links) expect((await fetch(new URL(link, url))).status).toBe(200);
 
-  // rpc over the socket, as a tab calls it.
   const tab = await createScope({
     capsules: [
       exits({ file: process.env.TINKER_EXITS }),
@@ -98,7 +91,6 @@ test("the binary serves the page, its files and rpc, and sends traces from its w
   });
   await tab.close();
 
-  // A stop flushes the worker: its traces reach the collector.
   child.kill("SIGTERM");
   expect(await child.exited).toBe(143);
   await collector.stop();

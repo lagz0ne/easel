@@ -8,30 +8,16 @@ import { loginApi } from "./contract";
 import { clientAddress } from "./guards.server";
 import { logins, mode, newCode, newRequest, setupCode, store, users } from "./store.server";
 
-// The calls with no token: `login.start`, `login.setup`, `login.wait`. They run no guard and
-// change only users and logins, through `store` (fact rule 3).
-
 const minute = 60_000;
 
-/** A code runs out 10 minutes after it was made (judged rule 3). */
 export const codeLife = 10 * minute;
 
-/** `login.wait` answers within 50 s, under the socket's 60 s idle timeout (SPEC.md rule 2). */
 export const waitMax = 50_000;
 
-/** Per address, per minute (judged rule 10). */
 export const limits = { "login.start": 5, "login.setup": 5, "login.wait": 30 } as const;
 
-/** At most 20 codes wait at once, and 3 from one address (judged rule 11). */
 export const maxPending = { all: 20, address: 3 } as const;
 
-/**
- * The rate limits: per call and address, the times of the calls let through in the last minute
- * (a sliding log). Each call counts, whatever it answers; a `slow` answer adds no time, so a
- * client that asks too often is let in again a minute after its oldest call. Kept in memory: a
- * restart clears it. Once a minute, each key with no call in the last minute is deleted, so the
- * map holds only the addresses of the last two minutes.
- */
 export const limiter = resource({
   label: "access.limiter",
   target: "scope",
@@ -40,7 +26,6 @@ export const limiter = resource({
     let swept = 0;
 
     return {
-      /** Counts one call: null when it may go on, else the ms until it may. */
       hit: (key: string, max: number, now: number) => {
         if (now - swept >= minute) {
           for (const [old, times] of seen) {
@@ -58,7 +43,6 @@ export const limiter = resource({
   },
 });
 
-/** An IPv6 address's /64: its first four groups, `::` filled in, as `2001:db8:1:2::/64`. */
 const prefix64 = operation({
   label: "access.prefix64",
   input: z.string(),
@@ -75,10 +59,6 @@ const prefix64 = operation({
   },
 });
 
-/**
- * The key an address is counted under: an IPv4 address as it is; an IPv6 one by its /64, the
- * block one host or home is given (RFC 6177), so a client cannot step to a new address each call.
- */
 export const addressKey = operation({
   label: "access.addressKey",
   input: z.string(),
@@ -93,7 +73,6 @@ export const addressKey = operation({
   },
 });
 
-/** Counts the call against its address's limit: `slow` past it, else null. */
 const admit = operation({
   label: "access.admit",
   input: z.enum(["login.start", "login.setup", "login.wait"]),
@@ -109,7 +88,6 @@ const admit = operation({
   },
 });
 
-/** A name or digest in use: a user has it, or a code that still waits carries it (judged rule 7). */
 const inUse = operation({
   label: "access.inUse",
   input: z.object({ name: z.string(), digest: z.string() }),
@@ -123,7 +101,6 @@ const inUse = operation({
   },
 });
 
-/** `slow` when 20 codes wait, or 3 from this address; null when one more may wait. */
 const room = operation({
   label: "access.room",
   input: z.string(),
@@ -140,7 +117,6 @@ const room = operation({
   },
 });
 
-/** A code no waiting login has: two waiting logins never share one. */
 const freshCode = operation({
   label: "access.freshCode",
   depends: { logins: logins.atScope.controller, newCode },
@@ -159,10 +135,6 @@ const freshCode = operation({
   },
 });
 
-/**
- * `login.start`: a code for an owner to approve, or on an `open` server, `granted` at once as an
- * owner. The name is checked and taken with no `await` between (judged rule 7).
- */
 export const startLogin = operation({
   label: "login.start.do",
   input: loginApi["login.start"].input,
@@ -204,11 +176,6 @@ export const startLogin = operation({
   },
 });
 
-/**
- * `login.setup`: the setup code from the log makes the first owner. Once there is a user it
- * answers `taken`; a code that is not the live one answers `wrong` (judged rule 4). Compared in
- * constant time.
- */
 export const setupLogin = operation({
   label: "login.setup.do",
   input: loginApi["login.setup"].input,
@@ -237,11 +204,6 @@ export const setupLogin = operation({
   },
 });
 
-/**
- * What a login's code says now. `granted` while the user it made has the digest it carried, as
- * often as it is asked (judged rule 5); `denied` once it was denied, or its user was revoked or
- * logged out; `expired` past its time, or once it is no longer kept.
- */
 const judge = operation({
   label: "access.judge",
   input: z.string(),
@@ -269,10 +231,6 @@ const judge = operation({
   },
 });
 
-/**
- * `login.wait`: what the code says, at once when it has ended; else it waits for a change to the
- * login, its expiry, or 50 s, whichever is first, and says it again. It carries no token.
- */
 export const waitLogin = operation({
   label: "login.wait.do",
   input: loginApi["login.wait"].input,
@@ -302,7 +260,6 @@ export const waitLogin = operation({
   },
 });
 
-/** The server's side of `loginApi`, by address: `access.login({ implement: loginOps })`. */
 export const loginOps = {
   "login.start": startLogin,
   "login.setup": setupLogin,

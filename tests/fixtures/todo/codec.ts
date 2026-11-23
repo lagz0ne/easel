@@ -2,7 +2,6 @@ import type { transport } from "@tinkered/core";
 
 type Codec = transport.Codec;
 
-/** JSON that keeps a Date a Date. Both sides give it to the protocol. */
 export const keepDates: Codec = {
   serialize: (value) =>
     JSON.stringify(value ?? null, function (this: Record<string, unknown>, key, v) {

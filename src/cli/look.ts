@@ -20,29 +20,17 @@ import { callDeadline, exits, faultExit } from "./exit";
 import { stdinText } from "./frames";
 import { json, say, stderr } from "./output";
 
-// `easel look get|set|undo` (SPEC-kit.md § Change the look; SPEC-cli.md § Commands by module),
-// and `easel kit check <file>` (SPEC-kit.md § Make an app frame, step 5).
-// Each prints its answer and exits by the call's success list in kit's contract (SPEC-cli fact
-// rule 3): `found`, `updated` and `unchanged` exit 0; `stale`, `unreadable`, `none` and `gone`
-// exit 1. A kit fault is told as the shell tells any fault (`faultExit`): a patch with a name
-// that the look does not have is `invalid` (65), checked before the call is sent.
-
-/** One look command, as the cmd read it from its flags. `--at` and `--base` as typed. */
 export const lookCommand = z.discriminatedUnion("kind", [
   z.object({ kind: z.literal("get"), out: z.string().optional(), at: z.string().optional() }),
   z.object({ kind: z.literal("set"), file: z.string().min(1), base: z.string() }),
   z.object({ kind: z.literal("undo"), base: z.string() }),
-  /** `easel kit check <file|->`: a path that ends in `.tsx` is an app frame. */
   z.object({ kind: z.literal("check"), file: z.string().min(1) }),
-  /** `easel kit capsules`: the capsules of the current kit version. */
   z.object({ kind: z.literal("capsules") }),
-  /** `easel kit accept`: the runtime of this easel for the next kit version. */
   z.object({ kind: z.literal("accept") }),
 ]);
 
 export type LookCommand = z.infer<typeof lookCommand>;
 
-/** `--base 3` or `--at 3`, as typed: 1 or more. */
 const numberFlag = z.string().regex(/^\d+$/).transform(Number).pipe(kitVersion);
 
 const address = z.enum([
@@ -54,7 +42,6 @@ const address = z.enum([
   "kit.accept",
 ] satisfies KitAddress[]);
 
-/** One call's deadline: after `callDeadline` (60 s) its signal aborts with a `link` fault. */
 const lookDeadline = operation({
   label: "cli.lookDeadline",
   input: address,
@@ -70,7 +57,6 @@ const lookDeadline = operation({
   },
 });
 
-/** 0 when kit's contract lists the kind as a success, else 1. */
 const lookExitOf = operation({
   label: "cli.lookExitOf",
   input: z.object({ address, kind: z.string() }),
@@ -80,7 +66,6 @@ const lookExitOf = operation({
   },
 });
 
-/** A call that did not answer, told as the shell tells it: a kit fault is made again as one it knows. */
 const lookFault = operation({
   label: "cli.lookFault",
   input: z.unknown(),
@@ -100,7 +85,6 @@ const lookFault = operation({
   },
 });
 
-/** Bad flags or a file that is not JSON: the text says what to do, and the run exits 64. */
 const lookUsage = operation({
   label: "cli.lookUsage",
   input: z.string(),
@@ -111,7 +95,6 @@ const lookUsage = operation({
   },
 });
 
-/** What `look set` and `look undo` print for a stale base: get the look again. */
 const staleText = operation({
   label: "cli.lookStale",
   input: z.object({ rev: z.number(), kit: z.number() }),
@@ -119,7 +102,6 @@ const staleText = operation({
     `stale: the look is at revision ${rev} (kit version ${kit}): get it again with \`easel look get\`, and make the change on it`,
 });
 
-/** What `easel look get` prints for its answer, and the file it writes with `-o`. */
 const tellGet = operation({
   label: "cli.lookTellGet",
   input: z.object({
@@ -147,10 +129,6 @@ const tellGet = operation({
   },
 });
 
-/**
- * `easel look get [-o <file>] [--at <kit version>]` (`look.get`): the look as DTCG JSON, and its
- * revision and kit version. With `-o`, the file gets the JSON, and the line says where.
- */
 export const lookGet = operation({
   label: "cli.lookGet",
   input: lookCommand.options[0],
@@ -177,7 +155,6 @@ export const lookGet = operation({
   },
 });
 
-/** A patch file: its text from the path, or stdin for `-`; null when it cannot be read. */
 const readPatch = operation({
   label: "cli.readPatch",
   input: z.string(),
@@ -192,7 +169,6 @@ const readPatch = operation({
   },
 });
 
-/** A text as JSON; null when it is not JSON. */
 const jsonOf = z.string().transform((text, ctx): unknown => {
   try {
     return JSON.parse(text);
@@ -202,7 +178,6 @@ const jsonOf = z.string().transform((text, ctx): unknown => {
   }
 });
 
-/** The words of `look set`, read: its patch and base, or the exit of the one line that says what is wrong. */
 const readSet = operation({
   label: "cli.lookReadSet",
   input: lookCommand.options[1],
@@ -222,7 +197,6 @@ const readSet = operation({
       return { ok: false as const, exit: usage.run({ input: `${input.file} is not JSON` }) };
     }
 
-    // As rpc checks it before it sends: a name that the look does not have is `invalid` (65).
     const patch = lookPatch.safeParse(json.data);
     if (patch.success) return { ok: true as const, input: { look: patch.data, base: base.data } };
 
@@ -234,7 +208,6 @@ const readSet = operation({
   },
 });
 
-/** What `easel look set` prints for its answer: `unreadable` with each failing pair, a line each. */
 const tellSet = operation({
   label: "cli.lookTellSet",
   input: lookSetOutput,
@@ -261,11 +234,6 @@ const tellSet = operation({
   },
 });
 
-/**
- * `easel look set <file|-> --base <rev>` (`look.set`): a JSON Merge Patch of the look's values.
- * `unreadable` prints each failing pair on stderr, one a line, as
- * `primary-foreground on primary: 1.53:1, needs 4.5:1 (the kit rule .btn-primary)`.
- */
 export const lookSet = operation({
   label: "cli.lookSet",
   input: lookCommand.options[1],
@@ -292,7 +260,6 @@ export const lookSet = operation({
   },
 });
 
-/** `easel look undo --base <rev>` (`look.undo`): one step back, as a new kit version. */
 export const lookUndo = operation({
   label: "cli.lookUndo",
   input: lookCommand.options[2],
@@ -343,10 +310,6 @@ export const lookUndo = operation({
   },
 });
 
-/**
- * What `easel kit check` prints: the count on stdout, and each finding on stderr, one a line, as
- * `put` prints them (SPEC-cli.md § Learn the kit); with `--json`, the answer only.
- */
 const tellCheck = operation({
   label: "cli.kitTellCheck",
   input: z.object({ file: z.string(), answer: kitCheckOutput }),
@@ -376,11 +339,6 @@ const tellCheck = operation({
   },
 });
 
-/**
- * `easel kit check <file|->` (`kit.check`): the check of a put, against the current kit version,
- * and nothing written. A file whose name ends in `.tsx` goes as an app frame (`tsx`), any other,
- * or stdin, as HTML. The findings do not change the exit code (SPEC-cli.md § Learn the kit).
- */
 export const kitCheck = operation({
   label: "cli.kitCheck",
   input: lookCommand.options[3],
@@ -424,10 +382,6 @@ const schemaShape = z
   })
   .loose();
 
-/**
- * A JSON Schema as a short type for a person: `"en" | "vi"`, `string`, `array`, or a map with the
- * pattern of its names. `--json` gives the whole schema.
- */
 const schemaText = operation({
   label: "cli.kitSchemaText",
   input: z.unknown(),
@@ -442,7 +396,6 @@ const schemaText = operation({
   },
 });
 
-/** The text of one export: its name, kind and what it does, then its use, edges and texts. */
 const exportText = operation({
   label: "cli.kitExportText",
   input: z.custom<Capsules["capsules"][number]["exports"][number]>(),
@@ -466,7 +419,6 @@ const exportText = operation({
   },
 });
 
-/** What `easel kit capsules` prints for a person: the start, then each capsule and its exports. */
 const capsulesText = operation({
   label: "cli.kitCapsulesText",
   input: z.custom<Capsules>(),
@@ -491,10 +443,6 @@ const capsulesText = operation({
   },
 });
 
-/**
- * `easel kit capsules` (`kit.capsules`): the capsules of the current kit version, each with what
- * it does, its install, its config and its exports; with `--json`, the answer only.
- */
 export const kitCapsules = operation({
   label: "cli.kitCapsules",
   input: lookCommand.options[4],
@@ -519,10 +467,6 @@ export const kitCapsules = operation({
   },
 });
 
-/**
- * `easel kit accept` (`kit.accept`): the runtime of this easel for the next kit version. The text
- * says that a frame gets it at its next put.
- */
 export const kitAccept = operation({
   label: "cli.kitAccept",
   input: lookCommand.options[5],
@@ -550,7 +494,6 @@ export const kitAccept = operation({
   },
 });
 
-/** Runs one `easel look` command, or `easel kit check|capsules|accept`; answers its exit code. */
 export const lookRun = operation({
   label: "cli.look",
   input: lookCommand,

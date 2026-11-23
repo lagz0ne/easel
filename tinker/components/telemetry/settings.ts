@@ -15,7 +15,6 @@ export const telemetryService = tag({
 export const tracesUrl = tag({ label: "telemetry.tracesUrl", parse: z.instanceof(URL) });
 export const logsUrl = tag({ label: "telemetry.logsUrl", parse: z.instanceof(URL) });
 
-/** Info and 80 saved spans are safe without an app choice. */
 export const logLevel = tag<Observe.Level>({
   label: "telemetry.logLevel",
   default: LEVELS.info,

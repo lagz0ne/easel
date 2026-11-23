@@ -9,11 +9,6 @@ import { telemetryService } from "./settings";
 type SpanLine = Extract<Telemetry.Wire, [tag: "s", ...rest: unknown[]]>;
 type LogLine = Extract<Telemetry.Wire, [tag: "l", ...rest: unknown[]]>;
 
-/**
- * Worker side: one wire line becomes the same queue records the in-process observer makes.
- * The worker's own root owns the queue, its batches, and the console mirror.
- * Health crosses threads only when its kind changes; every returned send changes it.
- */
 export const threadDrain = resource({
   label: "telemetry.drain",
   depends: {
@@ -38,26 +33,21 @@ export const threadDrain = resource({
     );
 
     const owned = {
-      /** The worker glue's wake-up: called on each kind change, so it can post soon after. */
       watch(listener: () => void) {
         changed = listener;
       },
-      /** Health with unreadable lines counted as dropped. */
       health(): Telemetry.Health {
         const current = health.get();
         return { ...current, dropped: current.dropped + bad };
       },
-      /** The health to post, or undefined when its kind has not changed since the last post. */
       report() {
         if (changes === reported) return undefined;
         reported = changes;
         return owned.health();
       },
-      /** Sends what is queued now; the request side's `telemetryThread.flush` waits on it. */
       flush() {
         return queue.flush();
       },
-      /** Sends what is left within the queue's 1.5 s close budget, then returns the final health. */
       async close() {
         await queue.close(true);
         return owned.health();

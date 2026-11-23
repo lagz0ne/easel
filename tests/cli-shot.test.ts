@@ -23,14 +23,7 @@ import { framesLoads, framesOps, mayRead } from "@/frames/ops.server";
 import { drawPage, pictureRoute, picturesServer } from "@/frames/pictures.server";
 import { framesServer } from "@/frames/store.server";
 
-// A test boots a server and runs CLI scopes over it, some two times; a busy host has pushed one past
-// the 5 s default (load 20 on 8 cores, 2026-11-20).
 vi.setConfig({ testTimeout: 30_000, hookTimeout: 30_000 });
-
-// `easel shot <canvas> <id> -o <file> [--scale] [--region]` (SPEC-frames.md § Pictures, § Journeys)
-// as the cmd runs it: `frame.shot` over the memory transport, then the picture from the route,
-// fetched with no port. A test draw stands in for Chromium. Exits: 0 written, 1 off, gone or 404,
-// 65 a picture too big or off the frame, 69 busy after 3 tries, 64 a bad flag.
 
 const closers: Array<() => unknown> = [];
 
@@ -44,7 +37,6 @@ const origin = "https://easel.test";
 
 type Boot = { chromium?: string | null; draw?: "ok" | "fail" };
 
-/** One server: access, pictures and frames on SQLite in memory, the route, a memory transport. */
 async function boot(options: Boot = {}) {
   const clock = makeTestClock({ now: 1_800_000_000_000 });
   const out: string[] = [];
@@ -85,7 +77,6 @@ async function boot(options: Boot = {}) {
   const setupCode = () => /setup code: (\S+)/.exec(out.join(""))?.[1] ?? "";
   const route = server.resolve(routes).fetch;
   const asked: string[] = [];
-  /** The server's picture route, as the CLI's fetch reaches it. */
   const send = async (request: Request) => {
     asked.push(request.url);
     const answer = await route(request, server);
@@ -98,7 +89,6 @@ async function boot(options: Boot = {}) {
 
 type Srv = Awaited<ReturnType<typeof boot>>;
 
-/** Ann's CLI, signed in, with a canvas `flow` and one frame on it. `fetch`: how it reaches pictures. */
 async function ann(srv: Srv, options: { json?: boolean; fetch?: typeof srv.send } = {}) {
   const dir = mkdtempSync(join(tmpdir(), "easel-cli-shot-"));
   closers.push(() => rmSync(dir, { recursive: true, force: true }));
@@ -150,7 +140,6 @@ async function ann(srv: Srv, options: { json?: boolean; fetch?: typeof srv.send 
     err,
     run,
     file: join(dir, "shot.webp"),
-    /** All it printed, both streams. */
     printed: () => [...out, ...err].join(""),
     lines: () =>
       [...out.splice(0), ...err.splice(0)]
@@ -161,14 +150,12 @@ async function ann(srv: Srv, options: { json?: boolean; fetch?: typeof srv.send 
   };
 }
 
-/** A shot command on the frame. */
 const shot = (
   id: string,
   out: string,
   flags: { scale?: string; region?: string } = {},
 ): FramesCommand => ({ kind: "shot", canvas: "flow", id, out, ...flags });
 
-/** Runs `easel shot` while the test clock walks: each 1 s wait between tries passes. */
 async function walking(srv: Srv, run: Promise<number>) {
   const state = { done: false };
   void run.finally(() => (state.done = true));
@@ -184,7 +171,6 @@ test("easel shot writes the current version's picture to the file and exits 0; t
   const a = await ann(srv);
 
   expect(await a.run(shot(a.id, a.file))).toBe(0);
-  // The draw has the version composed with the current kit version (SPEC-kit compose).
   expect(readFileSync(a.file, "utf8")).toMatch(
     /^webp:<!doctype html>\n<style id="easel-look">[\s\S]*\n<p>1<\/p>$/,
   );
@@ -246,7 +232,6 @@ test("a region off the frame exits 65: the server answers 400", async () => {
   const srv = await boot();
   const a = await ann(srv);
 
-  // The clock walks: a retry would come back, and be counted, not hang.
   expect(await walking(srv, a.run(shot(a.id, a.file, { region: "0,0,1441,10" })))).toBe(65);
   expect(a.lines()).toEqual([{ kind: "failed", status: 400 }]);
   expect(srv.asked).toHaveLength(1);
@@ -274,7 +259,6 @@ test("a busy server that draws on the next try: exit 0", async () => {
   });
   expect(await walking(srv, a.run(shot(a.id, a.file)))).toBe(0);
   expect(srv.asked).toHaveLength(3);
-  // The draw has the version composed with the current kit version (SPEC-kit compose).
   expect(readFileSync(a.file, "utf8")).toMatch(
     /^webp:<!doctype html>\n<style id="easel-look">[\s\S]*\n<p>1<\/p>$/,
   );
@@ -325,7 +309,6 @@ test("a picture gone by the fetch (404) exits 1; any other status exits 70; neit
       fetch: async (request) => (tries.push(request.url), new Response(null, { status })),
     });
 
-    // The clock walks: a retry would come back, and be counted, not hang.
     expect(await walking(srv, a.run(shot(a.id, a.file)))).toBe(exit);
 
     expect(a.lines()).toEqual([{ kind: "failed", status }]);

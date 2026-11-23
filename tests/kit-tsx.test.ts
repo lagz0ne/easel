@@ -9,11 +9,6 @@ import { runtimeNames } from "@/kit/runtime";
 
 import { testKit } from "./kit/fixture";
 
-// The check of an app frame (SPEC-kit.md § App frames; judged rules 14 and 15): class names only
-// from the class places, read from the syntax tree of oxc-parser; each other expression there is
-// `kit/class-built`; each class name gets the K5 verdict; the fixes go in by position, and the make
-// step gets exactly the class names of the fixed text.
-
 const scopes: Array<{ close: () => Promise<unknown> }> = [];
 
 afterEach(async () => {
@@ -43,8 +38,6 @@ test("a usual app frame from the kit gives no finding, and its classes come from
 
   expect(got.findings).toEqual([]);
   expect(got.fixed).toBe(await pricing());
-  // The className attribute, cn, clsx and its object keys, cva's base, variants and compound
-  // variants, a map of whole names, and a const of a place.
   for (const name of [
     "mx-auto",
     "md:grid-cols-3",
@@ -62,8 +55,6 @@ test("a usual app frame from the kit gives no finding, and its classes come from
   ]) {
     expect(got.classes).toContain(name);
   }
-  // Kit classes give their CSS from the kit, so they are not made; the names of variants and of
-  // data are no classes.
   for (const name of ["btn", "card", "badge", "Starter", "month", "featured", "lg"]) {
     expect(got.classes).not.toContain(name);
   }
@@ -95,7 +86,6 @@ test("each class that code builds is kit/class-built at its line and column, wit
   ]);
   expect(got.findings[0]?.what).toContain("`bg-${t}`");
   for (const f of got.findings) expect(f.fix).toContain("a map of whole names");
-  // A place that is built stays as it is, and a whole name next to it is made.
   expect(got.fixed).toBe(tsx);
   expect(got.classes).toEqual(["p-4"]);
 });
@@ -122,7 +112,6 @@ test("a class name gets the K5 verdict, and each fix goes in at its place", asyn
     "use bg-destructive",
     "use text-2xl",
   ]);
-  // An unknown class goes with one space next to it; a color or a size takes the look's class.
   expect(got.fixed).toBe(
     [
       "export function View() {",
@@ -218,8 +207,6 @@ test("speed: a usual app frame and one of 256 KiB are checked in the budget of 5
   const scope = await open();
   const kit = await testKit();
   const usual = await pricing();
-  // The limit of an app frame (SPEC-kit.md § App frames, "The file"). Each copy is one more
-  // pricing frame, with no export, so the copies do not clash.
   const big = usual.repeat(Math.floor((256 * 1024) / usual.length)).replaceAll("export ", "");
   expect(new TextEncoder().encode(big).length).toBeLessThanOrEqual(256 * 1024);
   expect(await scope.run(checkApp, { input: { tsx: big, kit } })).toMatchObject({
@@ -236,8 +223,6 @@ test("speed: a usual app frame and one of 256 KiB are checked in the budget of 5
     return times.sort((x, y) => x - y)[Math.floor(runs / 2)] ?? Infinity;
   };
 
-  // Measured on 2026-11-22 (vibea2, p50): 0.8 ms for the usual frame, 28 ms for 256 KiB. Loose,
-  // so a loaded host does not fail it, as the speed tests of the HTML check.
   expect(await time(usual, 15)).toBeLessThan(25);
   expect(await time(big, 5)).toBeLessThan(150);
 });
@@ -281,7 +266,6 @@ test("the module of an app frame: kit/import, kit/react-state and kit/shape, eac
   expect(got.findings[1]?.fix).toContain("react, zod, clsx, @easel/frame");
   expect(got.findings[5]?.what).toContain("the name extra");
 
-  // With no `names`, the check is the class check of 4.2 only.
   const classes = await scope.run(checkApp, { input: { tsx, kit: await testKit() } });
   expect(classes.findings).toEqual([]);
 });
@@ -295,7 +279,6 @@ test("an app frame with no View is kit/shape at its first line; logic and frame 
   expect(at(got.findings)).toEqual(["1:1 kit/shape"]);
   expect(got.findings.map((f) => f.what)).toEqual(["the frame does not export View"]);
 
-  // A capsule frame: View (a resource) and its own capsule, frame.
   const capsuleFrame = "export const View = 1;\nexport const frame = 2;";
   const both = await scope.run(checkApp, {
     input: { tsx: capsuleFrame, kit: await testKit(), names: ["react"] },
@@ -315,8 +298,6 @@ test("the usual app frame passes the check of its module with the names of the r
   if (got.kind !== "made") throw new Error("not made");
 
   expect(got.findings).toEqual([]);
-  // One module: no types, the JSX of React's runtime, each name an import for the import map,
-  // and the call of the mount at its end. It exports nothing.
   expect(got.js).toContain('from"react/jsx-runtime"');
   expect(got.js).toContain('import{mount}from"@easel/frame"');
   expect(got.js).not.toContain("type Period");
@@ -355,7 +336,6 @@ test("a folder frame: an import of its own files, by a path with no extension; e
     'the frame imports "./gone": no file of the frame has this path',
   );
 
-  // Without the bad import: one module, with each file once and the fix of the class.
   const fine = {
     ...files,
     "parts/row.tsx": (files["parts/row.tsx"] ?? "").replace(/.*gone.*\n/, ""),
@@ -370,7 +350,6 @@ test("a folder frame: an import of its own files, by a path with no extension; e
   expect(made.js).toContain('"text-destructive"');
   expect(made.css).toContain(".p-4");
 
-  // A path above the frame is no file of it.
   const above = { "index.tsx": 'import "../x";\nexport function View() { return null; }' };
   const out = await scope.run(makeApp, { input: { files: above, kit, names } });
   expect(out.findings.map((f) => f.rule)).toEqual(["kit/import"]);

@@ -1,48 +1,28 @@
 import { capsule, operation, tag, transport } from "@tinkered/core";
 import { z } from "zod";
 
-/** The git commit this server was built from; the cmd fills it ("dev" when it runs from source). */
 const commit = tag<string>({ label: "release.commit", parse: z.string().min(1) });
 
-/**
- * The build number: the count of commits on main up to `commit` (SPEC-ops.md § The build
- * number). main is one straight line, so a larger number is a later build. 0 from source.
- */
 const build = tag<number>({
   label: "release.build",
   default: 0,
   parse: z.number().int().nonnegative(),
 });
 
-/**
- * The public address of this easel (`PUBLIC_ORIGIN`), which the install script names. Null: the
- * address the request came to.
- */
 const origin = tag<string | null>({ label: "release.origin", default: null });
 
-/**
- * Where the binaries of each build are: `<downloads>/build-<n>/easel-<os>-<arch>`, and its
- * `SHA256SUMS`. The deploy workflow puts them on the GitHub release `build-<n>`.
- */
 const downloads = tag<string>({
   label: "release.downloads",
   default: "https://github.com/lagz0ne/easel/releases/download",
   parse: z.url({ protocol: /^https?$/ }),
 });
 
-/** `GET /api/version`: the deploy job waits until the public site names the commit it shipped. */
 const version = operation({
   label: "release.version",
   depends: { commit, build },
   run: ({ commit, build }) => ({ commit, build }),
 });
 
-/**
- * The install script, as Bun's, Deno's and rustup's `curl -fsSL <url> | sh`: it finds the system,
- * downloads the binary of this build, checks its SHA-256 against the release's `SHA256SUMS`, and
- * only then puts it in place (judged rule 6). Every step is in `main`, called on the last line:
- * a download cut short runs nothing. `@SERVER@`, `@BUILD@` and `@RELEASE@` are filled in.
- */
 const script = `#!/bin/sh
 # Installs the easel command line of @SERVER@, build @BUILD@ (SPEC-cli.md, "Get the command line"):
 #   curl -fsSL @SERVER@/install.sh | sh
@@ -123,17 +103,12 @@ main() {
 main "$@"
 `;
 
-/**
- * `GET /install.sh` (SPEC-cli.md § Contract): the install script, with no sign-in, holding the
- * address and the build of this easel. Each value goes in single quotes.
- */
 const install = operation({
   label: "release.install",
   depends: { build, origin, downloads, request: transport.request.required },
   run: ({ build, origin, downloads, request }) => {
     const server = origin ?? new URL(request.url).origin;
     const release = `${downloads.replace(/\/+$/, "")}/build-${build}`;
-    // An origin has no quote; a quote in the URL is sent as %27, so no value ends its quotes.
     const text = script
       .replaceAll("@SERVER@", server)
       .replaceAll("@BUILD@", `${build}`)
@@ -145,7 +120,6 @@ const install = operation({
   },
 });
 
-/** Which build is live, and the script that installs its command line. Others import this file by its own path (ADR 0160). */
 export const release = capsule({
   label: "release",
   config: { commit: commit.required, build, origin, downloads },

@@ -5,7 +5,6 @@ import { httpBackend } from "~/components/http";
 import type { Telemetry } from "./records";
 import { logsUrl, telemetryService, telemetrySide, tracesUrl } from "./settings";
 
-/** Sends cached JSON without observing its own HTTP requests (ADR 0102). */
 export const delivery = resource({
   label: "telemetry.delivery",
   depends: {
@@ -16,9 +15,6 @@ export const delivery = resource({
     backend: httpBackend,
   },
   factory: ({ side, service, tracesUrl, logsUrl, backend }) => {
-    // easel diverges from upstream 0.30.1: a server with no URL for a kind sends none of it,
-    // and counts it as delivered (OTel's convention: no endpoint, no exporter). Upstream raises
-    // MissingTag. A browser sends to its own route, and needs neither.
     const server = side !== "browser";
     const exported = { trace: server && tracesUrl.present, log: server && logsUrl.present };
     const logs = new URL(logsUrl.present ? logsUrl.value : "http://unset.invalid/");
@@ -46,7 +42,6 @@ export const delivery = resource({
             },
           ];
         } else {
-          // A kind with no URL is not sent, and counts as delivered.
           const sent = records.filter((record) => exported[record.kind]);
           const groups = ["server", "browser", "ssr", "worker"].flatMap((side) => {
             const spans = sent

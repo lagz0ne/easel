@@ -8,7 +8,6 @@ import { exportHealth } from "./health";
 import type { Telemetry } from "./records";
 import { telemetrySide } from "./settings";
 
-/** Retains failed records within count and byte bounds; this resource owns every promise. */
 export const queue = resource({
   label: "telemetry.queue",
   target: "scope",
@@ -23,7 +22,6 @@ export const queue = resource({
     let records: Telemetry.Record[] = [];
     const browser = side === "browser";
     const batchLimit = browser ? 32_000 : 48_000;
-    /** Reserve the JSON envelope and one comma per browser record. */
     const recordLimit = browser ? batchLimit - 24 : batchLimit;
     const frameBytes = browser ? 23 : 0;
     const commaBytes = browser ? 1 : 0;
@@ -218,7 +216,6 @@ export const queue = resource({
           );
         }
       },
-      /** The extension can write final data; a forced defer runs after its data owner is sealed. */
       async close(publishFinal: boolean) {
         if (state !== "open") return;
 

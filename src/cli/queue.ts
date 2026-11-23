@@ -24,13 +24,6 @@ import type { QueueAddress, RequestAddress } from "@/queue/contract";
 import { callDeadline, exits, faultExit } from "./exit";
 import { say } from "./output";
 
-// `easel next`, `extend`, `release`, `decline`, `ask`, `resolve`, `requests`, `edit` and `close`
-// (SPEC-queue.md § An agent works the queue, § A request no agent finishes). Each prints its
-// answer and exits by the call's success list in the queue's contract (SPEC-cli.md fact rule 3).
-// A bad flag is 64 and an input that the contract refuses is 65, both before the call. A queue
-// fault is told as the shell tells any fault: refused 2, invalid 65, link 69, failed 70.
-
-/** One queue command, as the cmd read it from its flags. Numbers stay as typed: bad ones are 64. */
 export const queueCommand = z.discriminatedUnion("kind", [
   z.object({
     kind: z.literal("next"),
@@ -46,7 +39,6 @@ export const queueCommand = z.discriminatedUnion("kind", [
     kind: z.literal("ask"),
     claim: z.string(),
     text: z.string(),
-    /** The path of the HTML part. */
     html: z.string().optional(),
     options: z.array(z.string()).optional(),
   }),
@@ -72,7 +64,6 @@ export const queueCommand = z.discriminatedUnion("kind", [
 
 export type QueueCommand = z.infer<typeof queueCommand>;
 
-/** What each bad flag says: one line that names it. */
 const badFlag = {
   canvas: "--canvas takes a canvas's key: `easel canvas ls` prints them",
   n: "the number of a request is 1 or more, and --n needs --canvas: `easel requests` prints them",
@@ -82,10 +73,8 @@ const badFlag = {
   html: "--html takes the path of an HTML file that can be read",
 } as const;
 
-/** Whole seconds, as typed. */
 const seconds = z.string().regex(/^\d+$/).transform(Number);
 
-/** A flag as typed, read. An issue names the flag, and `badFlag` has its line. */
 const flag = {
   canvas: canvasKey.optional(),
   n: seconds.pipe(z.number().int().positive()),
@@ -94,7 +83,6 @@ const flag = {
   state: state.optional(),
 } as const;
 
-/** `easel next`'s flags, read. */
 const nextFlags = z
   .object({
     canvas: flag.canvas,
@@ -104,10 +92,8 @@ const nextFlags = z
   })
   .refine((typed) => typed.n === undefined || typed.canvas !== undefined, { path: ["n"] });
 
-/** `easel requests`' flags, read. */
 const listFlags = z.object({ canvas: flag.canvas, state: flag.state });
 
-/** The line of the first flag that the issues name. */
 const badLine = operation({
   label: "cli.queueBadLine",
   input: z.array(z.object({ path: z.array(z.unknown()) })),
@@ -118,7 +104,6 @@ const badLine = operation({
   },
 });
 
-/** Bad flags: the text says what to do, and the run exits 64 before it calls. */
 const usage = operation({
   label: "cli.queueUsage",
   input: z.string(),
@@ -130,7 +115,6 @@ const usage = operation({
   },
 });
 
-/** An input that the contract refuses: the issues, printed, and 65 before it sends. */
 const invalid = operation({
   label: "cli.queueInvalid",
   input: z.array(z.object({ path: z.array(z.unknown()), message: z.string() })),
@@ -144,7 +128,6 @@ const invalid = operation({
   },
 });
 
-/** The addresses of the queue that the CLI calls; `./channels` calls the last four. */
 const address = z.enum([
   "request.next",
   "request.extend",
@@ -161,10 +144,8 @@ const address = z.enum([
   "channel.remove",
 ] satisfies Array<QueueAddress | RequestAddress | ChannelAddress>);
 
-/** Every success list of the queue, by call. */
 const lists = { ...queueSuccessKinds, ...requestSuccessKinds, ...channelSuccessKinds };
 
-/** 0 when the queue's contract lists the kind as a success, else 1. */
 export const queueExitOf = operation({
   label: "cli.queueExitOf",
   input: z.object({ address, kind: z.string() }),
@@ -175,10 +156,6 @@ export const queueExitOf = operation({
   },
 });
 
-/**
- * One call's deadline: after `callDeadline` (60 s) its signal aborts with a `link` fault, as the
- * shell's `deadline` does. A `request.next` waits at most 50 s on the server, inside it.
- */
 export const queueDeadline = operation({
   label: "cli.queueDeadline",
   input: address,
@@ -194,7 +171,6 @@ export const queueDeadline = operation({
   },
 });
 
-/** A call that did not answer, told as the shell tells it: a queue fault is made again as one. */
 export const queueFault = operation({
   label: "cli.queueFault",
   input: z.unknown(),
@@ -215,7 +191,6 @@ export const queueFault = operation({
   },
 });
 
-/** What a refusal of the queue prints: what it means, and what to do next. */
 const refusalText = operation({
   label: "cli.queueRefusalText",
   input: z.discriminatedUnion("kind", [
@@ -241,7 +216,6 @@ const refusalText = operation({
   },
 });
 
-/** One line for a request: canvas, number, state, author, place and tries. */
 const requestLine = operation({
   label: "cli.requestLine",
   input: z.object({ request, now: z.number() }),
@@ -255,7 +229,6 @@ const requestLine = operation({
   },
 });
 
-/** One line for a message of a thread. */
 const messageLine = operation({
   label: "cli.messageLine",
   input: message,
@@ -267,10 +240,8 @@ const messageLine = operation({
   },
 });
 
-/** What `request.next` answers when it claims. */
 const claimed = queueContracts["request.next"].output.options[0];
 
-/** The line of a claim about its place: the frame now, the frames of the canvas, or neither. */
 const placeLine = operation({
   label: "cli.placeLine",
   input: claimed,
@@ -287,7 +258,6 @@ const placeLine = operation({
   },
 });
 
-/** The text of a claimed request: the claim, what it allows, the request, and its thread. */
 const claimedText = operation({
   label: "cli.claimedText",
   input: claimed,
@@ -303,7 +273,6 @@ const claimedText = operation({
     ].join("\n"),
 });
 
-/** What `easel next` prints for an answer. */
 const nextText = operation({
   label: "cli.nextText",
   input: queueContracts["request.next"].output,
@@ -318,7 +287,6 @@ const nextText = operation({
   },
 });
 
-/** One `request.next` call: its answer, or the exit of a call that did not answer. */
 const callNext = operation({
   label: "cli.callNext",
   input: queueContracts["request.next"].input,
@@ -339,11 +307,6 @@ const callNext = operation({
   },
 });
 
-/**
- * `easel next [--canvas k] [--n n] [--wait s] [--lease s]` (`request.next`): claims the oldest
- * waiting request. With nothing to take, it asks again in calls of at most 50 s until `--wait`
- * passes, then prints `empty` and exits 0, as a poll of SQS answers no message.
- */
 export const next = operation({
   label: "cli.next",
   input: queueCommand.options[0],
@@ -369,7 +332,6 @@ export const next = operation({
   },
 });
 
-/** The HTML part of `--html <file>`: its text; null with no flag; false when it cannot be read. */
 const htmlFile = operation({
   label: "cli.htmlFile",
   input: z.string().optional(),
@@ -384,7 +346,6 @@ const htmlFile = operation({
   },
 });
 
-/** A call of the holder of a claim, as the contract takes it. */
 const holderInput = z.discriminatedUnion("kind", [
   z.object({ kind: z.literal("extend"), input: queueContracts["request.extend"].input }),
   z.object({ kind: z.literal("release"), input: queueContracts["request.release"].input }),
@@ -393,7 +354,6 @@ const holderInput = z.discriminatedUnion("kind", [
   z.object({ kind: z.literal("resolve"), input: queueContracts["request.resolve"].input }),
 ]);
 
-/** The commands of the holder of a claim. */
 const holderCommand = z.discriminatedUnion("kind", [
   queueCommand.options[1],
   queueCommand.options[2],
@@ -402,7 +362,6 @@ const holderCommand = z.discriminatedUnion("kind", [
   queueCommand.options[5],
 ]);
 
-/** `easel extend`, read: its call, or the line of a bad `--lease`. */
 const extendCall = operation({
   label: "cli.extendCall",
   input: queueCommand.options[1],
@@ -414,7 +373,6 @@ const extendCall = operation({
   },
 });
 
-/** `easel ask` or `resolve`, read: its call with the HTML part, or the line of a bad `--html`. */
 const partCall = operation({
   label: "cli.partCall",
   input: z.discriminatedUnion("kind", [queueCommand.options[4], queueCommand.options[5]]),
@@ -431,7 +389,6 @@ const partCall = operation({
   },
 });
 
-/** A holder's command, read: its call before the contract checks it, or the line of a bad flag. */
 const holderCall = operation({
   label: "cli.holderCall",
   input: holderCommand,
@@ -453,7 +410,6 @@ const holderCall = operation({
   },
 });
 
-/** One call of a holder: the answer of the call that its kind names. It throws a fault. */
 const settleHolder = operation({
   label: "cli.settleHolder",
   input: z.object({ call: holderInput, signal: z.instanceof(AbortSignal) }),
@@ -480,7 +436,6 @@ const settleHolder = operation({
   },
 });
 
-/** Sends a holder's call: its answer, or the exit of a call that did not answer. */
 const sendHolder = operation({
   label: "cli.sendHolder",
   input: holderInput,
@@ -499,7 +454,6 @@ const sendHolder = operation({
   },
 });
 
-/** What a holder's call prints when it is done, by the kind of the answer. */
 const holderDone = {
   released: "released: the request waits again, at the back of the queue",
   declined: "declined: the request needs a person",
@@ -507,7 +461,6 @@ const holderDone = {
   resolved: "resolved",
 } as const;
 
-/** What a holder's call prints for its answer, and whether it is an error. */
 const holderText = operation({
   label: "cli.holderText",
   input: z.union([
@@ -530,10 +483,6 @@ const holderText = operation({
   },
 });
 
-/**
- * `easel extend|release|decline|ask|resolve <claim> ...`: one call of the holder of a claim.
- * `lost`, `wrongState` and `gone` exit 1, and say that nothing was written.
- */
 export const holder = operation({
   label: "cli.holder",
   input: holderCommand,
@@ -556,7 +505,6 @@ export const holder = operation({
   },
 });
 
-/** `easel requests [--canvas k] [--state s]` (`request.list`): one line per request. */
 export const requestsLs = operation({
   label: "cli.requests",
   input: queueCommand.options[6],
@@ -591,19 +539,16 @@ export const requestsLs = operation({
   },
 });
 
-/** A user's commands on a request. */
 const userCommand = z.discriminatedUnion("kind", [
   queueCommand.options[7],
   queueCommand.options[8],
 ]);
 
-/** A user's call on a request, as the contract takes it. */
 const userInput = z.discriminatedUnion("kind", [
   z.object({ kind: z.literal("edit"), input: requestContracts["request.edit"].input }),
   z.object({ kind: z.literal("close"), input: requestContracts["request.close"].input }),
 ]);
 
-/** A user's command, read: its call before the contract checks it, or the line of a bad number. */
 const userCall = operation({
   label: "cli.userCall",
   input: userCommand,
@@ -617,7 +562,6 @@ const userCall = operation({
   },
 });
 
-/** A user's call on a request: its answer. It throws a fault. */
 const settleUser = operation({
   label: "cli.settleUser",
   input: z.object({ call: userInput, signal: z.instanceof(AbortSignal) }),
@@ -632,7 +576,6 @@ const settleUser = operation({
   },
 });
 
-/** Sends a user's call: its answer, or the exit of a call that did not answer. */
 const sendUser = operation({
   label: "cli.sendUser",
   input: userInput,
@@ -651,7 +594,6 @@ const sendUser = operation({
   },
 });
 
-/** What a user's call prints for its answer, and whether it is an error. */
 const userText = operation({
   label: "cli.userText",
   input: z.object({
@@ -676,10 +618,6 @@ const userText = operation({
   },
 });
 
-/**
- * `easel edit <canvas> <n> --text t` and `easel close <canvas> <n> [--text t]`: a user makes a
- * request clear, or closes it (§ A request no agent finishes, step 3).
- */
 export const userAct = operation({
   label: "cli.userAct",
   input: userCommand,
@@ -710,7 +648,6 @@ export const userAct = operation({
   },
 });
 
-/** Runs one queue command; answers its exit code. The shell's `cli.run` sends each here. */
 export const queueRun = operation({
   label: "cli.queue",
   input: queueCommand,

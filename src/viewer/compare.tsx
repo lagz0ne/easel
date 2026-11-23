@@ -7,24 +7,13 @@ import { frames } from "@/frames";
 import type { Pane } from "./follow";
 import { FramePicture } from "./picture";
 
-// Two pictures of one frame in a request's popover (SPEC-viewer.md § Follow the requests 13, 14;
-// the design's Compare): one picture, with a two-way switch on its top edge, as GitHub's image
-// diff and Figma's branch compare. `Before` | `After` for a result, `When asked` | `Now` for a
-// request that may be outdated. A folded switch shows no picture; a click on a side opens it.
-
-/** A side of the switch. */
 export type Side = "left" | "right";
 
-/**
- * The side that the viewer picked on each switch, by its key. The key holds what folds or opens
- * the switch again (the request's change, the textbox), so a pick lasts until one of them changes.
- */
 export const sidePicks = data<Readonly<Record<string, Side>>>({
   label: "viewer.sidePicks",
   initial: {},
 });
 
-/** You click a side of a switch: its picture opens on that side. */
 export const pickSide = operation({
   label: "viewer.pickSide",
   input: z.object({ key: z.string(), side: z.enum(["left", "right"]) }),
@@ -32,11 +21,6 @@ export const pickSide = operation({
   run: ({ picks }, { input: { key, side } }) => picks.set({ ...picks.get(), [key]: side }),
 });
 
-/**
- * The picture of a version of a frame in a kit version, at the frame's box, or the box it had
- * before it was removed. A version that is not current has its key in the board's `kept`. A pane
- * with no kit version shows the current one.
- */
 function PanePicture({
   canvas,
   id,
@@ -67,7 +51,6 @@ function PanePicture({
   );
 }
 
-/** A side's button of the switch: a radio, checked while its picture shows. */
 function SideButton({
   pane,
   checked,
@@ -90,10 +73,6 @@ function SideButton({
   );
 }
 
-/**
- * The switch and the picture of the side on show. `show` is the side it opens on, and `open`
- * whether it opens; a pick of the viewer, by `pickKey`, overrides both.
- */
 export function Compare({
   canvas,
   id,

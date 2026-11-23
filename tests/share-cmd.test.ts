@@ -9,23 +9,14 @@ import { afterAll, expect, test } from "vite-plus/test";
 type Server = typeof import("../cmds/server");
 type Pages = typeof import("../cmds/pages");
 
-// Share in the real commands: the server on its own port, and `easel` in this process. A raw
-// socket sends as any client may: a password out of bounds is `invalid` (SPEC-frames § Inputs).
-// `easel share` prints the link's page on its server (decision C4), `--password` makes it ask one
-// and `easel unshare` ends it; every page says `Referrer-Policy: no-referrer` (judged rule 15,
-// decision C11).
-
-/** The real commands and pages, run in this process; the lint bans a static parent import. */
 const server: Server = await import(new URL("../cmds/server.ts", import.meta.url).href);
 const easelCmd: Server = await import(new URL("../cmds/easel.ts", import.meta.url).href);
 const { pagesOf }: Pages = await import(new URL("../cmds/pages.ts", import.meta.url).href);
 
-/** Takes the telemetry the command sends, so nothing leaves this machine. */
 const collector = Bun.serve({ port: 0, fetch: () => new Response(null, { status: 204 }) });
 
 afterAll(() => collector.stop());
 
-/** Runs the command; its log lines are kept. */
 async function run() {
   const stop = new AbortController();
   const out: string[] = [];
@@ -50,7 +41,6 @@ async function run() {
   return { url, out, close };
 }
 
-/** `easel` with these words, in its own home: its exit code and what it printed. */
 async function easel(home: string, ...args: string[]) {
   const out: string[] = [];
   const codes: number[] = [];
@@ -69,7 +59,6 @@ async function easel(home: string, ...args: string[]) {
   return { code: codes[0], out: out.join("") };
 }
 
-/** A raw socket to `host`: each call is one frame, answered as the server wrote it. */
 async function socket(host: string) {
   const ws = new WebSocket(`ws://${host}/rpc`);
   const replies = new Map<number, (text: string) => void>();
@@ -95,15 +84,12 @@ test("a password out of bounds is invalid on share.open and on canvas.share; a t
 
   const invalid = JSON.stringify({ ok: false, kind: "invalid", payload: {} });
   expect(await raw.call("share.open", { link, name: "Bo", password: "" })).toBe(invalid);
-  // Before any token: the input is read before the guard, so a short password reaches no user check.
   expect(await raw.call("canvas.share", { canvas: "home", password: "hunter2" })).toBe(invalid);
   expect(await raw.call("canvas.share", { canvas: "home", password: 12345678 })).toBe(invalid);
-  // Over 1024 characters: invalid too, typed or set, before any hash is made.
   const long = "x".repeat(1025);
   expect(await raw.call("share.open", { link, name: "Bo", password: long })).toBe(invalid);
   expect(await raw.call("canvas.share", { canvas: "home", password: long })).toBe(invalid);
   expect(await raw.call("share.open", { link: "not-a-link", name: "Bo" })).toBe(invalid);
-  // Well formed and unknown: gone, as an ended link is, with a password or without.
   for (const input of [
     { link, name: "Bo" },
     { link, name: "Bo", password: "hunter2hunter2" },
@@ -209,7 +195,6 @@ test("easel share --password makes the link ask it, --no-password lets it open, 
 
 test("easel share: a short --password, it with --no-password, no canvas, or a key that is no key is bad usage, 64, before any call", async () => {
   const home = mkdtempSync(join(tmpdir(), "easel-share-cmd-"));
-  // Port 9 has no server: a run that called it would exit 69, not 64.
   const at = ["--server", "localhost:9", "--json"];
 
   expect(await easel(home, "share", "flow", "--password", "hunter2", ...at)).toEqual({

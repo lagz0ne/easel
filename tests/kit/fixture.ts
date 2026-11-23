@@ -1,8 +1,5 @@
-// The kit of the tests: the look and the class pieces of the E8 study (A+T), as kit version 1.
-// The seed of easel comes later (SPEC-kit.md § Build order, step 5); these tests do not need it.
 const read = (name: string) => Bun.file(new URL(name, import.meta.url)).text();
 
-/** The look values of look.css, by CSS name: `{ "--primary": "#4338ca", ... }`. */
 export function lookOf(css: string) {
   return Object.fromEntries(
     [...css.matchAll(/(--[a-z0-9-]+):\s*([^;]+);/g)].map((m) => [m[1] ?? "", (m[2] ?? "").trim()]),

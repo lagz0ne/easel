@@ -1,9 +1,3 @@
-/* The design tokens (SPEC-design.md): every colour, space and type size a viewer module uses.
-   The values are the tokens of the Doop library canvas `easel · Design system` (`zPdfXgdRrQ`),
-   light and dark. Change them there first, then here.
-   `--e-card` is the plain card that stands in for a frame's picture until pictures are built.
-   `--e-shadow` is the one shadow of a floating part (a popover, a status, the dock).
-   `.e-light` keeps the light values in a dark theme: the canvas space is light gray, as in Doop. */
 :root,
 .e-light {
   --e-bg: #f3f3f2;
@@ -103,8 +97,6 @@
   }
 }
 
-/* Inter, the font of the viewer: the binary holds it (`src/kit/fonts.server.ts`), in three files by
-   range. Until a file loads, the text shows in the next font of `--e-font` (swap). */
 @font-face {
   font-family: "Inter";
   src: url("/api/fonts/inter-5.3.0/inter-vietnamese-wght-normal.woff2") format("woff2");

@@ -11,7 +11,6 @@ afterAll(() => {
   for (const folder of folders) rmSync(folder, { recursive: true, force: true });
 });
 
-/** Run the check on a hand-written client metafile that lists these modules, with no imports. */
 async function checkInputs(paths: string[]) {
   const folder = mkdtempSync(join(tmpdir(), "check-client-"));
   folders.push(folder);

@@ -28,12 +28,6 @@ import type { Command } from "@/cli";
 import { faultExit } from "@/cli/exit";
 import { relinkAfter } from "@/cli/login";
 
-// The `easel` CLI's capsule over the memory transport, against the access-login chart's CLI-only
-// arrows (docs/statecharts/access-login.md): each test names its arrow by the chart's label. The
-// server and every CLI share one test clock; each CLI has its own hosts file and address.
-
-// Each test runs several CLI scopes over the transport; a busy host has pushed three of them past
-// the 5 s default.
 vi.setConfig({ testTimeout: 30_000, hookTimeout: 30_000 });
 
 const closers: Array<() => unknown> = [];
@@ -42,12 +36,10 @@ afterEach(async () => {
   for (const close of closers.splice(0).reverse()) await close();
 });
 
-/** Lets a call cross the memory transport and reach its `await`. */
 const tick = (ms = 20) => new Promise((done) => setTimeout(done, ms));
 
 const origin = "https://easel.test";
 
-/** One server: access on SQLite in memory, a memory transport, its spans kept. */
 async function boot(
   serve = [access.login, access.user, access.owner],
   listOp = ownerOps["users.list"],
@@ -55,7 +47,6 @@ async function boot(
   const clock = makeTestClock({ now: 1_800_000_000_000 });
   const out: string[] = [];
   const count = { waits: 0 };
-  /** The server's `login.wait`, counted as each call comes in. */
   const counted = operation({
     label: "test.countedWait",
     input: z.object({ request }),
@@ -83,7 +74,6 @@ async function boot(
   const server = await scope.ready;
   closers.push(() => server.close());
   const setupCode = () => /setup code: (\S+)/.exec(out.join(""))?.[1] ?? "";
-  /** How many `login.wait` calls the server has run. */
   const waits = () => count.waits;
 
   return { server, clock, setupCode, waits };
@@ -91,7 +81,6 @@ async function boot(
 
 type Srv = Awaited<ReturnType<typeof boot>>;
 
-/** A fresh folder for one CLI's hosts file. */
 function home() {
   const dir = mkdtempSync(join(tmpdir(), "easel-cli-"));
   closers.push(() => rmSync(dir, { recursive: true, force: true }));
@@ -101,7 +90,6 @@ function home() {
 
 type Options = { peer?: string; json?: boolean; path?: string; token?: string };
 
-/** One CLI, as the cmd builds it, on the memory transport: what it prints, and its runs. */
 async function easel(srv: Srv, options: Options = {}) {
   const path = options.path ?? home();
   const out: string[] = [];
@@ -138,9 +126,7 @@ async function easel(srv: Srv, options: Options = {}) {
     err,
     stop,
     run: (command: Command) => scope.run(cli.run, { input: command, signal: stop.signal }),
-    /** A bare `login.wait`, as any client at this address may send. */
     wait: (request: string) => scope.run(access.login["login.wait"], { input: { request } }),
-    /** Each JSON line printed since the last read. */
     lines: () =>
       out
         .splice(0)
@@ -165,7 +151,6 @@ const users = (act: Extract<Command, { kind: "users" }>["act"]): Command => ({
   act,
 });
 
-/** Ann becomes the first owner with the setup code, on her own CLI. */
 async function ann(srv: Srv) {
   const cli = await easel(srv, { peer: "198.51.100.1" });
   expect(await cli.run(login("ann", { setup: srv.setupCode() }))).toBe(0);
@@ -174,7 +159,6 @@ async function ann(srv: Srv) {
   return cli;
 }
 
-/** The agent's login, started and kept, without waiting: its code. */
 async function pendingAgent(srv: Srv, name = "agent") {
   const agent = await easel(srv);
   expect(await agent.run(login(name, { noWait: true }))).toBe(0);
@@ -183,20 +167,16 @@ async function pendingAgent(srv: Srv, name = "agent") {
   return { agent, code: String(line.code) };
 }
 
-/** Waits until a run has printed its first line (or the server has run `count` waits). */
 async function until(check: () => boolean) {
   for (let i = 0; i < 100 && !check(); i++) await tick(10);
   expect(check()).toBe(true);
 }
 
-/** The run's code once it ends, without failing the test when it is cancelled. */
 const settled = (run: Promise<number>) =>
   run.then(
     (code) => code,
     (error: unknown) => error,
   );
-
-// ---- The first owner, and signing in
 
 test("login --setup: the first owner is signed in; the token is kept 0600 and never printed", async () => {
   const srv = await boot();
@@ -278,7 +258,6 @@ test("login --no-wait prints the pending code and exits 0; login refuses (64) wh
   expect(agent.hosts().pending.code).toBe(code);
 });
 
-// Nine CLI scopes: 0.3 s alone, but it has passed 5 s once under the full suite's load.
 test(
   "the agent starts a login and is told to slow down: exit 1, nothing kept; then the agent starts a login",
   { timeout: 30_000 },
@@ -297,7 +276,6 @@ test(
     expect(told).toEqual({ kind: "slow", retryIn: expect.any(Number) });
     expect(existsSync(path)).toBe(false);
 
-    // The same address, once retryIn has passed: the limit has cleared.
     srv.clock.advance(Number(told.retryIn));
     const again = await easel(srv);
     expect(await again.run(login("agent9", { noWait: true }))).toBe(0);
@@ -315,8 +293,6 @@ test("a name that is taken: exit 1, nothing kept", async () => {
   expect(existsSync(agent.path)).toBe(false);
 });
 
-// ---- Waiting: the CLI-only arrows
-
 test("the agent stops waiting; the agent resumes (login --resume) onto pending, then is told granted", async () => {
   const srv = await boot();
   const a = await ann(srv);
@@ -327,7 +303,6 @@ test("the agent stops waiting; the agent resumes (login --resume) onto pending, 
   const [pending] = first.lines();
   await until(() => srv.waits() > 0);
   first.stop.abort();
-  // The memory transport ends the call in flight when the server's wait does (at most 50 s).
   await tick();
   srv.clock.advance(waitMax);
   expect(await run).not.toBe(0);
@@ -434,7 +409,6 @@ test("told to slow down while it waits: the CLI waits retryIn before it asks aga
   const srv = await boot();
   const a = await ann(srv);
   const { agent, code } = await pendingAgent(srv);
-  // Another client at the agent's address spends its 30 waits.
   const other = await easel(srv);
   for (let i = 0; i < 30; i++) await other.wait("0".repeat(32));
   const before = srv.waits();
@@ -483,9 +457,6 @@ test("the agent stops waiting on an approved code, then an owner revokes the age
   expect(agent.hosts()).toEqual({});
 });
 
-// ---- Signed in: whoami, logout, revoke
-
-// Three CLI scopes: well under 1 s alone, but it has passed 5 s three times under the full suite's load.
 test(
   "an owner revokes the agent; the agent's next call is refused, and it is told to log in again (exit 2, token dropped)",
   { timeout: 30_000 },
@@ -587,8 +558,6 @@ test("without --json: a person's text on stdout, errors on stderr, and no token 
   }
 });
 
-// ---- Faults: each has its exit code
-
 test("a call the server does not have is missing (76); a server that fails is failed (70)", async () => {
   const broken = operation({
     label: "test.brokenList",
@@ -632,9 +601,6 @@ test("each fault has its exit: invalid 65, encode and decode 70, link 69; an err
   );
 });
 
-// ---- Sign in with no file: EASEL_TOKEN (SPEC-cli.md § Sign in with no file)
-
-/** A hosts file that is not one: a CLI that reads it fails. */
 function brokenHosts() {
   const path = home();
   mkdirSync(dirname(path), { recursive: true });
@@ -674,8 +640,6 @@ test("with EASEL_TOKEN, logout changes nothing and exits 64; login and login --r
   expect(await run.run({ kind: "resume" })).toBe(64);
   expect(readFileSync(path, "utf8")).toBe("{ not json");
 });
-
-// ---- login --print-token (SPEC-cli.md § Sign in with no file, step 1)
 
 const printToken = (name: string): Command => ({
   kind: "login",

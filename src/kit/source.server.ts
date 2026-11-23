@@ -3,19 +3,6 @@ import { operation } from "@tinkered/core";
 import { preflight } from "./preflight.server";
 import { kitShape } from "./schema";
 
-// The Tailwind source of a kit version (SPEC-kit.md § The make step, "The theme").
-//
-// The look's namespaces (color, font, text, radius, shadow, spacing) map each class to a look value
-// with `@theme inline reference`, so made CSS holds `var(--primary)` and defines no look value. No
-// default palette and no default scale of these namespaces is in the source: Tailwind's
-// `theme.css` is not imported, so only the names of the look give CSS.
-//
-// The other namespaces keep Tailwind's values, fixed here: a copy of the values of
-// `tailwindcss/theme.css` 4.3.5 (MIT, Tailwind Labs), with no change. `inline` puts each value in
-// the made CSS, so a frame's CSS needs no theme variable. A namespace that is not here gives no
-// CSS, and the check finds it.
-
-/** The namespaces that the look does not hold: Tailwind's values, fixed by the kit source. */
 export const fixedTheme = `@theme inline reference {
   --breakpoint-sm: 40rem;
   --breakpoint-md: 48rem;
@@ -122,15 +109,8 @@ export const fixedTheme = `@theme inline reference {
 }
 `;
 
-/** The look's CSS names that are not colors: each maps to the Tailwind name that is the same. */
 const sameName = /^--(?:text|radius|shadow|font)-|^--spacing$/;
 
-/**
- * The two Tailwind sources of a kit version. `kit`: the theme, Tailwind's preflight as the base,
- * the kit's own CSS (its base rules and its pieces) and all utilities: the design system of the
- * check, and the source of the kit version's made CSS. `frame`: the theme and the layer
- * `utilities` only, so a frame version holds only its utilities.
- */
 export const sources = operation({
   label: "kit.sources",
   input: kitShape,
@@ -141,7 +121,6 @@ export const sources = operation({
         ? `  ${name}: var(${name});`
         : `  --color-${name.slice(2)}: var(${name});`,
     );
-    // White and black are allowed with no look value (judged rule 12).
     if (!names.includes("--white")) look.push("  --color-white: #fff;");
     if (!names.includes("--black")) look.push("  --color-black: #000;");
 

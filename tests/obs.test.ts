@@ -8,8 +8,6 @@ import { api, board } from "./fixtures/todo/contracts";
 import { addTodo, joinPresence, removeTodo, signedIn, toggleTodo } from "./fixtures/todo/data";
 import { listen, wsClient, wsServer } from "./support/ws";
 
-// What the traces and logs show today, over SSE. Each test states a fact; a finding is marked.
-
 const closers: Array<() => unknown> = [];
 
 afterEach(async () => {
@@ -85,15 +83,13 @@ test("a call is one trace across both sides", async () => {
   const [c0, s0] = [seen.spans.length, srv.spans.length];
   await client.run(api["todo.add"], { input: { title: "Trace me" } });
   await tick();
-  const mine = since(seen.spans, c0).filter((s) => s.name !== "remoteData.receive"); // pushes: the next test
+  const mine = since(seen.spans, c0).filter((s) => s.name !== "remoteData.receive");
   const theirs = since(srv.spans, s0).filter((s) => s.kind === "operation");
 
   expect(names(mine).sort()).toEqual(["todo.add", "ws.call", "ws.send"]);
   const [root] = theirs.filter((s) => s.name === "ws.serve");
   expect(theirs.every((s) => s.traceId === mine[0]!.traceId)).toBe(true);
-  // O1 fixed: the transport sends its own span, so the server's parent is the request (OTel HTTP).
   expect(root!.parentSpanId).toBe(mine.find((s) => s.name === "ws.send")!.spanId);
-  // O5: the route table sends todo.add straight to rpc; remoteData.answer no longer runs.
   expect(names(theirs).sort()).toEqual([
     "remoteData.send",
     "remoteData.send",
@@ -108,7 +104,7 @@ test("O2 fixed: a push is a send span in the writer's trace, linked from each re
   const { srv, join } = await boot();
   const duke = await join("duke");
   const ann = await join("ann");
-  await tick(); // both watch streams open, so the write has 2 watchers
+  await tick();
   const [d0, a0, s0] = [duke.seen.spans.length, ann.seen.spans.length, srv.spans.length];
   await ann.client.run(api["todo.add"], { input: { title: "From ann" } });
   await tick();
@@ -120,7 +116,6 @@ test("O2 fixed: a push is a send span in the writer's trace, linked from each re
   ).toEqual(["From ann"]);
   const call = since(ann.seen.spans, a0).find((s) => s.name === "todo.add")!;
 
-  // Server: one producer span per written basket, in Ann's trace (OTel messaging "send").
   const sends = since(srv.spans, s0).filter((s) => s.name === "remoteData.send");
   const topics = sends.map((s) => String(s.attributes["messaging.destination.name"]));
   expect(topics.sort((a, b) => a.localeCompare(b))).toEqual(["activity", "todos"]);
@@ -130,7 +125,6 @@ test("O2 fixed: a push is a send span in the writer's trace, linked from each re
     ),
   ).toBe(true);
 
-  // Duke: one process span per push, in its own trace, with a link to the send that caused it.
   const got = since(duke.seen.spans, d0).filter((s) => s.name === "remoteData.receive");
   const links = got.map((s) => s.events.find((e) => e.name === "link")?.attributes.traceparent);
   const byText = (a: unknown, b: unknown) => String(a).localeCompare(String(b));
@@ -138,17 +132,17 @@ test("O2 fixed: a push is a send span in the writer's trace, linked from each re
     sends.map((s) => `00-${s.traceId}-${s.spanId}-01`).sort(byText),
   );
   expect(got.every((s) => s.traceId !== call.traceId)).toBe(true);
-  expect(since(duke.seen.logs, 0).some((l) => l.message === "remoteData.receive")).toBe(true); // Core's debug line
+  expect(since(duke.seen.logs, 0).some((l) => l.message === "remoteData.receive")).toBe(true);
 });
 
 test("O3 gone: a basket watch is one trace per client life; a normal close ends it ok", async () => {
   const { join } = await boot();
   const { client, seen } = await join("duke");
 
-  expect(names(seen.spans)).not.toContain("ws.watch"); // still open: not exported yet
+  expect(names(seen.spans)).not.toContain("ws.watch");
   await client.close();
   const watches = seen.spans.filter((s) => s.name === "ws.watch");
-  expect(watches.length).toBe(3); // one per basket, each its own trace
+  expect(watches.length).toBe(3);
   expect(new Set(watches.map((s) => s.traceId)).size).toBe(3);
   expect(watches.every((s) => s.status === "ok" && s.error === undefined)).toBe(true);
 });

@@ -3,9 +3,6 @@ import { z } from "zod";
 
 import { todos } from "./contract";
 
-// The server's work for `todoApi`. Each op writes one member of the list; `todoBoard` tells every
-// tab that reads it, and the tab asks for that member alone. No op sends anything by hand.
-
 export const addTodo = operation({
   label: "todo.add.do",
   input: z.object({ title: z.string() }),
@@ -40,7 +37,6 @@ export const removeTodo = operation({
   },
 });
 
-/** The server's side of `todoApi`, by address: `todoApi({ implement: todoOps })`. */
 export const todoOps = {
   "todo.add": addTodo,
   "todo.toggle": toggleTodo,

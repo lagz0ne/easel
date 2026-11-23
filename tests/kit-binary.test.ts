@@ -9,13 +9,6 @@ import { buildRuntime } from "@/kit/runtime.server";
 
 import { testKit } from "./kit/fixture";
 
-// The kit in the compiled binary: Tailwind, and the native builds of Lightning CSS
-// (src/kit/lightningcss.server.ts) and of oxc-parser (the plugin of scripts/build-binary.ts), go
-// into a binary that scripts/build-binary.ts makes, as it makes dist/server. The binary runs from
-// an empty folder, so it reads nothing from node_modules: it makes CSS, the Lightning CSS check
-// finds a color in a style attribute, oxc-parser reads a TSX frame and Bun.Transpiler makes its JS,
-// and the runtime of app frames is the one that a build in a scope makes.
-
 const root = new URL("..", import.meta.url).pathname;
 
 test(
@@ -71,13 +64,10 @@ test(
       expect(tsx.css).toContain("var(--destructive)");
       expect(places(tsx)).toEqual(["2:34", "2:46"]);
       expect(tsx.fixed["index.tsx"]).toContain('"text-destructive"');
-      // Bun.build in memory in the binary: the JS of the fixed text, with React's JSX runtime and
-      // the call of the mount.
       expect(tsx.js).toContain('from"react/jsx-runtime"');
       expect(tsx.js).toContain('"text-destructive"');
       expect(tsx.js).toContain('import{mount}from"@easel/frame"');
 
-      // The runtime of app frames is in the binary: the same bytes as a build in a scope.
       const scope = createScope();
       const built = await scope.run(buildRuntime);
       await scope.close();

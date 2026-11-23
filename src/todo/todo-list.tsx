@@ -3,7 +3,6 @@ import { memo } from "react";
 
 import { type Todo, todoApi, todoBoard } from "./contract";
 
-/** The todo page: reads the live list, and asks the server for every change. No state of its own. */
 export function TodoList() {
   const list = useData(todoBoard.todos.where({}));
   const add = useRun(todoApi["todo.add"]);
@@ -32,8 +31,6 @@ export function TodoList() {
   );
 }
 
-/** One todo. Core keeps a member's reference until it changes, so a toggle draws this row
- * alone. */
 export const TodoRow = memo(function TodoRow({ item }: { item: Todo }) {
   const toggle = useRun(todoApi["todo.toggle"]);
   const remove = useRun(todoApi["todo.remove"]);

@@ -13,9 +13,6 @@ import { type Todo } from "@/todo/contract";
 import { todoOps } from "@/todo/ops.server";
 import { TodoList, TodoRow } from "@/todo/todo-list";
 
-// In a real Chromium: the page asks the server through `todoApi`, and draws the list the server
-// pushes through `todoBoard`. The server here is a scope in the same page, over `memory`.
-
 test("add, toggle and remove a todo from the page; the server holds each change", async () => {
   const server = await createScope({
     capsules: [
@@ -79,8 +76,6 @@ test("a toggle draws the toggled row alone", async () => {
   }).ready;
   const draws = new Map<string, number>();
   const count: ProfilerOnRenderCallback = (id) => void draws.set(id, (draws.get(id) ?? 0) + 1);
-  // A Profiler draws again with its parent, so each one sits in a memo, as TodoRow does: it then
-  // reports only a row that draws for its own member.
   const Counted = memo(function Counted({ item }: { item: Todo }) {
     return (
       <Profiler id={item.title} onRender={count}>
@@ -88,7 +83,6 @@ test("a toggle draws the toggled row alone", async () => {
       </Profiler>
     );
   });
-  // The rows as TodoList draws them: under a parent that draws again at each change of the list.
   function Rows() {
     const list = useData(todo.board.todos.where({}));
     return (

@@ -1,11 +1,4 @@
 #!/usr/bin/env bash
-# Get the Java and the TLC that the statechart generator needs, at pinned versions and SHA-256.
-#
-#   scripts/tlc.sh            print `TLA2TOOLS=<jar>` and `JAVA=<java>`, one on each line
-#
-# The first run downloads Eclipse Temurin JRE (Adoptium) and tla2tools.jar (the TLA+ tools) into
-# ${XDG_CACHE_HOME:-~/.cache}/easel/tlc/, and checks each SHA-256 before it uses the file. No
-# root. Later runs only print. To upgrade, change a version and its SHA-256 here.
 set -euo pipefail
 
 JRE_V=25.0.5+8
@@ -17,7 +10,7 @@ cache="${XDG_CACHE_HOME:-$HOME/.cache}/easel/tlc"
 jre="$cache/jre-$JRE_V"
 jar="$cache/tla2tools-$TLA_V.jar"
 
-get() { # <url> <sha256> <out>
+get() {
   local part="$3.part"
   curl -fsSL --retry 2 -o "$part" "$1"
   if ! echo "$2  $part" | sha256sum -c --strict - >/dev/null; then

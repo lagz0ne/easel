@@ -48,30 +48,19 @@ import { claimRequest, endTry, queueServer, saveRequest } from "@/queue/store.se
 
 import { localChromium } from "./support/chromium";
 
-// Pictures (SPEC-frames.md § Pictures), against the frames-pictures chart (docs/statecharts/
-// frames-pictures.md, models/frames/Pictures.tla). Each test that follows an arrow or a rule is
-// named by its wording. The route runs as the cmd's table runs it; a test draw stands in for
-// Chromium where the test is about the route, and the last tests draw with a real one.
-//
-// The chart's "the link ends" is the bump, `bumpKeys`: its tests here reach it. Its callers,
-// `easel unshare` and a password set or changed, are wired in ship 5.
-
 const closers: Array<() => unknown> = [];
 
 afterEach(async () => {
   for (const close of closers.splice(0).reverse()) await close();
 });
 
-/** Lets a run reach its next wait. */
 const tick = (ms = 5) => new Promise((done) => setTimeout(done, ms));
 
-/** Waits until `ok` holds, a tick at a time, up to 2 s. */
 async function until(ok: () => boolean) {
   for (let i = 0; i < 400 && !ok(); i++) await tick();
   expect(ok()).toBe(true);
 }
 
-/** The answer, which must come within 1 s: a wait the clock should have ended fails here, not by timeout. */
 async function soon<T>(answer: Promise<T>) {
   const late = Symbol("late");
   const got = await Promise.race([answer, tick(1_000).then(() => late)]);
@@ -90,27 +79,19 @@ const drawInput = z.object({
   runtime: z.object({ prefix: z.string(), files: z.record(z.string(), z.string()) }).nullable(),
 });
 
-/** An app frame whose View covers the page with the look's `--primary`, as `primaryHtml` does. */
 const primaryTsx = `export function View() {
   return <div className="fixed inset-0 bg-primary" />;
 }
 `;
 
-/** The import map of a composed app document. */
 const importMap = z
   .string()
   .transform((html) => /<script type="importmap">(.*?)<\/script>/s.exec(html)?.[1] ?? "{}")
   .transform((text): unknown => JSON.parse(text))
   .pipe(z.object({ imports: z.record(z.string(), z.string()) }));
 
-/** An HTML frame that covers the page with the look's `--primary`. */
 const primaryHtml = '<div class="fixed inset-0 bg-primary"></div>';
 
-/**
- * The test's Chromium: each draw is kept, with what it was given, and answers its document's
- * text as its bytes. Held, a draw waits until the test lets it go, or until it is stopped.
- * Lingering, a stopped draw ends only when the test ends it, as a page slow to close.
- */
 function testDraws() {
   const seen: Array<{
     input: DrawInput["input"];
@@ -123,7 +104,6 @@ function testDraws() {
     seen,
     hold: () => (state.held = true),
     linger: () => (state.linger = true),
-    /** Each draw from now fails, as a Chromium that crashed. */
     fail: () => (state.fail = true),
     run: async (ctx: DrawInput) => {
       const gate = Promise.withResolvers<void>();
@@ -145,7 +125,6 @@ function testDraws() {
   };
 }
 
-/** The board's member for a frame, on the server: what a tab reads, with its key `k`. */
 const boardMember = operation({
   label: "test.boardMember",
   input: z.object({ canvas: z.string(), id: z.string() }),
@@ -153,7 +132,6 @@ const boardMember = operation({
   run: ({ cells }, { input }) => cells.of(input).get(),
 });
 
-/** The board's kept versions and removed frames of a canvas, on the server. */
 const boardKept = operation({
   label: "test.boardKept",
   input: z.object({ canvas: z.string() }),
@@ -167,7 +145,6 @@ const boardKept = operation({
   }),
 });
 
-/** The board's messages of a canvas, on the server. */
 const boardMessages = operation({
   label: "test.boardMessages",
   input: z.object({ canvas: z.string() }),
@@ -178,17 +155,13 @@ const boardMessages = operation({
 let requestKeys = 0;
 
 type Boot = {
-  /** EASEL_CHROMIUM; by default a file that runs, with the test's draws. */
   chromium?: string | null;
-  /** The real Chromium draws: no test draws. */
   real?: boolean;
   file?: string;
-  /** How the proxy resolves a name, and how it dials an address; by default the real ones. */
   lookup?: (host: string) => Promise<Array<{ address: string; family: number }>>;
   dial?: (address: string) => Socket;
 };
 
-/** One server: SQLite, pictures and frames, the board on a memory transport, and the route. */
 async function boot(options: Boot = {}) {
   const clock = makeTestClock({ now: 1_800_000_000_000 });
   const draws = testDraws();
@@ -226,14 +199,12 @@ async function boot(options: Boot = {}) {
     server,
     clock,
     draws,
-    /** One request to the route, as a browser sends it. */
     get: async (path: string, signal?: AbortSignal) => {
       const answer = await fetch(new Request(`http://easel.test${path}`, { signal }), server);
       if (!answer) throw new Error(`no route answers ${path}`);
       return answer;
     },
     canvas: (name: string) => server.run(createCanvas, { input: { name } }),
-    /** A new frame: its id. */
     put: async (
       input:
         | { canvas: string; html: string; size?: { w: number; h: number } }
@@ -252,20 +223,11 @@ async function boot(options: Boot = {}) {
       if (!got) throw new Error(`no member ${canvas}/${id}`);
       return got;
     },
-    /**
-     * The address a tab builds from the board: `s=0.5`, the member's key and the kit version (the
-     * current one, or `kit`).
-     */
     address: async (canvas: string, id: string, query = "s=0.5", kit?: number) => {
       const got = server.run(boardMember, { input: { canvas, id } });
       kit ??= (await server.run(frameKit)).version;
       return `/api/pictures/${canvas}/${id}/${got?.version}?${query}&k=${got?.k}&kit=${kit}`;
     },
-    /**
-     * What the test draw answers for a document with no class names: `drawn:` and the document
-     * composed with its made CSS and kit version `kit` (the current one by default). Its look
-     * holds the held fonts as `data:` URLs (`inlineFonts`).
-     */
     drawnAs: async (html: string, kit?: number) => {
       const shape = await server.run(frameKit);
       const made = await server.run(makeFrame, { input: { html, kit: shape } });
@@ -277,7 +239,6 @@ async function boot(options: Boot = {}) {
     },
     keyFor: (canvas: string, id: string, version: number, gen: number) =>
       server.run(pictureKey, { input: { canvas, id, version, gen } }),
-    /** A viewer asks for a change on version `version` of the frame: the queue refers to it. */
     refer: async (canvas: string, id: string, version: number) => {
       const n = ++requestKeys;
       const now = clock.currentTimeMillis();
@@ -298,9 +259,7 @@ async function boot(options: Boot = {}) {
       });
       expect(added.kind).toBe("added");
     },
-    /** The kept versions and removed frames that the board carries for a canvas. */
     kept: (canvas: string) => server.run(boardKept, { input: { canvas } }),
-    /** The address of a kept view, from the board's key for its version, in kit version `kit`. */
     keptAddress: (canvas: string, id: string, version: number, query = "s=0.5", kit = 1) => {
       const got = server
         .run(boardKept, { input: { canvas } })
@@ -312,7 +271,6 @@ async function boot(options: Boot = {}) {
 
 type Server = Awaited<ReturnType<typeof boot>>;
 
-/** A server with a canvas `flow` and one frame on it, `<p>1</p>` at 400x300. */
 async function withFrame(options: Boot = {}) {
   const srv = await boot(options);
   await srv.canvas("Flow");
@@ -323,14 +281,11 @@ async function withFrame(options: Boot = {}) {
 
 const text = async (answer: Response) => new TextDecoder().decode(await answer.arrayBuffer());
 
-/** A refusal: its status, no body, and nothing kept. */
 async function refused(answer: Response, status: number) {
   expect(answer.status).toBe(status);
   expect(answer.headers.get("cache-control")).toBe("no-store");
   expect(await answer.arrayBuffer()).toHaveProperty("byteLength", 0);
 }
-
-// ---- The board's keys, and the current version
 
 test("the board carries each frame's key: HMAC of the secret, the canvas, the id, the version and the generation", async () => {
   const srv = await withFrame();
@@ -385,8 +340,6 @@ test("a region and each of the four scales go to the draw as asked", async () =>
   );
 });
 
-// ---- 404: a wrong key, a missing frame, a version not yet made
-
 test("a wrong key, no key, or another frame's key answers 404, and nothing is drawn", async () => {
   const srv = await withFrame();
   const other = await srv.put({ canvas: "flow", html: "<p>2</p>" });
@@ -419,8 +372,6 @@ test("a version not yet made answers 404, even with its right key", async () => 
   expect(srv.draws.seen).toEqual([]);
 });
 
-// ---- 307: an old address (AnOldAddressIsRedirectedNotDrawn)
-
 test("an agent writes the frame; the tab asks for its old address; the server redirects to the current version", async () => {
   const srv = await withFrame();
   const old = await srv.address("flow", srv.id, "s=2&r=1,2,3,4");
@@ -435,7 +386,6 @@ test("an agent writes the frame; the tab asks for its old address; the server re
   );
   expect(srv.draws.seen).toEqual([]);
 
-  // The browser follows it: the current version, drawn.
   const followed = await srv.get(answer.headers.get("location") ?? "");
   expect(followed.status).toBe(200);
   expect(await text(followed)).toBe(await srv.drawnAs("<p>2</p>"));
@@ -452,8 +402,6 @@ test("the board shows the current address: a write gives the member the new vers
   expect(after.k).not.toBe(before.k);
 });
 
-// ---- APictureShowsTheVersionItsAddressNames
-
 test("a write that lands during the draw: the picture sent is still the version its address names", async () => {
   const srv = await withFrame();
   srv.draws.hold();
@@ -467,8 +415,6 @@ test("a write that lands during the draw: the picture sent is still the version 
   expect(answer.headers.get("cache-control")).toBe(pictureCache);
   expect(await text(answer)).toBe(await srv.drawnAs("<p>1</p>"));
 });
-
-// ---- ADeletedFramesPictureIsSentOnlyIfKept
 
 test("an agent deletes the frame; the tab asks for its address; the server answers 404", async () => {
   const srv = await withFrame();
@@ -498,16 +444,12 @@ test("an old address of a deleted frame answers 404, not a redirect", async () =
   await refused(await srv.get(old), 404);
 });
 
-// ---- Kept versions (AKeptVersionIsDrawnNotRedirected, judged rule 16)
-
 test("a request refers to an old version; the tab asks for its kept address; the server takes that version's document, private and immutable, and redirects nothing (AKeptVersionIsDrawnNotRedirected)", async () => {
   const srv = await withFrame();
   await srv.refer("flow", srv.id, 1);
-  // Before the put, version 1 is current: the board has no kept key for it yet.
   expect(srv.kept("flow").kept).toEqual([]);
   await srv.write("flow", srv.id, 1, "<p>2</p>");
 
-  // The put kept version 1, and the board carries its key.
   expect(srv.kept("flow").kept).toEqual([
     { canvas: "flow", id: srv.id, version: 1, k: srv.keyFor("flow", srv.id, 1, 0) },
   ]);
@@ -517,7 +459,6 @@ test("a request refers to an old version; the tab asks for its kept address; the
   expect(await text(answer)).toBe(await srv.drawnAs("<p>1</p>"));
   expect(srv.draws.seen.map((d) => [d.input.w, d.input.h])).toEqual([[400, 300]]);
 
-  // A version no request refers to is not kept: its address still redirects.
   await srv.write("flow", srv.id, 2, "<p>3</p>");
   const two = `/api/pictures/flow/${srv.id}/2?s=0.5&k=${srv.keyFor("flow", srv.id, 2, 0)}`;
   expect((await srv.get(two)).status).toBe(307);
@@ -552,7 +493,6 @@ test("an agent deletes the frame: its kept versions are still drawn, at the box 
   expect(one.status).toBe(200);
   expect(await text(one)).toBe(await srv.drawnAs("<p>2</p>"));
   expect(srv.draws.seen.map((d) => [d.input.w, d.input.h])).toEqual([[400, 300]]);
-  // Version 3 was current at the delete, and no request refers to it.
   await refused(await srv.get(three), 404);
 });
 
@@ -609,15 +549,11 @@ test("with pictures off, a kept version is on the board with no key", async () =
   expect(srv.kept("flow").kept).toEqual([{ canvas: "flow", id: srv.id, version: 1 }]);
 });
 
-// ---- Kit versions (SPEC-frames § Pictures, SPEC-kit K10)
-
-/** A color as DTCG sRGB, from `#rrggbb`. */
 const srgb = (hex: string) => ({
   colorSpace: "srgb" as const,
   components: [1, 3, 5].map((at) => Number.parseInt(hex.slice(at, at + 2), 16) / 255),
 });
 
-/** A change of `color.primary` on look revision `base`, as `look.set` runs it on the server. */
 async function setPrimary(srv: Server, base: number, hex: string) {
   const look = { color: { primary: { $value: srgb(hex) } } };
   const answer = await srv.server.run(lookSet, { input: { look, base } });
@@ -641,7 +577,6 @@ test("the address names the kit version: none, an older one or one not stored ye
   }
   expect(srv.draws.seen).toEqual([]);
 
-  // The current version in the current kit version: drawn in its look, the new primary.
   const answer = await srv.get(now);
   expect(answer.status).toBe(200);
   expect(await text(answer)).toBe(await srv.drawnAs("<p>1</p>", 2));
@@ -661,7 +596,6 @@ test("K10: a viewer asks in kit version 1; the look changes; the agent claims in
   });
   expect(claimed?.row).toMatchObject({ version: 1, kit: 1 });
 
-  // The agent changes the look (kit version 3) and resolves with no change of the frame.
   await setPrimary(srv, 2, "#1d4ed8");
   const resolved = await srv.server.run(endTry, {
     input: {
@@ -681,14 +615,11 @@ test("K10: a viewer asks in kit version 1; the look changes; the agent claims in
     .find((m) => m.kind === "result");
   expect(result).toMatchObject({ before: 1, after: 1, beforeKit: 2, afterKit: 3 });
 
-  // K9: the undo is a new kit version, 4, with the look of 2.
   expect(await srv.server.run(lookUndo, { input: { base: 3 } })).toMatchObject({
     kind: "updated",
     kit: 4,
   });
 
-  // When asked (kit version 1), Before (2), After (3) and the frame now (4): each drawn in its
-  // own look, not redirected.
   const looks = [
     [1, "#171717"],
     [2, "#3b2fc9"],
@@ -706,8 +637,6 @@ test("K10: a viewer asks in kit version 1; the look changes; the agent claims in
   }
   expect(await srv.address("flow", srv.id)).toMatch(/&kit=4$/);
 
-  // A new version of the frame: version 1 is kept, and drawn only in the kit versions that a
-  // request or a message refers to. In kit version 4, which none refers to, it is redirected.
   await srv.write("flow", srv.id, 1, "<p>2</p>");
   for (const kit of [1, 2, 3]) {
     const answer = await srv.get(srv.keptAddress("flow", srv.id, 1, "s=0.5", kit));
@@ -717,8 +646,6 @@ test("K10: a viewer asks in kit version 1; the look changes; the agent claims in
   expect(other.status).toBe(307);
   expect(other.headers.get("location")).toBe(await srv.address("flow", srv.id));
 });
-
-// ---- The bump (AnEndedViewerSeesNoNewerPicture)
 
 test("the link ends: the canvas's generation goes up and every frame on it gets its key again; another canvas keeps its keys", async () => {
   const srv = await withFrame();
@@ -816,8 +743,6 @@ test("the same id, version and generation on two canvases make different keys", 
   );
 });
 
-// ---- 400: scales, regions and the size limits (judged rule 6)
-
 test("a scale outside 0.25, 0.5, 1 and 2, or none, answers 400 and draws nothing", async () => {
   const srv = await withFrame();
   for (const s of ["3", "0.75", "1.0", "", "x"]) {
@@ -844,18 +769,13 @@ test("no picture is larger than 8 megapixels or 16000 px on a side", async () =>
   const wide = await srv.put({ canvas: "big", html: "w", size: { w: 16000, h: 100 } });
   const square = await srv.put({ canvas: "big", html: "s", size: { w: 4000, h: 2000 } });
 
-  // 32000 x 200 is 6.4 MP, but over 16000 px on a side.
   await refused(await srv.get(await srv.address("big", wide.id, "s=2")), 400);
   expect((await srv.get(await srv.address("big", wide.id, "s=1"))).status).toBe(200);
-  // 4000 x 2000 is 8 MP: the limit itself is allowed; 8000 x 4000 is not.
   expect((await srv.get(await srv.address("big", square.id, "s=1"))).status).toBe(200);
   await refused(await srv.get(await srv.address("big", square.id, "s=2")), 400);
-  // A region keeps it under: 2000 x 1000 at 2 is 8 MP.
   const part = await srv.get(await srv.address("big", square.id, "s=2&r=0,0,2000,1000"));
   expect(part.status).toBe(200);
 });
-
-// ---- The draw slots: 2 at once, 5 s to wait, 20 s to draw
 
 test("at most 2 draws run at once; a third waits for a slot and draws when one is free", async () => {
   const srv = await withFrame();
@@ -893,7 +813,6 @@ test("the requests that wait for a slot draw in the order they came", async () =
     srv.draws.seen[i]?.go();
   }
   await Promise.all(asked);
-  // Each draws the composed document: its own text is at its end.
   expect(srv.draws.seen.map((draw) => draw.input.html.slice(-8))).toEqual([
     "<p>a</p>",
     "<p>b</p>",
@@ -921,7 +840,6 @@ test("a request that waits 5 s for a slot answers 503 with Retry-After: 1", asyn
   expect(answer.headers.get("cache-control")).toBe("no-store");
   expect(srv.draws.seen).toHaveLength(2);
 
-  // The two that drew still answer, and their slots are free again.
   for (const draw of srv.draws.seen) draw.go();
   expect((await Promise.all(busy)).map((a) => a.status)).toEqual([200, 200]);
   srv.draws.seen.length = 0;
@@ -948,7 +866,6 @@ test("a draw that runs past 20 s answers 503 with Retry-After: 1, is stopped, an
   const both = [srv.get(address), srv.get(address)];
   await until(() => srv.draws.seen.length === 3);
   await tick(20);
-  // Both slots are free: the stopped draw gave its back.
   expect(srv.draws.seen).toHaveLength(3);
   srv.draws.seen[1]?.go();
   srv.draws.seen[2]?.go();
@@ -1019,8 +936,6 @@ test("a draw that fails answers 503 with Retry-After: 1 and frees its slot", asy
   expect(srv.draws.seen).toHaveLength(3);
 });
 
-// ---- frame.shot: the address, no draw
-
 test("frame.shot answers the current version's address with the board's key, and draws nothing", async () => {
   const srv = await withFrame();
   await srv.write("flow", srv.id, 1, "<p>2</p>");
@@ -1058,14 +973,11 @@ test("frame.shot on a frame that is not there answers gone", async () => {
   expect(answer).toEqual({ kind: "gone" });
 });
 
-// ---- Pictures off
-
 test("with no EASEL_CHROMIUM, pictures are off: no keys on the board, every picture 404, frame.shot off, and readiness holds", async () => {
   const srv = await withFrame({ chromium: null });
   const member = await srv.member("flow", srv.id);
   expect(member.k).toBeUndefined();
 
-  // A key made with the server's secret still opens nothing.
   const k = srv.keyFor("flow", srv.id, 1, 0);
   await refused(await srv.get(`/api/pictures/flow/${srv.id}/1?s=1&k=${k}`), 404);
   expect(
@@ -1101,8 +1013,6 @@ test("EASEL_CHROMIUM naming a file that is not Chromium: readiness fails", async
     detail: "Chromium does not start",
   });
 });
-
-// ---- The key compare (judged rule 9) and what a document may load (judged rule 5)
 
 test("a key is compared whole: same length and same bytes", async () => {
   const srv = await boot();
@@ -1173,7 +1083,6 @@ test("a name with one closed address among public ones is refused; a name with n
   expect(await open("public.test")).toEqual(["8.8.8.8", "2606:4700:4700::1111"]);
 });
 
-/** What the egress proxy answers to one request head: its status line, or "closed". */
 async function throughProxy(srv: Server, head: string) {
   const port = await srv.server.resolve(egressProxy).port();
   const socket = connect({ host: "127.0.0.1", port });
@@ -1214,11 +1123,9 @@ test("the egress proxy opens no tunnel to this machine, a private host, or a por
       forbidden,
     ]);
   }
-  // A head with no end is cut off past 8 KiB.
   expect(await throughProxy(srv, `CONNECT ${"a".repeat(9000)}`)).toBe(forbidden);
 });
 
-/** Everything the egress proxy sends back to one request, up to its close. */
 async function wholeProxy(srv: Server, head: string) {
   const port = await srv.server.resolve(egressProxy).port();
   const socket = connect({ host: "127.0.0.1", port });
@@ -1234,7 +1141,6 @@ async function wholeProxy(srv: Server, head: string) {
   return { socket, answer: answer.promise };
 }
 
-/** A stand-in for a public host on 127.0.0.1: it answers each chunk with `pong:` and the chunk. */
 async function upstreamHost(after: (socket: Socket) => void = () => undefined) {
   const server = createServer((socket) => {
     socket.on("error", () => undefined);
@@ -1254,7 +1160,6 @@ async function upstreamHost(after: (socket: Socket) => void = () => undefined) {
   return () => connect({ host: "127.0.0.1", port });
 }
 
-/** A socket that never connects, and one that fails at once. */
 const neverConnects = () => new Socket();
 
 const failsAtOnce = () => {
@@ -1345,8 +1250,6 @@ test("a tunnel that answered 200 and then fails upstream is closed: no 403 is wr
   expect(await soon(tunnel.answer)).toBe("HTTP/1.1 200 Connection Established\r\n\r\npong:ping");
 });
 
-// ---- A real Chromium
-
 test("a real Chromium draws a WebP at the scale and region asked, and readiness says it runs", async () => {
   const chromium = localChromium();
   expect(chromium).not.toBeNull();
@@ -1384,7 +1287,6 @@ test("an app frame's picture is drawn from its composed app document (composeApp
   expect(html).toContain('import{mount}from"@easel/frame"');
   expect(html).not.toContain("export function View");
 
-  // Each name of the import map is a file of the runtime that the draw serves.
   if (!runtime) throw new Error("no runtime for the draw");
   const map = importMap.parse(html);
   const files = Object.values(map.imports);
@@ -1394,7 +1296,6 @@ test("an app frame's picture is drawn from its composed app document (composeApp
     expect(runtime.files[file.slice(runtime.prefix.length)]).toBeTypeOf("string");
   }
 
-  // An HTML frame's draw needs no runtime.
   const plain = await srv.put({ canvas: "apps", html: "<p>1</p>", size: { w: 200, h: 100 } });
   expect((await srv.get(await srv.address("apps", plain.id, "s=1"))).status).toBe(200);
   expect(srv.draws.seen[1]?.input.runtime).toBeNull();
@@ -1427,7 +1328,6 @@ test("K7, speed: after a change of the look, a real Chromium draws the 20 frames
     const html = `<div class="bg-primary text-primary-foreground p-4 rounded-lg">Plan ${i}</div>`;
     ids.push((await srv.put({ canvas: "twenty", html, size: { w: 320, h: 200 } })).id);
   }
-  // A first picture of each, as the tab had them before the change; Chromium is warm.
   for (const id of ids) expect((await srv.get(await srv.address("twenty", id))).status).toBe(200);
 
   await setPrimary(srv, 1, "#3b2fc9");
@@ -1447,7 +1347,6 @@ test("K7, speed: after a change of the look, a real Chromium draws the 20 frames
   console.log(
     `speed: K7 20 frames in view drawn in the new kit version in ${most.toFixed(0)} ms (the first in ${Math.min(...times).toFixed(0)} ms), 2 draws at once`,
   );
-  // The test clock never ends a slot wait: under 5 s, no request of a real server waits past it.
   expect(most).toBeLessThan(5_000);
 }, 60_000);
 
@@ -1475,13 +1374,11 @@ test("a real draw does not reach this machine: a document's http, https, ws, wss
   expect(hits).toEqual([]);
 }, 30_000);
 
-/** The pages open in the real Chromium, in every context. */
 async function pagesOpen(srv: Server) {
   const chrome = await srv.server.resolve(chromiumBrowser).open();
   return (await chrome.pages()).length;
 }
 
-/** Fonts that are ready only after `ms`, or never: the draw waits for them. */
 const fontsReadyIn = (ms: number | null) =>
   `<script>const ready = ${ms === null ? "new Promise(() => {})" : `new Promise((r) => setTimeout(r, ${ms}))`}; Object.defineProperty(document, "fonts", { get: () => ({ ready }) });</script>`;
 
@@ -1503,7 +1400,6 @@ test("a real draw sends no WebRTC UDP: STUN and TURN to this machine and to its 
     ),
   );
 
-  // The listeners hear a packet: the 0 below is Chromium's, not theirs.
   const probe = createSocket("udp4");
   closers.push(() => probe.close());
   for (const at of listeners) probe.send("probe", at.port, at.host);
@@ -1593,7 +1489,6 @@ test("a real draw waits for the document's fonts; past 20 s it is stopped, and i
 test("a request that goes away at once, while its draw starts, gives its slot back", async () => {
   const srv = await boot({ chromium: localChromium(), real: true });
   await srv.canvas("Gone");
-  // A first draw starts Chromium, so the next ones start at once.
   const warm = await srv.put({ canvas: "gone", html: "<p>w</p>", size: { w: 100, h: 100 } });
   expect((await srv.get(await srv.address("gone", warm.id, "s=1"))).status).toBe(200);
 
@@ -1612,7 +1507,6 @@ test("a request that goes away at once, while its draw starts, gives its slot ba
   }
 }, 60_000);
 
-/** A WebP's size from its first chunk: VP8, VP8L or VP8X. */
 function sizeOf(b: Uint8Array) {
   const at = (i: number) => b[i] ?? 0;
   const chunk = String.fromCharCode(...b.slice(12, 16));

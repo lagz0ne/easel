@@ -14,7 +14,6 @@ const shape = /^00-[0-9a-f]{32}-[0-9a-f]{16}-0[01]$/;
 const remote = { traceId: "4bf92f3577b34da6a3ce929d0e0e4736", spanId: "00f067aa0ba902b7" };
 const valid = `00-${remote.traceId}-${remote.spanId}-01`;
 
-/** Bad headers: each one is ignored, so the request starts a fresh trace. */
 const malformed = [
   "",
   "garbage",
@@ -31,7 +30,6 @@ const echo = operation({ label: "trace.echo", run: () => ({ ok: true }) });
 
 const serverSpans: Observe.Span[] = [];
 const tabSpans: Observe.Span[] = [];
-/** The meta of each message the clients send, read off the socket. */
 const sent: Map<string, string>[] = [];
 const Real = globalThis.WebSocket;
 
@@ -57,7 +55,6 @@ const backend = await createScope({
 const table = backend.resolve(routes).fetch;
 const { bun, url } = listen(backend, [server.server]);
 
-/** One raw frame with this meta; the first answer back. */
 const raw = async (meta: Record<string, string>, base = `${url}/rpc`) => {
   const socket = new Real(base);
   const answer = await new Promise<{ t?: string; e?: number }>((done) => {
@@ -112,7 +109,6 @@ test("a client call's server spans join the client's trace, under the transport'
     call.traceId,
     call.traceId,
   ]);
-  // As OTel HTTP client spans: the server's root is the child of the span that sent the request.
   expect(root.parentSpanId).toBe(request.spanId);
   expect(root.spanId).not.toBe(request.spanId);
   expect(work.sampled).toBe(true);

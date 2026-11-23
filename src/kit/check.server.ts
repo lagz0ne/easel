@@ -8,28 +8,20 @@ import { type Prepared, prepare } from "./prepare.server";
 import { type Part, scan } from "./scan.server";
 import { type Finding, kitShape, type Rule } from "./schema";
 
-// The K5 check (SPEC-kit.md § compose, `check`; judged rule 12): what is not in the look or the
-// kit, at its line and column, with the fix. A class name of a class attribute is judged by the
-// Tailwind design system of the kit version; a color in CSS is found by Lightning CSS.
-
-/** A finding at an offset of the document, before its line and column are known. */
 export type Found = { at: number; rule: Rule; what: string; fix: string };
 
 const kitView = z.custom<Prepared>();
 const partList = z.custom<Part[]>();
 
-/** A write of a class from a script: the make step does not see it, so it gets no CSS. */
 const classWrite =
   /\.(classList)\s*\.\s*(?:add|remove|toggle|replace)\s*\(|\.(className)\s*(?:\+=|=(?!=))|\.(setAttribute)\s*\(\s*["'`]class["'`]/g;
 
 const scriptFix =
   "keep the state in hidden, aria-* or data-state, and style each state with a variant, as aria-expanded:bg-muted or data-[state=open]:flex";
 
-/** Paint values that are no color, or a color that is allowed. */
 const noPaint =
   /^\s*(?:none|currentcolor|transparent|inherit|context-fill|context-stroke|url\(.*|var\(.*)\s*$/i;
 
-/** The class names of the class attributes: each finding, and the names to make (sorted, one time each). */
 export const classFindings = operation({
   label: "kit.classFindings",
   input: z.object({ kit: kitView, parts: partList }),
@@ -41,7 +33,6 @@ export const classFindings = operation({
     for (const { text, at } of parts) {
       let offset = at;
       for (const name of text.split(/(\s+)/)) {
-        // The white space between two names gives no verdict.
         const verdict = name.trim()
           ? (kit.verdicts.get(name) ?? judgeClass.run({ input: { kit, name } }))
           : ({ kind: "kit" } as const);
@@ -54,7 +45,6 @@ export const classFindings = operation({
   },
 });
 
-/** The finding of one spot that Lightning CSS found: a color, or a look value that a frame sets. */
 export const spotFinding = operation({
   label: "kit.spotFinding",
   input: z.object({ kit: kitView, spot: z.custom<Spot>(), at: z.number(), where: z.string() }),
@@ -81,7 +71,6 @@ export const spotFinding = operation({
   },
 });
 
-/** The findings of the text of one style attribute, at offset 0: one for each color or look value. */
 export const styleText = operation({
   label: "kit.styleText",
   input: z.object({ kit: kitView, text: z.string() }),
@@ -99,7 +88,6 @@ export const styleText = operation({
   },
 });
 
-/** The colors and the look values in the style attributes. Each text is read one time. */
 export const styleFindings = operation({
   label: "kit.styleFindings",
   input: z.object({ kit: kitView, parts: partList }),
@@ -117,7 +105,6 @@ export const styleFindings = operation({
   },
 });
 
-/** The offset of a line (from 0) and a column (from 1) of a text that starts at `at`. */
 export const offsetIn = operation({
   label: "kit.offsetIn",
   input: z.object({ text: z.string(), at: z.number(), line: z.number(), column: z.number() }),
@@ -130,7 +117,6 @@ export const offsetIn = operation({
   },
 });
 
-/** The colors and the look values in each `<style>`, at the rule that holds them. */
 export const sheetFindings = operation({
   label: "kit.sheetFindings",
   input: z.object({ kit: kitView, parts: partList }),
@@ -154,7 +140,6 @@ export const sheetFindings = operation({
   },
 });
 
-/** The colors of the SVG paints (`fill`, `stroke`, `stop-color`). */
 export const paintFindings = operation({
   label: "kit.paintFindings",
   input: z.object({ kit: kitView, parts: partList }),
@@ -172,7 +157,6 @@ export const paintFindings = operation({
       ),
 });
 
-/** Each `k-` element that is not a piece of the kit. */
 export const pieceFindings = operation({
   label: "kit.pieceFindings",
   input: z.object({ kit: kitView, parts: partList }),
@@ -193,7 +177,6 @@ export const pieceFindings = operation({
       }),
 });
 
-/** Each write of a class in a script: the make step does not see a class that a script adds. */
 export const scriptFindings = operation({
   label: "kit.scriptFindings",
   input: partList,
@@ -208,7 +191,6 @@ export const scriptFindings = operation({
     ),
 });
 
-/** The line and the column (both from 1) of each finding, in document order. */
 export const placeFindings = operation({
   label: "kit.placeFindings",
   input: z.object({ html: z.string(), found: z.custom<Found[]>() }),
@@ -226,11 +208,6 @@ export const placeFindings = operation({
   },
 });
 
-/**
- * K5: the findings of a document, in document order, and the class names to make. A class name
- * that is a finding is not to make: Tailwind has no setting that turns arbitrary values off. A
- * frame with `<meta name="easel-kit" content="off">` is not checked.
- */
 export const check = operation({
   label: "kit.check",
   input: z.object({ html: z.string(), kit: kitShape }),

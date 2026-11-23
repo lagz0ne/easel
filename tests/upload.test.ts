@@ -9,9 +9,6 @@ import { z } from "zod";
 
 const { hook } = transport;
 
-// Bytes beside the socket (Q7 A): a key with a `bytes(...)` field goes on its own POST,
-// `/rpc/<address>`, and the server checks it before it reads one byte. Each guard has a case.
-
 const api = rpc({
   "file.put": {
     input: z.object({
@@ -26,7 +23,6 @@ const api = rpc({
   plain: { input: z.null(), output: z.literal("plain") },
 });
 
-/** The names the implementation ran for, in order. */
 const ran: string[] = [];
 const held = Promise.withResolvers<void>();
 
@@ -35,14 +31,13 @@ const put = operation({
   input: api["file.put"].input,
   run: async (_, { input }) => {
     ran.push(input.name);
-    if (input.name === "hold") await held.promise; // holds the POST open, the body unread
+    if (input.name === "hold") await held.promise;
     return { name: input.name, type: input.file.type, text: await input.file.text() };
   },
 });
 
 const plain = operation({ label: "plain.here", input: z.null(), run: () => "plain" as const });
 
-/** Refuses a call named "no", before the implementation and before the body. */
 const gate = operation({
   label: "file.gate",
   input: hook.start,
@@ -94,7 +89,6 @@ afterAll(async () => {
   await backend.close();
 });
 
-/** A POST as a browser would send it, with each header the test names. */
 const post = (address: string, headers: Record<string, string>, body?: BodyInit) =>
   fetch(`http://${base}/${address}`, {
     method: "POST",
@@ -111,7 +105,6 @@ test("a key with bytes runs from the client: the value as text, the bytes as the
     text: "hello",
   });
 
-  // A type the key does not list goes as its first type.
   const png = new Blob(["png"], { type: "image/png" });
   expect(await browser.run(api["file.put"], { input: { name: "b", file: png } })).toEqual({
     name: "b",
@@ -171,7 +164,7 @@ test("the guards answer before the body is read", async () => {
     type: 415,
     tooLong: 413,
   });
-  expect(ran).toEqual([]); // no guard let the implementation run
+  expect(ran).toEqual([]);
 });
 
 test("a body with no Content-Length is counted: past the max it is 413", async () => {

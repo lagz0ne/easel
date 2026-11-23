@@ -3,29 +3,20 @@ import { z } from "zod";
 
 import { aboutShape } from "./about";
 
-// The copy as a capsule (docs/decisions/kit-capsules.md; E9): the locale is its config. Each part
-// (the pieces of the kit, a frame) declares its texts, and its own `text` resource depends on
-// `copy.say`: `say(texts)` checks the part (each key has a text in each locale, with the same
-// parameters) and gives its `t`. So `t` is a dependency: a component depends on the `text` of a
-// part, its keys are typed, and the graph shows which component uses which texts.
-
 export const locales = ["en", "vi"] as const;
 
 const localeShape = z.enum(locales);
 
 export type Locale = z.infer<typeof localeShape>;
 
-/** A text: a string with `{name}` parameters, or a form for one and a form for others (`{count}`). */
 const textShape = z.union([z.string(), z.object({ one: z.string(), other: z.string() })]);
 
 export type Text = z.infer<typeof textShape>;
 
-/** The texts of one part, in each locale, by key: each locale has each key, as the type says. */
 export type Texts<K extends string = string> = {
   readonly [L in Locale]: Readonly<Record<K, Text>>;
 };
 
-/** The `t` of a part: the text of one of its keys in the locale, with its parameters filled. */
 export type Say<K extends string> = (
   key: K,
   params?: Readonly<Record<string, string | number>>,
@@ -40,10 +31,8 @@ const locale = tag<Locale>({ label: "copy.locale", default: "en", parse: localeS
 
 const about = tag({ label: "copy.about", parse: aboutShape });
 
-/** The texts of a part, on its `text` resource: a tool reads its keys from the graph. */
 const texts = tag<Texts>({ label: "copy.texts", parse: textsShape });
 
-/** The parameters of a text, sorted: `{count} people in {team}` gives `count team`. */
 const paramsOf = operation({
   label: "copy.paramsOf",
   input: textShape,
@@ -54,11 +43,6 @@ const paramsOf = operation({
   },
 });
 
-/**
- * The gaps of one part: a key of a locale with no English, a key of English with no text in a
- * locale, or a text whose parameters are not those of its English. The types find the first two
- * in a frame that the agent type-checks; this finds them in each frame.
- */
 export const textGaps = operation({
   label: "copy.textGaps",
   input: textsShape,
@@ -87,11 +71,6 @@ export const textGaps = operation({
   },
 });
 
-/**
- * `say(texts)`: the `t` of a part in the locale, after the check of its texts (`textGaps`); a gap
- * raises `CopyGaps`, so the part's `text` does not build and its frame does not draw. A text with
- * a form for one takes the form that `Intl.PluralRules` picks for `count`.
- */
 const say = resource({
   label: "copy.say",
   depends: { locale, textGaps },
@@ -117,7 +96,6 @@ const say = resource({
   },
 });
 
-/** Numbers, money and dates in the locale, by `Intl`: `format.money(29, "USD")` is `$29.00` in en. */
 const format = resource({
   label: "copy.format",
   depends: { locale },

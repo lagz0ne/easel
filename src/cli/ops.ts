@@ -7,10 +7,6 @@ import { errorGroup, fingerprint, resolveAnswer, sides, traceId } from "@/ops/co
 import { deadline, exitOf, faultExit } from "./exit";
 import { say } from "./output";
 
-// `easel status` and `easel errors` (SPEC-ops.md § Journeys). Each prints its answer and exits by
-// the call's success list: `held`, `notLive` and `failing` are answers, and exit 1.
-
-/** `easel status` (`ops.status`): the build, the checks, the counters, the errors, the fixer. */
 export const opsStatus = operation({
   label: "cli.status",
   depends: { say, exitOf, faultExit, deadline, status: ops.user["ops.status"] },
@@ -35,7 +31,6 @@ export const opsStatus = operation({
   },
 });
 
-/** One group on one line: fingerprint, status, side, count, label, name and message. */
 const groupLine = operation({
   label: "cli.groupLine",
   input: errorGroup,
@@ -43,24 +38,17 @@ const groupLine = operation({
     `${g.fingerprint}  ${g.status}  ${g.side}  ${g.count}x  ${g.label}  ${g.name}: ${g.message.slice(0, 120)}`,
 });
 
-/**
- * `--since`: a duration back from now (`90s`, `30m`, `2h`, `7d`), or a time (`2026-11-17`). A
- * date that is not on the calendar (`2026-02-30`, `2026-13-01`) is bad usage, as is a time that
- * does not parse.
- */
 export const since = z.string().refine((typed) => {
   if (/^\d+[smhd]$/.test(typed)) return true;
   const day = /^(\d{4})-(\d\d)-(\d\d)/.exec(typed);
   if (!day || Number.isNaN(Date.parse(typed))) return false;
   const date = new Date(Date.UTC(Number(day[1]), Number(day[2]) - 1, Number(day[3])));
 
-  // Date.UTC rolls 2026-02-30 over to March: the day it names must be the day typed.
   return !Number.isNaN(date.getTime()) && date.toISOString().startsWith(day[0]);
 }, "--since takes 30m, 2h, 7d or a date that is on the calendar");
 
 const units = { s: 1000, m: 60_000, h: 3_600_000, d: 86_400_000 } as const;
 
-/** `--since` as a time in ms, read on the run's clock. */
 const sinceAt = operation({
   label: "cli.sinceAt",
   input: since,
@@ -80,7 +68,6 @@ export const errorsLsInput = z.object({
   since: since.optional(),
 });
 
-/** `easel errors ls [--open] [--side server|browser] [--since 2h]` (`ops.errors`). */
 export const errorsLs = operation({
   label: "cli.errorsLs",
   input: errorsLsInput,
@@ -108,7 +95,6 @@ export const errorsLs = operation({
 
 export const errorsShowInput = z.union([z.object({ fingerprint }), z.object({ trace: traceId })]);
 
-/** `easel errors show <fingerprint>`, or `--trace <id>` from a `failed` fault (`ops.error`). */
 export const errorsShow = operation({
   label: "cli.errorsShow",
   input: errorsShowInput,
@@ -146,7 +132,6 @@ export const errorsShow = operation({
   },
 });
 
-/** What a person reads for each answer of `ops.resolveError`. */
 const resolveText = operation({
   label: "cli.resolveText",
   input: z.object({ answer: resolveAnswer, build: z.number() }),
@@ -166,7 +151,6 @@ const resolveText = operation({
   },
 });
 
-/** `easel errors resolve <fingerprint> --build <n>` (`ops.resolveError`), with no claim. */
 export const errorsResolve = operation({
   label: "cli.errorsResolve",
   input: z.object({ fingerprint, build: z.number().int().positive() }),
@@ -193,7 +177,6 @@ export const errorsResolve = operation({
   },
 });
 
-/** `easel errors hand-off <fingerprint> --reason <text>` (`ops.handOff`): a person takes it. */
 export const errorsHandOff = operation({
   label: "cli.errorsHandOff",
   input: z.object({ fingerprint, reason: z.string() }),
@@ -216,7 +199,6 @@ export const errorsHandOff = operation({
   },
 });
 
-/** `easel errors tick` (`ops.fixerTick`): the fixer ran. */
 export const errorsTick = operation({
   label: "cli.errorsTick",
   depends: { say, exitOf, faultExit, deadline, tick: ops.owner["ops.fixerTick"] },

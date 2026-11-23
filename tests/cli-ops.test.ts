@@ -23,11 +23,6 @@ import { sight } from "@/ops/sink.server";
 import type { Sighting } from "@/ops/sink.server";
 import { release } from "@/release";
 
-// `easel status` and `easel errors` (SPEC-ops.md § Journeys) over the memory transport: each
-// command's answers, their exit codes (the contract's success lists, SPEC.md rule 1), and what a
-// person reads. The server and every CLI share one test clock.
-
-// Each test signs in two people over the transport first; a busy host makes that slow.
 vi.setConfig({ testTimeout: 30_000, hookTimeout: 30_000 });
 
 const closers: Array<() => unknown> = [];
@@ -39,7 +34,6 @@ afterEach(async () => {
 const t0 = 1_800_000_000_000;
 const origin = "https://easel.test";
 
-/** One server with ops, a fixer lease on the fingerprints in `leases`, and one module's counters. */
 async function boot() {
   const clock = makeTestClock({ now: t0 });
   const out: string[] = [];
@@ -99,7 +93,6 @@ async function boot() {
 
 type Srv = Awaited<ReturnType<typeof boot>>;
 
-/** One CLI, as the cmd builds it, on the memory transport: what it prints, and its runs. */
 async function easel(srv: Srv, peer: string, json = true, hosts = home()) {
   const out: string[] = [];
   const err: string[] = [];
@@ -130,7 +123,6 @@ async function easel(srv: Srv, peer: string, json = true, hosts = home()) {
     err,
     hosts,
     run: (command: Command) => scope.run(cli.run, { input: command }),
-    /** Each JSON line printed since the last read. */
     lines: () =>
       out
         .splice(0)
@@ -138,12 +130,10 @@ async function easel(srv: Srv, peer: string, json = true, hosts = home()) {
         .split("\n")
         .filter(Boolean)
         .map((line) => JSON.parse(line)),
-    /** The text printed since the last read, stdout then stderr. */
     text: () => [out.splice(0).join(""), err.splice(0).join("")],
   };
 }
 
-/** A fresh folder for one CLI's hosts file. */
 function home() {
   const dir = mkdtempSync(join(tmpdir(), "easel-cli-ops-"));
   closers.push(() => rmSync(dir, { recursive: true, force: true }));
@@ -156,10 +146,6 @@ const errorsCmd = (act: Extract<Command, { kind: "errors" }>["act"]): Command =>
   act,
 });
 
-/**
- * Ann, the first owner, and Bob, a member she approved, each signed in on a JSON CLI; and a text
- * CLI for each on the same hosts file.
- */
 async function people(srv: Srv) {
   const ann = await easel(srv, "198.51.100.1");
   const setup = { kind: "login", name: "ann", setup: srv.setupCode(), noWait: false } as const;
@@ -179,8 +165,6 @@ async function people(srv: Srv) {
     bobText: await easel(srv, "198.51.100.2", false, bob.hosts),
   };
 }
-
-// ---- easel status (any user)
 
 test("status: any user reads the build, checks, counters, errors and the fixer; exit 0", async () => {
   const srv = await boot();
@@ -249,8 +233,6 @@ test("status as text: a fixer that never ticked, and a failing check", async () 
 
   expect(bobText.text()[0]).toContain("fixer: never ticked, silent\n");
 });
-
-// ---- easel errors (an owner)
 
 test("errors ls: the groups as JSON, without samples; --open, --side and --since; exit 0", async () => {
   const srv = await boot();
@@ -437,8 +419,6 @@ test("a member is refused each owner command: the text says it needs an owner; e
 
   expect(bob.lines()).toEqual(commands.map(() => ({ refused: { owner: true } })));
 });
-
-// ---- A server that is gone
 
 test("each ops command whose server is gone exits 69: cannot reach the server", async () => {
   const srv = await boot();

@@ -5,9 +5,6 @@ import { ownerApi, userApi } from "./contract";
 import { caller } from "./guards.server";
 import { logins, store, users } from "./store.server";
 
-// A user's calls (after the `user` guard) and an owner's (after `user`, then `owner`).
-
-/** `users.me`: who the token is. `easel whoami`. */
 export const me = operation({
   label: "users.me.do",
   input: userApi["users.me"].input,
@@ -15,7 +12,6 @@ export const me = operation({
   run: ({ me }) => ({ kind: "me" as const, name: me.name, owner: me.role === "owner" }),
 });
 
-/** `users.list`: the users, and the codes that wait, oldest first. No digest leaves. */
 export const list = operation({
   label: "users.list.do",
   input: ownerApi["users.list"].input,
@@ -34,7 +30,6 @@ export const list = operation({
   },
 });
 
-/** The waiting login with this code, if any. */
 const waiting = operation({
   label: "access.waiting",
   input: z.string(),
@@ -46,10 +41,6 @@ const waiting = operation({
   },
 });
 
-/**
- * `users.approve`: the code's digest becomes a live token, in the same write that ends the code
- * (judged rule 6). A code that is not waiting answers `gone`, so a second approve does too.
- */
 export const approve = operation({
   label: "users.approve.do",
   input: ownerApi["users.approve"].input,
@@ -71,7 +62,6 @@ export const approve = operation({
   },
 });
 
-/** `users.deny`: the code ends; its CLI is told `denied`. A code not waiting answers `gone`. */
 export const deny = operation({
   label: "users.deny.do",
   input: ownerApi["users.deny"].input,
@@ -85,11 +75,6 @@ export const deny = operation({
   },
 });
 
-/**
- * One user goes, in one write: its row, with its token, and each of its codes that waits or was
- * approved is denied, so its CLI is never told `granted` (judged rules 8, 14). The name is free
- * again. The last owner answers `last` and nothing changes (judged rule 9).
- */
 const remove = operation({
   label: "access.remove",
   input: z.string(),
@@ -101,8 +86,6 @@ const remove = operation({
     const owners = users.get().filter((u) => u.role === "owner");
     if (row.role === "owner" && owners.length === 1) return { kind: "last" as const };
 
-    // An approved code, or one that still waits, ends `denied`; a code past its time stays
-    // `expired` (ACodeThatEndedStaysEnded).
     const now = clock.currentTimeMillis();
     const ended = logins
       .get()
@@ -114,7 +97,6 @@ const remove = operation({
   },
 });
 
-/** `users.revoke`: an owner removes a user, or themselves while another owner remains. */
 export const revoke = operation({
   label: "users.revoke.do",
   input: ownerApi["users.revoke"].input,
@@ -126,11 +108,6 @@ export const revoke = operation({
   },
 });
 
-/**
- * `login.end`: the caller logs out. Its user goes, with its token and codes, in one write, so
- * its name is free to log in again (judged rule 14). The last owner answers `last` and nothing
- * changes. `easel logout`.
- */
 export const endLogin = operation({
   label: "login.end.do",
   input: userApi["login.end"].input,
@@ -142,10 +119,8 @@ export const endLogin = operation({
   },
 });
 
-/** The server's side of `userApi`: `access.user({ implement: userOps, onStart: [user] })`. */
 export const userOps = { "users.me": me, "login.end": endLogin } as const;
 
-/** The server's side of `ownerApi`: `access.owner({ implement: ownerOps, onStart: [user, owner] })`. */
 export const ownerOps = {
   "users.list": list,
   "users.approve": approve,

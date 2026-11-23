@@ -24,10 +24,6 @@ import { mcpLink } from "@/mcp/server";
 import { ops } from "@/ops";
 import { queue } from "@/queue";
 
-// `easel mcp` (SPEC-mcp.md § A local agent adds easel): the CLI's capsule serves MCP on a link,
-// and each tool runs its call through the CLI's rpc client, with the token of the hosts file. The
-// MCP client here is the SDK's, on an in-memory link; the cmd gives the stdio link.
-
 const closers: Array<() => unknown> = [];
 
 afterEach(async () => {
@@ -36,7 +32,6 @@ afterEach(async () => {
 
 const origin = "https://easel.test";
 
-/** One server: access and frames on SQLite in memory, and a memory transport. `noFrames`: a server older than frames. */
 async function boot(options: { noFrames?: boolean } = {}) {
   const clock = makeTestClock({ now: 1_800_000_000_000 });
   const out: string[] = [];
@@ -71,7 +66,6 @@ async function boot(options: { noFrames?: boolean } = {}) {
 
 type Srv = Awaited<ReturnType<typeof boot>>;
 
-/** One CLI as the cmd builds it, and what it prints. */
 async function easel(srv: Srv) {
   const dir = mkdtempSync(join(tmpdir(), "easel-mcp-"));
   closers.push(() => rmSync(dir, { recursive: true, force: true }));
@@ -104,7 +98,6 @@ async function easel(srv: Srv) {
   return { scope, out, err };
 }
 
-/** `easel mcp` on an in-memory link, and the SDK's client on its other end. */
 async function mcp(cli$: Awaited<ReturnType<typeof easel>>) {
   const [ours, theirs] = InMemoryTransport.createLinkedPair();
   const served = cli$.scope.run(cli.run, {
@@ -117,7 +110,6 @@ async function mcp(cli$: Awaited<ReturnType<typeof easel>>) {
   return { client, served };
 }
 
-/** Ann, the first owner, signed in on her own CLI. */
 async function ann(srv: Srv) {
   const a = await easel(srv);
   const login = { kind: "login", name: "ann", setup: srv.setupCode(), noWait: false } as const;

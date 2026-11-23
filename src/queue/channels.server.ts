@@ -5,13 +5,6 @@ import { z } from "zod";
 import { channelApi, channelInfo, channelKind, defaultTrigger } from "./channels";
 import { githubCall, githubMessage } from "./github.server";
 
-// The channels of the dispatcher (SPEC-queue.md § A team lead sets the channels). They are in the
-// app's one SQLite file, not on the board: a channel holds a token, and no call answers it again
-// (the secrets of GitHub Actions). `channel.set` checks the repository with the token before it
-// saves: the repository must exist, be private, and let the token write issues. The calls run
-// after `user` and `owner` (fact rule 6).
-
-/** The tables of the dispatcher, made at start, after the queue's: channels and deliveries. */
 export const dispatchSchema = `
 CREATE TABLE IF NOT EXISTS queue_channels (
   name TEXT PRIMARY KEY NOT NULL,
@@ -38,7 +31,6 @@ CREATE TABLE IF NOT EXISTS queue_deliveries (
 );
 CREATE INDEX IF NOT EXISTS queue_deliveries_due ON queue_deliveries (status, next);`;
 
-/** A channel as stored, with its token. Only the server reads it. */
 export const storedChannel = z.object({
   name: z.string(),
   kind: channelKind,
@@ -49,14 +41,12 @@ export const storedChannel = z.object({
   created: z.number(),
 });
 
-/** At start: the tables of the dispatcher. */
 export const makeDispatchTables = operation({
   label: "queue.makeDispatchTables",
   depends: { connection: bunSqlite.connection },
   run: async ({ connection }) => void connection.db.$client.exec(dispatchSchema),
 });
 
-/** A refusal of `channel.set`: GitHub's status (0: no answer), and its message, scrubbed. */
 const refusalOf = operation({
   label: "queue.refusalOf",
   input: z.object({ status: z.number(), body: z.unknown(), token: z.string() }),
@@ -68,12 +58,6 @@ const refusalOf = operation({
   }),
 });
 
-/**
- * The check of `channel.set`, as GitHub answers it. A repository that GitHub does not show to the
- * token answers its status and message. A public one answers `public`. Then easel makes the label
- * (201), or finds it there (422): that write proves that the token can write issues, as `gh label
- * create` needs the same right. A refusal of it answers its status and message.
- */
 const checkRepo = operation({
   label: "queue.checkRepo",
   input: z.object({ repo: z.string(), label: z.string(), token: z.string() }),
@@ -109,10 +93,6 @@ const checkRepo = operation({
   },
 });
 
-/**
- * `channel.set`: the check, then one upsert. A channel set again on the same repository keeps its
- * time, so its issues stay its own; on another repository it starts again.
- */
 export const setChannel = operation({
   label: "channel.set.do",
   input: channelApi["channel.set"].input,
@@ -144,7 +124,6 @@ export const setChannel = operation({
   },
 });
 
-/** Each channel, as stored: the dispatcher reads them on each round. */
 export const readChannels = operation({
   label: "queue.readChannels",
   depends: { connection: bunSqlite.connection },
@@ -157,7 +136,6 @@ export const readChannels = operation({
       .map((row) => storedChannel.parse(row)),
 });
 
-/** `channel.list`: each channel, with the last 4 characters of its token in place of the token. */
 export const listChannels = operation({
   label: "channel.list.do",
   input: channelApi["channel.list"].input,
@@ -170,7 +148,6 @@ export const listChannels = operation({
   }),
 });
 
-/** `channel.remove`: its issues stay on GitHub, and the dispatcher does not change them again. */
 export const removeChannel = operation({
   label: "channel.remove.do",
   input: channelApi["channel.remove"].input,
@@ -184,7 +161,6 @@ export const removeChannel = operation({
   },
 });
 
-/** The server's side of `channelApi`: `queue.channels({ implement, onStart: [user, owner] })`. */
 export const channelOps = {
   "channel.set": setChannel,
   "channel.list": listChannels,

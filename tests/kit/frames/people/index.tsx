@@ -1,8 +1,3 @@
-// A capsule frame in a folder (SPEC-kit.md § App frames, "A folder"; § The capsules, "A capsule
-// frame"): its entity and data states (entities.ts), its texts (copy.ts), its View (view.tsx), and
-// its own capsule `frame` here, whose config is the data state, its `controls` for the viewer's
-// panel, and its `panes` (panes.tsx), which reach the part of it that `part` names. The mount
-// draws it in a scope of the kit's capsules.
 import { frameControls, framePanes, framePart } from "@easel/frame";
 import { capsule } from "@tinkered/core";
 import { z } from "zod";
@@ -43,14 +38,12 @@ export const frame = capsule({
   },
 });
 
-// The controls of the panel: each runs an operation of the frame in its live scope.
 export const controls = frameControls({
   add: { label: "Add a person", run: addPerson },
   clear: { label: "Remove all", run: removeAll },
   capitals: { label: "Names in capitals", run: setCapitals, value: capitals },
 });
 
-// The part of the frame that its panes reach: its cells live (`board`), and its calls (`api`).
 export const part = framePart({
   services: [board, api],
   serve: () => [
@@ -60,5 +53,4 @@ export const part = framePart({
   reach: (link) => [board({ read: link }), api({ remote: link })],
 });
 
-// The panes: a toolbar in the label row, and a form to add a person at the right edge.
 export const panes = framePanes({ top: Toolbar, right: AddPanel });

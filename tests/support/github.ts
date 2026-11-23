@@ -1,10 +1,5 @@
 import { z } from "zod";
 
-// A test double of GitHub's REST API, as an injected fetch: the server's dispatcher and
-// `channel.set` call it in place of api.github.com. It keeps repositories, labels, issues and
-// comments, and each call it got. A test makes it fail: a status, no answer (until the call's
-// signal aborts), or a fetch that throws. It never reaches the real GitHub.
-
 export type Issue = {
   number: number;
   repo: string;
@@ -15,7 +10,6 @@ export type Issue = {
   comments: string[];
 };
 
-/** What the double does with a call before it answers it: nothing (null), or a failure. */
 type Fault = { status: number; message: string } | "hang" | "throw" | null;
 
 const issueBody = z.object({ title: z.string(), body: z.string(), labels: z.array(z.string()) });
@@ -29,7 +23,6 @@ export function githubDouble(token: string) {
   const issues: Issue[] = [];
   const calls: Array<{ method: string; path: string; authorized: boolean }> = [];
   let fault: (method: string, path: string) => Fault = () => null;
-  /** Called after each issue or comment, as GitHub starts a run of the agent. */
   let onRun: (issue: Issue) => void = () => undefined;
 
   const answer = (status: number, body: unknown) =>
@@ -41,7 +34,6 @@ export function githubDouble(token: string) {
   type Repo = { private: boolean; labels: Set<string>; canWrite: boolean };
   type Call = { request: Request; method: string; key: string; repo: Repo; num?: string };
 
-  /** The routes of the double: `METHOD part[/sub]`, after `/repos/{owner}/{name}`. */
   const routes: Record<string, (call: Call) => Promise<Response> | Response> = {
     "GET ": ({ key, repo }) => answer(200, { full_name: key, private: repo.private }),
     "POST labels": async ({ request, repo }) => {
@@ -85,7 +77,6 @@ export function githubDouble(token: string) {
     issues.find((i) => i.repo === key && i.number === Number(num));
   const notFound = () => answer(404, { message: "Not Found" });
 
-  /** What a fault makes of a call: an answer, a fetch that throws or hangs; null for none. */
   const faulted = (request: Request, failing: Fault) => {
     if (failing === "throw") return Promise.reject(new Error(`connect failed for ${token}`));
     if (failing === "hang") {
@@ -96,7 +87,6 @@ export function githubDouble(token: string) {
     return failing && answer(failing.status, { message: failing.message });
   };
 
-  /** A path, read: the repository, the issue's number, and the shape of the route. */
   const partsOf = (path: string) => {
     const [, key = "", part = "", num, sub] =
       /^\/repos\/([^/]+\/[^/]+)(?:\/(\w+)(?:\/(\d+)(?:\/(\w+))?)?)?$/.exec(path) ?? [];
@@ -131,7 +121,6 @@ export function githubDouble(token: string) {
     repos,
     issues,
     calls,
-    /** The calls that wrote: every one but a GET. */
     writes: () => calls.filter((call) => call.method !== "GET"),
     failWith: (next: (method: string, path: string) => Fault) => {
       fault = next;

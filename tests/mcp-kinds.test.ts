@@ -9,10 +9,6 @@ import { answerResult, faultResult } from "@/mcp/server";
 import { kindTexts } from "@/mcp/texts";
 import { contracts, successLists, tools } from "@/mcp/tools";
 
-// SPEC-mcp.md fact rule 5 and § Built on Tinker: each kind of each tool's call is a plain result
-// when its call's success list has it, and a tool error with a line on what to do next when not;
-// each of Tinker's seven faults is one line, with no trace of the input.
-
 const closers: Array<() => unknown> = [];
 
 afterEach(async () => {
@@ -25,7 +21,6 @@ async function scope() {
   return app;
 }
 
-/** The kinds that an output can answer, read from its schema. */
 function kindsOf(schema: z.ZodType): string[] {
   if (schema instanceof z.ZodDiscriminatedUnion || schema instanceof z.ZodUnion) {
     return schema.options.flatMap((option) => (option instanceof z.ZodType ? kindsOf(option) : []));

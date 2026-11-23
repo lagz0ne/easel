@@ -1,12 +1,4 @@
 #!/usr/bin/env bash
-# The browser smoke: the BUILT binary, in a real browser (agent-browser), on the paths that matter most.
-# It proves what unit and tests/browser cannot: the build, the embedded client, the server and the
-# socket work together. It is the expensive check, so it holds only the critical paths (AGENTS.md,
-# "Browser smoke"). Each flow costs seconds; add one only for a path users cannot work without.
-#
-# Usage: scripts/smoke.sh [dir]   dir = a tree with dist/server (default: this repo; built if missing)
-# Output: one line per flow, then "smoke: OK" or "smoke: FAILED <flow>". Screenshot + log on failure
-# go to $SMOKE_OUT (default: a temp dir, path printed).
 set -euo pipefail
 export PATH="$HOME/.bun/bin:$HOME/.npm-global/bin:$PATH"
 dir="$(cd "${1:-$(git rev-parse --show-toplevel)}" && pwd)"
@@ -19,8 +11,6 @@ if [[ ! -x "$dir/dist/server" ]]; then
   (cd "$dir" && bun run build:client >/dev/null && bun run build:server >/dev/null)
 fi
 
-# Pictures draw with the Chromium on this machine: Playwright's headless shell for the browser tests
-# (tests/support/chromium.ts finds it). Nothing is downloaded.
 chromium="$(cd "$dir" && bun -e 'import { localChromium } from "./tests/support/chromium"; console.log(localChromium() ?? "")')"
 [[ -n "$chromium" ]] || { echo "smoke: no local Chromium for pictures (bunx playwright install chromium)" >&2; exit 1; }
 
@@ -29,8 +19,6 @@ base="http://127.0.0.1:$port"
 session="easel-smoke-$$"
 AB=(agent-browser --session "$session")
 
-# No VICTORIA_* URL: the built server starts without Victoria and exports nothing
-# (SPEC-ops.md fact rule 4); the smoke judges the app, not the collector.
 BUILD=1 PORT="$port" PUBLIC_ORIGIN="$base" NODE_ENV=production EASEL_DB="$out/easel.db" EASEL_CHROMIUM="$chromium" OTEL_SERVICE_NAME=easel-smoke \
   "$dir/dist/server" serve >"$out/server.log" 2>&1 &
 server=$!
@@ -40,7 +28,6 @@ cleanup() {
 }
 trap cleanup EXIT
 
-# Up to 30 s: on a busy host (load 20 on 8 cores) the boot has taken over 10 s.
 for _ in $(seq 300); do curl -fsS "$base/api/health" >/dev/null 2>&1 && break; sleep 0.1; done
 curl -fsS "$base/api/health" >/dev/null || { echo "smoke: FAILED boot: no /api/health (log: $out/server.log)"; exit 1; }
 
@@ -57,7 +44,6 @@ no_page_errors() {
   jq -e '.data.errors | length == 0' <<<"$e" >/dev/null 2>&1 || fail "page errors: $e"
 }
 
-# 1. Boot: the page loads, hydrates, and its loader's rpc call returns.
 flow=boot
 t0=$SECONDS
 "${AB[@]}" open "$base/" >/dev/null || fail "open /"
@@ -65,7 +51,6 @@ t0=$SECONDS
 no_page_errors
 echo "smoke: ok   boot ($((SECONDS - t0)) s)"
 
-# 2. Live data: a write over the socket comes back in the live list, and the server keeps it.
 flow=live-todo
 t0=$SECONDS
 title="smoke $$ $RANDOM"
@@ -78,11 +63,6 @@ title="smoke $$ $RANDOM"
 no_page_errors
 echo "smoke: ok   live-todo ($((SECONDS - t0)) s)"
 
-# 3. The canvas: an agent's frames, opened by share link, draw as shells with a live, sandboxed
-#    document at rest in the look of the kit, Fit works, Zoom in zooms, a drag pans, and a frame
-#    the agent puts while the tab is open shows. A shell shows its picture, drawn by Chromium, and
-#    `easel shot` writes one.
-#    The setup code and the link stay in variables: neither is printed, nor is a picture's key.
 flow=canvas
 t0=$SECONDS
 easel() { HOME="$out/home" "$dir/dist/server" "$@"; }
@@ -105,9 +85,6 @@ link="$(easel share smoke 2>/dev/null)" || fail "easel share"
 "${AB[@]}" find role button click --name "Fit" >/dev/null || fail "no Fit button"
 "${AB[@]}" wait --fn 'document.querySelector("iframe[sandbox=\"allow-scripts\"]") !== null' >/dev/null ||
   fail "the frame's document never went live at rest"
-# The live document is composed with the kit (SPEC-kit.md § compose): the look and the kit's CSS
-# came over the socket in the board's cell `kit`, and the frame's made CSS with its document. The
-# seed look names Geist, so the font's face comes before `:root`.
 "${AB[@]}" wait --fn 'document.querySelector("iframe[sandbox=\"allow-scripts\"]")?.srcdoc.includes("<style id=\"easel-look\">@font-face {\n  font-family: \"Geist\";")' >/dev/null ||
   fail "the frame's live document is not in the look of the kit"
 zoom='document.querySelector("output[aria-label=Zoom]")?.textContent'

@@ -3,14 +3,9 @@ import { afterEach, expect, test, vi } from "vite-plus/test";
 import type { MainClosed, MainContext } from "~/base/main";
 import { createMainHost, runMain } from "~/base/main-host";
 
-// The command host in process, with fake streams: each case drives one rule of
-// tinker/base/main-host.ts and reads the code, the printed lines, and the host's own signal.
-// Ported from the Hedl app's tests/main-host.test.ts.
-
 type Closed = { closed: MainClosed };
 type WriteDone = (error?: Error | null) => void;
 
-/** A stream the host reads like a Node one: it records each write and answers its callback. */
 const stream = (options: { fail?: object; destroyed?: boolean; isTTY?: boolean } = {}) => {
   const chunks: string[] = [];
 
@@ -28,7 +23,6 @@ const stream = (options: { fail?: object; destroyed?: boolean; isTTY?: boolean }
   };
 };
 
-/** A write-only stream: no `writable` flag, so the host does not fence it. */
 const plain = () => {
   let text = "";
 
@@ -43,7 +37,6 @@ const plain = () => {
 const done: Closed = { closed: Promise.resolve() };
 const wait = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
 
-/** Polls a check every 5 ms until it passes, for at most a second. */
 const until = async (check: () => void) => {
   for (const started = Date.now(); ; await wait(5)) {
     try {
@@ -257,7 +250,6 @@ test("a failed root or a teardown error exits 1 with the first error", async () 
 });
 
 test("a command that returns no closed promise exits 1 and says so", async () => {
-  // JSON.parse gives `any`, so a null return needs no cast.
   const nothing = host(async () => JSON.parse("null"));
   const noClosed = host(async () => ({}) as Closed);
 
@@ -447,10 +439,6 @@ test("the default hard stop kills the process with SIGKILL", async () => {
   expect(await run.closed).toBe(1);
 });
 
-/**
- * Run `runMain` with fake streams, then put back the process exit code. Bun keeps a code that is
- * set back to undefined, so `bun test` would exit with it: put back 0 instead.
- */
 const runIn = async (main: (ctx: MainContext) => Promise<Closed>, options = {}) => {
   const exitCode = process.exitCode;
   try {
@@ -533,7 +521,6 @@ test("runMain ignores a gone reader on its streams and rethrows any other stream
   expect(() => quiet?.({ code: "EPIPE" })).not.toThrow();
   const broken = { code: "EBADF" };
   expect(() => quiet?.(broken)).toThrow(expect.objectContaining(broken));
-  // EIO is a closed terminal only when stdout is one.
   expect(() => quiet?.({ code: "EIO" })).toThrow();
 
   const tty = watched("tty", true);

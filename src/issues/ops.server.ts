@@ -3,13 +3,8 @@ import { z } from "zod";
 
 import { comments, issueApi, issueBoard, issues, members } from "./contract";
 
-// The server's work for `issueApi`. Each op writes members of the keyed cells; `issueBoard` tells
-// every member's tab that reads the part, and the tab asks for that part alone.
-
-/** Who calls: `signedIn` binds it for each call. */
 const viewer = tag<string>({ label: "issues.viewer" });
 
-/** Every call and ask: no `who` in its meta, no service; else it runs as the viewer. */
 export const signedIn = operation({
   label: "issues.signedIn",
   input: transport.hook.start,
@@ -19,7 +14,6 @@ export const signedIn = operation({
   },
 });
 
-/** Every read of a part: the viewer must be a member of the part's team (ADR 0138 rule 14). */
 export const membersOnly = operation({
   label: "issues.membersOnly",
   input: transport.hook.start,
@@ -31,7 +25,6 @@ export const membersOnly = operation({
   },
 });
 
-/** A call's check: the viewer is a member of the team the input names. */
 const inTeam = operation({
   label: "issues.inTeam",
   input: z.object({ teamId: z.string() }),
@@ -63,7 +56,6 @@ const addMember = operation({
   },
 });
 
-/** A number one past the team's last: ENG-1, ENG-2. One writer, so no gap and no twin. */
 const createIssue = operation({
   label: "issue.create.do",
   input: issueApi["issue.create"].input,
@@ -112,7 +104,6 @@ const addComment = operation({
   },
 });
 
-/** The server's side of `issueApi`, by address: `issues.api({ implement: issueOps })`. */
 export const issueOps = {
   "team.create": createTeam,
   "team.add": addMember,

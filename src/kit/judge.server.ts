@@ -7,19 +7,12 @@ import { colorOf, colorsIn, nearestColor, oklab } from "./colors.server";
 import { nearestName } from "./names.server";
 import { type Prepared, prepared, type System, type Verdict } from "./prepare.server";
 
-// What the K5 check says about one class name (judged rule 12): a name to make, a kit class, or a
-// finding with its fix. A palette color, an arbitrary color or font size, and a name that gives no
-// CSS are findings; an arbitrary layout value (`w-[420px]`) is not.
-
-/** The input of each verdict: the kit version, the class name, its variants and its utility. */
 type Asked = { kit: Prepared; name: string; variants: string; utility: string };
 
-/** A verdict that is a finding. */
 type Found = Extract<Verdict, { kind: "finding" }>;
 
 const asked = z.custom<Asked>();
 
-/** The colors of Tailwind's palette by hue and shade (`red-500`), and its hues. */
 const paletteValues = new Map<string, string>();
 const hues: string[] = [];
 
@@ -30,10 +23,8 @@ for (const [hue, shades] of Object.entries(palette)) {
   }
 }
 
-/** A palette class: what comes before the hue, the hue, the shade, and an opacity. */
 const paletteClass = new RegExp(`^(.*?)(${hues.join("|")})-(\\d+)(/.*)?$`);
 
-/** A class name in two: its variants (`md:hover:`) and the utility (`bg-primary/50`). */
 export const splitClass = operation({
   label: "kit.splitClass",
   input: z.string(),
@@ -51,7 +42,6 @@ export const splitClass = operation({
   },
 });
 
-/** A palette class (`hover:text-red-500/50`) in parts, with the palette's value of its color. */
 export const paletteShade = operation({
   label: "kit.paletteShade",
   input: z.string(),
@@ -65,7 +55,6 @@ export const paletteShade = operation({
   },
 });
 
-/** A color of Tailwind's palette in OKLab, kept for the life of the scope. */
 export const paletteLab = operation({
   label: "kit.paletteLab",
   input: z.object({ key: z.string(), value: z.string() }),
@@ -79,7 +68,6 @@ export const paletteLab = operation({
   },
 });
 
-/** A palette color (`text-red-500`): a finding, with the nearest look color as the fix. */
 export const paletteVerdict = operation({
   label: "kit.paletteVerdict",
   input: asked,
@@ -105,7 +93,6 @@ export const paletteVerdict = operation({
   },
 });
 
-/** A class name that gives no CSS: a palette color, a kit class with a variant, or a name to fix. */
 export const unknownVerdict = operation({
   label: "kit.unknownVerdict",
   input: asked,
@@ -133,7 +120,6 @@ export const unknownVerdict = operation({
   },
 });
 
-/** An arbitrary font size (`text-[13px]`): a finding, with the nearest look size as the fix. */
 export const sizeVerdict = operation({
   label: "kit.sizeVerdict",
   input: z.custom<Asked & { value: string }>(),
@@ -159,7 +145,6 @@ export const sizeVerdict = operation({
   },
 });
 
-/** The arbitrary value of a class name: `#f00` of `bg-[#f00]`, `red` of `[color:red]`. Null: none. */
 export const arbitraryOf = operation({
   label: "kit.arbitraryOf",
   input: z.custom<{ system: System; name: string }>(),
@@ -176,7 +161,6 @@ export const arbitraryOf = operation({
   },
 });
 
-/** An arbitrary color (`bg-[#f00]`, `[color:red]`): a finding, with the nearest look color. */
 export const colorVerdict = operation({
   label: "kit.colorVerdict",
   input: z.custom<Asked & { color: CssColor; property: string | null; root: string | null }>(),
@@ -198,7 +182,6 @@ export const colorVerdict = operation({
   },
 });
 
-/** A class name with an arbitrary value: a color or a font size is a finding; layout is made. */
 export const arbitraryVerdict = operation({
   label: "kit.arbitraryVerdict",
   input: z.custom<Asked & { css: string }>(),
@@ -221,7 +204,6 @@ export const arbitraryVerdict = operation({
   },
 });
 
-/** The verdict on one class name in one kit version, kept with the kit version. */
 export const judgeClass = operation({
   label: "kit.judgeClass",
   input: z.custom<{ kit: Prepared; name: string }>(),

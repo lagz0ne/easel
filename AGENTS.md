@@ -26,8 +26,7 @@ Before editing files for a substantial task:
 ASD-STE100 (Simplified Technical English,
 Issue 9) is the official rule for all writing
 in this project: replies to the user, docs,
-specs, ADRs, commit messages, code comments,
-and the text that easel shows (CLI, errors,
+specs, ADRs, commit messages, and the text that easel shows (CLI, errors,
 pages). The user decided this on 2026-11-22.
 
 - Keep a sentence short: 20 words at most for
@@ -77,6 +76,27 @@ a browser test.
 An exception to a rule goes in `tinker.json`,
 with its reason.
 Do not add one to make a check pass.
+
+## Code has no comments
+
+The code itself explains what it does and why
+(the user decided this on 2026-11-23). This
+rule has no exception: no comment, no JSDoc,
+no `@ts-expect-error`, no lint directive.
+
+- Give the reason in a name: a function, a
+  variable, a type or a test title.
+- Split a long step into a function with a
+  name that says its purpose.
+- Prove a rule of the types with
+  `expectTypeOf`, not with a directive.
+- Put a usage text in a `--help` output.
+- Put a decision in an ADR, a spec or the
+  commit message.
+
+A comment in a test fixture or a string is
+data, not a comment. Vendored code
+(`vendor/`, `.claude/`) keeps its comments.
 
 ## Trunk: how work lands
 

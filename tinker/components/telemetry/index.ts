@@ -7,7 +7,6 @@ import { telemetryService, telemetrySide } from "./settings";
 export type { Telemetry } from "./records";
 export { exportHealth } from "./health";
 
-/** The tab's telemetry: it sends its own spans and logs to the server's route. */
 export const telemetry = {
   browser: capsule({
     label: "telemetry",

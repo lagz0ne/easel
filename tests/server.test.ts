@@ -8,14 +8,11 @@ import { telemetry } from "~/components/telemetry/index.server";
 
 type Server = typeof import("../cmds/server");
 
-/** The real server command, run in this process; the lint bans a static parent import. */
 const server: Server = await import(new URL("../cmds/server.ts", import.meta.url).href);
 
-/** Takes the telemetry the root sends, so nothing leaves this machine. */
 const collector = Bun.serve({ port: 0, fetch: () => new Response(null, { status: 204 }) });
 const stop = new AbortController();
 
-/** The command's root: a test reads where its `serve` listens. */
 type Root = Scope.Starting & { readonly closed: Promise<unknown> };
 
 const started = (await server.default({
@@ -34,7 +31,6 @@ const started = (await server.default({
   exit: (code, reason) => stop.abort(reason ?? code),
 })) as Root;
 
-/** Where a root's `serve` listens. */
 const urlOf = (root: Root) => root.resolve(serve.url).get()!;
 
 afterAll(async () => {
@@ -43,7 +39,6 @@ afterAll(async () => {
   await collector.stop();
 });
 
-/** A tab's call as it reaches the host behind a TLS proxy: an http request URL, an https Origin. */
 const proxied = (path: string, body: unknown) =>
   fetch(new URL(path, urlOf(started)), {
     method: "POST",
@@ -51,9 +46,7 @@ const proxied = (path: string, body: unknown) =>
     body: JSON.stringify(body),
   });
 
-/** One greet over the command's own port, on a socket that sends `origin`, or none as the CLI. */
 async function greetOver(root: Root, origin?: string) {
-  // Bun's WebSocket takes headers: a browser sets Origin itself. With none, Bun sends no Origin.
   const headers = origin === undefined ? {} : { origin };
   const socket = new WebSocket(`ws://${urlOf(root).host}/rpc`, { headers } as never);
   const reply = await new Promise<string>((done) => {
@@ -67,7 +60,6 @@ async function greetOver(root: Root, origin?: string) {
   return reply;
 }
 
-/** A greet's answer as data, or the word that says how the socket ended. */
 const answer = async (root: Root, origin?: string): Promise<unknown> => {
   const reply = await greetOver(root, origin);
 
@@ -75,8 +67,6 @@ const answer = async (root: Root, origin?: string): Promise<unknown> => {
 };
 
 test("PUBLIC_ORIGIN reaches rpc: a socket from the public origin passes behind a TLS proxy; a foreign one, and a sandboxed frame's \"null\", are refused; the CLI's, with no Origin, passes", async () => {
-  // OWASP's cross-site WebSocket hijacking guidance: check Origin on the upgrade. Tinker's
-  // `ws.server({ origin })` does, and the command gives it PUBLIC_ORIGIN (SPEC-access judged rule 15).
   const hello = { ok: true, value: { text: "Hello, Duke." } };
 
   expect(await answer(started, "https://app.example")).toEqual(hello);
@@ -116,9 +106,8 @@ test("an empty PUBLIC_ORIGIN counts as unset: rpc and telemetry take the request
       body: JSON.stringify(body),
     });
 
-  // The socket's request URL is http://localhost:<port>, so that is the origin it takes.
   const local = await greetOver(plain, "http://localhost");
-  expect(local).toBe("refused"); // port differs: not the request URL's origin
+  expect(local).toBe("refused");
   expect(await greetOver(plain, "null")).toBe("refused");
   expect(await greetOver(plain, "https://app.example")).toBe("refused");
   expect(await answer(plain, at.origin)).toMatchObject({ ok: true });
@@ -145,7 +134,6 @@ test("a telemetry origin that is not an http(s) URL fails its root's start, nami
     }
   };
 
-  // No scheme, a file URL (its origin is "null"), another scheme, and "null" itself.
   const origins = ["app.example", "file:///x", "ftp://app.example", "null"];
   expect(await Promise.all(origins.map(failureOf))).toEqual(
     origins.map((origin) => ({ origin, kind: "DataValidationFailed", label: "telemetry.origin" })),

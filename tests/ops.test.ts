@@ -36,11 +36,6 @@ import { messageCap, normalize, sight, sightBatch } from "@/ops/sink.server";
 import type { Sighting } from "@/ops/sink.server";
 import { release } from "@/release";
 
-// ops on a test clock, against the ops-issues charts (docs/statecharts/ops-issues.md and
-// ops-issues-person.md), their model's ops-side actions (models/ops/Lifecycle.tla), and
-// SPEC-ops.md's rules. Each test names the action or rule it checks.
-
-// SQLite on disk with `synchronous = FULL` waits on fsync; a busy host makes that slow.
 vi.setConfig({ testTimeout: 30_000, hookTimeout: 30_000 });
 
 const closers: Array<() => unknown> = [];
@@ -54,12 +49,10 @@ const t0 = 1_800_000_000_000;
 const byText = (a: string, b: string) => a.localeCompare(b);
 const minute = 60_000;
 
-/** Lets the sink's fire-and-forget sightings run: no timer, only the queued work. */
 async function drain() {
   for (let i = 0; i < 20; i++) await new Promise((done) => setImmediate(done));
 }
 
-/** A fresh folder, removed after the test. */
 function folder() {
   const dir = mkdtempSync(join(tmpdir(), "easel-ops-"));
   closers.push(() => rmSync(dir, { recursive: true, force: true }));
@@ -77,7 +70,6 @@ type Boot = {
   extra?: readonly Capsule.Installable[];
 };
 
-/** The SQLite file, and `opsServer`'s config, with the cmd's defaults. */
 function configOf(options: Boot) {
   const file = options.file ?? ":memory:";
   const config = {
@@ -89,7 +81,6 @@ function configOf(options: Boot) {
   return { file, config };
 }
 
-/** One server: SQLite, access, release, ops, and a memory transport, on one test clock. */
 async function boot(options: Boot = {}) {
   const clock = options.clock ?? makeTestClock({ now: t0 });
   const out: string[] = [];
@@ -134,7 +125,6 @@ async function boot(options: Boot = {}) {
     clock,
     close,
     setupCode,
-    /** One sighting through the sink, as a failed span gives it. */
     see: (more: Partial<Sighting> = {}) =>
       server.run(sight, {
         input: {
@@ -160,7 +150,6 @@ async function boot(options: Boot = {}) {
         tags: holds === undefined ? [] : [claim(holds)],
       }),
     status: () => server.run(status, { input: null }),
-    /** One check from status, by its name. */
     check: async (name: string) =>
       (await server.run(status, { input: null })).checks.find((c) => c.name === name),
     ready: async () => {
@@ -172,7 +161,6 @@ async function boot(options: Boot = {}) {
 
 type Srv = Awaited<ReturnType<typeof boot>>;
 
-/** A fixer that holds a lease on some groups: `leases` maps a fingerprint to its claim. */
 function fixer(leases: Map<string, string>) {
   const lease = operation({
     label: "test.lease",
@@ -183,14 +171,12 @@ function fixer(leases: Map<string, string>) {
   return capsule({ label: "testFixer", tags: [fixerLease({ op: lease })] })({});
 }
 
-/** A token as the CLI makes it, and the digest it sends. */
 function token() {
   const text = randomBytes(32).toString("base64url");
 
   return { text, digest: createHash("sha256").update(text).digest("hex") };
 }
 
-/** One rpc client at one address, with the token it holds. */
 async function client(server: Scope.Handle, peer: string) {
   const held: { token?: string } = {};
   const meta = operation({
@@ -213,7 +199,6 @@ async function client(server: Scope.Handle, peer: string) {
   return { held, scope };
 }
 
-/** The first owner, by the setup code; and a member that an owner approved. */
 async function people(srv: Srv) {
   const ann = await client(srv.server, "198.51.100.1");
   const a = token();
@@ -237,7 +222,6 @@ async function people(srv: Srv) {
   return { ann, bob, nobody: await client(srv.server, "198.51.100.3") };
 }
 
-/** The fault a call ended in, and its payload; null when it answered. */
 const faultOf = (call: Promise<unknown>) =>
   call.then(
     () => null,
@@ -247,7 +231,6 @@ const faultOf = (call: Promise<unknown>) =>
         : { fault: "other", payload: String(thrown) },
   );
 
-/** Whether the file still has the groups table. */
 function tableOf(file: string) {
   const db = new Database(file, { readonly: true });
   try {
@@ -257,7 +240,6 @@ function tableOf(file: string) {
   }
 }
 
-/** The groups as stored in the SQLite file, read by a second connection. */
 function stored(file: string) {
   const db = new Database(file, { readonly: true });
   try {
@@ -270,8 +252,6 @@ function stored(file: string) {
     db.close();
   }
 }
-
-// ---- An error is recorded (SPEC-ops.md § An error is recorded; chart: "the error happens")
 
 const boom = operation({
   label: "todo.add",
@@ -380,7 +360,6 @@ test("a fingerprint has no numbers, ids, hex or quoted values; side, label and n
 test("a sample holds no token, password, share pass, key or frame document; it is capped (judged rules 1, 2)", async () => {
   const srv = await boot();
   const secret = randomBytes(32).toString("base64url");
-  // Under the long-run rule's 24 characters: only the bearer rule removes it.
   const short = randomBytes(12).toString("base64url");
   const message = [
     `Bearer ${secret}`,
@@ -408,7 +387,6 @@ test("a sample holds no token, password, share pass, key or frame document; it i
 
 test("scrub: a secret key inside a longer word, pwd, a password after a space, a URL's user, any first tag, a 20-character run (judged rule 1)", async () => {
   const srv = await boot();
-  // Each value is shorter than the long-run rule's 20 characters, so only its own rule removes it.
   const short = () => randomBytes(6).toString("base64url");
   const values = {
     shareSnake: short(),
@@ -492,12 +470,9 @@ test("a tab's batch: an error span and an error log are browser groups; ok, refu
     "page.bare | Error |  | 5",
     "page.board | TypeError | x is undefined | 3",
   ]);
-  // A browser-only group is counted and shown, as unconfirmed (step 5).
   expect((await srv.status()).errors).toMatchObject({ open: 3, unconfirmed: 3 });
   expect(await srv.list({ side: "server" })).toEqual([]);
 });
-
-// ---- An error group moves through its states (Lifecycle.tla's ops actions)
 
 test("OwnerResolves: resolve answers notLive before the build is live, failing once seen on it, else resolved (judged rule 7)", async () => {
   const srv = await boot({ build: 5 });
@@ -528,7 +503,6 @@ test("ErrorSeen, resolved -> regressed on a build >= fixedIn; an older build cha
   expect((await srv.see({ build: 6 })).kind).toBe("regressed");
   expect((await srv.list())[0]).toMatchObject({ status: "regressed", fixedIn: 6, lastBuild: 6 });
 
-  // regressed stays regressed, and is on the work list (step 5).
   expect((await srv.see()).kind).toBe("counted");
   expect((await srv.list({ open: true })).map((g) => g.status)).toEqual(["regressed"]);
 });
@@ -551,7 +525,6 @@ test("OwnerHandsOff: hand-off sets human with the reason; human stays human when
 
   expect((await srv.list())[0]).toMatchObject({ status: "human", reason: "the cause is the host" });
   expect(await srv.list({ open: true })).toEqual([]);
-  // Only resolve moves it on.
   expect(await srv.resolve(fingerprint, 6)).toEqual({ kind: "notLive", live: 5 });
 });
 
@@ -587,8 +560,6 @@ test("show --trace finds the group by the trace id of a failed fault, also in an
   expect(found).toMatchObject({ kind: "found", error: { traceId: "b".repeat(32) } });
 });
 
-// ---- The fixer's lease and claim (fact rule 8; FixerResolves, FixerSeesFailing, FixerGivesUp, FixRefused)
-
 test("held: while a lease is live, resolve and hand-off with no claim or another claim answer held and write nothing (fact rule 8)", async () => {
   const leases = new Map<string, string>();
   const srv = await boot({ build: 7, extra: [fixer(leases)] });
@@ -601,7 +572,6 @@ test("held: while a lease is live, resolve and hand-off with no claim or another
   expect(await srv.handOff(fingerprint, "mine now", "claim-2")).toEqual({ kind: "held" });
   expect((await srv.list())[0]).toMatchObject({ status: "open", fixedIn: null, reason: null });
 
-  // A group with no lease is not held.
   const other = await srv.see({ label: "todo.move", build: 3 });
   expect(await srv.resolve(other.fingerprint, 6)).toEqual({ kind: "resolved" });
 });
@@ -640,8 +610,6 @@ test("FixerGivesUp and FixRefused: under its claim, the fixer hands the group to
   });
 });
 
-// ---- The cap and the retired list (Dropped; judged rules 3 and 4)
-
 test("Dropped: at the cap the oldest resolved group is retired; seen on a build >= fixedIn it is back as regressed", async () => {
   const srv = await boot({ build: 7, caps: { groups: 2, retired: 10 } });
   const old = await srv.see({ label: "a.old", build: 3 });
@@ -650,15 +618,12 @@ test("Dropped: at the cap the oldest resolved group is retired; seen on a build 
   await srv.resolve(old.fingerprint, 6);
   srv.clock.advance(minute);
 
-  // The resolved group goes first, though the browser group is newer.
   expect((await srv.see({ label: "c.new" })).kind).toBe("opened");
   expect((await srv.list()).map((g) => g.label).toSorted(byText)).toEqual(["b.page", "c.new"]);
 
-  // An older build: nothing changes, and the group stays retired.
   expect((await srv.see({ label: "a.old", build: 5 })).kind).toBe("older");
   expect((await srv.list()).map((g) => g.label).toSorted(byText)).toEqual(["b.page", "c.new"]);
 
-  // At the fix's build or later: back as regressed, fixedIn kept (OpenMeansNeverResolved).
   const back = await srv.see({ label: "a.old", build: 6 });
   expect(back.kind).toBe("regressed");
   expect(await srv.show(old.fingerprint)).toMatchObject({
@@ -695,11 +660,8 @@ test("the retired list keeps the newest fingerprints: one pushed out of it comes
   await srv.see({ label: "c.third", build: 3 });
   await srv.resolve((await srv.list())[0]?.fingerprint ?? "", 6);
 
-  // a.first left the list when b.second joined it: it is new again.
   expect((await srv.see({ label: "a.first", build: 7 })).kind).toBe("opened");
 });
-
-// ---- Persistence: one write a second, the drain, and a restart (judged rules 2 and 8)
 
 test("the sink writes a group at most once a second; resolve and hand-off are written before they answer (judged rule 2)", async () => {
   const file = join(folder(), "easel.db");
@@ -741,15 +703,12 @@ test("a restart keeps the groups, the retired list, the dropped count and the fi
   await ann.scope.run(ops.owner["ops.fixerTick"], { input: null });
   await first.close();
 
-  // The next deploy: build 8 on the same file.
   const next = await boot({ file, clock, build: 8, caps: { groups: 2, retired: 5 } });
   expect((await next.list()).map((g) => [g.label, g.status])).toEqual([["b.open", "human"]]);
   expect((await next.status()).errors.dropped).toBe(1);
   expect((await next.status()).fixerSeen).toBe(t0);
   expect((await next.see({ label: "a.old" })).kind).toBe("regressed");
 });
-
-// ---- Readiness, status and the fixer's tick (SPEC-ops.md § An agent checks the server)
 
 test("status: the build, the checks, each module's counters, the error counts and the fixer", async () => {
   const depth = operation({ label: "test.depth", run: async () => ({ depth: 3, leases: 1 }) });
@@ -809,7 +768,6 @@ test("/api/ready turns 503 when the data directory is not writable, and back to 
   const srv = await boot({ database: join(dir, "easel.db") });
   expect((await srv.ready()).code).toBe(200);
 
-  // Removing the folder stops root too, which file modes do not.
   rmSync(dir, { recursive: true });
   const down = await srv.ready();
   expect(down).toMatchObject({ code: 503, body: { failing: ["disk"] } });
@@ -922,7 +880,6 @@ test("fixerSilent: 30 minutes after the last tick and not before, also across a 
   expect((await srv.ready()).body.fixerSilent).toBe(false);
   await srv.close();
 
-  // A restart does not reset it: the stored tick counts.
   const again = await boot({ file, clock });
   expect((await again.ready()).body).toEqual({
     failing: [],
@@ -931,7 +888,6 @@ test("fixerSilent: 30 minutes after the last tick and not before, also across a 
   });
   clock.advance(1);
   expect((await again.ready()).body.fixerSilent).toBe(true);
-  // A silent fixer does not make the server unready.
   expect((await again.ready()).code).toBe(200);
 });
 
@@ -948,8 +904,6 @@ test("the fixer's tick is kept in memory when the store cannot write it", async 
   expect((await srv.status()).fixerSeen).toBe(stamped.at);
   expect((await srv.ready()).body.failing).toEqual(["database"]);
 });
-
-// ---- Who may call (fact rule 2), and what is no error (step 4)
 
 test("ops.status is any user's; the other calls are an owner's; a refusal is no error group", async () => {
   const srv = await boot();
@@ -973,24 +927,19 @@ test("ops.status is any user's; the other calls are an owner's; a refusal is no 
   }
   expect((await ann.scope.run(ops.owner["ops.errors"], { input: {} })).errors).toHaveLength(1);
   await drain();
-  // An answer kind is the contract working too: gone is no error.
   await ann.scope.run(ops.owner["ops.error"], { input: { fingerprint: "0".repeat(64) } });
   await drain();
   expect(await srv.list()).toHaveLength(1);
 });
 
-// ---- The panic path (fact rule 5, judged rule 9)
-
 type Exit = { code: number; reason: unknown; storedThen: unknown[] };
 
-/** A panic's ends: what reached stderr, and the exit with what the store held at that moment. */
 function ends(file: string) {
   const err: string[] = [];
   const exited: Exit[] = [];
   const to = {
     stderr: { write: (chunk: string) => err.push(chunk) },
     exit: (code: number, reason: unknown) => {
-      // A store that lost its table holds nothing readable.
       const storedThen = existsSync(file) && tableOf(file) ? stored(file) : [];
       exited.push({ code, reason, storedThen });
     },
@@ -1073,8 +1022,6 @@ test("observePanics covers unhandled rejections and uncaught exceptions, and sto
   expect(process.listeners("uncaughtException")).toEqual(before.exception);
 });
 
-// ---- ops imports no later module (fact rule 6)
-
 test("ops imports only access, release, the base and libraries (fact rule 6)", () => {
   const dir = new URL("../src/ops/", import.meta.url).pathname;
   const allowed = /^(@\/access|@\/release|~\/|\.\/|node:|zod$|drizzle-orm|@tinkered\/)/;
@@ -1086,8 +1033,6 @@ test("ops imports only access, release, the base and libraries (fact rule 6)", (
   expect(imports.length).toBeGreaterThan(10);
   expect(imports.filter((path) => !allowed.test(path))).toEqual([]);
 });
-
-// ---- The sink is the only writer of sightings (fact rule 1)
 
 test("only the sink and the panic path call the sink's operations; only the sink counts a sighting (fact rule 1)", () => {
   const root = new URL("../", import.meta.url).pathname;
@@ -1108,8 +1053,6 @@ test("only the sink and the panic path call the sink's operations; only the sink
   ]);
   expect(counters).toEqual(["src/ops/sink.server.ts"]);
 });
-
-// ---- The edges of the group's moves, the cap and the retired list (conformance review)
 
 test("OwnerResolves: seen on 7, then on the older 5, resolve 6 is failing: the highest build counts (judged rule 7)", async () => {
   const srv = await boot({ build: 7 });
@@ -1156,8 +1099,6 @@ test("two messages that differ only in a uuid are one group (judged rule 5)", as
 });
 
 test("normalize makes two uuids one, without the scrub's help (judged rule 5)", async () => {
-  // The scrub removes a uuid first (a 36-character run), so through the sink the uuid rule is
-  // never reached; it holds on its own should the run rule change.
   const scope = await createScope({ capsules: [exits({ file: process.env.TINKER_EXITS })] }).ready;
   closers.push(() => scope.close());
   const of = (id: string) => scope.run(normalize, { input: `no frame ${id}` });
@@ -1192,20 +1133,15 @@ test("the retired list at its cap keeps every entry; one past it, the oldest goe
   await retire("b.second");
   await srv.see({ label: "c.third", build: 5 });
 
-  // Two retired, the cap: both are kept, so an older build changes nothing.
   expect((await srv.see({ label: "a.first", build: 5 })).kind).toBe("older");
   expect((await srv.see({ label: "b.second", build: 5 })).kind).toBe("older");
 
   await srv.resolve((await srv.list())[0]?.fingerprint ?? "", 6);
   await srv.see({ label: "d.fourth", build: 5 });
-  // Three retired: a.first left the list, so it is new, and no group can make room for it.
   expect((await srv.see({ label: "a.first", build: 5 })).kind).toBe("dropped");
   expect((await srv.see({ label: "b.second", build: 5 })).kind).toBe("older");
 });
 
-// ---- The store: exact timing, the dropped count, an early eviction, a failed move
-
-/** ops's stamps as stored: `dropped`, `fixerSeen`. */
 function metaOf(file: string) {
   const db = new Database(file, { readonly: true });
   try {

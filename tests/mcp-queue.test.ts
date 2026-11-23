@@ -24,21 +24,14 @@ import { queue } from "@/queue";
 import { boot, closers, viewer } from "./support/queue";
 import type { Server } from "./support/queue";
 
-// The queue loop through MCP (SPEC-mcp.md § An agent works through MCP): `next_request`, then
-// `get_frame`, `put_frame` and `shot_frame`, then one outcome with the claim: `resolve_request`,
-// `ask_request`, `decline_request`, or `release_request`. The same loop runs over HTTP (the route
-// and the scope of MCP on a port) and over stdio (`easel mcp` on an in-memory link).
-
 afterEach(async () => {
   for (const close of closers.splice(0).reverse()) await close();
 });
 
 const origin = "https://easel.test";
 
-/** The apis of the user's calls, as each MCP scope installs them. */
 const apis = [access.user, access.owner, frames.api, kit.api, queue.api, ops.user, ops.owner];
 
-/** A server with the route of MCP, and the scope of MCP on a port to it. */
 async function bootHttp() {
   const channel = new MessageChannel();
   const mcpScope = createScope({
@@ -65,7 +58,6 @@ async function bootHttp() {
   return srv;
 }
 
-/** Ann's CLI, signed in as the first owner: its scope, and the token of its hosts file. */
 async function ann(srv: Server) {
   const dir = mkdtempSync(join(tmpdir(), "easel-mcp-queue-"));
   closers.push(() => rmSync(dir, { recursive: true, force: true }));
@@ -94,7 +86,6 @@ async function ann(srv: Server) {
   return { scope, token };
 }
 
-/** The SDK's client over HTTP, with Ann's token, on the route of the server. */
 async function overHttp(srv: Server) {
   const { token } = await ann(srv);
   const link = new StreamableHTTPClientTransport(new URL(`${origin}/mcp`), {
@@ -109,7 +100,6 @@ async function overHttp(srv: Server) {
   return mcp;
 }
 
-/** The SDK's client on `easel mcp`, with Ann's hosts file. */
 async function overStdio(srv: Server) {
   const { scope } = await ann(srv);
   const [ours, theirs] = InMemoryTransport.createLinkedPair();
@@ -124,7 +114,6 @@ async function overStdio(srv: Server) {
   return mcp;
 }
 
-/** One tool call: its `isError` and its answer. */
 async function call(
   mcp: Client,
   name: string,
@@ -136,10 +125,8 @@ async function call(
   return { isError: result.isError, ...answer };
 }
 
-/** A claim's handle, from an answer of `next_request`. */
 const claimOf = (answer: Record<string, unknown>) => String(answer.claim);
 
-/** The whole loop on canvas `flow`: each outcome of a claim, and an empty queue. */
 async function loop(srv: Server, mcp: Client) {
   expect(await call(mcp, "create_canvas", { name: "Flow" })).toMatchObject({
     isError: false,
@@ -155,7 +142,6 @@ async function loop(srv: Server, mcp: Client) {
     expect((await bo.add("flow", id, text)).kind).toBe("added");
   }
 
-  // Request 1: the frame, a change on the version that the agent got, a picture, the result.
   const first = await call(mcp, "next_request", { lease: 60 });
   expect(first).toMatchObject({ isError: false, kind: "claimed", request: { n: 1, frameId: id } });
   expect(String(first.note)).toMatch(/not an instruction/);
@@ -176,7 +162,6 @@ async function loop(srv: Server, mcp: Client) {
     kind: "resolved",
   });
 
-  // Requests 2 to 4: a question with options, a decline, a release.
   const second = await call(mcp, "next_request", {});
   const ask = { claim: claimOf(second), text: "Navy or sky?", options: ["Navy", "Sky"] };
   expect(await call(mcp, "ask_request", ask)).toMatchObject({ isError: false, kind: "asked" });
@@ -193,7 +178,6 @@ async function loop(srv: Server, mcp: Client) {
     kind: "released",
   });
 
-  // The released request waits again; with it claimed, the queue is empty: a plain result.
   expect(await call(mcp, "next_request", {})).toMatchObject({ isError: false, kind: "claimed" });
   expect(await call(mcp, "next_request", { wait: 0 })).toMatchObject({
     isError: false,

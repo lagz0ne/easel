@@ -7,11 +7,6 @@ import { opsOwnerApi, opsSuccessKinds, opsUserApi } from "@/ops/contract";
 import { entryOf, envToken, saveEntry, server } from "./hosts";
 import { say } from "./output";
 
-// The exit table (SPEC-cli.md § Contract). A kind's exit reads the contract's success list
-// (SPEC.md rule 1, fact rule 3): the CLI keeps no list of its own. Codes past 2 are BSD
-// `sysexits.h`: 64 usage, 65 data, 69 unavailable, 70 software, 76 protocol. The cmd gives 78
-// (config) and 130 (Ctrl-C).
-
 export const exits = {
   ok: 0,
   no: 1,
@@ -41,20 +36,10 @@ const address = z.enum([
   "ops.fixerTick",
 ]);
 
-/** Every module's success lists, by call: the CLI reads them, and keeps none of its own. */
 const lists = { ...successKinds, ...opsSuccessKinds };
 
-/**
- * How long the CLI waits for one call's answer: the server answers within 50 s (SPEC.md rule 2),
- * and 10 s more is the margin. A socket that is open on one end only would never answer.
- */
 export const callDeadline = 60_000;
 
-/**
- * The deadline of one call: its signal aborts with a `link` fault after `callDeadline`, as a
- * dropped socket does (gRPC's deadline, and Go's `context.WithTimeout`, end a call the same way).
- * The caller aborts the controller when the answer comes, which stops the timer.
- */
 export const deadline = operation({
   label: "cli.deadline",
   input: address,
@@ -70,7 +55,6 @@ export const deadline = operation({
   },
 });
 
-/** 0 when the call's contract lists the kind as a success, else 1. No kind: `always` says. */
 export const exitOf = operation({
   label: "cli.exitOf",
   input: z.object({ address, kind: z.string().optional() }),
@@ -82,10 +66,8 @@ export const exitOf = operation({
   },
 });
 
-/** The refusals access gives (SPEC-access.md § Contract). */
 const signIn = z.object({ signIn: z.literal(true) });
 
-/** A refusal's text says what to do next (judged rule 3). */
 const refusal = operation({
   label: "cli.refusal",
   input: z.unknown(),
@@ -98,14 +80,12 @@ const refusal = operation({
       return `EASEL_TOKEN does not work on ${server}: get a new one with \`easel login ${server} --name <name> --print-token\``;
     }
 
-    // The token no longer works (revoked, or logged out): the CLI keeps it no longer.
     const { pending } = entryOf.run();
     saveEntry.run({ input: { pending } });
     return `not signed in to ${server}: log in again with \`easel login ${server} --name <name>\``;
   },
 });
 
-/** The rpc fault this error is, of any module's contract; null when it is none. */
 const faultOf = operation({
   label: "cli.faultOf",
   input: z.unknown(),
@@ -117,10 +97,6 @@ const faultOf = operation({
   },
 });
 
-/**
- * A call that did not answer: its fault, printed, and its exit code. An error that is no fault
- * of rpc's is the CLI's own bug, and is thrown on.
- */
 export const faultExit = operation({
   label: "cli.faultExit",
   input: z.unknown(),

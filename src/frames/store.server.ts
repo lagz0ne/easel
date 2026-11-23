@@ -8,26 +8,6 @@ import { kitStart, showKit } from "@/kit/store.server";
 import { canvasInfo, frames, kept, removed } from "./contract";
 import { boardKey } from "./keys.server";
 
-// frames' state: canvases and frames in the app's one SQLite file (SPEC.md, tech stack), so they
-// survive a restart. A frame's document lives only in SQLite (decision C12): the `frames` cell
-// holds its metadata and version, and frame.get and the board's `docs` read the html from the
-// row. Each write is one SQLite statement or transaction, with no `await` between its check and
-// its write, and sets its cell after, from the row as stored then (judged rules 2 and 4). Only
-// `saveCanvas`, `saveFrame`, `dropFrame` and `bumpKeys` write (fact rule 2). Each frame on the
-// board carries its picture key for its version and its canvas's key generation (SPEC-frames §
-// Pictures), and so does each kept version (the cell `kept`); `bumpKeys` raises the generation
-// and writes the canvas's keys again. A removed frame leaves its name and box in
-// `frames_removed` (the cell `removed`): the page shows its requests where it was, and its kept
-// versions are drawn at that size.
-//
-// Each frame version keeps its made CSS (`css`) and the kit version it was made for (`kit`), from
-// the make step at its put ([kit](SPEC-kit.md)); both are null when the frame turns the kit off,
-// or was stored before the kit. A show reads only this stored CSS (K11). An app frame keeps its
-// TSX as written in `html`, and its JS in `js` (null for an HTML frame): a frame is one kind for
-// each version. frames' start runs the kit's start first, and sets the board's cell `kit` of each
-// canvas, and of each new one.
-
-/** The canvases, by key. A server cell: not served on the board. */
 export const canvases = data({
   label: "frames.canvases",
   mode: "keyed",
@@ -35,11 +15,6 @@ export const canvases = data({
   key: (c) => ({ key: c.key }),
 });
 
-/**
- * The tables, made at start. A binary carries no migrations folder. `frames_kept` holds the old
- * versions that a request or a message refers to (judged rule 16): the queue's store fills it, in
- * the statement of the put or the delete that replaces one.
- */
 const schema = `
 CREATE TABLE IF NOT EXISTS frames_canvases (
   key TEXT PRIMARY KEY NOT NULL,
@@ -92,10 +67,6 @@ CREATE TABLE IF NOT EXISTS frames_removed (
   PRIMARY KEY (canvas, id)
 );`;
 
-/**
- * The columns that a store made before them gets, null in each row: the made CSS of the kit, and
- * the JS of an app frame.
- */
 const addedColumns = [
   ["frames_frames", "css", "TEXT"],
   ["frames_frames", "kit", "INTEGER"],
@@ -105,20 +76,13 @@ const addedColumns = [
   ["frames_kept", "js", "TEXT"],
 ] as const;
 
-/** A canvas's picture key generation, in the statement it is part of: 0 until its first bump. */
 const genOf = "COALESCE((SELECT gen FROM frames_keygen WHERE canvas = ?), 0)";
 
-/**
- * 1 when the row's kit version has the runtime of the kit version `?`, else 0: a part of the same
- * document of an app frame (the chart kit-runtime).
- */
 const sameRuntime = `((SELECT runtime FROM kit_versions WHERE version = frames_frames.kit)
   IS (SELECT runtime FROM kit_versions WHERE version = ?))`;
 
-/** The gap between a new frame and the rightmost one (decision C2). */
 export const frameGap = 80;
 
-/** A frame's row without its document: what the cell holds. */
 const frameRow = z.object({
   canvas: z.string(),
   id: z.string(),
@@ -132,10 +96,8 @@ const frameRow = z.object({
 
 const canvasRow = z.object({ key: z.string(), name: z.string(), created: z.number() });
 
-/** A frame's row with its canvas's key generation, read in the same statement. */
 const keyedRow = frameRow.extend({ gen: z.number() });
 
-/** The board's member for a frame's row: the row, with its picture key (none while pictures are off). */
 const boardFrame = operation({
   label: "frames.boardFrame",
   input: keyedRow,
@@ -146,7 +108,6 @@ const boardFrame = operation({
   }),
 });
 
-/** A kept version's row, with its canvas's key generation. */
 const keptRow = z.object({
   canvas: z.string(),
   id: z.string(),
@@ -154,7 +115,6 @@ const keptRow = z.object({
   gen: z.number(),
 });
 
-/** The board's member for a kept version: its picture key (none while pictures are off). */
 const boardKept = operation({
   label: "frames.boardKept",
   input: keptRow,
@@ -165,7 +125,6 @@ const boardKept = operation({
   }),
 });
 
-/** A removed frame's row: its name, its box, and when it was removed. */
 const removedRow = z.object({
   canvas: z.string(),
   id: z.string(),
@@ -177,20 +136,16 @@ const removedRow = z.object({
   removed: z.number(),
 });
 
-/** The kept versions of a canvas, with its key generation, in the statement it is part of. */
 const keptOf = `SELECT k.canvas, k.id, k.version, COALESCE(g.gen, 0) AS gen
   FROM frames_kept k LEFT JOIN frames_keygen g ON g.canvas = k.canvas`;
 
-/** Whether a version is kept: in a statement, after the write that may have kept it. */
 const isKept = "SELECT 1 FROM frames_kept WHERE canvas = ? AND id = ? AND version = ?";
 
-/** Where the store says what it skipped at start: the server's log. */
 const stdout = tag<{ write(chunk: string): unknown } | null>({
   label: "frames.stdout",
   default: null,
 });
 
-/** `canvas.create`'s write: one insert that does nothing when the key is taken. */
 export const saveCanvas = operation({
   label: "frames.saveCanvas",
   input: z.object({ key: z.string(), name: z.string() }),
@@ -210,7 +165,6 @@ export const saveCanvas = operation({
   },
 });
 
-/** A write of a frame's document: a new frame, or a write on an id at the version it read. */
 const frameWrite = z.discriminatedUnion("kind", [
   z.object({
     kind: z.literal("new"),
@@ -236,15 +190,6 @@ const frameWrite = z.discriminatedUnion("kind", [
   }),
 ]);
 
-/**
- * `frame.put`'s write. A new frame is one transaction: the canvas must be there, and the frame
- * goes right of the rightmost one at y 0, or at 0,0 (decision C2). A write on an id is one
- * conditional statement (judged rule 2, F1): it checks the base, compares the document and raises
- * the version, so of two puts on one version the first wins. When it changes no row, the same
- * transaction reads the row to answer `stale`, `unchanged` or `gone`, and writes nothing (judged
- * rule 1). A row that does not parse throws inside the transaction, so nothing is kept and the
- * call faults. The cell is set after the commit, from the row as stored (judged rule 4).
- */
 export const saveFrame = operation({
   label: "frames.saveFrame",
   input: frameWrite,
@@ -294,11 +239,6 @@ export const saveFrame = operation({
         return { kind: "created" as const, row, keptBase: false };
       }
 
-      // A row it wrote that does not parse throws here, inside the transaction: the write rolls
-      // back and the call faults, never a saved write that answers stale. The same document is
-      // the same text of the same kind (an HTML frame, or an app frame), and for an app frame on
-      // a kit version with the same runtime: after an accept, the same TSX put again is a new
-      // version on the new runtime (SPEC-kit.md § App frames; the chart kit-runtime).
       const app = Number(input.js !== null);
       const saved = db
         .query(
@@ -321,7 +261,6 @@ export const saveFrame = operation({
           input.canvas,
         );
       if (saved !== null) {
-        // The queue's trigger kept the version this write replaced, if a request refers to it.
         const keptBase = db.query(isKept).get(input.canvas, input.id, input.base) !== null;
         return { kind: "updated" as const, row: keyedRow.parse(saved), keptBase };
       }
@@ -334,7 +273,6 @@ export const saveFrame = operation({
         .get(input.html, app, input.kit, input.canvas, input.id);
       if (now === null) return { kind: "gone" as const };
       const { version, same } = z.object({ version: z.number(), same: z.number() }).parse(now);
-      // The same document at the version it read: nothing to write (F2).
       if (version === input.base && same) {
         return { kind: "unchanged" as const, id: input.id, version };
       }
@@ -362,12 +300,6 @@ export const saveFrame = operation({
   },
 });
 
-/**
- * `frame.delete`'s write, one transaction: the frame's name and box go to `frames_removed`, then
- * the row goes (the queue's trigger keeps its version first, if a request refers to it). The
- * cells follow (judged rule 4): the frame goes, the removed frame comes, and its version, if
- * kept.
- */
 export const dropFrame = operation({
   label: "frames.dropFrame",
   input: z.object({ canvas: z.string(), id: z.string() }),
@@ -419,13 +351,6 @@ export const dropFrame = operation({
   },
 });
 
-/**
- * The bump (SPEC-frames § Pictures, the frames-pictures chart's "the link ends"): the canvas's key
- * generation goes up by one, and each of its frames on the board gets its key again, so every key
- * handed out before stops working. One transaction raises it and reads the frames; the cells are
- * set after, from those rows. Unshare and a password set or changed call it; a canvas with no
- * frames bumps too. Answers the new generation.
- */
 export const bumpKeys = operation({
   label: "frames.bumpKeys",
   input: z.object({ canvas: z.string() }),
@@ -465,13 +390,6 @@ export const bumpKeys = operation({
   },
 });
 
-/**
- * A picture's one read (judged rule 7), in one statement, so the document drawn is the version
- * read: the frame's current version (`null`: removed), the canvas's key generation, and `doc`:
- * the document of the version asked (the current one, or a kept one), its made CSS, and the box
- * to draw it in (the frame's, or the removed frame's last one), or `null` when either is not
- * there.
- */
 export const readPicture = operation({
   label: "frames.readPicture",
   input: z.object({ canvas: z.string(), id: z.string(), version: z.number() }),
@@ -518,10 +436,6 @@ export const readPicture = operation({
       ),
 });
 
-/**
- * After a draw, the check again: whether the version is still there (the frame, or that version
- * kept), and its canvas's key generation now.
- */
 export const readStill = operation({
   label: "frames.readStill",
   input: z.object({ canvas: z.string(), id: z.string(), version: z.number() }),
@@ -539,10 +453,6 @@ export const readStill = operation({
     ),
 });
 
-/**
- * One frame's document, its made CSS and its version, read from its row: frame.get and the
- * board's `docs`. An app frame has its JS too, and the kit version it was made for.
- */
 export const readDoc = operation({
   label: "frames.readDoc",
   input: z.object({ canvas: z.string(), id: z.string() }),
@@ -564,7 +474,6 @@ export const readDoc = operation({
       ).data,
 });
 
-/** At start, after the tables: each column that a store made before it does not have, null in each row. */
 const addColumns = operation({
   label: "frames.addColumns",
   depends: { connection: bunSqlite.connection },
@@ -579,19 +488,10 @@ const addColumns = operation({
   },
 });
 
-/**
- * The mount line that `composeApp` added to the JS of an app frame before the JS called the
- * mount itself (SPEC-kit.md § App frames, "The JS").
- */
 const oldMount =
   '\nimport { mount as __easelMount } from "@easel/frame";\n' +
   '__easelMount({ View, frame: typeof frame === "undefined" ? undefined : frame });';
 
-/**
- * At start, one time: the JS of each app frame made before its JS called the mount gets the mount
- * line that compose added then. `frames_migrations` records that it ran, in the same transaction,
- * so no JS gets the line two times.
- */
 const mountOldJs = operation({
   label: "frames.mountOldJs",
   depends: { connection: bunSqlite.connection },
@@ -611,11 +511,6 @@ const mountOldJs = operation({
   },
 });
 
-/**
- * At start: make the tables, set `synchronous = FULL` (decision C6: each write is on disk before
- * it answers), and set the cells from the rows it read, and only from them (fact rule 5). A row
- * that does not parse is left out; the log says only how many there were.
- */
 const load = operation({
   label: "frames.load",
   depends: {
@@ -670,10 +565,6 @@ const load = operation({
   },
 });
 
-/**
- * The server side of frames, filled by the cmd. Install it after `bunSqlite`. `runtime`: the
- * runtime of app frames that the build of the binary made (none: the scope builds it).
- */
 export const framesServer = capsule({
   label: "framesServer",
   config: { stdout, runtime: kitRuntime },

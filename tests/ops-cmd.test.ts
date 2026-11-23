@@ -12,22 +12,15 @@ import { afterAll, afterEach, expect, test, vi } from "vite-plus/test";
 import { access } from "@/access";
 import { ops } from "@/ops";
 
-// ops as the real commands wire it: the server command in this process on its own port, with
-// BUILD set, and rpc clients over its real socket. It checks what only the cmd decides: the build
-// it reads, the guards on each ops service, the tab route that feeds the sink, the BUILD that
-// production needs, and the CLI's flags.
-
 vi.setConfig({ testTimeout: 30_000, hookTimeout: 30_000 });
 
 type Cmd = typeof import("../cmds/server");
 
-/** The real commands, loaded at run time; the lint bans a static parent import. */
 const server: Cmd = await import(new URL("../cmds/server.ts", import.meta.url).href);
 const easelCmd: Cmd = await import(new URL("../cmds/easel.ts", import.meta.url).href);
 
 const root = new URL("..", import.meta.url).pathname;
 
-/** Takes the telemetry the server sends, so nothing leaves this machine. */
 const collector = Bun.serve({ port: 0, fetch: () => new Response(null, { status: 204 }) });
 
 const closers: Array<() => unknown> = [];
@@ -38,7 +31,6 @@ afterEach(async () => {
 
 afterAll(() => collector.stop());
 
-/** One run of a command's main in this process: its exit codes and what it printed. */
 async function main(cmd: Cmd, args: string[], env: Record<string, string>) {
   const out: string[] = [];
   const codes: number[] = [];
@@ -56,7 +48,6 @@ async function main(cmd: Cmd, args: string[], env: Record<string, string>) {
   return { app, stop, codes, out };
 }
 
-/** The server command with BUILD=7, on port 0 with a public origin: its URL and its log. */
 async function boot() {
   const started = await main(server, [], {
     PORT: "0",
@@ -76,7 +67,6 @@ async function boot() {
   return { url, setupCode };
 }
 
-/** An rpc client over the real socket, from the public origin, with the token it holds. */
 async function client(url: URL) {
   const held: { token?: string } = {};
   const meta = operation({
@@ -103,14 +93,12 @@ async function client(url: URL) {
   return { held, scope };
 }
 
-/** A token as the CLI makes it, and the digest it sends. */
 function token() {
   const text = randomBytes(32).toString("base64url");
 
   return { text, digest: createHash("sha256").update(text).digest("hex") };
 }
 
-/** The first owner by the setup code, and a member she approved. */
 async function people(srv: Awaited<ReturnType<typeof boot>>) {
   const ann = await client(srv.url);
   const a = token();
@@ -134,7 +122,6 @@ async function people(srv: Awaited<ReturnType<typeof boot>>) {
   return { ann, bob };
 }
 
-/** The fault a call ended in, and its payload; null when it answered. */
 const faultOf = (call: Promise<unknown>) =>
   call.then(
     () => null,
@@ -144,7 +131,6 @@ const faultOf = (call: Promise<unknown>) =>
         : { fault: "other", payload: String(thrown) },
   );
 
-/** A tab's batch with one failed span, as a page sends it. */
 const batch = {
   traces: [
     {
@@ -176,7 +162,6 @@ test("the cmd wires ops: /api/version says BUILD, a member is refused ops.errors
     payload: { owner: true },
   });
 
-  // Any client can send the Origin header: the group it makes is only unconfirmed (step 5).
   const forged = await fetch(new URL("/api/telemetry", srv.url), {
     method: "POST",
     headers: { "content-type": "application/json", origin: "https://app.example" },
@@ -217,13 +202,11 @@ test("errors ls --since with a date that is not on the calendar is bad usage: ex
     return { code: run.codes[0], out: run.out.join("") };
   };
 
-  // The CLI's flag parser says only that the input is bad, as for any flag.
   for (const since of ["2026-02-30", "2026-13-01", "2026-11-17Tnoon", "x", "7w"]) {
     const run = await ls(since);
     expect(run.code).toBe(64);
     expect(Object.keys(JSON.parse(run.out))).toEqual(["usage"]);
   }
-  // A date that is on it gets past the flags: no server there, so 69.
   expect((await ls("2026-02-28")).code).toBe(69);
   expect((await ls("2h")).code).toBe(69);
 });

@@ -15,19 +15,12 @@ import { access } from "@/access";
 import { accessDoor } from "@/access/guards.server";
 import { frames } from "@/frames";
 
-// A graceful stop (SIGTERM, every deploy), against SPEC-ops judged rule 8 and the viewer-gate-open
-// chart's "the socket drops" and "the socket is back": the server stops taking work, closes each
-// socket with 1001 "going away", finishes its writes, and is closed within the grace; a viewer's
-// tab says Reconnecting and shows the canvas again once the server is back.
-
 vi.setConfig({ testTimeout: 30_000, hookTimeout: 30_000 });
 
 type Server = typeof import("../cmds/server");
 
-/** The real server command, run in this process; the lint bans a static parent import. */
 const server: Server = await import(new URL("../cmds/server.ts", import.meta.url).href);
 
-/** Takes the telemetry the command sends, so nothing leaves this machine. */
 const collector = Bun.serve({ port: 0, fetch: () => new Response(null, { status: 204 }) });
 
 afterAll(() => collector.stop());
@@ -38,22 +31,18 @@ afterEach(async () => {
   for (const close of closers.splice(0).reverse()) await close();
 });
 
-/** The door's grace in `cmds/server.ts`: a stop takes no longer, under Docker's 10 s. */
 const grace = 8000;
 
 const tick = (ms = 20) => new Promise((done) => setTimeout(done, ms));
 
-/** "closed" when `closed` settles within `ms`, else "hung": a hang fails an assertion, not the test's timeout. */
 const within = (closed: Promise<unknown>, ms: number) =>
   Promise.race([closed.then(() => "closed"), tick(ms).then(() => "hung")]);
 
-/** Waits until `ok` holds, a tick at a time, up to 5 s. */
 async function until(ok: () => boolean) {
   for (let i = 0; i < 250 && !ok(); i++) await tick();
   expect(ok()).toBe(true);
 }
 
-/** A fresh folder, removed after the test. */
 function folder() {
   const dir = mkdtempSync(join(tmpdir(), "easel-shutdown-"));
   closers.push(() => rmSync(dir, { recursive: true, force: true }));
@@ -61,7 +50,6 @@ function folder() {
   return dir;
 }
 
-/** Runs the command on `port` with this env, as the host does; `stop` is its SIGTERM. */
 async function run(port: string, env: Record<string, string>) {
   const stop = new AbortController();
   const out: string[] = [];
@@ -82,14 +70,12 @@ async function run(port: string, env: Record<string, string>) {
   });
   if (!("resolve" in root)) throw new Error(`the command did not start: ${out.join("")}`);
   const url = root.resolve(serve.url).get() ?? new URL("http://localhost:0");
-  // A test that fails leaves no server behind; a second abort does nothing.
   closers.push(async () => (stop.abort(), await root.closed));
   const setupCode = () => /setup code: (\S+)/.exec(out.join(""))?.[1] ?? "";
 
   return { url, stop, closed: root.closed, setupCode };
 }
 
-/** A raw socket: each call is one frame; `ended` is its close code once it closes. */
 async function socket(host: string) {
   const raw = new WebSocket(`ws://${host}/rpc`);
   const replies = new Map<number, (text: string) => void>();
@@ -110,7 +96,6 @@ async function socket(host: string) {
   return { call, ended };
 }
 
-/** A tab's failed span, as a tab batch carries it to `/api/telemetry`. */
 const batch = (name: string) => ({
   traces: [
     {
@@ -130,7 +115,6 @@ const batch = (name: string) => ({
   logs: [],
 });
 
-/** The labels of the error groups in the SQLite file. */
 function storedLabels(file: string) {
   const db = new Database(file, { readonly: true });
   try {
@@ -162,7 +146,6 @@ test("a stop drains: a waiting call's socket closes 1001 going away, the error t
       value: z.object({ kind: z.literal("pending"), request: z.string() }),
     })
     .parse(JSON.parse(await raw.call("login.start", { name: "bo", digest: digest() })));
-  // `login.wait` waits up to 50 s for an owner: the call in flight when the stop comes.
   void raw.call("login.wait", { request: started.value.request });
   await tick(100);
 
@@ -174,10 +157,8 @@ test("a stop drains: a waiting call's socket closes 1001 going away, the error t
   expect(storedLabels(file)).toEqual(["page.board"]);
 });
 
-/** Who a client is: an agent's token, or a viewer's pass. */
 type Held = { token?: string; pass?: string };
 
-/** A client of the server on `port`, as the page and the CLI are: its meta comes from `held`. */
 async function client(port: string, held: Held) {
   const meta = operation({
     label: "test.meta",
@@ -201,7 +182,6 @@ async function client(port: string, held: Held) {
   return scope;
 }
 
-/** The id a put answered with. */
 const idOf = (out: { kind: string }) => ("id" in out && typeof out.id === "string" ? out.id : "");
 
 test("a viewer's tab says Reconnecting when the server stops, and once it is back shows what an agent added, deleted and wrote while it was down (viewer-gate-open s1 to s3, s3 to s1)", async () => {
@@ -211,7 +191,6 @@ test("a viewer's tab says Reconnecting when the server stops, and once it is bac
   const held: Held = {};
   const tab = await client(port, held);
 
-  // Ann shares `flow` with two frames; the tab opens the link and reads them (s1, Canvas).
   const token = randomBytes(32).toString("base64url");
   const setup = {
     name: "ann",
@@ -238,7 +217,6 @@ test("a viewer's tab says Reconnecting when the server stops, and once it is bac
   const doc = tab.resolve(frames.board.docs.of({ canvas: "flow", id: keepId }));
   closers.push(doc.watch(() => undefined));
   const faults = tab.resolve(frames.board.faults);
-  // The page's own test for Reconnecting: the board's `link` fault (src/viewer/canvas.tsx).
   const reconnecting = () => faults.get().frames?.fault === "link";
   const names = () =>
     list
@@ -248,13 +226,11 @@ test("a viewer's tab says Reconnecting when the server stops, and once it is bac
   await until(() => names().length === 2 && doc.get()?.version === 1);
   expect(reconnecting()).toBe(false);
 
-  // SIGTERM: the socket drops (s1 to s3), and the frames read so far stay.
   first.stop.abort();
   expect(await within(first.closed, grace + 1000)).toBe("closed");
   await until(reconnecting);
   expect(names()).toEqual(["Home", "Keep"]);
 
-  // While the tab is down, another server on the same file takes an agent's add, delete and write.
   const side = await run("0", { EASEL_DB: file });
   const agent = await client(side.url.port, { token });
   const added = { canvas: "flow", html: "<p>n</p>", name: "New" };
@@ -269,8 +245,6 @@ test("a viewer's tab says Reconnecting when the server stops, and once it is bac
   expect(reconnecting()).toBe(true);
   expect(names()).toEqual(["Home", "Keep"]);
 
-  // The next deploy, on the same port and file: the socket is back (s3 to s1). Each time the
-  // status is seen gone, the frames are already the new ones: no old list without Reconnecting.
   const seen: string[] = [];
   closers.push(faults.watch(() => void (reconnecting() || seen.push(names().join(",")))));
   await run(port, { EASEL_DB: file });
@@ -281,9 +255,6 @@ test("a viewer's tab says Reconnecting when the server stops, and once it is bac
   expect(doc.get()?.html).toBe("<p>2</p>");
 });
 
-// ---- The door alone: what no real route can hold open
-
-/** A stand-in for the socket's handler: `/api/hang` never answers; any other path answers ok. */
 const hangs = capsule({
   label: "test.hangs",
   hooks: {
@@ -300,7 +271,6 @@ const hangs = capsule({
   },
 });
 
-/** Holds the close between the door's and `serve`'s, as a slow flush does, until `release`. */
 function holdClose() {
   const held = Promise.withResolvers<void>();
   const binding = capsule({
@@ -316,7 +286,6 @@ function holdClose() {
   return { binding: binding(), release: () => held.resolve() };
 }
 
-/** `serve` with the door around `hangs`, as `cmds/server.ts` orders them. */
 async function doorOnly(doorGrace: number, hold = holdClose()) {
   const inner = hangs();
   const door = accessDoor({ inner, grace: doorGrace });

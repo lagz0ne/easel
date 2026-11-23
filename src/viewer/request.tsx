@@ -23,12 +23,6 @@ import { Initial } from "./panel";
 import { Opened } from "./popover";
 import { partBox, stage } from "./stage";
 
-// The page side of a request (SPEC-viewer.md § Ask for a change; the E4.1 and E3.2 designs): the
-// button `Request`, the pins, the textbox's popover, and the text a gate page keeps. The pins and
-// the popover sit in the world, so they move with the canvas, and keep their screen size by the
-// stage's inverse zoom (`--e-unzoom`). They take their own pointer: a press on them does not pan.
-
-/** The button `Request` in the dock: a speech bubble. It shows pressed in request mode. */
 export function RequestButton() {
   const on = useData(requestMode);
   const toggle = useRun(toggleRequest);
@@ -49,12 +43,10 @@ export function RequestButton() {
   );
 }
 
-/** Where a request is, as the popover says it. */
 function Where({ frameName }: { frameName: string | null }) {
   return <>{frameName === null ? "On the whole canvas" : `On ${frameName}`}</>;
 }
 
-/** Why a textbox was not sent, after "Not sent: " (E4.1 N10, SPEC-viewer § Ask for a change 5). */
 const notSent = {
   gone: "an agent removed the <frame> frame. Your text is kept. Click the canvas to put the pin again.",
   full: "this canvas has too many open requests. Your text is kept. Send again when some are done.",
@@ -64,13 +56,11 @@ const notSent = {
   none: "Your text is kept.",
 } as const;
 
-/** What the textbox says when it is not known yet whether a send saved (step 6). */
 const unknownText = {
   link: "Not known yet if easel saved it. Your text is kept. It goes again when Reconnecting goes.",
   failed: "Not known yet if easel saved it. Your text is kept. Send again.",
 } as const;
 
-/** The alert under the textbox, if it has one. */
 function Said({ d, lost }: { d: Draft; lost: boolean }) {
   switch (d.step) {
     case "typing":
@@ -84,7 +74,6 @@ function Said({ d, lost }: { d: Draft; lost: boolean }) {
   }
 }
 
-/** Why nothing was sent. A Send with the socket down says so while it is down; once it is back, Send again. */
 function NotSent({ d, lost }: { d: Draft; lost: boolean }) {
   if (d.why === "link" && !lost) return null;
 
@@ -93,7 +82,6 @@ function NotSent({ d, lost }: { d: Draft; lost: boolean }) {
   );
 }
 
-/** The textbox's popover: the request, its place, the name at the first Send, and Send. */
 function Composer({ d, lost }: { d: Draft; lost: boolean }) {
   const type = useRun(typeText);
   const send = useRun(sendDraft);
@@ -128,7 +116,6 @@ function Composer({ d, lost }: { d: Draft; lost: boolean }) {
               value={d.text}
               readOnly={busy || d.step === "unknown"}
               aria-invalid={refused || d.step === "unknown"}
-              // The textbox opens with the focus, as a comment box does in Figma.
               autoFocus
               onChange={(event) => type.run({ input: event.target.value })}
               onKeyDown={(event) => {
@@ -171,20 +158,14 @@ function Composer({ d, lost }: { d: Draft; lost: boolean }) {
   );
 }
 
-/** Something at a place on the canvas, at its screen size. */
 function At({ x, y, children }: { x: number; y: number; children: React.ReactNode }) {
   return (
-    // The stage leaves a press here alone (`ownPointer`): no pan, and text can be selected.
     <div className="e-at" style={{ left: x, top: y }} data-own-pointer="">
       {children}
     </div>
   );
 }
 
-/**
- * Something at a saved request's place: on its frame, or on the canvas. Nothing when its frame
- * is not on the board.
- */
 function AtRequest({
   r,
   list,
@@ -205,10 +186,6 @@ function AtRequest({
   );
 }
 
-/**
- * The pins of the canvas's requests, the draft's pin and its popover, or the popover of a saved
- * request. A request whose frame is gone has no pin (the viewer-pin-link chart's PinMeansSaved).
- */
 export function Requests({
   canvas,
   list,
@@ -233,7 +210,6 @@ export function Requests({
   );
 }
 
-/** The look of a pin (step 7): accent while it waits for a viewer, danger for a person. */
 const pinLooks: Record<Shown, "waits" | "person" | "quiet"> = {
   waiting: "quiet",
   inWork: "quiet",
@@ -246,10 +222,6 @@ const pinLooks: Record<Shown, "waits" | "person" | "quiet"> = {
   takenBack: "quiet",
 };
 
-/**
- * The pin of each request of the list `Open`, to open its popover (step 7): a bubble with the
- * author's initial. A done or closed request has no pin, but while its popover is open.
- */
 function Pins({ canvas, list }: { canvas: string; list: readonly FrameInfo[] }) {
   const views = useData(requestViews({ canvas }));
   const opened = useData(openedRequest);
@@ -280,10 +252,6 @@ function Pins({ canvas, list }: { canvas: string; list: readonly FrameInfo[] }) 
   );
 }
 
-/**
- * The draft's pin and its popover, at its place. When an agent removed its frame, the frame
- * shows as a dashed area where it was.
- */
 function DraftAt({ d, lost }: { d: Draft; lost: boolean }) {
   const box = d.place.box;
   const gone = d.step === "notSent" && d.why === "gone";
@@ -301,7 +269,6 @@ function DraftAt({ d, lost }: { d: Draft; lost: boolean }) {
   );
 }
 
-/** Where the draft's frame is: a dashed area once an agent removed it, else the part's outline. */
 function FrameArea({ gone, place }: { gone: boolean; place: DraftPlace }) {
   const box = place.box;
   if (!box) return null;
@@ -312,10 +279,6 @@ function FrameArea({ gone, place }: { gone: boolean; place: DraftPlace }) {
   );
 }
 
-/**
- * The outline of the part a draft is on: the box that the frame's document gave for the place
- * clicked (`partBox`), on the frame at `at`. None until it answers, or for no part.
- */
 function Outline({ place, at }: { place: DraftPlace; at: { x: number; y: number } }) {
   const part = useData(partBox);
   const box =
@@ -331,7 +294,6 @@ function Outline({ place, at }: { place: DraftPlace; at: { x: number; y: number 
   );
 }
 
-/** The popover of a saved request, at its pin. */
 function OpenedAt({ canvas, n, list }: { canvas: string; n: number; list: readonly FrameInfo[] }) {
   const v = useData(requestViews({ canvas })).find((one) => one.r.n === n);
   if (!v) return null;
@@ -346,11 +308,6 @@ function OpenedAt({ canvas, n, list }: { canvas: string; n: number; list: readon
   );
 }
 
-/**
- * The open request of a removed frame (step 9): a dashed area where the frame was, that says it
- * was removed, with the request's pin and popover in it. Nothing while the board has no box for
- * the frame.
- */
 function GoneAt({ v, id, list }: { v: RequestView; id: string; list: readonly FrameInfo[] }) {
   const gone = useData(frames.board.removed.of({ canvas: v.r.canvas, id }));
   if (!gone) return null;
@@ -382,11 +339,6 @@ function GoneAt({ v, id, list }: { v: RequestView; id: string; list: readonly Fr
   );
 }
 
-/**
- * The text of a request being typed when the tab left the canvas (the ended page, the password
- * page): it stays to copy. It says "not sent" only of a request that no send may have saved
- * (judged rule 7, the viewer-pin-link chart's EndedPageKeepsText).
- */
 export function KeptText() {
   const d = useData(drafts);
   const copy = useRun(copyText);

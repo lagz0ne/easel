@@ -9,12 +9,6 @@ import type { Text } from "./places";
 import { type Prepared, prepare } from "./prepare.server";
 import { entryFile, kitShape } from "./schema";
 
-// The kit check of an app frame (SPEC-kit.md § App frames; judged rules 14 and 15). oxc-parser
-// reads the TSX; the one walk of the class places (`places.ts`) gives each class, style and paint
-// text with its offset. Each class name gets the K5 verdict of an HTML frame. A fix by position
-// changes only the text of its class name, so the fixed text has the same places.
-
-/** One fix by position: the text from `at` to `end` becomes `text`. */
 type Edit = { at: number; end: number; text: string };
 
 const builtFix =
@@ -23,7 +17,6 @@ const builtFix =
 const scriptFix =
   'keep the state in a Tinker cell of logic, and choose the class in className, as className={cn(open && "flex")}';
 
-/** The source of an app frame as oxc-parser reads it, or its parse findings (`kit/parse`). */
 export const parseApp = operation({
   label: "kit.parseApp",
   input: z.string(),
@@ -48,7 +41,6 @@ export const parseApp = operation({
   },
 });
 
-/** The React hooks that keep state or run an effect (`kit/react-state`, as `tinker/react-state`). */
 const stateHooks = new Set([
   "useState",
   "useReducer",
@@ -68,11 +60,6 @@ const shapeFix =
 
 const moduleShape = z.custom<EcmaScriptModule>();
 
-/**
- * The file of a folder frame that an import names (SPEC-kit.md § App frames, "A folder"): a path
- * from the importing file `from`, as written or with `.ts`, `.tsx`, `/index.ts` or `/index.tsx`.
- * Null for a name, or a path that no file of the frame has.
- */
 export const localPath = operation({
   label: "kit.localPath",
   input: z.object({
@@ -91,15 +78,6 @@ export const localPath = operation({
   },
 });
 
-/**
- * The JS of an app frame (SPEC-kit.md § App frames, "The JS"): one ES module, from its fixed
- * files, made by `Bun.build` in memory. Its entry is easel's own: it imports the entry file and
- * calls `mount` of `@easel/frame` with its `View`, `frame`, `controls`, `part` and `panes`, so a
- * bundler that renames a name cannot break the mount. Each import of a name stays an import, for the runtime's import map;
- * an import of a file of the frame is resolved in `files`. The white space is minified, so the
- * JS has no comment that holds a path of the host. A build that fails throws: the check found
- * each import that it cannot resolve.
- */
 export const appBundle = operation({
   label: "kit.appBundle",
   input: z.record(z.string(), z.string()),
@@ -146,11 +124,6 @@ export const appBundle = operation({
   },
 });
 
-/**
- * `kit/import`: each import that the runtime of the kit version does not have (`names`): another
- * package, an address, or a path that no file of the frame has; and each dynamic `import()`. A
- * re-export from a module (`export * from "./parts"`) loads it too.
- */
 export const importFindings = operation({
   label: "kit.importFindings",
   input: z.object({
@@ -163,7 +136,6 @@ export const importFindings = operation({
   run: ({ localPath }, { input: { module, names, path, paths } }) => {
     const known = new Set(names);
     const fix = `import only the names of the runtime (${names.join(", ")}) and the files of the frame, by a path from this file, as "./copy"`;
-    // The modules that the file loads: each import, and each re-export from a module.
     const requests = [
       ...module.staticImports.map((one) => one.moduleRequest),
       ...module.staticExports.flatMap((one) => one.entries.flatMap((e) => e.moduleRequest ?? [])),
@@ -191,10 +163,6 @@ export const importFindings = operation({
   },
 });
 
-/**
- * `kit/react-state`: each React hook that keeps state or runs an effect, imported by its name from
- * `react`, or read from a namespace or a default import (`React.useState`).
- */
 export const stateFindings = operation({
   label: "kit.stateFindings",
   input: z.object({ program: z.custom<Program>(), module: moduleShape }),
@@ -210,7 +178,6 @@ export const stateFindings = operation({
       }
     }
 
-    // `React.useState`: a hook read from a namespace or a default import.
     hooks.push(...oxc.members(program, stateHooks));
     return hooks.map(({ name, at }): Found => ({
       at,
@@ -223,7 +190,6 @@ export const stateFindings = operation({
 
 type ExportEntry = EcmaScriptModule["staticExports"][number]["entries"][number];
 
-/** How a finding of `kit/shape` names an export: a default, all the names of a module, or a name. */
 const exportTold = operation({
   label: "kit.exportTold",
   input: z.custom<ExportEntry>(),
@@ -236,16 +202,6 @@ const exportTold = operation({
   },
 });
 
-/**
- * `kit/shape`: each export other than `View`, `logic`, `frame`, `controls`, `part` and `panes`,
- * and `View` when it is missing. `controls` are the controls of the viewer's panel (§ The
- * capsules, "The controls"); `part` and `panes` are the panes of a capsule frame and the part of
- * it that they reach (§ The capsules, "A control in its own scope").
- * A frame of the first form exports `View` and `logic`; a capsule frame exports `View` (a
- * resource) and, if it has one, its own capsule `frame` (SPEC-kit.md § The capsules). A name can
- * come from another file of the frame (`export { View } from "./view"`): the entry of the JS
- * imports the module as a whole (`appBundle`).
- */
 export const shapeFindings = operation({
   label: "kit.shapeFindings",
   input: moduleShape,
@@ -280,11 +236,6 @@ export const shapeFindings = operation({
   },
 });
 
-/**
- * The module of an app frame (SPEC-kit.md § App frames, "The file", "The runtime", "A folder"):
- * `kit/import`, `kit/react-state`, and `kit/shape` for the entry only. `names` are the names of
- * the kit version's runtime; `path` is the file's path in a folder frame, `paths` all its paths.
- */
 export const moduleFindings = operation({
   label: "kit.moduleFindings",
   input: z.object({
@@ -302,11 +253,6 @@ export const moduleFindings = operation({
   ],
 });
 
-/**
- * The class names of the class places: each finding, the fixes by position, and the names to
- * make (sorted, one time each). A finding with a class of the look (`to`) is replaced by it; any
- * other finding is removed, with the white space before it (or after it, when it is first).
- */
 export const appClasses = operation({
   label: "kit.appClasses",
   input: z.object({ kit: z.custom<Prepared>(), parts: z.custom<Text[]>() }),
@@ -332,7 +278,6 @@ export const appClasses = operation({
       if (verdict.to) classes.add(verdict.to);
     }
 
-    // The fix of each finding: its class of the look, or no name.
     const edits = names.flatMap(({ text, name, index, start, verdict }): Edit[] => {
       if (verdict.kind !== "finding") return [];
       if (verdict.to) return [{ at: start, end: start + name.length, text: verdict.to }];
@@ -345,7 +290,6 @@ export const appClasses = operation({
   },
 });
 
-/** The text with each fix applied, from the last one back, so each offset still holds. */
 export const applyEdits = operation({
   label: "kit.applyEdits",
   input: z.object({ text: z.string(), edits: z.custom<Edit[]>() }),
@@ -358,14 +302,6 @@ export const applyEdits = operation({
   },
 });
 
-/**
- * K5 on an app frame: the findings in document order, the class names to make, and the fixed text
- * (SPEC-kit.md § App frames, "Fixes by position"). With `names` (the names of the kit version's
- * runtime), the findings of its module too (`moduleFindings`): what the put and `kit.check` give.
- * A TSX that does not parse is `unparsed`, with its `kit/parse` findings. In a folder frame,
- * `path` is the file's path and `paths` the paths of all its files: an import of one of them is
- * not `kit/import`, and only the entry has `kit/shape`.
- */
 export const checkApp = operation({
   label: "kit.checkApp",
   input: z.object({

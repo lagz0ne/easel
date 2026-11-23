@@ -33,25 +33,13 @@ import {
 } from "./stage";
 import type { KitMessage } from "./stage";
 
-// The canvas behind `/s/<link>` (SPEC-viewer.md § See the frames, § Pan and zoom, § Watch an
-// agent work, § Lose the socket; the viewer-canvas chart). React draws a shell per frame when the
-// board changes; the stage moves the camera, culls the shells and picks the live set without a
-// render. A live frame's document comes from the board's `docs`, read by `of({ canvas, id })`
-// only (fact rule 5), composed with the canvas's `kit` (SPEC-kit.md § compose), and runs
-// sandboxed with scripts and no same origin (judged rule 4).
-
 type Stage = ReturnType<typeof stage.factory>;
 
-/**
- * A refusal that ended the pass: the link ended, or a password set or changed. The gate's
- * `refusals` takes the tab to the ended page, the link opened again, or the password page.
- */
 const ended = z.union([
   z.object({ ended: z.literal(true) }),
   z.object({ locked: z.literal(true) }),
 ]);
 
-/** The canvases whose frames this tab has read at least once. */
 const readOnce = resource({
   label: "viewer.readOnce",
   target: "scope",
@@ -60,10 +48,6 @@ const readOnce = resource({
 
 const canvasKey = tag<string>({ label: "viewer.canvas" });
 
-/**
- * Whether the tab has read this canvas's frames at least once. A board read that arrived and a
- * socket that dropped since still say the canvas is empty; a socket that never read says nothing.
- */
 const hasRead = resource({
   label: "viewer.hasRead",
   config: { canvas: canvasKey.required },
@@ -78,7 +62,6 @@ const hasRead = resource({
   },
 });
 
-/** No frames: said once a read arrived, and still while Reconnecting, never before any read. */
 function Empty({ canvas, ready, lost }: { canvas: string; ready: boolean; lost: boolean }) {
   const read = useData(hasRead({ canvas }));
   if (!ready && !(lost && read)) return null;
@@ -86,7 +69,6 @@ function Empty({ canvas, ready, lost }: { canvas: string; ready: boolean; lost: 
   return <p className="e-empty">This canvas has no frames yet.</p>;
 }
 
-/** The page's status: the zoom, in steps. */
 function Zoom() {
   const pct = useData(zoomShown);
   return (
@@ -99,26 +81,17 @@ function Zoom() {
 const docCanvas = tag<string>({ label: "viewer.docCanvas" });
 const docId = tag<string>({ label: "viewer.docId" });
 
-/** A live frame's document: its version, the key of its axes, and the composed html. */
-/** A composed document; `serial` names its iframe, so a later pick of the same axes is a new one. */
 type Composed = { version: number; key: string; html: string; app: boolean; serial: number };
 
-/** The documents of a frame that show: the current one, and each app document that is closing. */
 type ShownDocs = { current: Composed | null; leaving: readonly Composed[] };
 
-/** The locale that a capsule frame draws in when none is picked (`@easel/frame`'s default). */
 const defaultLocale = "en";
 
-/**
- * The picks of this tab (SPEC-kit.md § The capsules, "The axes in the viewer"; chart
- * kit-frame-axes): one locale for the canvas, and a value of each config key for each frame.
- */
 export const axesPicked = data<{
   locale: string | null;
   config: Readonly<Record<string, Readonly<Record<string, string>>>>;
 }>({ label: "viewer.axesPicked", initial: { locale: null, config: {} } });
 
-/** The person picks a locale for the canvas. */
 export const pickLocale = operation({
   label: "viewer.pickLocale",
   input: z.string(),
@@ -126,7 +99,6 @@ export const pickLocale = operation({
   run: ({ picked }, { input }) => picked.set({ ...picked.get(), locale: input }),
 });
 
-/** The person picks a value of a config key of a frame (its data state). */
 export const pickConfig = operation({
   label: "viewer.pickConfig",
   input: z.object({ id: z.string(), key: z.string(), value: z.string() }),
@@ -138,7 +110,6 @@ export const pickConfig = operation({
   },
 });
 
-/** The picks of a frame's config keys that its version posted, other than their defaults. */
 const configPicks = operation({
   label: "viewer.configPicks",
   input: z.object({
@@ -155,11 +126,6 @@ const configPicks = operation({
     ),
 });
 
-/**
- * The axes to compose a frame version with: the picks, once that version posted its axes, and
- * only the values that it posted. A value equal to its default is left out, so a frame with no
- * pick, or with no axes, gets null and is not composed again (APlainFrameIgnoresThePicks).
- */
 export const axesFor = operation({
   label: "viewer.axesFor",
   input: z.object({
@@ -183,13 +149,6 @@ export const axesFor = operation({
   },
 });
 
-/**
- * The document that a live frame was composed with, for its version, while the frame is live. A
- * change of the kit composes nothing again: it reaches the document on its port, so the iframe
- * keeps its document and does not reload (K7). An app document that stops showing (another
- * version, another pick, out of the live set) stays in `leaving` until the stage says that it is
- * done closing (chart kit-app-frame); an HTML document goes at once.
- */
 const docMemo = resource({
   label: "viewer.docMemo",
   config: { canvas: docCanvas.required, id: docId.required },
@@ -200,7 +159,6 @@ const docMemo = resource({
     return {
       shown: () => shown,
       serial: () => ++serial,
-      /** The documents that show with `current`; the same object while nothing changed. */
       next: (current: Composed | null, done: Readonly<Record<string, true>>) => {
         const went = shown && shown !== current && shown.app ? [shown] : [];
         const leaving = [...went, ...view.leaving].filter((d) => !done[`${config.id} ${d.serial}`]);
@@ -214,10 +172,6 @@ const docMemo = resource({
   },
 });
 
-/**
- * One version of a frame, composed with a kit: `compose` of its html and made CSS, or, for an app
- * frame (`app`), `composeApp` of its JS and its runtime (SPEC-kit.md § App frames).
- */
 const composeDoc = operation({
   label: "viewer.composeDoc",
   input: z.object({
@@ -245,13 +199,6 @@ const composeDoc = operation({
   },
 });
 
-/**
- * A live frame's document as it shows: `composeDoc` of the board's version of it, its made CSS
- * and the canvas's kit (fact rule 8: the look, the kit and the piece script come only from
- * `compose`). Null until the document, and the kit that it needs, have come. A version is
- * composed once for each pick of its axes (`axesFor`), with the kit of that moment; a later kit
- * goes on the document's port. Another pick is another document, so another scope.
- */
 const liveDoc = resource({
   label: "viewer.liveDoc",
   config: { canvas: docCanvas.required, id: docId.required },
@@ -287,10 +234,6 @@ const liveDoc = resource({
   },
 });
 
-/**
- * The canvas's kit, given to the stage each time it comes or changes (SPEC-viewer § Watch an
- * agent work, step 4): the stage answers each hello with it, and sends it on each port.
- */
 const kitFeed = resource({
   label: "viewer.kitFeed",
   config: { canvas: canvasKey.required },
@@ -305,16 +248,10 @@ const kitFeed = resource({
   },
 });
 
-/**
- * A live frame's documents: the composed version of it, with the paint script at its end, and each
- * app document that is closing, hidden (chart kit-app-frame). One list, so an iframe that stops
- * showing keeps its element, and its app can end its work.
- */
 function LiveDoc({ canvas, frame, at }: { canvas: string; frame: FrameInfo; at: Stage }) {
   const docs = useData(liveDoc({ canvas, id: frame.id }));
   const shown = docs.current ? [docs.current, ...docs.leaving] : docs.leaving;
 
-  // A closing one keeps its srcdoc (a new one would load it again), but it leaves the page's view.
   return (
     <>
       {shown.map((doc) => (
@@ -341,14 +278,6 @@ function LiveDoc({ canvas, frame, at }: { canvas: string; frame: FrameInfo; at: 
   );
 }
 
-/**
- * A frame's shell at its box: its name, its card with the picture of its version on it, and its
- * document when it is live. The card stays on top until the document of this version painted. The
- * picture is drawn at half size, or a quarter when half is over 8 megapixels; with no key (pictures
- * are off), or a frame too big even at a quarter, the card is plain. An img decodes off the main
- * thread, and the card's color shows until it has. The picture is of the canvas's kit version: a
- * new one gives a new address, and the img shows the last picture until the new one has come.
- */
 const Shell = memo(function Shell({
   canvas,
   frame,
@@ -399,10 +328,6 @@ const Shell = memo(function Shell({
   );
 });
 
-/**
- * The picks of a frame's own axes, after its name: one select for each config key that the live
- * version posted (its data state). A frame that posted none shows none (chart kit-frame-axes).
- */
 function FrameAxes({ frame }: { frame: FrameInfo }) {
   const offer = useData(offeredAxes, (all) => all[frame.id]);
   const mine = useData(axesPicked, (p) => p.config[frame.id]);
@@ -435,7 +360,6 @@ function FrameAxes({ frame }: { frame: FrameInfo }) {
   );
 }
 
-/** You press `Controls` on a frame's label: its panel opens, or closes; `Requests` closes. */
 const toggleControls = operation({
   label: "viewer.toggleControls",
   input: z.string(),
@@ -446,7 +370,6 @@ const toggleControls = operation({
   },
 });
 
-/** A person runs a control in the panel: it goes to the frame's current document. */
 const runControl = operation({
   label: "viewer.runControl",
   input: z.object({ id: z.string(), key: z.string(), value: z.unknown().optional() }),
@@ -454,10 +377,6 @@ const runControl = operation({
   run: ({ at }, { input }) => at.sendControl(input.id, input.key, input.value),
 });
 
-/**
- * The button `Controls` after a frame's name, once its current document posted controls (SPEC-kit
- * § The capsules, "The controls in the viewer"). It shows pressed while their panel is open.
- */
 function ControlsButton({ frame }: { frame: FrameInfo }) {
   const has = useData(shownControls, (all) =>
     Boolean(all[frame.id]?.controls.some((c) => c.place === "panel")),
@@ -483,7 +402,6 @@ function ControlsButton({ frame }: { frame: FrameInfo }) {
 
 type FieldProps = { id: string; control: ControlShown; value: unknown };
 
-/** An action: a button that runs its operation. */
 function ActionField({ id, control }: FieldProps) {
   const run = useRun(runControl);
   return (
@@ -497,7 +415,6 @@ function ActionField({ id, control }: FieldProps) {
   );
 }
 
-/** A boolean value: a switch. */
 function SwitchField({ id, control, value }: FieldProps) {
   const run = useRun(runControl);
   return (
@@ -515,7 +432,6 @@ function SwitchField({ id, control, value }: FieldProps) {
   );
 }
 
-/** A value of a list: a select of the values that the frame posted. */
 function SelectField({ id, control, value }: FieldProps) {
   const run = useRun(runControl);
   return (
@@ -537,10 +453,6 @@ function SelectField({ id, control, value }: FieldProps) {
   );
 }
 
-/**
- * A number or a text: a field that keeps each key (`defaultValue`) and runs its operation when it
- * loses the focus (Enter takes the focus away). A new value from the frame draws it again.
- */
 function TypedField({ id, control, value }: FieldProps) {
   const run = useRun(runControl);
   const number = control.kind === "number";
@@ -582,7 +494,6 @@ type RowProps = {
   failed: Readonly<Record<string, string>>;
 };
 
-/** One control: its field, with the value posted last, and the kind of a refused run after it. */
 function ControlRow({ id, control, values, failed }: RowProps) {
   const Field = fields[control.kind];
   const refused = failed[control.key];
@@ -600,7 +511,6 @@ function ControlRow({ id, control, values, failed }: RowProps) {
 
 const placeWords = { top: "Top", left: "Left", right: "Right" } as const;
 
-/** The controls that a frame's current document placed at `place`; in a column, each in a row. */
 function PlacedRows({ frame, place }: { frame: FrameInfo; place: PanePlace }) {
   const now = useData(shownControls, (all) => all[frame.id]);
   if (!now) return null;
@@ -623,11 +533,6 @@ function PlacedRows({ frame, place }: { frame: FrameInfo; place: PanePlace }) {
 
 type Placed = { canvas: string; frame: FrameInfo; at: Stage; live: boolean; place: PanePlace };
 
-/**
- * The pane of a frame's current document at a place (SPEC-kit.md § The capsules, "A control in
- * its own scope"; chart kit-control-link): the frame's own document with the place of the pane, in
- * an iframe sandboxed as the frame's. It has the size of its content, which the pane posts.
- */
 function PaneFrame({ canvas, frame, at, place }: Placed) {
   const doc = useData(liveDoc({ canvas, id: frame.id })).current;
   if (!doc?.app) return null;
@@ -646,12 +551,6 @@ function PaneFrame({ canvas, frame, at, place }: Placed) {
   );
 }
 
-/**
- * The controls of a frame's current document that it placed at `top` (in its label row, after
- * its name) or docked to its `left` or `right` edge (a column outside the frame, at screen size),
- * and its pane at that place. The controls read the same values as the panel. While the frame has
- * no live document, they are not shown.
- */
 function DockedControls(props: Placed) {
   const { frame, place, live } = props;
   const count = useData(
@@ -683,11 +582,6 @@ function DockedControls(props: Placed) {
   );
 }
 
-/**
- * The panel `Controls` at the right edge, for one frame: each control of its current document,
- * with the value that the document posted last, and the kind of a refused run. While the frame
- * has no live document, it says so. `Requests` takes the place when it opens.
- */
 function ControlsPanel({ list }: { list: readonly FrameInfo[] }) {
   const id = useData(controlsFor);
   const requests = useData(panelOpen);
@@ -730,10 +624,6 @@ function ControlsPanel({ list }: { list: readonly FrameInfo[] }) {
   );
 }
 
-/**
- * The locale of the canvas's capsule frames, in the dock: the locales that the live frames
- * posted. With no capsule frame live yet, it is not shown.
- */
 function LocalePick() {
   const locales = useData(offeredAxes, (all) =>
     [...new Set(Object.values(all).flatMap((offer) => offer.locales))].join(" "),
@@ -754,7 +644,6 @@ function LocalePick() {
       >
         {locales.split(" ").map((code) => (
           <option key={code} value={code}>
-            {/* The name of the locale in its own language: `vi` is "Tiếng Việt". */}
             {new Intl.DisplayNames([code], { type: "language" }).of(code) ?? code}
           </option>
         ))}
@@ -763,7 +652,6 @@ function LocalePick() {
   );
 }
 
-/** A dock button's icon: 16 px, a line drawing in the current colour (the library's Dock). */
 export function Icon({ d }: { d: string }) {
   return (
     <svg className="e-icon" viewBox="0 0 24 24" aria-hidden="true">
@@ -772,21 +660,14 @@ export function Icon({ d }: { d: string }) {
   );
 }
 
-/** The icons of the dock's camera buttons, as the library's Dock draws them. */
 const icons = {
   zoomOut: "M5 12h14",
   zoomIn: "M5 12h14M12 5v14",
   fit: "M3 7V5a2 2 0 0 1 2-2h2M17 3h2a2 2 0 0 1 2 2v2M21 17v2a2 2 0 0 1-2 2h-2M7 21H5a2 2 0 0 1-2-2v-2",
-  // Lucide's sliders-horizontal and x.
   controls: "M21 4h-7M10 4H3M21 12h-9M8 12H3M21 20h-5M12 20H3M14 2v4M8 10v4M16 18v4",
   close: "M18 6 6 18M6 6l12 12",
 } as const;
 
-/**
- * The dock at the bottom centre of the canvas (SPEC-viewer § The page 2; the library's Dock): the
- * buttons `Request` and `Requests`, then `Zoom out`, the zoom status, `Zoom in` and `Fit`. The buttons show
- * icons; their names are their accessible names and their tooltips.
- */
 function Dock({ at, canvas }: { at: Stage; canvas: string }) {
   return (
     <div className="e-dock" role="toolbar" aria-label="Canvas">
@@ -826,10 +707,6 @@ function Dock({ at, canvas }: { at: Stage; canvas: string }) {
   );
 }
 
-/**
- * The panel `Requests`, while it is open. A press on a row moves the canvas to the place of the
- * request and opens it (step 9): on its frame, or where its frame was before it was removed.
- */
 function PanelAt({ at, canvas, list }: { at: Stage; canvas: string; list: readonly FrameInfo[] }) {
   const open = useData(panelOpen);
   const places = useData(requestPlaces({ canvas }));
@@ -845,7 +722,6 @@ function PanelAt({ at, canvas, list }: { at: Stage; canvas: string; list: readon
   return <Panel canvas={canvas} list={list} onOpen={onOpen} />;
 }
 
-/** The connection: `Reconnecting` while the tab may be behind, or an alert on a fault. */
 function Status({ lost, fault }: { lost: boolean; fault: boolean }) {
   if (lost) return <p role="status">Reconnecting</p>;
   if (fault) return <p role="alert">Something broke. Load the page again.</p>;
@@ -853,17 +729,12 @@ function Status({ lost, fault }: { lost: boolean; fault: boolean }) {
   return null;
 }
 
-/** The last frames that the canvas showed, by id: a deleted one keeps its box while it closes. */
 const shownMemo = resource({
   label: "viewer.shownMemo",
   config: { canvas: canvasKey.required },
   factory: () => new Map<string, FrameInfo & { k?: string }>(),
 });
 
-/**
- * The frames that the canvas draws: the board's, and each deleted frame whose app document was
- * live, hidden, until its app closed (chart kit-app-frame: `holding`).
- */
 const shownFrames = resource({
   label: "viewer.shownFrames",
   config: { canvas: canvasKey.required },
@@ -878,7 +749,6 @@ const shownFrames = resource({
     const last = memo.get();
     const ids = new Set(now.map((f) => f.id));
     const shown: Array<FrameInfo & { k?: string; gone?: true }> = [...now];
-    // A deleted frame keeps its place: React moves no shell, and a moved iframe loads again.
     for (const [at, f] of [...last.values()].entries()) {
       const keep = !ids.has(f.id) && (live.includes(f.id) || held.includes(f.id));
       if (keep) shown.splice(at, 0, { ...f, gone: true });
@@ -890,10 +760,6 @@ const shownFrames = resource({
   },
 });
 
-/**
- * The canvas. A read refused `{ ended: true }` or `{ locked: true }` says Opening: the gate's
- * `refusals` opens the link once more, shows the ended page, or asks the password. A dropped socket keeps the frames read so far.
- */
 export function Canvas({ canvas, opening }: { canvas: string; opening: React.ReactNode }) {
   const part = frames.board.frames.where({ canvas });
   const list = useData(part);
@@ -905,7 +771,6 @@ export function Canvas({ canvas, opening }: { canvas: string; opening: React.Rea
   useResource(escapeKey);
   const pick = useRun(pickPlace);
   const asking = useData(requestMode);
-  // The CSS gives request mode its pointer.
   const mode = useData(requestMode, (on) => (on ? "request" : "view"));
   const panel = useData(panelOpen);
   useData(clockTicker({ canvas }));

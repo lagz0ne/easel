@@ -4,11 +4,6 @@ import { z } from "zod";
 import { pair } from "@/kit/compose";
 import { findingShape } from "@/kit/schema";
 
-// The text of a tool's answer (SPEC-mcp.md § Contract): an answer that is not a success says what
-// happened and what to do next, in one line that starts with its kind. Findings and pairs follow,
-// one a line, in the CLI's form. A success is its JSON. A `{field}` takes the answer's field.
-
-/** What each kind that is not a success says. `closed` is a `wrongState` whose state is closed. */
 export const kindTexts: Readonly<Record<string, string>> = {
   taken: "taken: a canvas with that key is there. Pick another name, or use that canvas.",
   gone: "gone: it is not there (deleted, or a wrong key or id). List again, and use one that is there.",
@@ -32,14 +27,12 @@ export const kindTexts: Readonly<Record<string, string>> = {
   empty: "empty: no request waits. Call next_request again.",
 };
 
-/** The parts of an answer that its text lists, one a line. */
 const listed = z.object({
   findings: z.array(findingShape).optional(),
   fails: z.array(pair).optional(),
   more: z.number().optional(),
 });
 
-/** The first line of an answer: its kind's line, with its fields, or its JSON. */
 const headText = operation({
   label: "mcp.headText",
   input: z.object({ ok: z.boolean(), value: z.looseObject({}) }),
@@ -53,7 +46,6 @@ const headText = operation({
   },
 });
 
-/** The text of one answer: its first line, then its findings and its pairs, one a line. */
 export const answerText = operation({
   label: "mcp.answerText",
   input: z.object({ ok: z.boolean(), value: z.looseObject({}) }),

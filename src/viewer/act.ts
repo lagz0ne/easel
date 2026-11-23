@@ -11,14 +11,6 @@ import { panelOpen, requestPlaces, shownStates } from "./follow";
 import { keptName } from "./gate";
 import { stage } from "./stage";
 
-// A viewer acts on an open request (SPEC-viewer.md § Follow the requests 11, 15, 16; SPEC-queue.md
-// § A viewer answers and decides). Each act is one of a viewer's calls: `request.edit`, `answer`,
-// `accept`, `reopen` or `close`. The page sends nothing when the request changed while the
-// viewer typed: it shows the new state, keeps the text, and says who acted. The server answers
-// `wrongState` when another viewer, or an agent, acted first: the same. `gone`, `full`, `slow` and
-// a fault save nothing either; the text stays. A browser that kept no name asks it first.
-
-/** A viewer's call on a request, with what it carries. */
 export const act = z.discriminatedUnion("call", [
   z.object({ call: z.literal("edit"), text: z.string() }),
   z.object({ call: z.literal("answer"), text: z.string(), option: z.number().optional() }),
@@ -31,7 +23,6 @@ export type Act = z.infer<typeof act>;
 
 const target = z.object({ canvas: z.string(), n: z.number() });
 
-/** The call that each textbox sends. */
 export const boxCalls = {
   correct: "edit",
   answer: "answer",
@@ -39,7 +30,6 @@ export const boxCalls = {
   clear: "edit",
 } as const;
 
-/** The states in which each textbox's call takes its text (§ Follow the requests 15). */
 export const boxFits: Record<z.infer<typeof actBox>, readonly string[]> = {
   correct: ["waiting"],
   answer: ["question"],
@@ -47,10 +37,8 @@ export const boxFits: Record<z.infer<typeof actBox>, readonly string[]> = {
   clear: ["person"],
 };
 
-/** The name the viewer types when the popover asks it. */
 export const typedName = data({ label: "viewer.typedName", initial: "" });
 
-/** The name this browser kept, read again after each act: the author sees `Take back`. */
 export const myName = resource({
   label: "viewer.myName",
   config: {},
@@ -58,7 +46,6 @@ export const myName = resource({
   factory: ({ keptName }) => keptName.run(),
 });
 
-/** You open a textbox of the request: a correction, or a note to open it again. */
 export const openBox = operation({
   label: "viewer.openBox",
   input: z.object({
@@ -75,7 +62,6 @@ export const openBox = operation({
   },
 });
 
-/** You type in a textbox of the request: the text is kept as it is typed. */
 export const typeBox = operation({
   label: "viewer.typeBox",
   input: z.object({
@@ -96,21 +82,18 @@ export const typeBox = operation({
   },
 });
 
-/** You press `Cancel`: the textbox closes, and the request does not change. */
 export const cancelBox = operation({
   label: "viewer.cancelBox",
   depends: { acts: acting.controller },
   run: ({ acts }) => acts.set(null),
 });
 
-/** You press `More`: its menu opens, or closes. */
 export const toggleMore = operation({
   label: "viewer.toggleMore",
   depends: { more: moreMenu.controller },
   run: ({ more }) => more.set(!more.get()),
 });
 
-/** You type your name, when the popover asks it. */
 export const typeName = operation({
   label: "viewer.typeName",
   input: z.string(),
@@ -118,17 +101,14 @@ export const typeName = operation({
   run: ({ name }, { input }) => name.set(input),
 });
 
-/** Copies a text to the clipboard. */
 export const copyText = operation({
   label: "viewer.copyText",
   input: z.string(),
   run: (_, { input }) => navigator.clipboard.writeText(input),
 });
 
-/** The link to a request: this page, with the request's number after `#request-`. */
 export const requestHash = /^#request-(\d+)$/;
 
-/** You press `Copy link`: the link to the request goes to the clipboard. */
 export const copyLink = operation({
   label: "viewer.copyLink",
   input: z.number(),
@@ -141,10 +121,6 @@ export const copyLink = operation({
 
 const linkCanvas = tag<string>({ label: "viewer.linkCanvas" });
 
-/**
- * A link to a request (`#request-<n>`, from `Copy link`) opens the panel and the request when
- * the canvas opens.
- */
 export const openFromLink = resource({
   label: "viewer.openFromLink",
   config: { canvas: linkCanvas.required },
@@ -153,7 +129,6 @@ export const openFromLink = resource({
     const n = requestHash.exec(location.hash)?.[1];
     if (n === undefined) return false;
 
-    // A build that a reader starts writes no cell: the request opens after it.
     queueMicrotask(() => {
       panel.set(true);
       openRequest.run({ input: { canvas: ctx.config.canvas, n: Number(n) } });
@@ -162,13 +137,8 @@ export const openFromLink = resource({
   },
 });
 
-/** The link to a request that the canvas already moved to: its canvas, then its number. */
 export const linkAimed = data<string | null>({ label: "viewer.linkAimed", initial: null });
 
-/**
- * A link to a request also moves the canvas to the request (step 9), as a press on its row does,
- * once the board has its place and the first Fit placed the camera. It moves the canvas once.
- */
 export const aimFromLink = resource({
   label: "viewer.aimFromLink",
   config: { canvas: linkCanvas.required },
@@ -183,7 +153,6 @@ export const aimFromLink = resource({
     const place = places.get().get(Number(n));
     if (n === undefined || !place || aimed.get() === key) return false;
 
-    // A build that a reader starts writes no cell: the mark goes after it.
     queueMicrotask(() => {
       aimed.set(key);
       at.aim(place.x, place.y);
@@ -192,7 +161,6 @@ export const aimFromLink = resource({
   },
 });
 
-/** One call for an act, by its name: its answer, or a fault thrown. */
 const callOnce = operation({
   label: "viewer.callOnce",
   input: z.object({ at: target, act }),
@@ -219,10 +187,6 @@ const callOnce = operation({
   },
 });
 
-/**
- * The call, after `share.name` when the viewer typed a name. A pass with no name is refused
- * `{ name: true }`: the page gives it the kept name and calls once more. A fault is thrown.
- */
 const callNamed = operation({
   label: "viewer.callNamed",
   input: z.object({ at: target, act, typed: z.string().optional() }),
@@ -241,7 +205,6 @@ const callNamed = operation({
   },
 });
 
-/** What the viewer does on request `at` now: the textbox, its text, and the state it saw. */
 const actingOn = operation({
   label: "viewer.actingOn",
   input: z.object({ at: target, now: z.enum(shownStates) }),
@@ -258,7 +221,6 @@ const actingOn = operation({
   },
 });
 
-/** The name the viewer typed, when the popover asks it and it is a good one. */
 const nameToGive = operation({
   label: "viewer.nameToGive",
   input: z.boolean(),
@@ -267,11 +229,6 @@ const nameToGive = operation({
     naming ? viewerName.safeParse(typedName).data : undefined,
 });
 
-/**
- * Before a call: a text that the viewer typed for a state the request left is not sent (the
- * popover says who acted first); a browser that kept no name, and typed none, is asked it.
- * Answers the name to give the pass, or null when it sends nothing.
- */
 const readyToAct = operation({
   label: "viewer.readyToAct",
   input: z.object({ at: target, act, now: z.enum(shownStates) }),
@@ -294,12 +251,10 @@ const readyToAct = operation({
   },
 });
 
-/** A call that saved: one of the kinds of success. */
 const saved = z.object({
   kind: z.enum(["edited", "answered", "accepted", "reopened", "closed"]),
 });
 
-/** A call that saved nothing: the state now, a removed request, too many, too fast, or a fault. */
 const refusal = z.discriminatedUnion("kind", [
   z.object({ kind: z.literal("wrongState"), state }),
   z.object({ kind: z.literal("gone") }),
@@ -308,7 +263,6 @@ const refusal = z.discriminatedUnion("kind", [
   z.object({ kind: z.literal("fault"), error: z.unknown() }),
 ]);
 
-/** Why a refusal saved nothing, as the popover says it (§ Follow the requests 16). */
 const refusedWhy = operation({
   label: "viewer.refusedWhy",
   input: refusal,
@@ -328,10 +282,6 @@ const refusedWhy = operation({
   },
 });
 
-/**
- * Shows an act's answer: a saved act closes its textbox (the board brings the change); a refusal
- * keeps the text and says why (§ Follow the requests 16). Answers the kind.
- */
 const showActAnswer = operation({
   label: "viewer.showActAnswer",
   input: z.object({ at: target, answer: z.union([saved, refusal]) }),
@@ -351,10 +301,6 @@ const showActAnswer = operation({
   },
 });
 
-/**
- * You act on the open request: `readyToAct`, then the call (after `share.name`), then its answer
- * on the page. `now` is the state the popover shows.
- */
 export const actOn = operation({
   label: "viewer.actOn",
   input: z.object({ canvas: z.string(), n: z.number(), act, now: z.enum(shownStates) }),

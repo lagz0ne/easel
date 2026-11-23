@@ -1,21 +1,14 @@
 import { rpc } from "@tinkered/core";
 import { z } from "zod";
 
-// ops's contract (SPEC-ops.md § Contract): the CLI, MCP and the page import it. Two services, one
-// per guard: `opsUserApi` runs `user`, `opsOwnerApi` runs `user` then `owner` (fact rule 2). The
-// sample message is an owner's only: no user call carries it.
-
 export const sides = ["server", "browser"] as const;
 
 export const statuses = ["open", "resolved", "regressed", "human"] as const;
 
-/** A group's fingerprint: a SHA-256, as 64 hex digits. */
 export const fingerprint = z.string().regex(/^[0-9a-f]{64}$/, "not a fingerprint");
 
-/** A W3C trace id, as a `failed` fault carries it: 32 hex digits. */
 export const traceId = z.string().regex(/^[0-9a-f]{32}$/, "not a trace id");
 
-/** A build number: the count of commits on main (SPEC-ops.md § The build number). */
 export const build = z.number().int().nonnegative();
 
 export const errorGroup = z.object({
@@ -23,7 +16,6 @@ export const errorGroup = z.object({
   side: z.enum(sides),
   label: z.string(),
   name: z.string(),
-  /** The sample message, secrets removed (judged rule 1). */
   message: z.string(),
   count: z.number(),
   firstSeen: z.number(),
@@ -38,7 +30,6 @@ export const errorGroup = z.object({
 
 export type ErrorGroup = z.infer<typeof errorGroup>;
 
-/** One sighting kept for the reader: when, on which build, its trace, and its message. */
 export const sample = z.object({
   at: z.number(),
   build: z.number(),
@@ -55,7 +46,6 @@ export type Check = z.infer<typeof check>;
 const gone = z.object({ kind: z.literal("gone") });
 const held = z.object({ kind: z.literal("held") });
 
-/** `ops.resolveError`'s answers: `resolved` is its one success. */
 export const resolveAnswer = z.discriminatedUnion("kind", [
   z.object({ kind: z.literal("resolved") }),
   z.object({ kind: z.literal("notLive"), live: z.number() }),
@@ -64,8 +54,6 @@ export const resolveAnswer = z.discriminatedUnion("kind", [
   gone,
 ]);
 
-/** The call of any user: `easel status`. */
-/** The calls of `opsUserApi`, as written: MCP reads their schemas (rpc keeps no output schema). */
 export const opsUserContracts = {
   "ops.status": {
     input: z.null(),
@@ -90,8 +78,6 @@ export const opsUserContracts = {
 
 export const opsUserApi = rpc(opsUserContracts);
 
-/** The calls of an owner: the groups, their samples, and the moves a person makes. */
-/** The calls of `opsOwnerApi`, as written: MCP reads their schemas (rpc keeps no output schema). */
 export const opsOwnerContracts = {
   "ops.errors": {
     input: z.object({
@@ -135,10 +121,6 @@ type KindOf<A extends Address | "ops.fixerTick"> =
       : never
     : never;
 
-/**
- * SPEC.md rule 1: ops's success kinds, by call. The CLI's exit code and MCP's `isError` read it.
- * `held` is no success (fact rule 8): the CLI exits 1.
- */
 export const opsSuccessKinds = {
   "ops.status": "always",
   "ops.errors": "always",

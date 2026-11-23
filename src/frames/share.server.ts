@@ -20,37 +20,10 @@ import {
 } from "./share";
 import { bumpKeys, canvases } from "./store.server";
 
-// Share links and passwords (SPEC-frames.md § Share a canvas, § Open a share link; the
-// frames-share and viewer-gate charts). A link is 128 random bits, kept readable so `easel share`
-// prints it again (judged rule 11). A pass is 128 other random bits, kept only as its SHA-256
-// digest, with its link, the viewer's name (if the page sent one) and the link's password
-// generation it was given under, in SQLite: it survives a restart (decision C8). A password is
-// kept only as its argon2id hash (judged rule 10). None of them reaches a log (judged rule 15): no
-// operation here takes one as a label or writes one out.
-//
-// A link's `pw_gen` goes up when its password is set or changed, and only then: a pass given
-// under an older one has ended, and is refused `{ locked: true }` (the page asks the password
-// again). Removing the password, or setting the same one again, keeps it, so no pass ends.
-// Unshare ends the link and drops its passes: each is refused `{ ended: true }`. Either one bumps
-// the canvas's picture key generation and makes each live read of the canvas ask again before it
-// answers, so the guard turns away each tab that held an ended pass at once (judged rule 13).
-//
-// Two bounds keep anyone who has a link from filling the disk (SPEC-frames § Inputs, judged rule
-// 14): opens are counted per client address, and a link keeps at most its 1000 newest passes.
-// Wrong passwords count per address and link, apart (`wrongTries`).
-
-/**
- * The flood limit: `share.open` calls per client address per minute, any link, password or not.
- * The same limiter, sliding minute and address key as `login.start` (judged rule 10; decisions D7
- * and A8: the address Traefik adds to X-Forwarded-For, an IPv6 one by its /64). 30, not
- * `login.start`'s 5: a team behind one NAT opens a link at once, and each tab's open counts.
- */
 export const opensPerMinute = 30;
 
-/** A link keeps its newest 1000 passes; a new one past that ends the oldest. */
 export const passesPerLink = 1000;
 
-/** The tables, made at start, after frames' own. */
 const schema = `
 CREATE TABLE IF NOT EXISTS frames_links (
   link TEXT PRIMARY KEY NOT NULL,
@@ -70,11 +43,6 @@ CREATE TABLE IF NOT EXISTS frames_passes (
 );
 CREATE INDEX IF NOT EXISTS frames_passes_link ON frames_passes (link, made);`;
 
-/**
- * A file made while `share.open` took a name has `frames_passes.name NOT NULL`. SQLite cannot drop
- * a NOT NULL, so the table is made again with its rows and its index, in one transaction (the
- * SQLite manual's "Making Other Kinds Of Table Schema Changes").
- */
 const nameOptional = `
 CREATE TABLE frames_passes_new (
   digest TEXT PRIMARY KEY NOT NULL,
@@ -89,17 +57,14 @@ DROP TABLE frames_passes;
 ALTER TABLE frames_passes_new RENAME TO frames_passes;
 CREATE INDEX frames_passes_link ON frames_passes (link, made);`;
 
-/** A column of `PRAGMA table_info` that must take NULL and does not. */
 const notNullName = z.object({ name: z.literal("name"), notnull: z.literal(1) });
 
-/** The columns passwords added, for a file made before them: table, column, its definition. */
 const addedColumns = [
   ["frames_links", "hash", "TEXT"],
   ["frames_links", "pw_gen", "INTEGER NOT NULL DEFAULT 0"],
   ["frames_passes", "pw_gen", "INTEGER NOT NULL DEFAULT 0"],
 ] as const;
 
-/** 128 random bits from the system's secure source, as 32 hex digits: a link, or a pass. */
 const newSecret = operation({
   label: "frames.newSecret",
   depends: { bytes: secretBytes },
@@ -108,21 +73,14 @@ const newSecret = operation({
 
 const canvasRow = z.object({ canvas: z.string() }).nullable();
 
-/** A canvas's live link, its password's hash (none: no password) and its password generation. */
 const liveLinkRow = z
   .object({ link: z.string(), hash: z.string().nullable(), pw_gen: z.number() })
   .nullable();
 
-/** A link, as `share.open` reads it: its canvas, while it is live. */
 const openRow = z
   .object({ canvas: z.string(), hash: z.string().nullable(), pw_gen: z.number() })
   .nullable();
 
-/**
- * Ends what a link change ended: bumps the canvas's picture key generation, and makes each live
- * read of the canvas ask again, so `mayRead` sends each ended pass's refusal before the call
- * answers (judged rule 13).
- */
 const endPasses = operation({
   label: "frames.endPasses",
   input: z.object({ canvas: z.string() }),
@@ -142,11 +100,9 @@ const endPasses = operation({
   },
 });
 
-/** The query for a canvas's live link: its link, its password's hash and generation. */
 const liveLinkQuery =
   "SELECT link, hash, pw_gen FROM frames_links WHERE canvas = ? AND ended IS NULL";
 
-/** A canvas's live link, its password's hash and generation; none when it is not shared. */
 const liveLink = operation({
   label: "frames.liveLink",
   input: z.string(),
@@ -155,11 +111,6 @@ const liveLink = operation({
     liveLinkRow.parse(connection.db.$client.query(liveLinkQuery).get(input)),
 });
 
-/**
- * What a share's `password` makes of the link's hash, and whether that ends its passes: none
- * keeps it; `null` removes it and ends none; the same one again is no change; a new or different
- * one is hashed, and ends every pass.
- */
 const plannedPassword = operation({
   label: "frames.plannedPassword",
   input: z.object({
@@ -179,11 +130,6 @@ const plannedPassword = operation({
   },
 });
 
-/**
- * The share's write, in one transaction: `gone` when the canvas is not there; null when the
- * live link is not the one the plan read (a share in between), so it plans again; else the live
- * link with the planned hash, its generation up by one when that ends the passes, or a new link.
- */
 const writeShare = operation({
   label: "frames.writeShare",
   input: z.object({
@@ -225,14 +171,6 @@ const writeShare = operation({
   },
 });
 
-/**
- * `canvas.share`: the canvas's live link, or a new one when it has none (judged rule 12: sharing
- * a shared canvas keeps its link). `password` sets or changes the password, `null` removes it,
- * none keeps it. A new or different password ends every pass on the link; the same one again, or
- * none, ends none. The hash is made, and the old one checked, before the write; the write's
- * transaction reads the link again, and plans again if a share in between changed it. The unique
- * index on a canvas's live link holds two shares at once to one link.
- */
 export const shareCanvas = operation({
   label: "canvas.share.do",
   input: framesApi["canvas.share"].input,
@@ -269,12 +207,6 @@ export const shareCanvas = operation({
   },
 });
 
-/**
- * `canvas.unshare`: the live link ends, and its passes with it; each live read of the canvas is
- * refused `{ ended: true }` before this answers (judged rule 13). An ended link stays ended:
- * sharing again makes a new one (judged rule 12). On a canvas that is not shared it answers
- * `unshared` too, and ends nothing.
- */
 export const unshareCanvas = operation({
   label: "canvas.unshare.do",
   input: framesApi["canvas.unshare"].input,
@@ -305,11 +237,9 @@ export const unshareCanvas = operation({
   },
 });
 
-/** The query for a link, as `share.open` reads it, while it is live. */
 const openLinkQuery =
   "SELECT canvas, hash, pw_gen FROM frames_links WHERE link = ? AND ended IS NULL";
 
-/** A link, as `share.open` reads it, while it is live: its canvas, hash and generation. */
 const openLinkRow = operation({
   label: "frames.openLinkRow",
   input: z.string(),
@@ -318,13 +248,6 @@ const openLinkRow = operation({
     openRow.parse(connection.db.$client.query(openLinkQuery).get(input)),
 });
 
-/**
- * The password half of `share.open`: null when the open may go on (the link has no password, or
- * this is the right one, and no wait is on); else its answer. No password on a password link
- * answers `locked`: it is no try, and is never slowed. A wrong one answers `wrong`. The 5th wrong
- * try in the minute from this address on this link starts a lock of a minute from the 5th: in it,
- * any try answers `slow` with the time left, even the right one.
- */
 const passwordGate = operation({
   label: "frames.passwordGate",
   input: z.object({
@@ -346,19 +269,11 @@ const passwordGate = operation({
       const wait = tries.wrong(key, now);
       return wait === null ? { kind: "wrong" as const } : { kind: "slow" as const, retryIn: wait };
     }
-    // Wrong tries made while this one was checked count too: once they start a lock, even this
-    // one waits.
     const since = tries.slowed(key, now);
     return since === null ? null : { kind: "slow" as const, retryIn: since };
   },
 });
 
-/**
- * Gives a pass on the live link, in one transaction: `gone` when it has ended, `changed` when
- * its password changed since the gate read it, else `given`. The pass is kept as its digest,
- * with the name (if the page sent one) and the link's password generation; the link's oldest
- * pass ends past 1000.
- */
 const givePass = operation({
   label: "frames.givePass",
   input: z.object({
@@ -390,11 +305,6 @@ const givePass = operation({
   },
 });
 
-/**
- * `share.open`: past the flood limit, `slow`; then the password gate; then a pass on the live
- * link. The gate runs before the write; the write's transaction reads the link again, and the
- * open goes through the gate again if its password changed between.
- */
 export const openShare = operation({
   label: "share.open.do",
   input: shareApi["share.open"].input,
@@ -426,7 +336,6 @@ export const openShare = operation({
     const retryIn = limiter.hit(`share.open ${address}`, opensPerMinute, now);
     if (retryIn !== null) return { kind: "slow" as const, retryIn };
 
-    // Tries count per address and link; the link goes in as its digest.
     const key = `${address} ${digestOf.run({ input: input.link })}`;
 
     for (;;) {
@@ -461,7 +370,6 @@ export const openShare = operation({
   },
 });
 
-/** A pass's state as a read finds it: its link is live and its pass under the current password. */
 const passRow = z
   .object({
     canvas: z.string(),
@@ -471,11 +379,6 @@ const passRow = z
   })
   .nullable();
 
-/**
- * What a pass may read: its canvas, `live`, or `locked` once a password set or changed after it
- * was given ended it, and the viewer's name it was given with (null: none). Null for any other
- * pass: its link ended, or it was never given, or it was the link's oldest past 1000.
- */
 export const passCanvas = operation({
   label: "frames.passCanvas",
   input: z.string(),
@@ -498,18 +401,10 @@ export const passCanvas = operation({
   },
 });
 
-/** The pass a call carries, as `mayName` found it live: its digest. */
 export const heldPass = tag<{ readonly digest: string }>({ label: "frames.heldPass" });
 
-/** The canvas that a call names, if its input has one. */
 const namedCanvas = z.object({ canvas: z.string() });
 
-/**
- * Every call of a tab that holds a pass: the pass alone judges it, as `mayRead` judges a read. No
- * pass (a user has none to name), or one that is not live for the canvas that the call names, is
- * refused `{ ended: true }`; one that a password set or changed ended is refused `{ locked: true }`.
- * A live one binds its digest.
- */
 export const mayName = operation({
   label: "frames.mayName",
   input: transport.hook.start,
@@ -533,11 +428,6 @@ export const mayName = operation({
 
 const nameRow = z.object({ name: z.string() }).nullable();
 
-/**
- * `share.name`: the pass takes the name, trimmed, if it has none, in one statement; the answer is
- * the name the pass holds. A pass that ended between the guard and the write keeps nothing: the
- * answer is the name sent, and the next call with the pass is refused.
- */
 export const namePass = operation({
   label: "share.name.do",
   input: passApi["share.name"].input,
@@ -553,7 +443,6 @@ export const namePass = operation({
   },
 });
 
-/** At start: make the tables, and mark each canvas with a live link `shared`. */
 const loadShares = operation({
   label: "frames.loadShares",
   depends: { connection: bunSqlite.connection, cells: canvases.atScope.controller },
@@ -580,7 +469,6 @@ const loadShares = operation({
   },
 });
 
-/** Share's side of the server. Install it after `framesServer`, which fills `canvases`. */
 export const shareServer = capsule({
   label: "shareServer",
   hooks: {
@@ -591,8 +479,6 @@ export const shareServer = capsule({
   },
 });
 
-/** The viewer's side of the server: `frames.viewer({ implement: shareOps })`, with no guard. */
 export const shareOps = { "share.open": openShare } as const;
 
-/** A pass's side of the server: `frames.pass({ implement: passOps, onStart: [mayName] })`. */
 export const passOps = { "share.name": namePass } as const;

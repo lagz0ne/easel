@@ -2,7 +2,6 @@ import { resource } from "@tinkered/core";
 
 import { backendStop, requestStop } from "./lifetime";
 
-/** The request owns the reader; its route borrows it until all body checks finish. */
 export const requestBody = resource({
   label: "request.body",
   target: "session",

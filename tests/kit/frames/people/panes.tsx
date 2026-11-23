@@ -1,7 +1,3 @@
-// The panes of the frame (SPEC-kit.md § The capsules, "A control in its own scope"): React
-// components that the viewer draws beside the frame, each in a scope of its own. A pane reads the
-// frame's cells through `board` (a live mirror), and changes the frame only with a call of `api`.
-// Its own state (the name in its field) is a cell of its own scope.
 import { ui } from "@easel/kit";
 import { data, operation, resource } from "@tinkered/core";
 import { useData, useRun } from "@tinkered/react";
@@ -11,13 +7,10 @@ import { z } from "zod";
 import { text } from "./copy";
 import { api, board } from "./entities";
 
-/** The name in the field of the right pane: a state of the pane's scope, not of the frame. */
 const draft = data({ label: "people.draft", initial: "" });
 
-/** The count of the names that the field sent: a new field shows after each one, empty. */
 const sent = data({ label: "people.sent", initial: 0 });
 
-/** The person types in the field. */
 const typeDraft = operation({
   label: "people.typeDraft",
   input: z.string(),
@@ -25,7 +18,6 @@ const typeDraft = operation({
   run: ({ draft }, { input }) => draft.set(input),
 });
 
-/** The pane calls the frame to add the person with the name in the field, then empties it. */
 const addDraft = operation({
   label: "people.addDraft",
   depends: { draft: draft.controller, sent: sent.controller, add: api["people.call.add"] },
@@ -37,7 +29,6 @@ const addDraft = operation({
   },
 });
 
-/** The top pane: the count of the frame's list, and a switch of the capitals. */
 export const Toolbar = resource({
   label: "people.Toolbar",
   depends: { ui: ui.pieces, t: text },
@@ -64,7 +55,6 @@ export const Toolbar = resource({
     },
 });
 
-/** The right pane: a name field and a button that adds the person, and the last name. */
 export const AddPanel = resource({
   label: "people.AddPanel",
   depends: { ui: ui.pieces, t: text },

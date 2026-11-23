@@ -10,19 +10,8 @@ import interLatinExt from "./fonts/inter-latin-ext-wght-normal.woff2" with { typ
 import interLatin from "./fonts/inter-latin-wght-normal.woff2" with { type: "file" };
 import interVietnamese from "./fonts/inter-vietnamese-wght-normal.woff2" with { type: "file" };
 
-// The fonts that the binary holds (SPEC-kit.md § The seed): Geist and Geist Mono 1.9.2 by Vercel
-// (OFL-1.1, `fonts/OFL.txt`), the fonts of ui.shadcn.com; and Inter 5.3.0 by the Inter Project
-// (OFL-1.1, `fonts/OFL-Inter.txt`), the font of the viewer (SPEC-design.md). A look that names one
-// gets its `@font-face` in `easel-look`. The version is in the address, so a file never changes
-// there. Inter comes in three files by `unicode-range`, as Google Fonts and Fontsource give it:
-// a browser loads a file only for the letters that the page shows.
-
-/** Where the font files are: `/api/fonts/<dir>/<file>`. */
 export const fontPrefix = "/api/fonts/";
 
-// The path of each font file. Bun gives the path of the import (in the binary, a path inside it,
-// so the build keeps the file). Vite, which runs the tests, gives an address from the project root
-// instead; then the file is in `fonts/`, next to this one.
 const geistPath = existsSync(geist)
   ? geist
   : fileURLToPath(new URL("./fonts/Geist-Variable.woff2", import.meta.url));
@@ -43,7 +32,6 @@ const interLatinPath = existsSync(interLatin)
   ? interLatin
   : fileURLToPath(new URL("./fonts/inter-latin-wght-normal.woff2", import.meta.url));
 
-/** The `unicode-range` of each Inter file, from `@fontsource-variable/inter` 5.3.0. */
 const interRange = {
   latin:
     "U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308, U+0329, U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD",
@@ -53,10 +41,6 @@ const interRange = {
     "U+0102-0103, U+0110-0111, U+0128-0129, U+0168-0169, U+01A0-01A1, U+01AF-01B0, U+0300-0301, U+0303-0304, U+0308-0309, U+0323, U+0329, U+1EA0-1EF9, U+20AB",
 };
 
-/**
- * Each held font: its family, its address under `fontPrefix`, the path of its file, and the
- * letters it has (`range`), when it is one file of several.
- */
 export const heldFonts: ReadonlyArray<{
   family: string;
   file: string;
@@ -93,11 +77,6 @@ export const heldFonts: ReadonlyArray<{
   },
 ];
 
-/**
- * The `@font-face` rules of the held fonts that a look names, in the order of `heldFonts`. A
- * frame's origin is `null`, so its document gets the file from the easel's origin (its `srcdoc`
- * has the base address of the page). Each file is variable: one file has weights 100 to 900.
- */
 export const fontFaces = operation({
   label: "kit.fontFaces",
   input: z.record(z.string(), z.string()),
@@ -117,11 +96,6 @@ export const fontFaces = operation({
   },
 });
 
-/**
- * A look's text with each held font's address replaced by the file itself, as a `data:` URL. A
- * picture is drawn from `about:blank` with no route to the easel (SPEC-frames § Pictures), so an
- * address there reaches nothing; with this, a picture shows the font that the live frame shows.
- */
 export const inlineFonts = operation({
   label: "kit.inlineFonts",
   input: z.string(),
@@ -140,11 +114,6 @@ const fontHeaders = {
   "Access-Control-Allow-Origin": "*",
 };
 
-/**
- * `GET /api/fonts/{dir}/{file}`: one held font file. No user and no pass: the files are the same
- * for each team. Any origin may load one, as a frame's origin is `null`. Another address answers
- * 404.
- */
 export const fontRoute = operation({
   label: "kit.fontRoute",
   input: z.object({ dir: z.string(), file: z.string() }),

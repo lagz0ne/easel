@@ -4,25 +4,18 @@ import { z } from "zod";
 
 import { lightningcss } from "./lightningcss.server";
 
-// Colors for the K5 check (judged rule 12): the colors in a CSS text, found by a Lightning CSS
-// `Color` visitor, and the nearest look color by distance in OKLab (Björn Ottosson, 2020).
-
-/** A point in OKLab. */
 export type Lab = { l: number; a: number; b: number };
 
-/** A color, or a custom property that is set, at a place in a CSS text: line from 0, column from 1. */
 export type Spot = { line: number; column: number; color: CssColor | null; sets: string | null };
 
 const encoder = new TextEncoder();
 
-/** The color of each word that a CSS text uses, as Lightning CSS reads it: null for no color. */
 export const colorWords = resource({
   label: "kit.colorWords",
   target: "scope",
   factory: () => new Map<string, CssColor | null>(),
 });
 
-/** A visitor that puts each color that Lightning CSS reads into `into`. */
 export const colorCollector = operation({
   label: "kit.colorCollector",
   input: z.custom<CssColor[]>(),
@@ -33,7 +26,6 @@ export const colorCollector = operation({
   }),
 });
 
-/** The color of a word, if it is a CSS named color (`red`, `rebeccapurple`). */
 export const colorOfWord = operation({
   label: "kit.colorOfWord",
   input: z.string(),
@@ -55,7 +47,6 @@ export const colorOfWord = operation({
   },
 });
 
-/** A color that is always allowed: currentColor, a color with no alpha, white or black. */
 export const plainColor = operation({
   label: "kit.plainColor",
   input: z.custom<CssColor>(),
@@ -68,12 +59,10 @@ export const plainColor = operation({
   },
 });
 
-/** Where a rule of Lightning CSS starts. */
 const ruleLoc = z.object({
   value: z.object({ loc: z.object({ line: z.number(), column: z.number() }) }),
 });
 
-/** The line and the column where a rule of Lightning CSS starts, if it has them. */
 export const ruleStart = operation({
   label: "kit.ruleStart",
   input: z.unknown(),
@@ -83,7 +72,6 @@ export const ruleStart = operation({
   },
 });
 
-/** The visitor of colorsIn: it puts each color that is not allowed, and each custom property, into `spots`. */
 export const spotVisitor = operation({
   label: "kit.spotVisitor",
   input: z.custom<Spot[]>(),
@@ -125,12 +113,6 @@ export const spotVisitor = operation({
   },
 });
 
-/**
- * The colors in a CSS text (`attr`: the text of a style attribute), and each custom property that
- * it sets. An allowed color (plainColor) is not here. A word in a value that Lightning CSS keeps
- * as tokens (a custom property, a `var()` fallback) is a color when it is a CSS named color. CSS
- * that does not parse gives what Lightning CSS could read.
- */
 export const colorsIn = operation({
   label: "kit.colorsIn",
   input: z.object({ css: z.string(), attr: z.boolean() }),
@@ -143,14 +125,11 @@ export const colorsIn = operation({
     try {
       if (input.attr) lightningcss.transformStyleAttribute({ code, errorRecovery: true, visitor });
       else lightningcss.transform({ filename: "frame.css", code, errorRecovery: true, visitor });
-    } catch {
-      // CSS that Lightning CSS cannot read at all: the spots found so far stay.
-    }
+    } catch {}
     return spots;
   },
 });
 
-/** The first color of a CSS value, allowed or not, as Lightning CSS reads it. */
 export const colorOf = operation({
   label: "kit.colorOf",
   input: z.string(),
@@ -166,7 +145,6 @@ export const colorOf = operation({
   },
 });
 
-/** A color as CSS text, to 4 decimals: `lab(50 40 30)`, `color(display-p3 1 0 0)`. */
 export const colorText = operation({
   label: "kit.colorText",
   input: z.custom<Exclude<CssColor, string>>(),
@@ -180,10 +158,6 @@ export const colorText = operation({
   },
 });
 
-/**
- * A color of any CSS color space as sRGB (0 to 255), by the fallback that Lightning CSS writes
- * for a browser of 2015. Null: no sRGB form (a system color, currentColor).
- */
 export const srgbOf = operation({
   label: "kit.srgbOf",
   input: z.custom<Exclude<CssColor, string>>(),
@@ -203,7 +177,6 @@ export const srgbOf = operation({
   },
 });
 
-/** An sRGB color (0 to 255) in OKLab (Björn Ottosson, 2020). */
 export const rgbToOklab = operation({
   label: "kit.rgbToOklab",
   input: z.custom<{ r: number; g: number; b: number }>(),
@@ -223,7 +196,6 @@ export const rgbToOklab = operation({
   },
 });
 
-/** A color in OKLab. OKLab and OKLCH are read as they are; any other color goes by sRGB. */
 export const oklab = operation({
   label: "kit.oklab",
   input: z.custom<CssColor>(),
@@ -242,18 +214,8 @@ export const oklab = operation({
   },
 });
 
-/**
- * A chart color is for data: as a fix it counts this many times as far as it is, so the
- * semantic colors (primary, destructive, warning, success, muted, ...) win when the distances are
- * close. `text-red-500` gives `text-destructive`, not `text-chart-1`; a yellow still gives
- * `chart-4`, as no semantic color is near it.
- */
 export const chartWeight = 2.5;
 
-/**
- * The name of the look color nearest to a color, by distance in OKLab, where a chart color's
- * distance counts `chartWeight` times.
- */
 export const nearestColor = operation({
   label: "kit.nearestColor",
   input: z.object({
@@ -278,7 +240,6 @@ export const nearestColor = operation({
   },
 });
 
-/** A color as a finding shows it: sRGB as hex, any other color as CSS text (`lab(50 40 30)`). */
 export const shownColor = operation({
   label: "kit.shownColor",
   input: z.custom<CssColor>(),

@@ -16,24 +16,18 @@ import { routeTree } from "@/routes";
 import { todo } from "@/todo";
 import { tabMeta } from "@/viewer/gate";
 
-/** The tab's one root. A real page hide, or a hot swap of this module, closes it. */
 const stop = new AbortController();
 
 const app = createScope({
   signal: stop.signal,
   capsules: [
     telemetry.browser({ service: "tinker-browser", console }),
-    // `tabMeta`: the issue board's sign-in stand-in, and a share link's pass, ride each message.
     ws.client({ url: `${location.origin.replace(/^http/, "ws")}/rpc`, meta: tabMeta }),
     greet.api({ remote: ws.client }),
-    // The todo feature: the live list over the socket, and its calls.
     todo.board({ read: ws.client }),
     todo.api({ remote: ws.client }),
-    // The issue board: the team's parts over the socket, and its calls.
     issues.board({ read: ws.client }),
     issues.api({ remote: ws.client }),
-    // A share link: its canvas over the socket, `share.open`, the name at the first request
-    // (`share.name`), and the requests the viewer sends (`request.add`).
     frames.board({ read: ws.client }),
     frames.viewer({ remote: ws.client }),
     frames.pass({ remote: ws.client }),

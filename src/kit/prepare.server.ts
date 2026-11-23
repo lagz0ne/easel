@@ -9,24 +9,13 @@ import type { Rule } from "./schema";
 import { kitShape } from "./schema";
 import { sources } from "./source.server";
 
-// The check's view of a kit version (SPEC-kit.md § compose, `check`): its Tailwind design system,
-// the class names of its pieces, and the colors and sizes of its look. It is made one time for
-// each kit version: a kit version never changes (judged rule 4), so its number is the key.
-
-/** The Tailwind design system of a kit version. Not a stable API of Tailwind: the pin holds it. */
 export type System = Awaited<ReturnType<typeof __unstable__loadDesignSystem>>;
 
-/**
- * What the check says about one class name in one kit version. `to`: the class of the look that
- * a fix by position puts in its place (an app frame, SPEC-kit.md § App frames); with none, the
- * fix removes the name.
- */
 export type Verdict =
   | { kind: "make" }
   | { kind: "kit" }
   | { kind: "finding"; rule: Rule; what: string; fix: string; to?: string };
 
-/** All that the check needs of one kit version. */
 export type Prepared = {
   system: System;
   kitClasses: Set<string>;
@@ -38,10 +27,8 @@ export type Prepared = {
   names: string[];
 };
 
-/** The look's CSS names that are not colors (as in source.server.ts). */
 const notColor = /^--(?:text|radius|shadow|font)-|^--spacing$/;
 
-/** The kit versions that the check has made, and the colors of Tailwind's palette that it read. */
 export const prepared = resource({
   label: "kit.prepared",
   target: "scope",
@@ -51,7 +38,6 @@ export const prepared = resource({
   }),
 });
 
-/** A visitor that puts each class name of each selector that Lightning CSS reads into `into`. */
 export const selectorVisitor = operation({
   label: "kit.selectorVisitor",
   input: z.custom<Set<string>>(),
@@ -64,7 +50,6 @@ export const selectorVisitor = operation({
   }),
 });
 
-/** The class names that the kit's own CSS defines: its class pieces and the names they use. */
 export const kitClasses = operation({
   label: "kit.kitClasses",
   input: z.string(),
@@ -81,7 +66,6 @@ export const kitClasses = operation({
   },
 });
 
-/** The colors of the look, in OKLab, by the name of their class (`primary` for `--primary`). */
 export const lookColors = operation({
   label: "kit.lookColors",
   input: kitShape.shape.look,
@@ -97,7 +81,6 @@ export const lookColors = operation({
       }),
 });
 
-/** The font sizes of the look in px, by the name of their class (`sm` for `--text-sm`). */
 export const lookSizes = operation({
   label: "kit.lookSizes",
   input: kitShape.shape.look,
@@ -110,7 +93,6 @@ export const lookSizes = operation({
     }),
 });
 
-/** The check's view of a kit version, made one time for each kit version. */
 export const prepare = operation({
   label: "kit.prepare",
   input: kitShape,

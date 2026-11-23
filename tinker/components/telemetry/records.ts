@@ -14,10 +14,8 @@ export declare namespace Telemetry {
     | { kind: "failed"; failure: string }
   );
   type SpanBody = Omit<Span, "side">;
-  /** Retained JSON is owned by the queue until storage accepts it. */
   type Record = { kind: "trace" | "log"; side: Side; json: string; bytes: number };
   type Delivery = { traces: boolean; logs: boolean };
-  /** The span fields OTLP needs: a Core span fits, and so does one read back from a worker line. */
   type SpanFields = Pick<
     Observe.Span,
     | "traceId"
@@ -33,10 +31,6 @@ export declare namespace Telemetry {
     | "attributes"
     | "events"
   >;
-  /**
-   * One line from the request thread to the telemetry worker: raw fields, no OTLP shape.
-   * `encoded` 1 means every attribute value is already `encodeValue` output.
-   */
   type Wire =
     | [
         tag: "s",
@@ -70,13 +64,8 @@ export declare namespace Telemetry {
     | [tag: "b", batch: Batch];
 }
 
-/**
- * The exporter's own bucket: work run in it makes no span or log line (ADR 0119).
- * Telemetry encodes inside Core's export callback; a traced encode would export itself again.
- */
 export const quiet = namespace({ observe: false });
 
-/** Bounds one attribute value to its wire string; a bigint or a cycle still encodes. */
 export const encodeValue = operation({
   label: "telemetry.encodeValue",
   input: (raw: unknown) => raw,
@@ -104,14 +93,9 @@ export const encodeValue = operation({
   },
 });
 
-/**
- * Shapes one span into its OTLP body; the in-process observer and the worker drain share it.
- * `encoded` comes from a worker line's flag: its values are already `encodeValue` output.
- */
 export const spanBody = operation({
   label: "telemetry.spanBody",
   depends: { encodeValue },
-  // Trusted: only the exporter calls it, with a Core span or a worker line it already read.
   input: (raw: unknown) => raw as { span: Telemetry.SpanFields; encoded: boolean },
   run: ({ encodeValue }, ctx): Telemetry.SpanBody => {
     const { span, encoded } = ctx.input;

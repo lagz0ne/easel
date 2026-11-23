@@ -9,10 +9,6 @@ import { signIn, whoMeta } from "@/issues/sign-in";
 
 import { listen, wsClient as tab, wsServer as server } from "./support/ws";
 
-// The issue board as the cmds install it, over a real socket: the server serves each team's parts
-// to its members and implements the api; each tab reads the board and calls the api. The `who`
-// name in each message's meta stands in for sign-in. Both sides export their spans, so a test can follow one trace.
-
 const serverSpans: Observe.Span[] = [];
 const tabSpans: Observe.Span[] = [];
 
@@ -29,7 +25,6 @@ const backend = await createScope({
 const { bun, url } = listen(backend, [server.server]);
 const tabs: Scope.Handle[] = [];
 
-/** A tab signed in as `who`, its spans in `tabSpans`. */
 const open = async (who: string) => {
   const scope = await createScope({
     observe: { export: (span) => void tabSpans.push(span) },
@@ -48,7 +43,6 @@ const open = async (who: string) => {
 const [ana, bo, cy] = [await open("ana"), await open("bo"), await open("cy")];
 let n = 0;
 
-/** A fresh team that ana made and bo joined; cy is not in it. */
 const team = async () => {
   const teamId = `T${++n}`;
   await ana.run(issues.api["team.create"], { input: { teamId } });
@@ -56,14 +50,12 @@ const team = async () => {
   return teamId;
 };
 
-/** A tab's reader of one team's issues, kept in use: a keyed board serves only parts in use. */
 const read = (scope: Scope.Handle, teamId: string) => {
   const reader = scope.resolve(issues.board.issues.where({ teamId }));
   reader.watch(() => undefined);
   return reader;
 };
 
-/** The state of a tab's part of one team's issues. */
 const state = (scope: Scope.Handle, teamId: string) =>
   scope.resolve(issues.board.status(issues.board.issues.where({ teamId }))).get()?.status;
 
@@ -149,8 +141,6 @@ test("a tab with no `who` is refused; so is a member of no team, on calls and on
   expect(peek.get()).toEqual([]);
 });
 
-// S5, each call that names a team: the `gone` answer is reached once from outside the team and,
-// where the call names an issue, once for an issue that is not there. Nothing is written.
 test("every call that names a team answers gone to a person outside it, and writes nothing", async () => {
   const teamId = await team();
   const seen = read(ana, teamId);
@@ -191,8 +181,6 @@ test("every call that names a team answers gone to a person outside it, and writ
   ).toEqual([]);
 });
 
-// A refused part is the server's answer: the tab does not ask again by itself (Core 0.17.4,
-// ADR 0139). The page's "Try again" is an `invalidate` of the part, as a query's `refetch`.
 test("a person added while their tab is open sees the team when they try again", async () => {
   const teamId = await team();
   const peek = read(cy, teamId);
@@ -206,17 +194,12 @@ test("a person added while their tab is open sees the team when they try again",
   expect(state(cy, teamId)).toBe("ready");
 });
 
-/** The one span of this name; its trace id. */
 const one = (spans: Observe.Span[], name: string) => {
   const found = spans.filter((span) => span.name === name);
   expect(found).toHaveLength(1);
   return found[0]!;
 };
 
-// One move, followed across both tabs and the server, as OTel messaging: tab A's call, the
-// server's op and its `remoteData.send` (the producer) are one trace. The signal carries that
-// send; tab B's ask runs under `remoteData.receive` (the consumer), a trace of its own with a
-// link to the send. So a move and every read it caused join up (Core 0.17.3).
 test("one move: one trace from tab A to the server's send; tab B's ask links to it", async () => {
   const teamId = await team();
   const seen = read(bo, teamId);
@@ -249,7 +232,6 @@ test("one move: one trace from tab A to the server's send; tab B's ask links to 
     "ws.serve",
   ]);
   expect(send.traceId).toBe(call);
-  // Tab B's ask is its own trace, as an OTel consumer: it links to the server's send.
   const link = receive.events.find((e) => e.name === "link")?.attributes?.traceparent;
   expect(link).toBe(`00-${call}-${send.spanId}-01`);
   expect(names(tabSpans, ask)).toEqual([

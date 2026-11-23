@@ -2,17 +2,12 @@ import { serve } from "@tinkered/bun";
 import type { Scope } from "@tinkered/core";
 import { expect, test } from "vite-plus/test";
 
-// SPEC-ops.md fact rule 4: the server starts without Victoria, and telemetry export is on only
-// for a kind whose URL is given (OpenTelemetry's convention: no endpoint, no exporter).
-
 type Server = typeof import("../cmds/server");
 
-/** The real server command, run in this process; the lint bans a static parent import. */
 const server: Server = await import(new URL("../cmds/server.ts", import.meta.url).href);
 
 type Root = Scope.Starting & { readonly closed: Promise<unknown> };
 
-/** Starts the server command with this env, and stops it after `body`. */
 async function withServer(env: Record<string, string>, body: (url: URL) => Promise<void>) {
   const stop = new AbortController();
   const root = (await server.default({
@@ -24,7 +19,6 @@ async function withServer(env: Record<string, string>, body: (url: URL) => Promi
     stderr: { write: () => true },
     exit: (code, reason) => stop.abort(reason ?? code),
   })) as Root;
-  // The command returns once its scope is ready.
   const url = root.resolve(serve.url).get();
   try {
     if (!url) throw new Error("the server has no url");

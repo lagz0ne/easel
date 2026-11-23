@@ -2,10 +2,8 @@ import { createWs as createServer } from "@tinkered/bun";
 import { createWs as createClient } from "@tinkered/bun/client";
 import type { Scope } from "@tinkered/core";
 
-/** Both sides of one WebSocket transport, as a test wires them: the client and the server. */
 export const createWs = () => ({ ...createClient(), ...createServer() });
 
-/** The default client and server, as `cmds/browser.tsx` and `cmds/server.ts` import them. */
 export { ws as wsClient } from "@tinkered/bun/client";
 export { ws as wsServer } from "@tinkered/bun";
 
@@ -14,11 +12,6 @@ type Door = {
   websocket: never;
 };
 
-/**
- * Serves a scope's socket servers on one real Bun port, as `cmds/server.ts` does. Each path is
- * one transport; the first server's handler takes every socket (one handler per Bun server), so
- * a test with two transports gives them the same handler shape. `other` answers the rest.
- */
 export function listen(
   scope: Scope.Handle,
   transports: readonly unknown[],

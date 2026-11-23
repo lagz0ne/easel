@@ -8,12 +8,8 @@ import type { Event } from "./contracts";
 
 const { hook } = transport;
 
-// The server's operations. The board serves the shared cells; only these ops write them.
-
-/** The caller. `signedIn` binds it: the onStart hook on rpc, the middleware on remoteData. */
 export const user = tag<string>({ label: "user" });
 
-/** One per request session: the cookie `sid=<name>` to a user, or null. */
 const principal = resource({
   label: "principal",
   target: "session",
@@ -25,7 +21,6 @@ export const signedIn = operation({
   label: "signedIn",
   input: hook.start,
   depends: { who: principal },
-  // No user: refuse, a value. The call answers the `refused` fault; nothing is thrown here.
   run: async ({ who }, { input }) => (who ? { tags: [user(who)] } : input.refuse({ signIn: true })),
 });
 
@@ -80,14 +75,12 @@ export const removeTodo = operation({
   },
 });
 
-/** Open streams per user, one per server root. */
 const streams = resource({
   label: "presence.streams",
   target: "scope",
   factory: () => new Map<string, number>(),
 });
 
-/** Counts the user online while the stream is open; one user with two tabs stays until both close. */
 export const joinPresence = operation({
   label: "presence.join.do",
   input: z.null(),

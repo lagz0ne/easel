@@ -30,22 +30,14 @@ import { acceptRuntime, readKit, readKitAt } from "@/kit/store.server";
 import { localChromium } from "./support/chromium";
 import { wsServer } from "./support/ws";
 
-// frame.put of an app frame (SPEC-frames § Contract, "An app frame"; SPEC-kit § App frames, "The
-// put"): the check, the fixes, the JS, the made CSS, kept with the frame version and its kit
-// version; `offKit` writes nothing; `frame.get` answers the TSX as written; the board's document
-// carries the JS and the runtime of its kit version; and the put stays in the speed budget.
-
 const closers: Array<() => unknown> = [];
 
-// A real Chromium can take more than the default 10 s to close on a loaded machine: the hook gets
-// the time of the longest test that opens one.
 afterEach(async () => {
   for (const close of closers.splice(0).reverse()) await close();
 }, 90_000);
 
 const pricing = () => Bun.file(new URL("kit/frames/pricing.tsx", import.meta.url)).text();
 
-/** The folder frame `people`: each file, by its path in the folder. */
 const people = async () => {
   const dir = new URL("kit/frames/people/", import.meta.url);
   const paths = ["index.tsx", "entities.ts", "copy.ts", "view.tsx", "panes.tsx"];
@@ -53,7 +45,6 @@ const people = async () => {
   return Object.fromEntries(paths.map((path, i) => [path, texts[i] ?? ""]));
 };
 
-/** A runtime that a test gives the server in place of a build: each name, one small file each. */
 function fakeRuntime(mark = "fake"): BuiltRuntime {
   const imports = Object.fromEntries(
     runtimeNames.map((name) => [name, `${name.replace(/^@/, "").replaceAll("/", "__")}.js`]),
@@ -62,10 +53,6 @@ function fakeRuntime(mark = "fake"): BuiltRuntime {
   return { sha: createHash("sha256").update(mark).digest("hex"), imports, files };
 }
 
-/**
- * One server: SQLite, access, frames and a memory transport, as cmds/server.ts wires them. With
- * `runtime: null` the scope builds the real runtime, as in dev.
- */
 async function boot(options: { runtime?: BuiltRuntime | null; file?: string } = {}) {
   const clock = makeTestClock({ now: 1_800_000_000_000 });
   const out: string[] = [];
@@ -97,7 +84,6 @@ async function boot(options: { runtime?: BuiltRuntime | null; file?: string } = 
   return { server, setupCode };
 }
 
-/** Ann's agent, signed in, with the canvas `flow`; with `known`, the pass of her first start. */
 async function annOn(srv: Awaited<ReturnType<typeof boot>>, known?: string) {
   const client = async (token?: string) => {
     const meta = operation({
@@ -131,7 +117,6 @@ async function annOn(srv: Awaited<ReturnType<typeof boot>>, known?: string) {
   return agentOn(scope, text);
 }
 
-/** The calls of Ann's agent on the canvas `flow`, and her pass. */
 function agentOn(scope: Scope.Handle, pass: string) {
   return {
     pass,
@@ -154,11 +139,9 @@ test("a put of a TSX frame checks it, fixes it, and keeps its TSX, JS and CSS wi
   expect(made.version).toBe(1);
   expect(made.findings.map((f) => f.rule)).toContain("look/color");
 
-  // frame.get answers the TSX as the agent wrote it, not the fixed text.
   const got = await ann.get(made.id);
   expect(got).toMatchObject({ kind: "found", frame: { id: made.id, name: "Pricing", tsx } });
 
-  // The board's document: the JS of the fixed text, the made CSS, and the runtime of kit 1.
   const [doc] = await srv.server.run(loadDocs, { input: { canvas: "flow", id: made.id } });
   if (!doc?.app) throw new Error("no app");
   expect(doc.app.js).toContain('"btn w-full text-destructive"');
@@ -168,7 +151,6 @@ test("a put of a TSX frame checks it, fixes it, and keeps its TSX, JS and CSS wi
   expect(doc.app.runtime.address).toBe(`/api/runtime/1/${fakeRuntime().sha}/`);
   expect(doc.app.runtime.imports["@easel/frame"]).toBe("easel__frame.js");
 
-  // The first app frame gave kit version 1 its runtime.
   expect(await srv.server.run(runtimeNamesOf, { input: 1 })).toEqual([...runtimeNames]);
 });
 
@@ -191,14 +173,12 @@ test("an app frame that the check refuses answers offKit with its findings, and 
   expect(refused.more).toBe(0);
   expect(await ann.list()).toEqual({ kind: "found", frames: [] });
 
-  // A TSX that does not parse is offKit with kit/parse.
   const unparsed = await ann.put({
     canvas: "flow",
     tsx: "export function View() {\n  return <p>;\n}",
   });
   expect(unparsed.kind === "offKit" && at(unparsed.findings)).toEqual(["3:1 kit/parse"]);
 
-  // At most 20 findings; more counts the rest.
   const many = Array.from({ length: 23 }, (_, i) => `import { a${i} } from "left-pad-${i}";`);
   const lots = await ann.put({ canvas: "flow", tsx: many.join("\n") });
   expect(lots.kind === "offKit" && [lots.findings.length, lots.more]).toEqual([20, 4]);
@@ -213,7 +193,6 @@ test("an app frame over 256 KiB is tooBig with maxBytes 262144, and nothing is w
   expect(await ann.put({ canvas: "flow", tsx: big })).toEqual({ kind: "tooBig", maxBytes: 262144 });
   expect(await ann.list()).toEqual({ kind: "found", frames: [] });
 
-  // Under 256 KiB of TSX, but its made CSS would be over 256 KiB: tooBig too.
   const classes = Array.from({ length: 9000 }, (_, i) => `w-[${i + 1}px]`).join(" ");
   const wide = `export const logic = {};\nexport function View() {\n  return <p className="${classes}" />;\n}`;
   expect(await ann.put({ canvas: "flow", tsx: wide })).toEqual({
@@ -237,7 +216,6 @@ test("a frame is one kind for each version: a TSX put on an HTML frame is its ne
     version: 2,
   });
   expect(await ann.get(id)).toMatchObject({ kind: "found", frame: { version: 2, tsx } });
-  // The same TSX on its version is unchanged; an old base is stale.
   expect(await ann.put({ canvas: "flow", id, base: 2, tsx })).toMatchObject({
     kind: "unchanged",
     version: 2,
@@ -247,7 +225,6 @@ test("a frame is one kind for each version: a TSX put on an HTML frame is its ne
     id,
     version: 2,
   });
-  // The same text as HTML is another kind: a new version, an HTML frame again.
   expect(await ann.put({ canvas: "flow", id, base: 2, html: tsx })).toMatchObject({
     kind: "updated",
     version: 3,
@@ -286,7 +263,6 @@ test("the composed document of an app frame: the look, the CSS, the import map o
   expect(html).toContain('import{mount}from"@easel/frame"');
   expect(html.match(/<\/script>/g)?.length).toBe(3);
 
-  // The axes of a capsule frame, as JSON that cannot end its element.
   const axes = srv.server.run(composeApp, {
     input: { js: "", css: "", kit, runtime: doc.app.runtime, axes: { locale: "</script>" } },
   });
@@ -297,7 +273,6 @@ test("speed: a put of a usual TSX frame spends less than 50 ms in the check and 
   const srv = await boot();
   await annOn(srv);
   const tsx = await pricing();
-  // The first put of a kit version gives it its runtime, and the design system is made once.
   await srv.server.run(putFrame, { input: { canvas: "flow", tsx } });
 
   const times: number[] = [];
@@ -315,16 +290,9 @@ test("speed: a put of a usual TSX frame spends less than 50 ms in the check and 
   process.stderr.write(
     `frame.put of pricing.tsx: p50 ${p50.toFixed(1)} ms, p95 ${p95.toFixed(1)} ms\n`,
   );
-  // The budget is 50 ms; loose here, so a loaded host does not fail it.
   expect(p50).toBeLessThan(50);
 });
 
-/**
- * The page of the browser test: one sandboxed iframe (scripts only, so its origin is null) with
- * the composed document as its srcdoc. It answers the frame's hello with a port, as the viewer
- * does, and keeps each message of the frame in `window.told`.
- */
-/** The document of each pane: the frame's own, with the place of the pane (`paneScript`). */
 const paneDocs = (html: string, places: readonly PanePlace[]) =>
   Object.fromEntries(places.map((place) => [place, html + paneScript.replace("__PLACE__", place)]));
 
@@ -420,8 +388,6 @@ test(
       },
     });
 
-    // The parent page, the runtime's route and the fonts' route, at one origin, as easel serves
-    // them.
     const web = Bun.serve({
       port: 0,
       hostname: "127.0.0.1",
@@ -453,13 +419,11 @@ test(
     await page.evaluate(() => Reflect.get(window, "closeFrame")());
     await expect.poll(() => page.evaluate(() => Reflect.get(window, "told"))).toContain("closed");
     expect(await frame.locator("main").count()).toBe(0);
-    // A frame with no capsule posts no axes: the page offers it no pick.
     expect(await page.evaluate(() => Reflect.get(window, "told"))).not.toContain("axes");
     expect(errors).toEqual([]);
   },
 );
 
-/** Before the composed document: a script that tells the parent the body's text at `load`. */
 const atLoad = `<script>addEventListener("load", () => parent.postMessage({ easel: "load:" + document.body.textContent }, "*"));</script>\n`;
 
 test("a folder frame: frame.put takes its files, keeps them as written, and frame.get answers them; a second put of the same files is unchanged", async () => {
@@ -478,13 +442,10 @@ test("a folder frame: frame.put takes its files, keeps them as written, and fram
   const same = await ann.put({ canvas: "flow", files, id: made.id, base: 1 });
   expect(same.kind).toBe("unchanged");
 
-  // A file of the folder with a gap: the finding names its file.
   const bad = { ...files, "view.tsx": `${files["view.tsx"] ?? ""}\nimport "./none";\n` };
   const refused = await ann.put({ canvas: "flow", files: bad, id: made.id, base: 1 });
   expect(refused.kind === "offKit" && refused.findings.map((f) => f.file)).toEqual(["view.tsx"]);
 
-  // No index.tsx, or a path above the folder: rpc refuses the input on the client, and nothing
-  // is sent.
   const shapes: Array<Record<string, string>> = [
     { "copy.ts": "export {};" },
     { "index.tsx": "", "../x.ts": "" },
@@ -518,14 +479,12 @@ test(
       if (made.kind !== "created") throw new Error(`not created: ${made.kind}`);
       await one.server.close();
 
-      // An update of easel: it runs the runtime b. Kit version 1 keeps a, so the put is unchanged.
       const b = fakeRuntime("b");
       const two = await boot({ file, runtime: b });
       const ann = await annOn(two, first.pass);
       const again = { canvas: "flow", tsx, id: made.id, base: 1 };
       expect((await ann.put(again)).kind).toBe("unchanged");
 
-      // The team accepts: kit version 2 is kit version 1 with the runtime b, its look the same.
       expect(await two.server.run(acceptRuntime)).toEqual({
         kind: "updated",
         kit: 2,
@@ -539,7 +498,6 @@ test(
       expect({ ...kit2, version: 1 }).toEqual(kit1);
       expect(await two.server.run(acceptRuntime)).toEqual({ kind: "unchanged", kit: 2, rev: 1 });
 
-      // The same TSX put again: a new version on kit version 2, with the runtime b.
       expect(await ann.put(again)).toMatchObject({ kind: "updated", version: 2 });
       const [doc] = await two.server.run(loadDocs, { input: { canvas: "flow", id: made.id } });
       expect(doc?.app?.kit).toBe(2);
@@ -551,8 +509,6 @@ test(
   },
 );
 
-// Three starts on a database file, each with `synchronous = FULL`: a budget as for the other
-// tests that write to disk.
 test(
   "the JS of an app frame made before the JS called the mount gets the old mount line, one time",
   { timeout: 30_000 },
@@ -564,7 +520,6 @@ test(
     const ann = await annOn(first);
     const made = await ann.put({ canvas: "flow", tsx: await pricing() });
     if (made.kind !== "created") throw new Error("not created");
-    // As a store of the week before: transpiled JS with no mount, and no migration recorded.
     await first.server.run(
       operation({
         label: "test.oldStore",
@@ -654,11 +609,9 @@ test(
     const told = () => page.evaluate((): unknown => Reflect.get(window, "told"));
     const frame = page.frameLocator("iframe");
 
-    // The axes by default: English, and the data state `many`. The View is drawn before `load`.
     await page.goto(`http://127.0.0.1:${web.port}/?doc=0`);
     await expect.poll(told, { timeout: 20_000 }).toContainEqual(expect.stringMatching(/^load:/));
     expect(await told()).toContainEqual("load:People3 peopleAnnRemoveBinhRemoveChiRemove");
-    // With its port, the frame posts its axes: the locales, and the values of its config's enum.
     await expect
       .poll(() => page.evaluate((): unknown => Reflect.get(window, "offer")))
       .toEqual({
@@ -669,8 +622,6 @@ test(
     await frame.getByRole("button", { name: "Remove" }).first().click();
     await expect.poll(() => frame.getByText("2 people").count()).toBe(1);
 
-    // Its controls (chart kit-frame-controls): each kind from the input of its operation, and the
-    // value of each value control. A control runs in the live scope: the state goes on from here.
     const read = (name: string) => page.evaluate((key): unknown => Reflect.get(window, key), name);
     await expect
       .poll(() => read("controls"))
@@ -688,14 +639,12 @@ test(
     await control("capitals", true);
     await expect.poll(() => read("values")).toEqual({ capitals: true });
     expect(await frame.getByText("BINH").count()).toBe(1);
-    // A value that the operation's input refuses changes nothing: the page gets the refusal.
     await control("capitals", "yes");
     await expect.poll(() => read("ran")).toMatchObject({ easel: "ran", key: "capitals" });
     expect(await read("values")).toEqual({ capitals: true });
     await control("clear");
     await expect.poll(() => frame.getByText("0 people").count()).toBe(1);
 
-    // A kit message: the frame draws in a new scope with that look, so its state starts again.
     await page.evaluate(({ look, css }) => Reflect.get(window, "sendKit")(look, css), {
       look: now.root,
       css: now.css,
@@ -705,20 +654,17 @@ test(
     await expect.poll(told).toContain("closed");
     expect(await frame.locator("main").count()).toBe(0);
 
-    // Vietnamese, and the data state `one`.
     await page.goto(`http://127.0.0.1:${web.port}/?doc=1`);
     await expect.poll(() => frame.getByText("1 người").count(), { timeout: 20_000 }).toBe(1);
     expect(await frame.getByRole("heading", { name: "Mọi người" }).count()).toBe(1);
     expect(await frame.getByRole("button", { name: "Xóa" }).count()).toBe(1);
 
-    // A row of the data state `bad` fails its schema: the start is refused, and the frame says so.
     await page.goto(`http://127.0.0.1:${web.port}/?doc=2`);
     const alert = frame.getByRole("alert");
     await expect.poll(() => alert.count(), { timeout: 20_000 }).toBe(1);
     expect(await alert.getAttribute("data-easel-refused")).toBe("SampleInvalid");
     expect(await alert.textContent()).toContain("This frame does not start: SampleInvalid.");
 
-    // The data state `empty`: the Empty piece, with its own text.
     await page.goto(`http://127.0.0.1:${web.port}/?doc=3`);
     await expect
       .poll(() => frame.getByText("Nothing here yet").count(), { timeout: 20_000 })
@@ -781,7 +727,6 @@ test(
     const right = page.frameLocator('iframe[data-place="right"]');
     const count = (at: typeof frame, text: string) => () => at.getByText(text).count();
 
-    // The frame posts the places of its panes; each pane reads the frame's list over its link.
     await page.goto(`http://127.0.0.1:${web.port}/`);
     await expect.poll(count(frame, "3 people"), { timeout: 20_000 }).toBe(1);
     await expect.poll(count(top, "3 people"), { timeout: 20_000 }).toBe(1);
@@ -790,11 +735,9 @@ test(
       "right",
     ]);
 
-    // A change in the frame's own scope reaches the pane's mirror.
     await frame.getByRole("button", { name: "Remove" }).first().click();
     await expect.poll(count(top, "2 people")).toBe(1);
 
-    // A pane changes the frame only with a call: the frame runs it, and each mirror follows.
     await top.getByRole("button", { name: "Capitals" }).click();
     await expect.poll(count(frame, "BINH")).toBe(1);
     await right.getByRole("textbox", { name: "Name" }).fill("Dana");
@@ -802,10 +745,8 @@ test(
     await expect.poll(count(frame, "DANA")).toBe(1);
     await expect.poll(count(top, "3 people")).toBe(1);
     await expect.poll(count(right, "Last: Dana")).toBe(1);
-    // The pane's own state: the field is empty after the call.
     expect(await right.getByRole("textbox", { name: "Name" }).inputValue()).toBe("");
     const sizes = await page.evaluate((): unknown => Reflect.get(window, "paneSizes"));
-    // The pane has the size of its content: the count is on one line, beside the button.
     const lines = await top.getByText("3 people").evaluate((el) => {
       const range = document.createRange();
       range.selectNodeContents(el);
@@ -817,7 +758,6 @@ test(
       right: { w: expect.any(Number), h: expect.any(Number) },
     });
 
-    // A kit message: the frame draws in a new scope, and each pane gets a link of it.
     await page.evaluate(({ look, css }) => Reflect.get(window, "sendKit")(look, css), {
       look: now.root,
       css: now.css,

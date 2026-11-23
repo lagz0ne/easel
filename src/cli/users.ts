@@ -8,10 +8,6 @@ import { deadline, exitOf, exits, faultExit } from "./exit";
 import { entryOf, envToken, saveEntry, server } from "./hosts";
 import { say } from "./output";
 
-// `easel whoami`, `easel logout` and `easel users` (SPEC-access.md § Revoke a user, § Sign out).
-// Each prints its answer and exits by the call's success list.
-
-/** `easel whoami`: the name, the role and the server (`users.me`). */
 export const whoami = operation({
   label: "cli.whoami",
   depends: {
@@ -38,11 +34,6 @@ export const whoami = operation({
   },
 });
 
-/**
- * `easel logout` (`login.end`): the server removes the user, then the CLI deletes the token. The
- * last owner's answers `last`, and the token, which still works, is kept. With `EASEL_TOKEN` it
- * changes nothing and is usage (64): a run must not remove its own user.
- */
 export const logout = operation({
   label: "cli.logout",
   depends: {
@@ -92,7 +83,6 @@ export const logout = operation({
   },
 });
 
-/** `easel users`: the users, and the codes that wait (`users.list`). */
 export const listUsers = operation({
   label: "cli.users",
   depends: { say, exitOf, faultExit, deadline, list: access.owner["users.list"] },
@@ -118,7 +108,6 @@ export const listUsers = operation({
   },
 });
 
-/** `easel users approve <code> [--owner]`. */
 export const approveUser = operation({
   label: "cli.approve",
   input: z.object({ code, owner: z.boolean() }),
@@ -152,7 +141,6 @@ export const approveUser = operation({
   },
 });
 
-/** `easel users deny <code>`. */
 export const denyUser = operation({
   label: "cli.deny",
   input: z.object({ code }),
@@ -184,7 +172,6 @@ export const denyUser = operation({
   },
 });
 
-/** `easel users revoke <name>`: its token stops working at once, and its name is free. */
 export const revokeUser = operation({
   label: "cli.revoke",
   input: z.object({ name }),

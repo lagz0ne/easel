@@ -1,45 +1,27 @@
 import { resource } from "@tinkered/core";
 import type { Node } from "oxc-parser";
 
-// The places of an app frame that the kit check reads (SPEC-kit.md § App frames, "Class places";
-// fact rule 9, judged rule 14). The walk reads the ESTree nodes of oxc-parser, which `placesOf`
-// (`oxc.server.ts`) gives to its visitor: the server check (`app.server.ts`) and the Oxlint rule
-// (`lint.server.ts`) both run it. So this file imports no parser and no server module. Each kind of
-// place has its own reader; the visible texts of E9 are one more reader, with no change to the walk.
-
-/** A text of the source and the offset where it starts (as `Part` of scan.server.ts). */
 export type Text = { text: string; at: number };
 
-/** What the walk found: the texts of each kind of place, and the findings of the shape. */
 export type Places = {
-  /** Each whole string of a class place. */
   classes: Text[];
-  /** Each declaration of a `style` object with a string value (`color: #f00`), at the value. */
   styles: Text[];
-  /** Each string `fill`, `stroke` or `stopColor`. */
   paints: Text[];
-  /** Each expression in a class place that is not a whole name (`kit/class-built`), as written. */
   built: Text[];
-  /** Each write of a class from code (`kit/script`): `text` names the write. */
   scripts: Text[];
 };
 
-/** How a place reads an object: in `cn` and `clsx` its keys are class names; elsewhere it is built. */
 type Mode = "attribute" | "clsx";
 
-/** The visitor of the walk: what it reads, by the type of the node. */
 export type Visitor = Record<
   "VariableDeclaration" | "JSXAttribute" | "CallExpression" | "AssignmentExpression",
   (node: Node) => void
 >;
 
-/** One step of the walk of the class places: an expression and how to read it. */
 type Step = [Node, Mode];
 
-/** A form of a class place: how to read a node of one type. */
 type Form = (node: Node, mode: Mode) => void;
 
-/** The readers of the walk; each one reads the state of one read (see `placeWalk`). */
 type Walk = {
   bare: (node: Node) => Node;
   built: (node: Node) => void;
@@ -65,23 +47,15 @@ type Walk = {
   assignment: (node: Node) => void;
   classListCall: (node: Node) => void;
   setAttributeCall: (node: Node) => void;
-  /** Starts a read of a source: the visitor then gets each node of its program. */
   begin: (text: string) => void;
   visitor: Visitor;
-  /** The places of the source that the visitor read. */
   end: () => Places;
 };
 
-/**
- * The walk. A resource, not an operation: its readers run for each node of a program, and a span
- * for each one would cost more than the read. A read is sync, so the state of one read is kept
- * here, and the next read starts it again.
- */
 export const placeWalk = resource({
   label: "kit.placeWalk",
   target: "scope",
   factory: () => {
-    /** The functions whose arguments are class places, and the attributes of each kind. */
     const sinks = new Set(["cn", "clsx", "cva"]);
     const classNames = new Set(["className", "class"]);
     const paintNames = new Set(["fill", "stroke", "stopColor", "stop-color"]);
@@ -89,13 +63,11 @@ export const placeWalk = resource({
 
     let source = "";
     let places: Places = { classes: [], styles: [], paints: [], built: [], scripts: [] };
-    /** Each `const` of the file by name (not by scope: a known limit), and those read. */
     const consts = new Map<string, Node>();
     const readConsts = new Set<string>();
     const readCalls = new Set<number>();
     const steps: Step[] = [];
 
-    /** The nodes that wrap an expression and change nothing: parentheses, TypeScript, JSX `{}`. */
     const wrappers = new Set<string>([
       "ParenthesizedExpression",
       "TSAsExpression",
@@ -104,11 +76,9 @@ export const placeWalk = resource({
       "JSXExpressionContainer",
     ]);
 
-    /** The nodes where a place can start, in the order of the source; read at the end. */
     const starts: Node[] = [];
 
     const walk: Walk = {
-      /** An expression with no wrapper around it. (An arrow's `expression` is a boolean.) */
       bare: (node: Node): Node => {
         const inner = wrappers.has(node.type) && "expression" in node ? node.expression : null;
         return inner && typeof inner === "object" ? walk.bare(inner) : node;
@@ -122,7 +92,6 @@ export const placeWalk = resource({
         });
       },
 
-      /** A string or a template with no value: its text as written, after its quote. */
       whole: (node: Node): Text | null => {
         if (node.type === "Literal" && typeof node.value === "string") {
           return { text: source.slice(node.start + 1, node.end - 1), at: node.start + 1 };
@@ -131,14 +100,12 @@ export const placeWalk = resource({
         return quasi ? { text: source.slice(quasi.start, quasi.end), at: quasi.start } : null;
       },
 
-      /** The name of `cn`, `clsx` or `cva` when a call names one of them. */
       sinkName: (node: Node) => {
         const name =
           node.type === "CallExpression" && node.callee.type === "Identifier" && node.callee.name;
         return name && sinks.has(name) ? name : null;
       },
 
-      /** The key of a property that is not computed: a name or a string. */
       keyName: (prop: Node) => {
         if (prop.type !== "Property" || prop.computed) return undefined;
         return prop.key.type === "Identifier" ? prop.key.name : walk.whole(prop.key)?.text;
@@ -146,13 +113,11 @@ export const placeWalk = resource({
 
       valueOf: (prop: Node) => (prop.type === "Property" ? walk.bare(prop.value) : null),
 
-      /** The properties of an object, with no wrapper around it; none for another node. */
       propsOf: (node: Node | null) => {
         const object = node ? walk.bare(node) : null;
         return object?.type === "ObjectExpression" ? object.properties : [];
       },
 
-      /** `cva(base, config)`: each value of each variant, and the class of each compound variant. */
       cvaConfig: (raw: Node) => {
         const config = walk.bare(raw);
         if (config.type !== "ObjectExpression") return walk.built(config);
@@ -194,7 +159,6 @@ export const placeWalk = resource({
         for (const arg of rest) walk.built(arg);
       },
 
-      /** The arguments of a call of `cn`, `clsx` or `cva`, one time for each call. */
       sinkCall: (node: Node) => {
         const name = walk.sinkName(node);
         if (node.type !== "CallExpression" || !name) return false;
@@ -206,7 +170,6 @@ export const placeWalk = resource({
         return true;
       },
 
-      /** A name in a class place: `className` passes on; a const is read where it is declared. */
       named: (name: string, node: Node) => {
         const init = consts.get(name);
         if (name === "className" || name === "undefined" || readConsts.has(name)) return;
@@ -215,14 +178,12 @@ export const placeWalk = resource({
         readConsts.add(name);
         const value = walk.bare(init);
         if (value.type !== "ObjectExpression") return void steps.push([value, "attribute"]);
-        // A map of whole names: each value is a place.
         for (const prop of value.properties) {
           if (prop.type === "Property") steps.push([prop.value, "attribute"]);
           else walk.built(prop);
         }
       },
 
-      /** One property of an object in `cn` or `clsx`: its key is a class name. */
       keyPlace: (prop: Node, mode: Mode) => {
         const key = prop.type === "Property" && !prop.computed ? prop.key : null;
         if (!key) return walk.built(prop.type === "Property" ? prop.key : prop);
@@ -232,13 +193,11 @@ export const placeWalk = resource({
         steps.push([key, mode]);
       },
 
-      /** An object in `cn` or `clsx`: each key is a class name; its value is a condition. */
       keys: (node: Node, mode: Mode) => {
         if (node.type !== "ObjectExpression" || mode !== "clsx") return walk.built(node);
         for (const prop of node.properties) walk.keyPlace(prop, mode);
       },
 
-      /** A member in a class place: a `className` passed on, or a map of whole names. */
       member: (node: Node) => {
         if (node.type !== "MemberExpression") return walk.built(node);
         const passed =
@@ -253,7 +212,6 @@ export const placeWalk = resource({
         walk.built(node);
       },
 
-      /** A call in a class place: `cn`, `clsx`, `cva`, or a function that `cva` made. */
       call: (node: Node) => {
         if (node.type !== "CallExpression" || walk.sinkCall(node)) return;
         const made = node.callee.type === "Identifier" ? consts.get(node.callee.name) : undefined;
@@ -262,7 +220,6 @@ export const placeWalk = resource({
         else walk.built(node);
       },
 
-      /** The other forms of a class place, by the type of their node. */
       forms: {
         JSXEmptyExpression: () => undefined,
         Identifier: (node) => walk.named(node.type === "Identifier" ? node.name : "", node),
@@ -280,14 +237,12 @@ export const placeWalk = resource({
             if (item) steps.push([item, mode]);
           }
         },
-        // An option of a cva variant: its value is the place.
         Property: (node, mode) => void (node.type === "Property" && steps.push([node.value, mode])),
         ObjectExpression: (node, mode) => walk.keys(node, mode),
         MemberExpression: (node) => walk.member(node),
         CallExpression: (node) => walk.call(node),
       },
 
-      /** One expression of a class place. */
       place: ([raw, mode]: Step) => {
         const node = walk.bare(raw);
         const text = walk.whole(node);
@@ -297,7 +252,6 @@ export const placeWalk = resource({
         else if (!nothing) (walk.forms[node.type] ?? walk.built)(node, mode);
       },
 
-      /** The declarations of `style` with a string value, as CSS: `marginTop` is `margin-top`. */
       styleObject: (value: Node) => {
         for (const prop of walk.propsOf(value)) {
           const key = walk.keyName(prop);
@@ -312,7 +266,6 @@ export const placeWalk = resource({
         }
       },
 
-      /** A JSX attribute: a class place, a `style` object, or a paint. */
       attribute: (node: Node) => {
         if (node.type !== "JSXAttribute" || !node.value) return;
         if (node.name.type !== "JSXIdentifier") return;
@@ -324,7 +277,6 @@ export const placeWalk = resource({
         if (paint) places.paints.push(paint);
       },
 
-      /** An assignment to `className`. */
       assignment: (node: Node) => {
         const left = node.type === "AssignmentExpression" ? node.left : null;
         if (left?.type !== "MemberExpression" || left.computed) return;
@@ -333,7 +285,6 @@ export const placeWalk = resource({
         }
       },
 
-      /** A call of `classList.add`, `remove`, `toggle` or `replace`. */
       classListCall: (node: Node) => {
         if (node.type !== "CallExpression" || node.callee.type !== "MemberExpression") return;
         const { object, property } = node.callee;
@@ -349,7 +300,6 @@ export const placeWalk = resource({
         }
       },
 
-      /** A call of `setAttribute("class", ...)`. */
       setAttributeCall: (node: Node) => {
         if (node.type !== "CallExpression" || node.callee.type !== "MemberExpression") return;
         const { property } = node.callee;
@@ -361,7 +311,6 @@ export const placeWalk = resource({
         }
       },
 
-      /** Starts a read of a source: the visitor then gets each node of its program. */
       begin: (text: string) => {
         source = text;
         places = { classes: [], styles: [], paints: [], built: [], scripts: [] };
@@ -372,11 +321,6 @@ export const placeWalk = resource({
         starts.length = 0;
       },
 
-      /**
-       * The visitor of the program, for the walk of a parser (oxc-parser's `Visitor`):
-       * each `const` goes into `consts`, each node where a place can start into `starts`. A place
-       * can name a `const` that comes later in the file, so the places are read at the end.
-       */
       visitor: {
         VariableDeclaration: (node: Node) => {
           if (node.type !== "VariableDeclaration" || node.kind !== "const") return;
@@ -389,7 +333,6 @@ export const placeWalk = resource({
         AssignmentExpression: (node: Node) => void starts.push(node),
       },
 
-      /** The places of the source that the visitor read. */
       end: (): Places => {
         for (const node of starts) {
           walk.attribute(node);

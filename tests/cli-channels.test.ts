@@ -18,12 +18,6 @@ import { githubDouble } from "./support/github";
 import { boot, closers, rounds, viewer } from "./support/queue";
 import type { Server } from "./support/queue";
 
-// `easel channel set|ls|rm` and `easel deliveries` (SPEC-queue.md § A team lead sets the channels,
-// § The dispatcher gets a request to the agents, step 7) as the cmd runs them: the CLI's capsule
-// over the memory transport, a GitHub double behind the server, each exit by the queue's success
-// lists (SPEC-cli fact rule 3), and a bad flag 64 and a bad input 65 before the call. The token
-// comes from a file, and the CLI never prints it.
-
 afterEach(async () => {
   for (const close of closers.splice(0).reverse()) await close();
 });
@@ -31,7 +25,6 @@ afterEach(async () => {
 const origin = "https://easel.test";
 const token = "ghp_cli0123456789abcdefWXYZ";
 
-/** A server with a GitHub double, and Ann signed in on her CLI: what it prints, and its runs. */
 async function easel(json = false) {
   const github = githubDouble(token);
   const srv = await boot(":memory:", [], { github: github.fetch });
@@ -77,14 +70,12 @@ async function easel(json = false) {
     tokenFile,
     dir,
     run: (command: ChannelCommand) => scope.run(channelRun, { input: command }),
-    /** What it printed since the last read. */
     text: () => out.splice(0).join(""),
   };
 }
 
 type Easel = Awaited<ReturnType<typeof easel>>;
 
-/** `easel channel set gh github --repo acme/design --label easel --token-file <file>`. */
 const set = (e: Easel, more: Partial<Extract<ChannelCommand, { kind: "set" }>> = {}) =>
   e.run({
     kind: "set",
@@ -96,7 +87,6 @@ const set = (e: Easel, more: Partial<Extract<ChannelCommand, { kind: "set" }>> =
     ...more,
   });
 
-/** Canvas flow with frame Home, shared, and a request from Bo on it. */
 async function asked(e: Easel, srv: Server) {
   await e.scope.run(frames.api["canvas.create"], { input: { name: "flow" } });
   const made = await e.scope.run(frames.api["frame.put"], {
@@ -195,7 +185,6 @@ test("deliveries shows each delivery: the channel, the period, sent or failed, t
   expect(await e.run({ kind: "deliveries", canvas: "flow", n: "1" })).toBe(0);
   expect(e.text()).toBe("no delivery yet\n");
 
-  // A new waiting period: the edit of a user.
   e.srv.clock.advance(10);
   expect(
     await e.scope.run(queue.viewer["request.edit"], {

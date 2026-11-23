@@ -17,11 +17,6 @@ import {
 
 import { placeFlush, placePageOpened, placePageReloaded, placeTags } from "./support/place";
 
-// B4, turned around from the s18 proof `b4-b6-frame.test.ts`: the screens behind the open entry are the entry's own
-// state, so a reload keeps Back working and no dead entry is walked; and a leave whose move never comes gives up, so
-// the next real Back is not eaten. The proof showed a stack the page started empty (Back walked a dead entry) and a
-// leave that waited forever.
-
 test("B4: a reload reads the stack from the entry's state, so Back keeps working and walks no dead entry", async () => {
   const project = await placePageOpened();
   const root = createScope({});
@@ -34,10 +29,8 @@ test("B4: a reload reads the stack from the entry's state, so Back keeps working
   expect(before.resolve(placeStack)).toEqual(["notice", "checks"]);
   expect(project.history.location.state).toMatchObject({ places: ["notice", "checks"] });
   await before.close();
-  // The page that opened is stopped before the reload, so nothing of the old page still listens to the address.
   await project.close();
 
-  // The reload: the page's own memory is gone (a new router, a new session), the browser's history is not.
   const reloaded = await placePageReloaded(project.history);
   const after = root.createSession({ tags: placeTags(reloaded.router, project.history) });
 
@@ -46,8 +39,6 @@ test("B4: a reload reads the stack from the entry's state, so Back keeps working
   expect(after.resolve(placeNow)).toBe("checks");
   expect(after.resolve(placeStack)).toEqual(["notice", "checks"]);
 
-  // Back: the entry below names Notice and the one screen behind it. Without the state read the stack was empty, and
-  // this was a dead entry: the browser moved and the page stayed where it was.
   project.history.go(-1);
   await placeFlush();
   expect(after.resolve(placeNow)).toBe("notice");
@@ -63,7 +54,6 @@ test("B4: a leave whose move never comes gives up after 600 ms, so the next real
   const project = await placePageOpened();
   const root = createScope({ clock });
 
-  // A browser that drops the move its walk asks for: the address stays where it is, and nobody answers the wait.
   const dropped: PlaceAddress = {
     get location() {
       return project.history.location;
@@ -87,14 +77,11 @@ test("B4: a leave whose move never comes gives up after 600 ms, so the next real
   await placeFlush();
   expect(page.resolve(placeLeaving)).toBe(true);
 
-  // 600 ms later the wait gives up: `place.leaving` goes, and the page is not held. Without the give-up the leave
-  // waits for a move that never comes, and this is still true.
   clock.advance(600);
   await Promise.race([leaving, new Promise((resolve) => setTimeout(resolve, 100))]);
   await placeFlush();
   expect(page.resolve(placeLeaving)).toBe(false);
 
-  // The next real Back is a Back: the entry below names Notice and the one screen behind it.
   project.history.go(-1);
   await placeFlush();
   expect(page.resolve(placeNow)).toBe("notice");

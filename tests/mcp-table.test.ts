@@ -11,9 +11,6 @@ import { opsOwnerApi, opsUserApi } from "@/ops/contract";
 import { channelApi } from "@/queue/channels";
 import { queueApi, requestApi } from "@/queue/contract";
 
-// SPEC-mcp.md fact rule 2: every call of easel's contracts is a tool, or is on the no-tool list,
-// and none is both. The starter's demo modules (`greet`, `issues`, `todo`) are not easel's.
-
 const easelApis = [
   loginApi,
   userApi,

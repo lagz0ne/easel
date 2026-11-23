@@ -19,35 +19,21 @@ import { routeTree } from "@/routes";
 import { openedKey, visitKey } from "@/viewer/follow";
 import { nameKey, tabMeta } from "@/viewer/gate";
 
-// A viewer follows the requests, in a real Chromium, over `memory` (SPEC-viewer.md § Follow the
-// requests). The oracle is the viewer-queue chart: each test names the arrows and the rules it
-// walks. The server stands in for share.server.ts and the queue: the board holds the frames, the
-// requests, their messages and the server's clock; `write` changes a request as an agent's or
-// another viewer's call does, and the board pushes it. The tab reaches the server through `peer`,
-// which a test points at a new server after the old one closed: the socket drops and comes back.
-
 const live = "e".repeat(32);
 const pass = "3".repeat(32);
-/** The frames Home and Far. */
 const home = "0123456789ab";
 const far = "ba9876543210";
-/** The time of the stub server: the board's `serverClock` says it. */
 const serverNow = 1_800_000_000_000;
 const minute = 60_000;
 
-/** The stub server's state; it outlives a server, as a database does. */
 const store = {
   requests: [] as Request[],
   messages: [] as Message[],
-  /** Frame Far is on the board. */
   far: false,
-  /** Frame Far was removed: the board has it in `removed`. */
   farGone: false,
-  /** Frame Home's version. */
   homeVersion: 1,
 };
 
-/** The server the tab's `peer` points at now. */
 let current: Scope.Handle | null = null;
 
 const tick = (ms = 30) => new Promise((done) => setTimeout(done, ms));
@@ -58,7 +44,6 @@ const open = operation({
   run: () => ({ kind: "open" as const, canvas: "home", pass }),
 });
 
-/** Every guard: the pass reads `home`. */
 const passOnly = operation({
   label: "test.followPass",
   input: transport.hook.start,
@@ -66,7 +51,6 @@ const passOnly = operation({
     passMeta.safeParse(input.meta).data?.pass === pass ? undefined : input.refuse({ ended: true }),
 });
 
-/** A request on the store, with its ask: `n`, its text, and a patch. Newer for a lower `n`. */
 function stored(n: number, text: string, patch: Partial<Request> = {}) {
   const at = serverNow - minute * n;
   const row: Request = {
@@ -96,7 +80,6 @@ function stored(n: number, text: string, patch: Partial<Request> = {}) {
   return row;
 }
 
-/** A message of a request. */
 function said(r: Request, kind: Message["kind"], from: string, text: string | null, at: number) {
   const m: Message = {
     canvas: "home",
@@ -117,7 +100,6 @@ function said(r: Request, kind: Message["kind"], from: string, text: string | nu
   return m;
 }
 
-/** The board as the store holds it. */
 const seed = operation({
   label: "test.followSeed",
   depends: {
@@ -153,7 +135,6 @@ const seed = operation({
   },
 });
 
-/** What a change writes: a patch of the request, and a message. */
 const change = z.object({
   n: z.number(),
   patch: request.partial(),
@@ -162,7 +143,6 @@ const change = z.object({
     .optional(),
 });
 
-/** Changes request `n` on the store, with a new `updated`, and adds the message. */
 function changeStored(input: z.infer<typeof change>) {
   const i = store.requests.findIndex((r) => r.n === input.n);
   const before = store.requests[i];
@@ -178,7 +158,6 @@ function changeStored(input: z.infer<typeof change>) {
   return { row, m };
 }
 
-/** A change of a request, as an agent's or a viewer's call writes it: the board pushes it. */
 const write = operation({
   label: "test.followWrite",
   input: change,
@@ -190,7 +169,6 @@ const write = operation({
   },
 });
 
-/** A new request `n`, as a viewer's send in another tab writes it: the board pushes it. */
 const ask = operation({
   label: "test.followAsk",
   input: z.number(),
@@ -203,7 +181,6 @@ const ask = operation({
   },
 });
 
-/** A server with the stubs, on the store; the tab's `peer` points at it. */
 async function serve() {
   const server = await createScope({
     capsules: [
@@ -222,7 +199,6 @@ async function serve() {
   return server;
 }
 
-/** A fresh store and browser; `fill` puts requests on the store before the server seeds. */
 async function boot(fill?: () => void) {
   localStorage.removeItem(nameKey);
   localStorage.removeItem(visitKey + "home");
@@ -237,7 +213,6 @@ async function boot(fill?: () => void) {
   return serve();
 }
 
-/** A tab with the app's routes at the link, on the server `current` points at. */
 async function tab(first: Scope.Handle) {
   await page.viewport(1200, 800);
   const peer = new Proxy(first, {
@@ -283,20 +258,15 @@ async function tab(first: Scope.Handle) {
 
 type Tab = Awaited<ReturnType<typeof tab>>;
 
-// One tab: its controls by role and name. Two tabs overlap on the page, so the test of two tabs
-// reads each tab's own elements in its host.
 const requestsButton = () => page.getByRole("button", { name: /^Requests/ });
 const panel = () => page.getByRole("complementary", { name: "Requests" });
 const group = (name: string) => panel().getByRole("region", { name });
 
-/** The row of request `n`: its button names `#n`. */
 const row = (n: number) => panel().getByRole("button", { name: new RegExp(`#${n}(?!\\d)`) });
 
-/** The numbers of the rows in a part of the page, in order. */
 const rowsIn = (part: Element | null | undefined) =>
   [...(part?.querySelectorAll(".e-rr-ref") ?? [])].map((ref) => Number(ref.textContent?.slice(1)));
 
-/** The word of the state mark of request `n`'s row, in a host. */
 const markIn = (host: Element, n: number) =>
   [...host.querySelectorAll(".e-rr")]
     .find((r) => r.querySelector(".e-rr-ref")?.textContent === `#${n}`)
@@ -309,7 +279,6 @@ const pin = (n: number) => page.getByRole("button", { name: `Request #${n}`, exa
 const changedMark = (n: number) =>
   row(n).getByRole("img", { name: "Changed since your last visit" });
 
-/** A tab's own Requests button, panel and group, in its host. */
 const own = ({ host }: Tab) => {
   const button = () =>
     host.querySelector<HTMLButtonElement>('button[title="Requests on this canvas"]');
@@ -318,13 +287,11 @@ const own = ({ host }: Tab) => {
   return { button, group, mark: (n: number) => markIn(host, n) };
 };
 
-/** The tab's clock moves `ms`, and the page draws. */
 async function advance(t: Tab, ms: number) {
   t.clock.advance(ms);
   await tick();
 }
 
-/** A request in each state, as § Follow the requests 6 lists them. */
 function everyState() {
   stored(1, "Make the logo bigger.");
   stored(2, "Add a short FAQ here.", {
@@ -355,7 +322,6 @@ test("each state has its row in its list and group, newest first, with its own m
   const server = await boot(everyState);
   await tab(server);
 
-  // The count: a question, a result, a declined request, and one with 3 tries and no lease.
   await expect.element(requestsButton()).toHaveAccessibleName("Requests, 4 wait for you");
   expect(requestsButton().element()).toHaveAttribute("aria-pressed", "false");
   expect(requestsButton().element()).toHaveAttribute("title", "Requests on this canvas");
@@ -377,21 +343,17 @@ test("each state has its row in its list and group, newest first, with its own m
     10: "Waiting for an agent",
   };
   for (const [n, word] of Object.entries(words)) expect(markOf(Number(n))).toBe(word);
-  // In work, the agent's name shows as text after its mark.
   expect(row(2).getByText("claude-1", { exact: true }).elements()).toHaveLength(1);
-  // A row: the author, the age, the text, the place.
   expect(row(5).element().textContent).toContain("Lan");
   expect(row(5).element().textContent).toContain("5\u00a0min");
   expect(row(5).element().textContent).toContain("Add the coupon field.");
   expect(row(5).element().textContent).toContain("On Home");
   expect(row(10).element().textContent).toContain("On the whole canvas");
 
-  // Pins: the list Open only, accent while a viewer is waited for, danger for a person.
   const looks = [1, 2, 3, 4, 5, 6, 10].map((n) => pin(n).element().getAttribute("data-look"));
   expect(looks).toEqual(["quiet", "quiet", "waits", "waits", "person", "person", "quiet"]);
   for (const n of [7, 8, 9]) expect(pin(n).elements()).toHaveLength(0);
 
-  // The menu names the list on show, and gives the two lists with their counts.
   const menuButton = panel().getByRole("button", { name: "Open" });
   expect(menuButton.element()).toHaveAttribute("aria-haspopup", "menu");
   await menuButton.click();
@@ -448,7 +410,6 @@ test("each change of a request shows in every tab within 1 s, with no reload: th
     await expect.poll(() => t.mark(1)).toBe("Waiting for an agent");
   }
 
-  // An agent claims it.
   server.run(write, {
     input: {
       n: 1,
@@ -457,7 +418,6 @@ test("each change of a request shows in every tab within 1 s, with no reload: th
   });
   for (const t of tabs) await expect.poll(() => t.mark(1), { timeout: 1_000 }).toBe("claude-1");
 
-  // It asks a question: the request waits for a viewer.
   server.run(write, {
     input: {
       n: 1,
@@ -470,7 +430,6 @@ test("each change of a request shows in every tab within 1 s, with no reload: th
     expect(t.button()?.getAttribute("aria-label")).toBe("Requests, 1 wait for you");
   }
 
-  // A viewer answers: back to Other requests, waiting.
   server.run(write, {
     input: {
       n: 1,
@@ -520,7 +479,6 @@ test("a lease that runs out shows with no write: in work, then waiting at its en
   await expect.element(requestsButton()).toHaveAccessibleName("Requests, 1 wait for you");
   expect(pin(2).element().getAttribute("data-look")).toBe("person");
 
-  // Nothing was written: the board is as it was.
   expect(JSON.stringify(board.get())).toBe(before);
 });
 
@@ -531,7 +489,6 @@ test("a request changed since the last visit shows the mark Changed since your l
     stored(3, "Use our brand blue.");
     stored(9, "Older than the visit.");
   });
-  // The last visit was 5 min ago; #3 was opened at its last change.
   localStorage.setItem(visitKey + "home", String(serverNow - 5 * minute));
   localStorage.setItem(openedKey + "home", JSON.stringify({ r3: serverNow - 3 * minute }));
   await tab(server);
@@ -541,9 +498,7 @@ test("a request changed since the last visit shows the mark Changed since your l
   expect(changedMark(2).elements()).toHaveLength(1);
   expect(changedMark(3).elements()).toHaveLength(0);
   expect(changedMark(9).elements()).toHaveLength(0);
-  // The page wrote the time of this visit: the server's time now.
   await expect.poll(() => Number(localStorage.getItem(visitKey + "home"))).toBe(serverNow);
-  // Requests shows no count of changed requests.
   await expect.element(requestsButton()).toHaveAccessibleName("Requests");
 
   await row(1).click();
@@ -553,7 +508,6 @@ test("a request changed since the last visit shows the mark Changed since your l
     r1: serverNow - minute,
   });
 
-  // A change while it is open is seen at once; a change of #3 shows its mark.
   server.run(write, { input: { n: 1, patch: { tries: 0 } } });
   server.run(write, {
     input: { n: 3, patch: {}, message: { kind: "edit", from: "Tom", text: "Our blue." } },
@@ -562,7 +516,6 @@ test("a request changed since the last visit shows the mark Changed since your l
   expect(changedMark(1).elements()).toHaveLength(0);
   await userEvent.keyboard("{Escape}");
   expect(changedMark(1).elements()).toHaveLength(0);
-  // The row shows the corrected text.
   expect(row(3).element().textContent).toContain("Our blue.");
 });
 
@@ -580,7 +533,6 @@ test("a press on a row moves the canvas to the place of the request and opens it
   await expect.element(dialog).toBeVisible();
   expect(row(1).element()).toHaveAttribute("aria-current", "true");
   expect(panel().elements()).toHaveLength(1);
-  // The place is at 40% of the canvas's width and height.
   const view = page.getByRole("region", { name: "Frames" }).element().getBoundingClientRect();
   const at = pin(1).element().getBoundingClientRect();
   expect(Math.abs(at.left - (view.left + view.width * 0.4))).toBeLessThan(3);
@@ -626,11 +578,9 @@ test("a result that no viewer answers for 3 days moves to Done as Done, no answe
   await panel().getByRole("menuitemradio", { name: /Done/ }).click();
   expect(rowsIn(panel().query())).toEqual([1]);
   expect(markOf(1)).toBe("Done, no answer");
-  // Nothing was written: the board is as it was.
   expect(JSON.stringify(board.get())).toBe(before);
 });
 
-/** The outdated mark of request `n`'s row: its word, or null. */
 const outdatedOf = (n: number) =>
   [...document.querySelectorAll(".e-rr")]
     .find((r) => r.querySelector(".e-rr-ref")?.textContent === `#${n}`)
@@ -669,15 +619,12 @@ test("a waiting request may be outdated: its frame has a newer version, the fram
   expect(outdatedOf(3)).toBeNull();
   expect(outdatedOf(4)).toBeNull();
   expect(outdatedOf(5)).toBeNull();
-  // The pins of a removed frame go with it.
   expect(pin(2).elements()).toHaveLength(0);
 
-  // More than 7 days: a long wait.
   await advance(t, minute);
   expect(outdatedOf(3)).toBeNull();
   await advance(t, minute);
   await expect.poll(() => outdatedOf(3)).toBe("May be outdated: a long wait");
-  // It is a mark, not a state: the count and the groups do not change.
   await expect.element(requestsButton()).toHaveAccessibleName("Requests");
   expect(rowsIn(group("Other requests").query())).toEqual([1, 2, 4, 5, 3]);
   expect(JSON.stringify(board.get())).toBe(before);
@@ -696,7 +643,6 @@ test("a press on the row of a request of a removed frame moves the canvas to whe
   const area = page.getByRole("group", { name: "Far was removed" });
   await expect.element(area).toBeVisible();
   expect(area.element().textContent).toContain("Far was removed");
-  // The place is at 40% of the canvas's width and height, in the area.
   const view = page.getByRole("region", { name: "Frames" }).element().getBoundingClientRect();
   const at = pin(1).element().getBoundingClientRect();
   expect(Math.abs(at.left - (view.left + view.width * 0.4))).toBeLessThan(3);
@@ -710,7 +656,6 @@ test("a press on the row of a request of a removed frame moves the canvas to whe
   expect(pin(1).elements()).toHaveLength(0);
 });
 
-/** Request `n` with a long thread: its popover is as tall as it may be. */
 function longThread(n: number, x: number, y: number) {
   const r = stored(n, "Make the logo bigger.", { x, y });
   for (let i = 1; i <= 12; i++) {
@@ -719,7 +664,6 @@ function longThread(n: number, x: number, y: number) {
 }
 
 test("the popover opens below its pin; with no room below it flips above, and with no room above or below it goes beside; it stays in the view, over the dock, and never covers its pin (Follow the requests 10)", async () => {
-  // Fit shows Home at 100%, its top left at (400, 250) of the 1200 x 800 view.
   const server = await boot(() => {
     longThread(1, 40, 10);
     longThread(2, 40, 290);
@@ -803,7 +747,6 @@ test("the popover has the look of the design system: a 40 px head with a line un
   const head = one("header");
   expect([head.height, head.borderBottomWidth]).toEqual(["40px", "1px"]);
   expect(head.backgroundColor).toBe("rgb(238, 244, 252)");
-  // The reference and the place stay on one line, and end in "…" when they are too long.
   const ref = one(".e-head-ref");
   expect([ref.whiteSpace, ref.textOverflow, ref.overflow]).toEqual([
     "nowrap",
@@ -821,7 +764,6 @@ test("the popover has the look of the design system: a 40 px head with a line un
     "999px",
   ]);
   expect(agent?.borderTopLeftRadius).toBe("6px");
-  // The count on Requests in the dock (the design system's Count): 16 by 16 px, an 11 px number.
   const count = document.querySelector(".e-dock-btn .e-count");
   if (!count) throw new Error("no count");
   const drawn = count.getBoundingClientRect();
@@ -845,7 +787,6 @@ test("while the socket is down the list may be behind and says Reconnecting; whe
   await server.close();
   const reconnecting = page.getByRole("status").filter({ hasText: "Reconnecting" });
   await expect.element(reconnecting).toBeVisible();
-  // While it is down, an agent asks a question: the tab cannot know yet.
   changeStored({
     n: 1,
     patch: { status: "asking", claimedBy: "claude-1" },
@@ -879,7 +820,6 @@ test("SPEC-speed marks: easel:ask:<request id> comes when the pin of a new reque
   await requestsButton().click();
   server.run(ask, { input: 1 });
   await expect.poll(asks, { timeout: 1_000 }).toEqual([{ name: "easel:ask:r1", pin: true }]);
-  // The pin draws again when its request changes: its mark comes once.
   server.run(write, {
     input: {
       n: 1,

@@ -7,10 +7,6 @@ import { z } from "zod";
 import { type Issue, issueApi, issueBoard, states } from "./contract";
 import { me as signedAs, signIn } from "./sign-in";
 
-// The issue board's pages. No state of their own: each reads a keyed part with `useData` and asks
-// the server with `useRun`; the server's write comes back as a signal for that part alone.
-
-/** `/issues`: who you are, and which team to open (it is made if nobody has it yet). */
 export function IssuesHome() {
   const signedIn = useRun(signIn);
   const navigate = useNavigate();
@@ -51,15 +47,12 @@ export function IssuesHome() {
   );
 }
 
-/** A refusal's payload, when the reader is not in the team. */
 const notMember = z.object({ notMember: z.string() });
 
-/** A call's answer, as the page gets it. */
 type Out<K extends "team.add" | "issue.create" | "issue.move" | "comment.add"> = Awaited<
   ReturnType<(typeof issueApi)[K]["run"]>
 >;
 
-/** What a move's answer says. Every kind has its case: a new kind fails here. */
 function Moved({ out }: { out: Out<"issue.move"> | undefined }) {
   switch (out?.kind) {
     case undefined:
@@ -72,7 +65,6 @@ function Moved({ out }: { out: Out<"issue.move"> | undefined }) {
   }
 }
 
-/** What an add's answer says: an issue, a member or a comment. */
 function Added({ out }: { out: Out<"team.add" | "issue.create" | "comment.add"> | undefined }) {
   switch (out?.kind) {
     case undefined:
@@ -84,8 +76,6 @@ function Added({ out }: { out: Out<"team.add" | "issue.create" | "comment.add"> 
   }
 }
 
-/** `link`: no answer came. A read is asked again by itself. A call is not: when it left, the
- * server may have done it, so the person looks first. */
 function NoAnswer({ read, sent }: { read?: boolean; sent?: boolean }) {
   if (read) return <p role="status">Offline. Trying again.</p>;
 
@@ -98,11 +88,6 @@ function NoAnswer({ read, sent }: { read?: boolean; sent?: boolean }) {
   );
 }
 
-/** A fault, said by who spoke (Core 0.17.5): the server's answer, or this side with no answer.
- * - `refused`, `missing`: the server answered, and the same ask gives the same answer.
- * - `link`: no answer. A read is asked again by itself. A call is not: `sent` says if it left.
- *   When it did, the server may have done it, so the person looks first.
- * - the rest is a bug: it shows the trace id as a ref. The cause is in that trace, never here. */
 function Fault({ fault, read }: { fault: RemoteFault; read?: boolean }) {
   const { fault: kind, payload, sent, traceId } = fault;
   if (kind === "link") return <NoAnswer read={read} sent={sent} />;
@@ -116,14 +101,10 @@ function Fault({ fault, read }: { fault: RemoteFault; read?: boolean }) {
   return <p role="alert">{`Something broke.${traceId ? ` Ref ${traceId.slice(0, 8)}` : ""}`}</p>;
 }
 
-/** A call's error: shown when it is a fault of the board's api. */
 function CallFault({ error }: { error: unknown }) {
   return issueApi.fault.is(error) ? <Fault fault={error} /> : null;
 }
 
-/** A part that is not ready: not read yet, or a fault that stands. A broken link heals by
- * itself. Any other fault is the server's answer, so it waits for the person: "Try again" asks
- * for the part once more. */
 function Waiting({ state, again }: { state: PartState | undefined; again: () => void }) {
   if (state?.status !== "fault") return <p role="status">Loading.</p>;
 
@@ -139,7 +120,6 @@ function Waiting({ state, again }: { state: PartState | undefined; again: () => 
   );
 }
 
-/** `/issues/$team`: the team's issues in four lanes, live; the open thread beside them. */
 export function Board({ teamId }: { teamId: string }) {
   const part = issueBoard.issues.where({ teamId });
   const list = useData(part);
@@ -200,8 +180,6 @@ export function Board({ teamId }: { teamId: string }) {
   );
 }
 
-/** One card. Core keeps a member's reference until it changes, so a move draws this card alone
- * (and its new lane). */
 const Card = memo(function Card({ issue }: { issue: Issue }) {
   const move = useRun(issueApi["issue.move"]);
   const { teamId, id } = issue;
@@ -231,8 +209,6 @@ const Card = memo(function Card({ issue }: { issue: Issue }) {
   );
 });
 
-/** `/issues/$team/$id`: one issue's comments, live. Its part is read on its own, so it has its
- * own wait: an empty list before the answer would say "no comments" when that is not known. */
 export function Thread({ teamId, issueId }: { teamId: string; issueId: string }) {
   const part = issueBoard.comments.where({ teamId, issueId });
   const thread = useData(part);

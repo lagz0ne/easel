@@ -20,10 +20,6 @@ import { mcpLink } from "@/mcp/server";
 import { ops } from "@/ops";
 import { queue } from "@/queue";
 
-// `easel`: the CLI (SPEC-cli.md). The one place that reads its flags and the hosts file's path
-// (fact rule 1): it reads them, fills the `cli` capsule's config, runs one command against one
-// server, and exits by the command's answer. `easel serve` runs the server command.
-
 const help = `easel: the canvas CLI. Every command takes --json (one JSON value per line) and --server <url>.
 
   easel serve                                      start the server (PORT, PUBLIC_ORIGIN, EASEL_AUTH, EASEL_DB)
@@ -131,13 +127,11 @@ const options = {
 
 const common = { json: z.boolean().optional(), server: z.string().optional() };
 
-/** `--build`: a whole number, as typed. */
 const buildFlag = z
   .string()
   .regex(/^\d+$/, "--build takes a build number")
   .transform((typed) => Number(typed));
 
-/** The words and flags of `easel status` and `easel errors` (SPEC-ops.md). */
 const opsInvocations = [
   z
     .object({ positionals: z.tuple([z.literal("status")]), values: z.strictObject(common) })
@@ -209,10 +203,6 @@ const opsInvocations = [
     })),
 ] as const;
 
-/**
- * The words and flags of `easel canvas`, `put`, `ls`, `get`, `rm`, `share`, `unshare` and `shot`
- * (SPEC-frames.md).
- */
 const framesInvocations = [
   z
     .object({
@@ -241,7 +231,6 @@ const framesInvocations = [
       values: z.strictObject({
         ...common,
         name: z.string().optional(),
-        // As typed: `put` reads them, and a bad one is one line that names it (64).
         size: z.string().optional(),
         id: z.string().optional(),
         base: z.string().optional(),
@@ -325,7 +314,6 @@ const framesInvocations = [
       values: z.strictObject({
         ...common,
         out: z.string(),
-        // As typed: `shot` reads them, and a bad one is one line that names it (64).
         scale: z.string().optional(),
         region: z.string().optional(),
       }),
@@ -346,8 +334,6 @@ const framesInvocations = [
     })),
 ] as const;
 
-/** The words and flags of `easel next`, `extend`, `release`, `decline`, `ask`, `resolve`,
- * `requests`, `edit` and `close` (SPEC-queue.md). */
 const queueInvocations = [
   z
     .object({
@@ -447,11 +433,6 @@ const queueInvocations = [
     })),
 ] as const;
 
-/**
- * The words and flags of `easel look get|set|undo` (SPEC-kit.md § Change the look), of
- * `easel kit check` (§ Make an app frame), of `easel kit capsules` (§ The capsules) and of
- * `easel kit accept` (§ App frames, "Accept the runtime of this easel").
- */
 const lookInvocations = [
   z
     .object({
@@ -509,7 +490,6 @@ const lookInvocations = [
     })),
 ] as const;
 
-/** The words and flags of `easel channel set|ls|rm` and `easel deliveries` (SPEC-queue.md). */
 const channelInvocations = [
   z
     .object({
@@ -566,10 +546,6 @@ const channelInvocations = [
     })),
 ] as const;
 
-/**
- * The words and flags of each command, read into its `command` input and the server it names.
- * A flag that the command does not take is bad usage, as a word too many is.
- */
 const invocation = z.union([
   z
     .object({
@@ -599,7 +575,6 @@ const invocation = z.union([
         z.tuple([z.literal("login")]),
         z.tuple([z.literal("login"), z.string()]),
       ]),
-      // No --setup and no --no-wait: it keeps nothing, so it cannot resume.
       values: z.strictObject({ ...common, name: z.string(), "print-token": z.literal(true) }),
     })
     .transform(({ positionals: [, at], values }): unknown => ({
@@ -659,7 +634,6 @@ const invocation = z.union([
   ...lookInvocations,
 ]);
 
-/** The words and flags, read by `parseArgs`: `--help` anywhere asks for the help. */
 const argv = z
   .array(z.string())
   .transform((args, ctx): unknown => {
@@ -679,17 +653,12 @@ const argv = z
     ]),
   );
 
-/** Where the hosts file is: `$XDG_CONFIG_HOME/easel`, else `~/.config/easel` (as gh). */
 const configEnv = z
   .object({ XDG_CONFIG_HOME: z.string().optional(), HOME: z.string().optional() })
   .transform((env) =>
     join(env.XDG_CONFIG_HOME || join(env.HOME ?? "", ".config"), "easel", "hosts.json"),
   );
 
-/**
- * A server as typed, as an origin: `easel.vibea.dev` is https, a loopback name is http, and a URL
- * keeps its scheme. The origin is its key in the hosts file.
- */
 const origin = z
   .string()
   .transform((typed) => {
@@ -699,23 +668,14 @@ const origin = z
   })
   .pipe(z.string().regex(/^https?:\/\//, "not a server URL"));
 
-/** A run that ends before it reaches a server: its exit code, and what it prints. */
 type Early = { code: number; text: string; json: Record<string, unknown> };
 
-/**
- * A run with no file (SPEC-cli.md § Sign in with no file): `EASEL_TOKEN` and `EASEL_SERVER`, as
- * `gh` reads `GH_TOKEN` and `GH_HOST`. Empty counts as unset. Null when `EASEL_TOKEN` is not set.
- */
 const tokenEnv = z
   .object({ EASEL_TOKEN: z.string().optional(), EASEL_SERVER: z.string().optional() })
   .transform((env) => (env.EASEL_TOKEN ? { token: env.EASEL_TOKEN, at: env.EASEL_SERVER } : null));
 
 type Planned = { path: string; server: string; token: string | null; command: Command };
 
-/**
- * With `EASEL_TOKEN`: the server is `EASEL_SERVER`, and no hosts file is read (judged rule 5). A
- * `--server` (or a login's server) must be that one.
- */
 const tokenRun = z
   .object({
     token: z.string(),
@@ -739,7 +699,6 @@ const tokenRun = z
     return { code: 64, text: usage, json: { usage } };
   });
 
-/** One run, read from the words, the flags and the hosts file: what to run where, or its end. */
 const plan = z
   .object({ args: z.array(z.string()), env: configEnv, tokenEnv })
   .transform(({ args, env: path, tokenEnv }): Early | Planned => {
@@ -784,8 +743,6 @@ const main = defineMain(async (ctx) => {
 
   const app = createScope({
     signal,
-    // `easel put <canvas> -` reads the document from stdin; `easel shot` fetches the picture.
-    // `easel mcp` serves on stdin and stdout.
     tags: [
       stdinText(() => Bun.stdin.text()),
       pictureFetch((request) => fetch(request)),
@@ -817,7 +774,6 @@ const main = defineMain(async (ctx) => {
     ],
   });
   const live = await app.ready;
-  // A stop (Ctrl-C) cancels the run at once: a login that waits stays kept, for `--resume`.
   exit(await live.run(cli.run, { input: planned.command, signal }));
   return app;
 });

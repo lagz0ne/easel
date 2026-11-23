@@ -8,9 +8,6 @@ import { sources } from "@/kit/source.server";
 
 import { frame, testKit } from "./kit/fixture";
 
-// The make step (SPEC-kit.md § The make step): Tailwind 4.3.5 `compile()`, a new compiler for each
-// make, so the CSS of a frame is a pure function of the kit and the frame's class names.
-
 const root = new URL("..", import.meta.url);
 const scopes: Array<{ close: () => Promise<unknown> }> = [];
 
@@ -43,7 +40,6 @@ test("the same frames made in two orders give the same bytes for each frame", as
   expect(list).toBe(first[2]);
   expect(second[0]).toBe(first[1]);
   expect(second[1]).toBe(first[0]);
-  // No class of an earlier make is in a later one: each make has its own compiler.
   expect(first[1]).toContain(".mt-8");
   expect(first[1]).not.toContain(".p-4");
   expect(second[1]).not.toContain(".mt-8");
@@ -131,7 +127,6 @@ test("the pin: Tailwind is 4.3.5 and its design system still answers the check",
   expect(typeof system.parseCandidate).toBe("function");
   expect(typeof system.candidatesToCss).toBe("function");
 
-  // The answers that the check reads. A new pin that changes one of them fails here.
   expect(system.candidatesToCss(["bg-primary", "text-red-500", "btn", "text-7xl"])).toEqual([
     ".bg-primary {\n  background-color: var(--primary);\n}\n",
     null,
@@ -182,7 +177,6 @@ test("speed: a usual frame is checked and made well under the budget of 50 ms", 
   }
   times.sort((x, y) => x - y);
   const p50 = times[7] ?? Infinity;
-  // The budget is 50 ms for a frame of 1 MiB; a usual frame took 1.6 ms. Loose, so load does not fail it.
   expect(p50).toBeLessThan(25);
 });
 

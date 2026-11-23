@@ -8,14 +8,8 @@ import { aboutShape } from "./about";
 import { copy, type Texts } from "./copy";
 import { look } from "./look";
 
-// The pieces of the kit as a capsule (docs/decisions/kit-capsules.md): React components that use
-// the kit's classes, made from the copy that the scope installs. A frame composes them and does
-// not style them. Its start checks what the pieces need before any frame draws: the look meets
-// K8 (the contrast of each text and edge). Their texts are a part of the copy (`ui.text`).
-
 const about = tag({ label: "ui.about", parse: aboutShape });
 
-/** The texts of the pieces. */
 const texts = {
   en: {
     "ui.empty": "Nothing here yet",
@@ -27,7 +21,6 @@ const texts = {
   },
 } satisfies Texts;
 
-/** The `t` of the pieces: their texts in the locale of the scope. */
 const text = resource({
   label: "ui.text",
   tags: [copy.texts(texts)],
@@ -60,7 +53,6 @@ type ButtonProps = {
   children: ReactNode;
 };
 
-/** The pieces: Button, Card, Badge, Stat and Empty. */
 const pieces = resource({
   label: "ui.pieces",
   depends: { t: text },

@@ -7,14 +7,6 @@ import { check } from "./check.server";
 import { kitShape } from "./schema";
 import { sources } from "./source.server";
 
-// The make step (SPEC-kit.md § The make step): the only place that makes CSS (fact rule 4).
-
-/**
- * `make(source, classNames)`: the CSS of the class names, made by Tailwind CSS v4 `compile()` at
- * the one pinned version (4.3.5; fact rule 5). Each call makes a new compiler: `build()` keeps
- * each class that it saw before, so a shared compiler makes CSS that depends on the order of the
- * puts. The same inputs give the same bytes, in any order of calls and in any process.
- */
 export const make = operation({
   label: "kit.make",
   input: z.object({ source: z.string(), classNames: z.array(z.string()) }),
@@ -24,12 +16,6 @@ export const make = operation({
   },
 });
 
-/**
- * The made CSS of a frame version: the check first, then the make of only the class names that
- * pass it, with the frame source (the layer `utilities` only). Tailwind has no setting that turns
- * arbitrary values off, so the check removes them. A frame with `<meta name="easel-kit"
- * content="off">` gets no CSS and no finding.
- */
 export const makeFrame = operation({
   label: "kit.makeFrame",
   input: z.object({ html: z.string(), kit: kitShape }),
@@ -44,13 +30,6 @@ export const makeFrame = operation({
   },
 });
 
-/**
- * The made CSS and the JS of an app frame (SPEC-kit.md § App frames): the check of each of its
- * files first (`files`: one TSX is `{ "index.tsx": tsx }`), then the make of exactly the class
- * names of the fixed files, with the frame source, and the JS of the fixed files (`appBundle`).
- * With `names` (the runtime's), the findings of each module too. In a frame of more than one
- * file, each finding names its file. A file that does not parse makes nothing.
- */
 export const makeApp = operation({
   label: "kit.makeApp",
   input: z.object({

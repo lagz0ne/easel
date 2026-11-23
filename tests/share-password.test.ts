@@ -27,12 +27,6 @@ import { drawPage, pictureRoute, picturesServer } from "@/frames/pictures.server
 import { shareOps, shareServer } from "@/frames/share.server";
 import { framesServer } from "@/frames/store.server";
 
-// Share passwords and unshare, over the memory transport, against the frames-share chart
-// (docs/statecharts/frames-share.md, the full Share.cfg) and the server's half of the
-// viewer-gate-password chart: `share.open`'s answers and the refusals pushed to live reads.
-// Each test that follows an arrow or a rule is named by its wording. The page states that follow
-// (the password page, the wait, the ended page) are tests/browser/viewer-gate.test.tsx's.
-
 const closers: Array<() => unknown> = [];
 
 afterEach(async () => {
@@ -41,17 +35,11 @@ afterEach(async () => {
 
 const tick = (ms = 30) => new Promise((done) => setTimeout(done, ms));
 
-/** Waits until `ok` holds, a tick at a time, up to 2 s; then asserts it. */
 async function until(ok: () => boolean) {
   for (let i = 0; i < 100 && !ok(); i++) await tick(20);
   expect(ok()).toBe(true);
 }
 
-/**
- * One server as cmds/server.ts wires frames and share, with its spans and log lines kept. With
- * `pictures`, pictures are on, with a test draw, and the picture route answers `get`. `presets`
- * stand in for the server's own operations.
- */
 async function boot(
   file = ":memory:",
   pictures = false,
@@ -101,7 +89,6 @@ async function boot(
 
 type Server = Awaited<ReturnType<typeof boot>>;
 
-/** A client: an agent with a token, or a viewer's tab whose meta carries `held.pass`. */
 async function client(
   server: Scope.Handle,
   held: { token?: string; pass?: string } = {},
@@ -131,7 +118,6 @@ async function client(
     held,
     newCanvas: (name: string) => scope.run(frames.api["canvas.create"], { input: { name } }),
     canvases: () => scope.run(frames.api["canvas.list"], { input: null }),
-    /** `password`: a string sets it, null removes it, undefined sends no field. */
     share: (canvas: string, password?: string | null) =>
       scope.run(frames.api["canvas.share"], {
         input: password === undefined ? { canvas } : { canvas, password },
@@ -148,7 +134,6 @@ async function client(
 
 type Client = Awaited<ReturnType<typeof client>>;
 
-/** Ann, the first owner, signed in, and her agent's client. */
 async function ann(srv: Server) {
   const text = randomBytes(32).toString("base64url");
   const digest = createHash("sha256").update(text).digest("hex");
@@ -165,7 +150,6 @@ async function ann(srv: Server) {
 const linkOf = (answer: { kind: string; path?: string }) =>
   answer.kind === "shared" && answer.path ? answer.path.slice("/s/".length) : "";
 
-/** A canvas `flow` with a frame, shared with `password` (or none): Ann and its link. */
 async function sharedFlow(srv: Server, password?: string) {
   const a = await ann(srv);
   await a.newCanvas("flow");
@@ -176,7 +160,6 @@ async function sharedFlow(srv: Server, password?: string) {
   return { a, path: shared.path, link: linkOf(shared) };
 }
 
-/** The fault a call ended in, and its payload; null when it answered. */
 const faultOf = (call: Promise<unknown>) =>
   call.then(
     () => null,
@@ -186,7 +169,6 @@ const faultOf = (call: Promise<unknown>) =>
         : { fault: "other", payload: String(error) },
   );
 
-/** A tab's read of a canvas's frames, watched; its list and its last fault. */
 function watchFrames(tab: Client, canvas = "flow") {
   const list = tab.scope.resolve(frames.board.frames.where({ canvas }));
   closers.push(list.watch(() => undefined));
@@ -198,7 +180,6 @@ function watchFrames(tab: Client, canvas = "flow") {
   return { names: () => list.get().map((f) => f.name), fault };
 }
 
-/** A viewer's tab that opened `link` (with `password`) and reads `flow` live. */
 async function openTab(srv: Server, link: string, password?: string, peer?: string) {
   const tab = await client(srv.server, {}, peer);
   const opened = await tab.open(link, password);
@@ -210,7 +191,6 @@ async function openTab(srv: Server, link: string, password?: string, peer?: stri
   return { tab, read, pass: tab.held.pass };
 }
 
-/** A fresh read with `pass`, from a new tab: what a tab whose socket was down meets when back. */
 async function readWith(srv: Server, pass: string) {
   const tab = await client(srv.server, { pass });
   const read = watchFrames(tab);
@@ -225,15 +205,12 @@ const wrongPw = "not the password";
 const locked = { fault: "refused", payload: { locked: true } };
 const ended = { fault: "refused", payload: { ended: true } };
 
-/** The board's member for a frame, on the server: what a tab reads, with its picture key `k`. */
 const boardMember = operation({
   label: "test.boardMember",
   input: z.object({ canvas: z.string(), id: z.string() }),
   depends: { cells: frameCells.atScope.controller },
   run: ({ cells }, { input }) => cells.of(input).get(),
 });
-
-// ---- The picture links (frames-pictures: "the link ends" is a bump of the key generation)
 
 test("a password set or changed, and an unshare, end the old picture links: the picture key changes and its old address answers 404; the same password, no field and --no-password keep them", async () => {
   const srv = await boot(":memory:", true);
@@ -273,15 +250,12 @@ test("a password set or changed, and an unshare, end the old picture links: the 
   expect(await srv.get(second)).toBe(404);
 });
 
-// ---- Share with a password (frames-share: "a user shares it with a password (a new link)")
-
 test("the viewer opens a password link with no password: locked, the password page; it is no try, and never slowed (OpenWithoutPasswordIsNeverSlow)", async () => {
   const srv = await boot();
   const { link } = await sharedFlow(srv, pw1);
   const tab = await client(srv.server);
 
   for (let i = 0; i < 6; i++) expect(await tab.open(link)).toEqual({ kind: "locked" });
-  // Six opens with no password counted no wrong try: the right one opens.
   expect((await tab.open(link, pw1)).kind).toBe("open");
 });
 
@@ -291,7 +265,6 @@ test("the viewer types the right password: open, and the pass reads the canvas; 
   const tab = await client(srv.server);
 
   expect(await tab.open(link, wrongPw)).toEqual({ kind: "wrong" });
-  // A password is the whole string: one character off is wrong.
   expect(await tab.open(link, `${pw1} `)).toEqual({ kind: "wrong" });
   const { read } = await openTab(srv, link, pw1);
   expect(read.names()).toEqual(["Home"]);
@@ -307,9 +280,6 @@ test("a password typed on a link with none opens it: only a password link asks o
   expect((await tab.open(link)).kind).toBe("open");
 });
 
-// ---- Wrong tries (judged rule 14: NoMoreThan5WrongTriesAMinute, SlowEvenWithTheRightPassword,
-// TheLockLastsAMinute)
-
 test(
   "tries 1 to 5 that are wrong answer wrong; any try after 5 wrong ones answers slow, even the right password, until a minute from the 5th wrong one (NoMoreThan5WrongTriesAMinute, SlowEvenWithTheRightPassword)",
   { timeout: 30_000 },
@@ -321,17 +291,14 @@ test(
     expect(await tab.open(link, wrongPw)).toEqual({ kind: "wrong" });
     srv.clock.advance(10_000);
     for (let i = 2; i <= 5; i++) expect(await tab.open(link, wrongPw)).toEqual({ kind: "wrong" });
-    // The lock runs a minute from the 5th wrong try, not from the 1st: 60 s are left.
     expect(await tab.open(link, pw1)).toEqual({ kind: "slow", retryIn: 60_000 });
     expect(await tab.open(link, wrongPw)).toEqual({ kind: "slow", retryIn: 60_000 });
-    // An open with no password is no try: locked, never slow.
     expect(await tab.open(link)).toEqual({ kind: "locked" });
 
     srv.clock.advance(59_999);
     expect(await tab.open(link, pw1)).toEqual({ kind: "slow", retryIn: 1 });
     srv.clock.advance(1);
     expect((await tab.open(link, pw1)).kind).toBe("open");
-    // After the lock the count starts again: 5 more wrong ones answer wrong.
     for (let i = 1; i <= 5; i++) expect(await tab.open(link, wrongPw)).toEqual({ kind: "wrong" });
     expect((await tab.open(link, wrongPw)).kind).toBe("slow");
   },
@@ -350,11 +317,8 @@ test(
       srv.clock.advance(12_500);
       expect(await tab.open(link, wrongPw)).toEqual({ kind: "wrong" });
     }
-    // The 5th wrong try was 50 s after the 1st. The lock lasts a minute from the 5th, not from
-    // the 1st: 20 s later, 40 s are left.
     srv.clock.advance(20_000);
     expect(await tab.open(link, pw1)).toEqual({ kind: "slow", retryIn: 40_000 });
-    // A wrong try in the lock is not counted, and does not make the lock longer.
     srv.clock.advance(10_000);
     expect(await tab.open(link, wrongPw)).toEqual({ kind: "slow", retryIn: 30_000 });
 
@@ -362,7 +326,6 @@ test(
     expect(await tab.open(link, pw1)).toEqual({ kind: "slow", retryIn: 1 });
     srv.clock.advance(1);
     expect((await tab.open(link, pw1)).kind).toBe("open");
-    // After the lock the count starts again: 4 wrong tries do not lock, the 5th does, after it.
     for (let i = 1; i <= 4; i++) expect(await tab.open(link, wrongPw)).toEqual({ kind: "wrong" });
     expect((await tab.open(link, pw1)).kind).toBe("open");
     expect(await tab.open(link, wrongPw)).toEqual({ kind: "wrong" });
@@ -380,7 +343,6 @@ test(
 
     for (let i = 1; i <= 4; i++) expect(await tab.open(link, wrongPw)).toEqual({ kind: "wrong" });
     srv.clock.advance(60_000);
-    // A new minute: this wrong try is the 1st of a new count.
     expect(await tab.open(link, wrongPw)).toEqual({ kind: "wrong" });
     expect((await tab.open(link, pw1)).kind).toBe("open");
   },
@@ -390,8 +352,6 @@ test(
   "a right password checked while 29 wrong ones are checked too waits, once 5 of them count: 30 tries at once, the right one last, do not open (SlowEvenWithTheRightPassword)",
   { timeout: 30_000 },
   async () => {
-    // Each check holds its answer until all 30 have passed the first lockout check, and the
-    // right one until the 29 wrong ones have answered: the order a busy server may give them.
     const seen = { entered: 0, answered: 0 };
     const held = preset(passwordMatches, async (_, { input }) => {
       seen.entered += 1;
@@ -432,11 +392,9 @@ test(
     const other = await client(srv.server, {}, "203.0.113.7");
     const tab = await client(srv.server);
 
-    // Another address's wrong try starts the sweep's minute.
     expect(await other.open(link, wrongPw)).toEqual({ kind: "wrong" });
     srv.clock.advance(30_000);
     for (let i = 1; i <= 5; i++) expect(await tab.open(link, wrongPw)).toEqual({ kind: "wrong" });
-    // The sweep runs on this try, a minute after the last: the viewer's lock is 30 s old.
     srv.clock.advance(30_000);
     expect(await tab.open(link, pw1)).toEqual({ kind: "slow", retryIn: 30_000 });
     srv.clock.advance(30_000);
@@ -472,10 +430,8 @@ test(
 
     for (let i = 1; i <= 5; i++) expect(await other.open(link, wrongPw)).toEqual({ kind: "wrong" });
     expect((await other.open(link, pw1)).kind).toBe("slow");
-    // The viewer, at another address, opens; and the other address opens another link.
     expect((await viewer.open(link, pw1)).kind).toBe("open");
     expect((await other.open(side, pw2)).kind).toBe("open");
-    // The viewer's own wrong tries start at 1.
     expect(await viewer.open(link, wrongPw)).toEqual({ kind: "wrong" });
   },
 );
@@ -494,8 +450,6 @@ test(
   },
 );
 
-// ---- Share again (frames-share: "a user shares it again with a new password"; judged rules 12-13)
-
 test("a user shares it again with a new password: the same link; each live read gets locked at once; a new open needs the new password (ATabShowsTheCanvasOnlyUnderTheCurrentPassword, LockPushedAtOnce)", async () => {
   const srv = await boot();
   const { a, path, link } = await sharedFlow(srv, pw1);
@@ -505,7 +459,6 @@ test("a user shares it again with a new password: the same link; each live read 
   expect(await a.share("flow", pw2)).toEqual({ kind: "shared", path });
   await until(() => first.read.fault() !== null && second.read.fault() !== null);
   expect([first.read.fault(), second.read.fault()]).toEqual([locked, locked]);
-  // A tab whose socket was down meets it on its next read.
   expect(await readWith(srv, first.pass)).toEqual(locked);
 
   const tab = await client(srv.server);
@@ -556,7 +509,6 @@ test("--no-password removes the password, and the passes stay; the link opens wi
   expect(await a.share("flow")).toEqual({ kind: "shared", path });
   expect((await tab.open(link)).kind).toBe("open");
 
-  // Setting a password once more ends every pass, those given with none too.
   expect(await a.share("flow", pw2)).toEqual({ kind: "shared", path });
   await until(() => open.read.fault() !== null);
   expect(open.read.fault()).toEqual(locked);
@@ -587,14 +539,11 @@ test("a share with no password field keeps the password: the link still asks it,
   expect(await readWith(srv, open.pass)).toEqual(["Home"]);
 });
 
-// ---- Unshare (frames-share: "a user unshares it"; judged rules 12-13)
-
 test("a user unshares it: each live read gets ended at once, and the link answers gone, a password too (ATabShowsTheCanvasOnlyWhileItsLinkIsLive, EndPushedAtOnce)", async () => {
   const srv = await boot();
   const { a, link } = await sharedFlow(srv, pw1);
   const open = await openTab(srv, link, pw1);
   const tab = await client(srv.server);
-  // The tab reads a frame's document too, as the canvas does for each frame it draws.
   const [frame] = open.tab.scope.resolve(frames.board.frames.where({ canvas: "flow" })).get();
   const doc = open.tab.scope.resolve(frames.board.docs.of({ canvas: "flow", id: frame?.id ?? "" }));
   closers.push(doc.watch(() => undefined));
@@ -620,7 +569,6 @@ test("an ended link stays ended: sharing again makes a new link, and the old one
   const open = await openTab(srv, link);
 
   expect(await a.unshare("flow")).toEqual({ kind: "unshared" });
-  // Unshare on a canvas that is not shared answers unshared too.
   expect(await a.unshare("flow")).toEqual({ kind: "unshared" });
   const again = await a.share("flow", pw1);
   expect(again.kind).toBe("shared");
@@ -645,8 +593,6 @@ test("unshare on a canvas that is not there answers gone; a guest's unshare is r
   });
   expect((await guest.open(link)).kind).toBe("open");
 });
-
-// ---- Kept and never shown (judged rules 10 and 15)
 
 test(
   "a password is kept only as its argon2id hash; it, and a locked pass, survive a restart",
@@ -726,7 +672,6 @@ test("no password, hash, link or pass reaches a span, a log record, the console,
   const pass = opened.kind === "open" ? opened.pass : "";
   await a.share("flow", pw2);
   await a.share("flow", pw2);
-  // The client checks the input before it sends: its error names the field, not the value.
   const short = "short12";
   const bad = await Promise.try(() => a.share("flow", short)).then(
     () => null,

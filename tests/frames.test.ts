@@ -23,23 +23,14 @@ import { framesServer } from "@/frames/store.server";
 
 import { listen, wsClient, wsServer } from "./support/ws";
 
-// frames over the memory transport, against the frames-writes chart (docs/statecharts/
-// frames-writes.md, models/frames/Writes.tla) and SPEC-frames' rules. Each test that follows an
-// arrow or a rule is named by its wording. The server runs on a test clock.
-//
-// Not reached in this ship: `an agent deletes the canvas` and `ADeletedCanvasHasNoFrames` wait
-// for `easel canvas rm`.
-
 const closers: Array<() => unknown> = [];
 
 afterEach(async () => {
   for (const close of closers.splice(0).reverse()) await close();
 });
 
-/** Lets a call, or a board push, cross the transport. */
 const tick = (ms = 30) => new Promise((done) => setTimeout(done, ms));
 
-/** Waits until `ok` holds, a tick at a time, up to 2 s. */
 async function until(ok: () => boolean) {
   for (let i = 0; i < 100 && !ok(); i++) await tick(20);
   expect(ok()).toBe(true);
@@ -47,7 +38,6 @@ async function until(ok: () => boolean) {
 
 type Boot = { file?: string; clock?: ReturnType<typeof makeTestClock> };
 
-/** One server: SQLite, access, frames and a memory transport, as cmds/server.ts wires them. */
 async function boot(options: Boot = {}) {
   const clock = options.clock ?? makeTestClock({ now: 1_800_000_000_000 });
   const out: string[] = [];
@@ -79,7 +69,6 @@ async function boot(options: Boot = {}) {
 
 type Server = Awaited<ReturnType<typeof boot>>;
 
-/** One agent's CLI, signed in with `token`, or with none. */
 async function agent(server: Scope.Handle, token?: string) {
   const meta = operation({
     label: "test.meta",
@@ -100,7 +89,6 @@ async function agent(server: Scope.Handle, token?: string) {
   return { scope, ...calls(scope) };
 }
 
-/** frames' six calls on one client scope. */
 function calls(scope: Scope.Handle) {
   return {
     newCanvas: (name: string) => scope.run(frames.api["canvas.create"], { input: { name } }),
@@ -118,7 +106,6 @@ type PutInput =
   | { canvas: string; html: string; name?: string; size?: { w: number; h: number } }
   | { canvas: string; html: string; id: string; base: number };
 
-/** Ann, the first owner, signed in: the setup code makes her and her CLI holds her token. */
 async function signedIn(srv: Server) {
   const text = randomBytes(32).toString("base64url");
   const digest = createHash("sha256").update(text).digest("hex");
@@ -132,7 +119,6 @@ async function signedIn(srv: Server) {
   return text;
 }
 
-/** A signed-in server and two agents on it (A and B in the model), and a canvas. */
 async function twoAgents(options: Boot = {}) {
   const srv = await boot(options);
   const token = await signedIn(srv);
@@ -142,7 +128,6 @@ async function twoAgents(options: Boot = {}) {
   return { srv, token, a, b };
 }
 
-/** The fault a call ended in, and its payload; null when it answered. */
 const faultOf = (call: Promise<unknown>) =>
   call.then(
     () => null,
@@ -152,7 +137,6 @@ const faultOf = (call: Promise<unknown>) =>
         : { fault: "other", payload: String(error) },
   );
 
-/** Bad input stops on the client, as rpc checks it there: nothing is sent. */
 const notSent = (call: () => Promise<unknown>) =>
   Promise.resolve()
     .then(call)
@@ -162,15 +146,12 @@ const notSent = (call: () => Promise<unknown>) =>
         String(error).includes("DataValidationFailed") ? "not sent" : String(error),
     );
 
-/** Puts a new frame and answers its id. */
 async function newFrame(a: Awaited<ReturnType<typeof agent>>, canvas: string, html: string) {
   const made = await a.put({ canvas, html });
   if (made.kind !== "created") throw new Error(`not created: ${made.kind}`);
 
   return made.id;
 }
-
-// ---- s0 -> s1: an agent makes the canvas (SPEC-frames § Make a canvas; decisions C1, C3)
 
 test("an agent makes the canvas: its key is the name's slug, and canvas ls lists it", async () => {
   const { srv, a } = await twoAgents();
@@ -214,8 +195,6 @@ test("a name with no letter or digit is invalid and is not sent, and a key is cu
   });
   expect(await a.canvases()).toMatchObject({ canvases: [{ key: "a".repeat(39) }] });
 });
-
-// ---- s1 -> s3: an agent puts a new frame (decision C2)
 
 test("an agent puts a new frame: version 1, the first at 0,0, each next right of the rightmost by 80", async () => {
   const { a } = await twoAgents();
@@ -270,8 +249,6 @@ test("a new frame on a canvas that is not there answers gone, and makes nothing"
   expect(await a.list("nowhere")).toEqual({ kind: "gone" });
 });
 
-// ---- s5 -> s3: a put on the current version saves a new document (EachDocumentChangeRaisesTheVersionByOne)
-
 test("a put on the current version saves a new document, and raises the version by one", async () => {
   const { a } = await twoAgents();
   await a.newCanvas("flow");
@@ -297,8 +274,6 @@ test("a put on the current version saves a new document, and raises the version 
   });
 });
 
-// ---- TheVersionGoesUpOnlyWhenTheDocumentChanges (F2)
-
 test("TheVersionGoesUpOnlyWhenTheDocumentChanges: the same document answers unchanged, and the version stays", async () => {
   const { a } = await twoAgents();
   await a.newCanvas("flow");
@@ -314,8 +289,6 @@ test("TheVersionGoesUpOnlyWhenTheDocumentChanges: the same document answers unch
   expect(await a.get("flow", id)).toMatchObject({ frame: { version: 1, html: "<p>1</p>" } });
 });
 
-// ---- s7 -> s5: a put on an old version answers stale, nothing written (AWriteOnAnOldVersionIsNeverSaved, ARefusalWritesNothing)
-
 test("a put on an old version answers stale, nothing written", async () => {
   const { a, b } = await twoAgents();
   await a.newCanvas("flow");
@@ -327,7 +300,6 @@ test("a put on an old version answers stale, nothing written", async () => {
     id,
     version: 2,
   });
-  // The same document as stored, on an old version, is stale too: B never read version 2.
   expect(await b.put({ canvas: "flow", id, base: 1, html: "<p>a</p>" })).toEqual({
     kind: "stale",
     id,
@@ -354,8 +326,6 @@ test("AWriteOnAnOldVersionIsNeverSaved: of two puts on one version at once, one 
   }
 });
 
-// ---- s7 -> s5: ... or the agent gets the frame again
-
 test("the agent gets the frame again, and a put on that version saves", async () => {
   const { a, b } = await twoAgents();
   await a.newCanvas("flow");
@@ -369,8 +339,6 @@ test("the agent gets the frame again, and a put on that version saves", async ()
     await b.put({ canvas: "flow", id, base: got.frame.version, html: `${got.frame.html}<p>b</p>` }),
   ).toEqual({ kind: "updated", id, version: 3, findings: [], more: 0 });
 });
-
-// ---- APutOnAnIdNeverMakesAFrame (F3)
 
 test("APutOnAnIdNeverMakesAFrame: a put on an id that is not there answers gone", async () => {
   const { a } = await twoAgents();
@@ -387,7 +355,6 @@ test("an id without base, base without an id, or name or size with an id is inva
   const { a } = await twoAgents();
   await a.newCanvas("flow");
   const id = await newFrame(a, "flow", "<p>1</p>");
-  // Each is a plain object the type lets through; the contract's strict shapes do not.
   const noBase = { canvas: "flow", html: "x", id };
   const noId = { canvas: "flow", html: "x", base: 1 };
   const named = { canvas: "flow", html: "x", id, base: 1, name: "n" };
@@ -398,8 +365,6 @@ test("an id without base, base without an id, or name or size with an id is inva
 
   expect(await a.get("flow", id)).toMatchObject({ frame: { version: 1, html: "<p>1</p>" } });
 });
-
-// ---- s3/s5 -> s4: an agent deletes the frame (ADeletedFrameIsOffTheBoard, ADeletedFrameStaysDeleted)
 
 test("an agent deletes the frame: it stays deleted, and a later put or get answers gone", async () => {
   const { a, b } = await twoAgents();
@@ -424,9 +389,6 @@ test("frame.get and frame.list answer gone for a canvas or frame that is not the
   expect(await a.rm("nowhere", "0123456789ab")).toEqual({ kind: "gone" });
 });
 
-// ---- A failed write keeps nothing: the row, the cell and the answer stay as they were
-
-/** Runs raw SQL on the server's own SQLite connection: to break a row, or its writes. */
 const sql = (srv: Server, text: string) =>
   srv.server.run(
     operation({
@@ -473,12 +435,9 @@ test("a row that does not parse after its write rolls the write back, and the ca
   expect(await a.list("flow")).toMatchObject({ frames: [{ id, version: 1 }] });
 });
 
-// ---- tooBig: measured on UTF-8 bytes, not string length (SPEC-frames § Contract)
-
 test("a document over 1 MiB of UTF-8 answers tooBig and writes nothing; 1 MiB itself saves", async () => {
   const { a } = await twoAgents();
   await a.newCanvas("flow");
-  // 600 000 "é" is under 1 MiB of string length, and 1.2 MB of UTF-8.
   const wide = "é".repeat(600_000);
   expect(wide.length).toBeLessThan(maxDocBytes);
   expect(await a.put({ canvas: "flow", html: wide })).toEqual({
@@ -494,8 +453,6 @@ test("a document over 1 MiB of UTF-8 answers tooBig and writes nothing; 1 MiB it
   });
   expect(await a.get("flow", id)).toMatchObject({ frame: { version: 1 } });
 });
-
-// ---- The board: the board shows the stored version (TheBoardNeverShowsAVersionNotStored, TheBoardNeverGoesBack, AtRestTheBoardShowsTheStoredVersion)
 
 test("the board shows the stored version, never goes back, and drops a deleted frame", async () => {
   const { srv, token, a, b } = await twoAgents();
@@ -530,8 +487,6 @@ test("the board shows the stored version, never goes back, and drops a deleted f
   await until(() => doc.get() === undefined && list.get().length === 0);
 });
 
-// ---- mayRead: a read with no user is refused, as `user` refuses (fact rules 1 and 6)
-
 test("a call or a board read with no user token is refused, sign in", async () => {
   const srv = await boot();
   await signedIn(srv);
@@ -553,9 +508,6 @@ test("a call or a board read with no user token is refused, sign in", async () =
   expect(list.get()).toEqual([]);
 });
 
-// ---- Restart: the store is the truth (fact rule 5; decision C6)
-
-// Each write in this test is fsynced (synchronous=FULL, decision C6): on a loaded disk, ~0.5 s.
 test("after a restart, canvases, frames and versions are as stored, synchronous is FULL, and a bad row is skipped", async () => {
   const dir = mkdtempSync(join(tmpdir(), "easel-frames-"));
   closers.push(() => rmSync(dir, { recursive: true, force: true }));
@@ -584,7 +536,6 @@ test("after a restart, canvases, frames and versions are as stored, synchronous 
     }),
   );
   expect(pragma).toEqual({ synchronous: 2 });
-  // The users are in the same file: ann's token still works.
   const a = await agent(second.server, first.token);
   expect(await a.canvases()).toMatchObject({ canvases: [{ key: "flow" }] });
   expect(await a.list("flow")).toMatchObject({ kind: "found", frames: [{ id, version: 2 }] });
@@ -595,8 +546,6 @@ test("after a restart, canvases, frames and versions are as stored, synchronous 
     version: 2,
   });
 }, 60_000);
-
-// ---- The socket's maxPayload (decision C11): a document a little over 1 MiB answers tooBig
 
 test("over a real socket, a document a little over 1 MiB answers tooBig, not a closed socket", async () => {
   const srv = await boot();

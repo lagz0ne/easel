@@ -22,11 +22,6 @@ import { framesLoads, framesOps, mayRead } from "@/frames/ops.server";
 import { shareServer } from "@/frames/share.server";
 import { framesServer } from "@/frames/store.server";
 
-// `easel share <canvas>` (SPEC-frames.md § Share a canvas) as the cmd runs it: the CLI's capsule
-// over the memory transport against the real share server on SQLite in memory. It prints the
-// link's page on its own server (decision C4); `--password` sets the link's password and
-// `--no-password` removes it (a short one, or both, is bad usage); `easel unshare` ends the link.
-
 const closers: Array<() => unknown> = [];
 
 afterEach(async () => {
@@ -37,7 +32,6 @@ const tick = (ms = 20) => new Promise((done) => setTimeout(done, ms));
 
 const origin = "https://easel.test";
 
-/** A `canvas.share` that never answers, so the CLI's deadline ends it. */
 const hangingShare = operation({
   label: "test.hangingShare",
   input: framesApi["canvas.share"].input,
@@ -47,7 +41,6 @@ const hangingShare = operation({
   },
 });
 
-/** A `canvas.share` that throws: the server's `failed` fault. */
 const brokenShare = operation({
   label: "test.brokenShare",
   input: framesApi["canvas.share"].input,
@@ -56,14 +49,12 @@ const brokenShare = operation({
   },
 });
 
-/** A `canvas.share` that answers a path off the server: `//evil.example/s/<32 hex>`. */
 const offSiteShare = operation({
   label: "test.offSiteShare",
   input: framesApi["canvas.share"].input,
   run: () => ({ kind: "shared" as const, path: `//evil.example/s/${"a".repeat(32)}` }),
 });
 
-/** One server: access, frames and share on SQLite in memory, and a memory transport. */
 async function boot(share: "real" | "hang" | "broken" | "offSite" = "real") {
   const clock = makeTestClock({ now: 1_800_000_000_000 });
   const out: string[] = [];
@@ -99,7 +90,6 @@ async function boot(share: "real" | "hang" | "broken" | "offSite" = "real") {
 
 type Srv = Awaited<ReturnType<typeof boot>>;
 
-/** One CLI, as the cmd builds it: what it prints, and its runs. */
 async function easel(srv: Srv, json = true) {
   const dir = mkdtempSync(join(tmpdir(), "easel-share-cli-"));
   closers.push(() => rmSync(dir, { recursive: true, force: true }));
@@ -132,7 +122,6 @@ async function easel(srv: Srv, json = true) {
   return {
     out,
     err,
-    /** A share command goes to `shareRun`, any other to `framesRun`, as `cli.run` sends them. */
     run: (command: FramesCommand | ShareCommand) =>
       command.kind === "share" || command.kind === "unshare"
         ? scope.run(shareRun, { input: command })
@@ -141,7 +130,6 @@ async function easel(srv: Srv, json = true) {
       scope.run(cli.run, {
         input: { kind: "login", name: "ann", setup: srv.setupCode(), noWait: false },
       }),
-    /** Each JSON line printed since the last read. */
     lines: () =>
       out
         .splice(0)
@@ -152,7 +140,6 @@ async function easel(srv: Srv, json = true) {
   };
 }
 
-/** Ann, the first owner, signed in on her own CLI, and a canvas `flow`. */
 async function ann(srv: Srv, json = true) {
   const a = await easel(srv, json);
   expect(await a.login()).toBe(0);
@@ -281,7 +268,6 @@ test("a share answer whose path is not /s/<link> prints no URL: the link stays o
   const srv = await boot("offSite");
   const a = await ann(srv);
   const code = await a.run({ kind: "share", canvas: "flow" });
-  // The contract holds the path to /s/<32 hex>: an answer off it is the server's bug, 70.
   expect(code).toBe(70);
   expect(JSON.stringify(a.lines())).not.toContain("evil.example");
 });

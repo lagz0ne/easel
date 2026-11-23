@@ -4,23 +4,14 @@ import { z } from "zod";
 import { fontFaces } from "./fonts.server";
 import { alias, lookPaths, lookType, valueOf } from "./shape";
 
-// The look in the DTCG format 2025.10 (SPEC-kit.md § Objective) and its CSS: each look value is a
-// CSS custom property. A color's name drops its group (`color.primary` is `--primary`); the
-// others join their path with `-` (`text.sm` is `--text-sm`, `spacing` is `--spacing`). An alias
-// (`{font.sans}`) takes the value that it names. A type is the token's own `$type`, or that of the
-// nearest group that has one.
-
 const { color, dimension } = valueOf;
 
-/** A DTCG file: groups and look values. Each key that starts with `$` is a property. */
 export const dtcg = z.record(z.string(), z.unknown());
 
 export type Dtcg = z.infer<typeof dtcg>;
 
-/** One look value as the walk finds it: its path, its type and its `$value`. */
 type Found = { path: string[]; type: string | undefined; value: unknown };
 
-/** The look values of a DTCG file, in the order of the file, with the type that each one has. */
 export const lookTokens = operation({
   label: "kit.lookTokens",
   input: dtcg,
@@ -48,7 +39,6 @@ export const lookTokens = operation({
   },
 });
 
-/** A color's CSS: `#rrggbb`, with an alpha byte when it is not opaque. */
 export const colorCss = operation({
   label: "kit.colorCss",
   input: color,
@@ -64,14 +54,12 @@ export const colorCss = operation({
   },
 });
 
-/** A dimension's CSS: `14px`, `0.875rem`. */
 export const lengthCss = operation({
   label: "kit.lengthCss",
   input: dimension,
   run: (_, { input }) => `${input.value}${input.unit}`,
 });
 
-/** A shadow's CSS: its layers, each `[inset] x y blur spread color`. */
 export const shadowCss = operation({
   label: "kit.shadowCss",
   input: valueOf.shadow,
@@ -93,7 +81,6 @@ export const shadowCss = operation({
       .join(", "),
 });
 
-/** A font family's CSS: its names, each quoted unless it is one word or a generic family. */
 export const fontCss = operation({
   label: "kit.fontCss",
   input: valueOf.fontFamily,
@@ -106,7 +93,6 @@ export const fontCss = operation({
   },
 });
 
-/** The CSS of one `$value` of a type. An alias answers null: its target gives its value. */
 export const valueCss = operation({
   label: "kit.valueCss",
   input: z.object({ path: z.array(z.string()), type: z.string().optional(), value: z.unknown() }),
@@ -130,7 +116,6 @@ export const valueCss = operation({
   },
 });
 
-/** The look value that an alias names, through up to 10 aliases; the token itself when it is no alias. */
 export const resolveAlias = operation({
   label: "kit.resolveAlias",
   input: z.custom<{ token: Found; byPath: Map<string, Found> }>(),
@@ -150,11 +135,6 @@ export const resolveAlias = operation({
   },
 });
 
-/**
- * The look values of a DTCG look, by CSS name, in the order of the file. A value that does not fit
- * its type, a name that is no CSS name, or an alias to a missing value throws: the caller's look
- * is not valid.
- */
 export const lookValues = operation({
   label: "kit.lookValues",
   input: dtcg,
@@ -176,10 +156,6 @@ export const lookValues = operation({
   },
 });
 
-/**
- * The look as one unlayered `:root` block of look values: what `compose` puts in `easel-look`.
- * The `@font-face` rules of the held fonts that the look names come first.
- */
 export const rootBlock = operation({
   label: "kit.rootBlock",
   input: z.record(z.string(), z.string()),
@@ -190,15 +166,8 @@ export const rootBlock = operation({
       .join("")}}\n`,
 });
 
-/** A part of a DTCG file as an object: `{}` when it is none. */
 const asNode = z.record(z.string(), z.unknown()).catch({});
 
-/**
- * The stored look with a patch merged in (RFC 7386, of values only; SPEC-kit § Change the look,
- * step 2): each `$value` of the patch replaces the stored `$value` whole, as a value is not
- * merged into the old one. The stored `$type` and `$description` stay. The patch was checked
- * against the look's names (`lookPatch`), so it holds no other key.
- */
 export const mergeLook = operation({
   label: "kit.mergeLook",
   input: z.object({ look: dtcg, patch: dtcg }),

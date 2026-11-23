@@ -31,16 +31,6 @@ import { endedRefusal, lockedRefusal, passMeta } from "./share";
 import { passCanvas, shareCanvas, unshareCanvas } from "./share.server";
 import { canvases, dropFrame, readDoc, saveCanvas, saveFrame } from "./store.server";
 
-// frames' calls (after the `user` guard, fact rule 1) and the board's guard and load. V1: any
-// signed-in user may write any canvas; one team per server (decision C9).
-
-/**
- * Every board read (fact rule 6): a live user, or a live pass for the part's canvas. A read whose
- * meta carries a pass is judged by the pass alone: one a password set or changed ended is refused
- * `{ locked: true }`, and the page asks the password; any other that is not live for that canvas
- * is refused `{ ended: true }`, and the page says the link has ended. Any other read goes to
- * `user`: no token, or a dead one, is refused `{ signIn: true }`.
- */
 export const mayRead = operation({
   label: "frames.mayRead",
   input: transport.hook.start,
@@ -62,11 +52,6 @@ export const mayRead = operation({
   },
 });
 
-/**
- * What the page needs to show an app frame's version: its JS, its kit version, and the address
- * and the files of that kit version's runtime, as stored (the put stored it: SPEC-kit § App
- * frames, "The runtime"). Null for an HTML frame.
- */
 const appOf = operation({
   label: "frames.appOf",
   input: z.object({ js: z.string().nullable(), kit: z.number().nullable() }),
@@ -81,11 +66,6 @@ const appOf = operation({
   },
 });
 
-/**
- * The board's `docs` load: one frame's current document and its made CSS, read from its row
- * (decision C12), and for an app frame its JS and runtime (`app`). The CSS is the stored one: a
- * show never makes CSS (K11).
- */
 export const loadDocs = operation({
   label: "frames.loadDocs",
   input: z.object({ canvas: z.string(), id: z.string() }),
@@ -100,14 +80,12 @@ export const loadDocs = operation({
   },
 });
 
-/** The board's `serverClock` load: the time of the server now, for a tab's clock offset. */
 export const loadServerClock = operation({
   label: "frames.loadServerClock",
   input: z.object({ canvas: z.string() }),
   run: (_, { input, clock }) => [{ canvas: input.canvas, now: clock.currentTimeMillis() }],
 });
 
-/** `canvas.create`: the name's key, if no canvas has it (decision C3). */
 export const createCanvas = operation({
   label: "canvas.create.do",
   input: framesApi["canvas.create"].input,
@@ -116,7 +94,6 @@ export const createCanvas = operation({
     saveCanvas.run({ input: { name: input.name, key: keyOfName.parse(input.name) } }),
 });
 
-/** `canvas.list`: every canvas, oldest first. */
 export const listCanvases = operation({
   label: "canvas.list.do",
   input: framesApi["canvas.list"].input,
@@ -124,21 +101,13 @@ export const listCanvases = operation({
   run: ({ all }) => ({ canvases: all.get().toSorted((a, b) => a.created - b.created) }),
 });
 
-/** A new frame's id: 48 random bits, as 12 hex digits. */
 const newFrameId = operation({
   label: "frames.newFrameId",
   run: (_, { random }) => random.uuid().replaceAll("-", "").slice(0, 12),
 });
 
-/** A frame's size when `--size` is not given: a desktop page (SPEC-frames § Make and change frames). */
 const defaultSize = { w: 1440, h: 900 };
 
-/**
- * The kit check and the make step of a put's document, against the current kit version
- * ([kit](SPEC-kit.md)), before the write (kit judged rule 2): its made CSS, the kit version it was
- * made for, and the findings. A frame that turns the kit off gets no CSS (null) and no finding.
- * Made CSS over 256 KiB answers `tooBig`.
- */
 const makeDoc = operation({
   label: "frames.makeDoc",
   input: z.string(),
@@ -156,13 +125,6 @@ const makeDoc = operation({
   },
 });
 
-/**
- * The check, the make step and the JS of an app frame ([kit](SPEC-kit.md) § App frames, "The
- * put"), against the current kit version and its runtime, before the write. The first app frame
- * of a kit version gives it its runtime (`runtimeOf`), so its names are the ones the check holds.
- * A TSX that does not parse, or a finding of `kit/import`, `kit/react-state` or `kit/shape`,
- * answers `offKit` with all its findings. Made CSS over 256 KiB answers `tooBig`.
- */
 const makeAppDoc = operation({
   label: "frames.makeAppDoc",
   input: z.custom<FrameFiles>(),
@@ -184,29 +146,22 @@ const makeAppDoc = operation({
   },
 });
 
-/**
- * The document of a put as the store keeps it: the html, the TSX of an app frame, or the JSON of
- * the files of a folder frame, sorted by path (`folderText`).
- */
 const textOf = z.custom<PutInput>().transform((put) => {
   if ("files" in put) return folderText.parse(put.files);
   return "tsx" in put ? put.tsx : put.html;
 });
 
-/** The files of an app frame's put (one TSX is the entry alone), or null for an HTML frame. */
 const filesOf = z.custom<PutInput>().transform((put): FrameFiles | null => {
   if ("files" in put) return put.files;
   return "tsx" in put ? { [entryFile]: put.tsx } : null;
 });
 
-/** The UTF-8 bytes of a put's document: of an app frame, the sum of its files. */
 const bytesOf = z.custom<PutInput>().transform((put) => {
   const files = filesOf.parse(put);
   if (files === null) return utf8Bytes.parse(textOf.parse(put));
   return Object.values(files).reduce((sum, text) => sum + utf8Bytes.parse(text), 0);
 });
 
-/** A put's write: a new frame to the right of the others, or a write on an id at its base. */
 const writeOf = operation({
   label: "frames.writeOf",
   input: z.object({
@@ -247,11 +202,6 @@ const writeOf = operation({
   },
 });
 
-/**
- * The check and the make step of a put's document: an HTML frame (`makeDoc`) or an app frame
- * (`makeAppDoc`), each over its own size limit `tooBig` first (1 MiB of UTF-8; 256 KiB for the
- * files of an app frame together).
- */
 const madeOf = operation({
   label: "frames.madeOf",
   input: putInput,
@@ -269,16 +219,6 @@ const madeOf = operation({
   },
 });
 
-/**
- * `frame.put`: a document over 1 MiB of UTF-8 (an app frame: 256 KiB) answers `tooBig` and writes
- * nothing. Then the kit check and the make step run on the document, against the current kit
- * version ([kit](SPEC-kit.md)), before the write (judged rule 2 of kit): made CSS over 256 KiB
- * answers `tooBig` too, and an app frame that the check refuses answers `offKit` with its first 20
- * findings and `more`. Without an id it makes a frame; with one it is one conditional write
- * (`saveFrame`). The frame version keeps its made CSS and its kit version, and an app frame its
- * TSX and its JS. A put that saves or answers `unchanged` answers the findings too; they do not
- * stop it. After a write, each reader of the frame's document asks for it again.
- */
 export const putFrame = operation({
   label: "frame.put.do",
   input: framesApi["frame.put"].input,
@@ -302,7 +242,6 @@ export const putFrame = operation({
   },
 });
 
-/** `frame.list`: a canvas's frames, in the order they were made; `gone` with no such canvas. */
 export const listFrames = operation({
   label: "frame.list.do",
   input: framesApi["frame.list"].input,
@@ -318,11 +257,6 @@ export const listFrames = operation({
   },
 });
 
-/**
- * `frame.get`: the frame and its document at its current version, from one read of its row: the
- * `html`, the `tsx` of an app frame, or the `files` of a folder frame, as they were written. A
- * folder is kept as a JSON object, which a TSX module that the put took can never be.
- */
 export const getFrame = operation({
   label: "frame.get.do",
   input: framesApi["frame.get"].input,
@@ -339,7 +273,6 @@ export const getFrame = operation({
   },
 });
 
-/** `frame.delete`: the row and the cell go; each reader of its document hears it is gone. */
 export const deleteFrame = operation({
   label: "frame.delete.do",
   input: framesApi["frame.delete"].input,
@@ -351,7 +284,6 @@ export const deleteFrame = operation({
   },
 });
 
-/** The server's side of `framesApi`: `frames.api({ implement: framesOps, onStart: [user] })`. */
 export const framesOps = {
   "canvas.create": createCanvas,
   "canvas.list": listCanvases,
@@ -364,5 +296,4 @@ export const framesOps = {
   "frame.shot": shotFrame,
 } as const;
 
-/** The board's loads: `frames.board({ serve: true, load: framesLoads, onStart: [mayRead] })`. */
 export const framesLoads = { docs: loadDocs, serverClock: loadServerClock } as const;

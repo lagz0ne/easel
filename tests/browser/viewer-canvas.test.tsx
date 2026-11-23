@@ -6,7 +6,6 @@ import { ScopeProvider } from "@tinkered/react";
 import { Profiler } from "react";
 import { createRoot } from "react-dom/client";
 import { expect, onTestFinished, test } from "vite-plus/test";
-// The types of the provider give `cdp()` its `send`.
 import type {} from "vite-plus/test/browser-playwright";
 import { cdp, page } from "vite-plus/test/browser/context";
 import { z } from "zod";
@@ -16,16 +15,8 @@ import { frames as frameCells, framesBoard } from "@/frames/contract";
 import { Canvas } from "@/viewer/canvas";
 import { picRetryMs } from "@/viewer/picture";
 
-// The canvas in a real Chromium (the viewer-canvas chart, SPEC-viewer.md § Pan and zoom, § Watch
-// an agent work, § Numbers). The server is the board alone over `memory`: its `docs` load reads a
-// map and keeps each part it was asked for. The tab's clock is a test clock, so the test says when
-// the camera rests (120 ms) and when the paint wait (1.5 s) runs out; animation frames are real.
-// The pointer and the wheel are events sent to the canvas, as a mouse or a trackpad sends them.
-
 const canvas = "home";
 
-// SPEC-viewer.md § Numbers, written out here: a test that read them from the stage would move
-// with a wrong one.
 const liveCap = 12;
 const restMs = 120;
 const paintCapMs = 1_500;
@@ -38,13 +29,10 @@ type Put = {
   w: number;
   h: number;
   html: string;
-  /** The picture key the board carries; none: pictures are off. */
   k?: string;
 };
 
-/** Each frame's document on the "server", by id. */
 const htmls = new Map<string, { version: number; html: string }>();
-/** Each part the board's `docs` load was asked for. */
 const loads: Record<string, unknown>[] = [];
 
 const loadDocs = operation({
@@ -55,12 +43,10 @@ const loadDocs = operation({
     const id = typeof input.id === "string" ? input.id : "";
     const doc = htmls.get(id);
 
-    // No made CSS: the page shows the document as it is (a frame stored before the kit).
     return doc ? [{ canvas: input.canvas, id, ...doc, css: null }] : [];
   },
 });
 
-/** An agent's put: a new frame at version 1, or the next version of one. */
 const put = operation({
   label: "test.put",
   input: z.object({
@@ -83,7 +69,6 @@ const put = operation({
   },
 });
 
-/** An agent's delete. */
 const drop = operation({
   label: "test.drop",
   input: z.string(),
@@ -95,7 +80,6 @@ const drop = operation({
   },
 });
 
-/** A frame that paints at once, and one whose document never posts (its paint script is in a comment). */
 const frame = (id: string, x: number, y: number, more: Partial<Put> = {}): Put => ({
   id,
   name: `Frame ${id}`,
@@ -109,7 +93,6 @@ const frame = (id: string, x: number, y: number, more: Partial<Put> = {}): Put =
 
 const silent = "<p>still loading</p><!--";
 
-/** 200 frames, 20 across and 10 down, 400 by 320 apart. */
 const grid = Array.from({ length: 200 }, (_, i) =>
   frame(`f${String(i).padStart(3, "0")}`, (i % 20) * 400, Math.floor(i / 20) * 320),
 );
@@ -132,7 +115,6 @@ async function boot(list: readonly Put[]) {
   return server;
 }
 
-/** A tab with the canvas, in a Profiler that counts React's commits. */
 async function tab(server: Scope.Handle) {
   await page.viewport(1200, 800);
   const clock = makeTestClock();
@@ -164,7 +146,6 @@ async function tab(server: Scope.Handle) {
 
 const tick = (ms = 30) => new Promise((done) => setTimeout(done, ms));
 
-/** Waits `n` animation frames. */
 const rafs = (n: number) =>
   new Promise<void>((done) => {
     const step = (left: number) => (left ? requestAnimationFrame(() => step(left - 1)) : done());
@@ -178,9 +159,7 @@ const shown = () => shells().filter((s) => !s.hidden);
 const docs = () => [...region().querySelectorAll<HTMLIFrameElement>("iframe")];
 const liveIds = () => docs().map((d) => d.dataset.id ?? "");
 const cardOf = (id: string) => shellOf(id)?.querySelector<HTMLElement>(".e-card");
-/** The shell's picture: the img in its card. */
 const picOf = (id: string) => cardOf(id)?.querySelector<HTMLImageElement>("img");
-/** The picture is on top while its card shows. */
 const cardHidden = (id: string) => cardOf(id)?.hidden;
 const docOf = (id: string) => docs().find((d) => d.dataset.id === id);
 const versionOf = (id: string) => docOf(id)?.dataset.version;
@@ -190,28 +169,23 @@ const emptyText = () => page.getByText("This canvas has no frames yet.");
 
 type Tab = Awaited<ReturnType<typeof tab>>;
 
-/** The tab's read of the canvas's frames: pending, ready, or a fault. */
 const statusOf = (at: Tab) =>
   at.scope.resolve(frames.board.status(frames.board.frames.where({ canvas }))).get()?.status;
 
-/** The tab's board says the link dropped. */
 const lostOf = (at: Tab) => at.scope.resolve(frames.board.faults).get().frames?.fault === "link";
 
-/** The camera rests: 120 ms on the tab's clock, then time for one iframe per animation frame. */
 async function rest(clock: ReturnType<typeof makeTestClock>) {
   clock.advance(restMs);
   await rafs(liveCap + 6);
   await tick();
 }
 
-/** The tab drew `n` frames, placed them with Fit, and rested. */
 async function opened(at: Awaited<ReturnType<typeof tab>>, n: number) {
   await expect.poll(() => shells().length).toBe(n);
   await rafs(2);
   await rest(at.clock);
 }
 
-/** A drag on the canvas, one pointer move at a time. */
 function grab(x = 600, y = 400, pointerId = 1) {
   let at = { x, y };
   const send = (type: string, to: { x: number; y: number }) =>
@@ -256,7 +230,6 @@ function pressTimes(name: string, times: number) {
   for (let i = 0; i < times; i++) press(name);
 }
 
-/** Each shell lies inside the canvas, and shows. */
 function expectEveryFrameInView() {
   const view = region().getBoundingClientRect();
   for (const shell of shells()) {
@@ -270,7 +243,6 @@ function expectEveryFrameInView() {
   }
 }
 
-/** Each shell that overlaps the canvas shows (InViewShows). */
 function expectInViewShows() {
   const view = region().getBoundingClientRect();
   for (const shell of shells().filter((s) => s.hidden)) {
@@ -284,7 +256,6 @@ function expectInViewShows() {
   }
 }
 
-/** From the canvas's centre to a shell's nearest point, on screen. */
 function fromCentre(shell: HTMLElement) {
   const view = region().getBoundingClientRect();
   const box = shell.getBoundingClientRect();
@@ -333,7 +304,6 @@ test("at most 12 live at rest, the nearest the centre, one per animation frame a
     .toSorted((a, b) => fromCentre(a) - fromCentre(b))
     .slice(0, 20)
     .map((s) => ({ id: s.dataset.id ?? "", d: fromCentre(s) }));
-  // More frames are in view than may be live: the cap is what holds them back.
   const view = region().getBoundingClientRect();
   const inView = shown().filter((s) => {
     const box = s.getBoundingClientRect();
@@ -346,10 +316,8 @@ test("at most 12 live at rest, the nearest the centre, one per animation frame a
   });
   expect(inView.length).toBeGreaterThan(liveCap);
   expect(liveIds()).toHaveLength(liveCap);
-  // Each live frame is as near the centre as any frame that is not live.
   const cut = Math.max(...liveIds().map((id) => nearest.find((n) => n.id === id)?.d ?? Infinity));
   expect(nearest.filter((n) => n.d < cut).every((n) => liveIds().includes(n.id))).toBe(true);
-  // Each document was read by its frame (of), never by its canvas (where).
   expect(loads.length).toBeGreaterThanOrEqual(liveCap);
   for (const part of loads) expect(part).toEqual({ canvas, id: expect.any(String) });
 });
@@ -381,13 +349,11 @@ test("a pan or a zoom changes no live frame and renders no React, until the came
     expectInViewShows();
   }
   hand.release();
-  // Wheel pans, and Ctrl+wheel zooms, with the same hold.
   wheel({ deltaX: 40, deltaY: 30 });
   wheel({ deltaY: -5, ctrlKey: true });
   await rafs(liveCap + 6);
   await tick();
   expect(liveIds().toSorted()).toEqual(before);
-  // The zoom stayed in its 10% step, so nothing on the page changed for React.
   expect(at.commits.n - commits).toBe(0);
 
   const handler = times.filter((_, i) => i % 2 === 0).toSorted((a, b) => a - b);
@@ -396,11 +362,7 @@ test("a pan or a zoom changes no live frame and renders no React, until the came
   console.log(
     `speed: pan, 60 moves: per move ${p(handler, 0.5).toFixed(2)} ms median, ${p(handler, 0.95).toFixed(2)} ms p95; frame time ${p(frame, 0.5).toFixed(1)} ms median, ${p(frame, 0.95).toFixed(1)} ms p95, ${p(frame, 1).toFixed(1)} ms max`,
   );
-  // The budget of a move (p95 under 8 ms) is the speed gate's (SPEC-speed.md, step `pan`): the
-  // gate runs the base and the tree in turn. Here, on a shared runner, one absolute number failed
-  // only sometimes (8.5 ms and 8.9 ms on 2026-11-23), so this test prints it and asserts no time.
 
-  // At rest the set follows the camera: 1500 px of pan brought other frames to the centre.
   await rest(at.clock);
   expect(liveIds()).toHaveLength(liveCap);
   expect(liveIds().toSorted()).not.toEqual(before);
@@ -411,65 +373,63 @@ test("the camera's arrows, on one frame: pan, far, rest, zoom under 30%, and Fit
   const at = await tab(server);
   await opened(at, 1);
   const hidden = () => shellOf("a")?.hidden;
-  // s0: at rest, in view, live.
   expect(hidden()).toBe(false);
   expect(liveIds()).toEqual(["a"]);
   await tick(0);
   expect(zoomText()).toBe("100%");
 
-  drag(100, 0); // s0 to s2: moving, the shell shows
+  drag(100, 0);
   expect(hidden()).toBe(false);
-  await rest(at.clock); // s2 to s0
+  await rest(at.clock);
   expect(liveIds()).toEqual(["a"]);
 
-  drag(3_000, 0); // s0 to s1: far, hidden in the same write
+  drag(3_000, 0);
   expect(hidden()).toBe(true);
   expect(liveIds()).toEqual(["a"]);
-  drag(-3_000, 0); // s1 to s2
+  drag(-3_000, 0);
   expect(hidden()).toBe(false);
-  drag(3_000, 0); // s2 to s1
+  drag(3_000, 0);
   expect(hidden()).toBe(true);
-  await rest(at.clock); // s1 to s3: hidden at rest, and no longer live (s9 to s6)
+  await rest(at.clock);
   expect(hidden()).toBe(true);
   expect(liveIds()).toEqual([]);
   expect(cardHidden("a")).toBe(false);
-  drag(2_000, 0); // s3 to s1
+  drag(2_000, 0);
   expect(hidden()).toBe(true);
   await rest(at.clock);
-  press("Fit"); // s3 to s2
+  press("Fit");
   expect(hidden()).toBe(false);
   expectEveryFrameInView();
   await rest(at.clock);
   drag(3_000, 0);
   expect(hidden()).toBe(true);
-  press("Fit"); // s1 to s2
+  press("Fit");
   expectEveryFrameInView();
   await rest(at.clock);
-  drag(1_800, 0); // a view and a bit away: it shows while moving, and hides at rest
+  drag(1_800, 0);
   expect(hidden()).toBe(false);
   await rest(at.clock);
   expect(hidden()).toBe(true);
-  drag(-1_800, 0); // s3 to s2
+  drag(-1_800, 0);
   expect(hidden()).toBe(false);
-  await rest(at.clock); // s2 to s0
-  press("Fit"); // s0 to s2
+  await rest(at.clock);
+  press("Fit");
   expectEveryFrameInView();
 
   pressTimes("Zoom out", 6);
   await tick(0);
-  // 26.2%: the status rounds down to its step.
   expect(zoomText()).toBe("20%");
-  await rest(at.clock); // s2 to s4: in view under 30%, and not live
+  await rest(at.clock);
   expect(hidden()).toBe(false);
   expect(liveIds()).toEqual([]);
-  drag(10, 0); // s4 to s2
+  drag(10, 0);
   expect(hidden()).toBe(false);
   await rest(at.clock);
-  press("Fit"); // s4 to s2
+  press("Fit");
   expectEveryFrameInView();
   pressTimes("Zoom out", 6);
   await rest(at.clock);
-  drag(4_000, 0); // s4 to s1
+  drag(4_000, 0);
   expect(hidden()).toBe(true);
 });
 
@@ -494,17 +454,14 @@ test("Zoom in and Zoom out zoom around the centre by 1.25; Ctrl+wheel around the
   await tick(0);
   expect(zoomText()).toBe("80%");
 
-  // Ctrl+wheel: the point under the cursor stays under it.
   const corner = { x: box().left, y: box().top };
   wheel({ deltaY: -100, ctrlKey: true, clientX: corner.x, clientY: corner.y });
   expect(box().left).toBeCloseTo(corner.x, 0);
   expect(box().top).toBeCloseTo(corner.y, 0);
   expect(box().width).toBeCloseTo(400, 0);
-  // A plain wheel pans.
   wheel({ deltaY: 100 });
   expect(box().top).toBeCloseTo(corner.y - 100, 0);
 
-  // A pinch: two pointers twice as far apart zoom by two.
   const before = box().width;
   const one = grab(500, 400, 1);
   const two = grab(700, 400, 2);
@@ -539,11 +496,9 @@ test("a trackpad pinch (small Ctrl+wheel steps) zooms 1% for each pixel, as tldr
   const width = () => shellOf("a")?.getBoundingClientRect().width ?? 0;
   expect(width()).toBeCloseTo(400, 0);
 
-  // A pinch of 20 px, in 10 steps of 2 px: ×e^0.2.
   for (let step = 0; step < 10; step++) wheel({ deltaY: -2, ctrlKey: true });
   expect(width()).toBeCloseTo(400 * Math.exp(0.2), 0);
 
-  // One step zooms ×1.25 at most, so a mouse notch of 100 px or of 50 px is ×1.25.
   const before = width();
   wheel({ deltaY: -100, ctrlKey: true });
   expect(width()).toBeCloseTo(before * 1.25, 0);
@@ -555,10 +510,8 @@ test("an agent's put shows, goes live at rest under its picture, and a new versi
   const server = await boot([frame("a", 0, 0)]);
   const at = await tab(server);
   await opened(at, 1);
-  // s8 to s9: the document painted, so its picture came off.
   await expect.poll(() => cardHidden("a")).toBe(true);
 
-  // A put mid-move shows its shell at once, and goes live only at rest (s5 to s6, s6 to s8).
   const hand = grab();
   hand.by(5, 0);
   await server.run(put, { input: frame("b", 360, 0, { html: silent }) });
@@ -568,7 +521,6 @@ test("an agent's put shows, goes live at rest under its picture, and a new versi
   hand.release();
   await rest(at.clock);
   expect(liveIds().toSorted()).toEqual(["a", "b"]);
-  // NoBlankBox: a document that has not posted stays under its picture until the 1.5 s pass.
   expect(cardHidden("b")).toBe(false);
   at.clock.advance(paintCapMs - restMs - 1);
   await tick();
@@ -577,7 +529,6 @@ test("an agent's put shows, goes live at rest under its picture, and a new versi
   await tick();
   expect(cardHidden("b")).toBe(true);
 
-  // s9 to s8 (ShowsLatest): the agent writes "a" again; the new version loads under its picture.
   await server.run(put, { input: frame("a", 0, 0, { html: silent }) });
   await expect.poll(() => versionOf("a")).toBe("2");
   expect(cardHidden("a")).toBe(false);
@@ -586,8 +537,6 @@ test("an agent's put shows, goes live at rest under its picture, and a new versi
   await tick();
   expect(cardHidden("a")).toBe(true);
 
-  // s9 to s6: out of view at rest, "b" stops, and its picture is on top at once. "a" was written
-  // once more and has not painted: s8 to s6, it stops while it loads.
   await server.run(put, { input: frame("a", 0, 0, { html: silent }) });
   await expect.poll(() => versionOf("a")).toBe("3");
   expect(cardHidden("a")).toBe(false);
@@ -617,7 +566,6 @@ test("an agent's delete takes a live frame out at once, even mid-pan, and nothin
   expect(liveIds().toSorted()).toEqual(before.filter((id) => id !== gone).toSorted());
   hand.release();
 
-  // Deleted while loading (s8 to s7): a frame live with no paint yet goes too.
   await server.run(put, { input: frame(other, 0, 0, { html: silent }) });
   await expect.poll(() => versionOf(other)).toBe("2");
   await server.run(drop, { input: other });
@@ -631,11 +579,9 @@ test("an empty canvas says so; the first put takes it away, and a delete before 
   await expect.poll(() => statusOf(at)).toBe("ready");
   await tick(0);
   expect(emptyText().elements()).toHaveLength(1);
-  // The text is in the light gray space, so the space does not cover it.
   expect(region().contains(emptyText().element())).toBe(true);
   expect(shells()).toHaveLength(0);
 
-  // s5 to s6: the put shows its shell, and the camera has not rested yet.
   await server.run(put, { input: frame("a", 0, 0, { html: silent }) });
   await expect.poll(() => shells()).toHaveLength(1);
   expect(emptyText().elements()).toHaveLength(0);
@@ -643,7 +589,6 @@ test("an empty canvas says so; the first put takes it away, and a delete before 
   expectEveryFrameInView();
   expect(liveIds()).toEqual([]);
 
-  // s6 to s7: deleted before the camera rests, so it never went live.
   await server.run(drop, { input: "a" });
   await expect.poll(() => shells()).toHaveLength(0);
   await tick(0);
@@ -683,7 +628,6 @@ test("a live document runs sandboxed: scripts, and no same origin", async () => 
   const [doc] = docs();
 
   expect(doc?.getAttribute("sandbox")).toBe("allow-scripts");
-  // A sandbox without allow-same-origin gives the page no way into the document.
   expect(doc?.contentDocument).toBeNull();
 });
 
@@ -701,7 +645,6 @@ test("a frame that was live, went out of reach and comes back keeps its picture 
   expect(liveIds()).toEqual([]);
   expect(cardHidden("a")).toBe(false);
 
-  // A new iframe, which has not posted and whose 1.5 s have not passed: no white box (NoBlankBox).
   drag(4_000, 0);
   await rest(at.clock);
   expect(liveIds()).toEqual(["a"]);
@@ -712,8 +655,6 @@ test("the margins: live within 0.1 of a view, stays live to 0.5; a shell shows w
   const server = await boot([frame("a", 0, 0, { w: 400, h: 300 })]);
   const at = await tab(server);
   await opened(at, 1);
-  // Fit put the frame at 400 to 800 of a 1200 px view. `out` is how far its left edge is past the
-  // view's right edge, in views.
   let net = 0;
   const to = async (out: number) => {
     const want = 1_200 + out * 1_200 - 400;
@@ -726,10 +667,8 @@ test("the margins: live within 0.1 of a view, stays live to 0.5; a shell shows w
   await to(2);
   expect(liveIds()).toEqual([]);
   expect(hidden()).toBe(true);
-  // Between 0.5 and 0.75, a hidden shell stays hidden.
   await to(0.6);
   expect(hidden()).toBe(true);
-  // Within 0.5 the shell is back, and not live yet; past 0.1 it is still not live.
   await to(0.4);
   expect(hidden()).toBe(false);
   expect(liveIds()).toEqual([]);
@@ -738,10 +677,8 @@ test("the margins: live within 0.1 of a view, stays live to 0.5; a shell shows w
 
   await to(0.05);
   expect(liveIds()).toEqual(["a"]);
-  // A live frame stays live to 0.5.
   await to(0.4);
   expect(liveIds()).toEqual(["a"]);
-  // Past 0.5 it stops; its shell, which showed, still shows under 0.75; past 0.75 at rest it hides.
   await to(0.6);
   expect(liveIds()).toEqual([]);
   expect(hidden()).toBe(false);
@@ -817,7 +754,6 @@ test("Fit leaves a 40 px edge: across on a wide board, and down on a tall one", 
   expect(edges().right).toBeCloseTo(40, 0);
   expect(edges().top).toBeCloseTo(edges().bottom, 0);
 
-  // A tall board: 12 more frames under the grid's first column.
   for (let i = 0; i < 12; i++) {
     await server.run(put, { input: frame(`t${i}`, 0, 3_200 + i * 2_000) });
   }
@@ -839,7 +775,6 @@ test("a delete mid-pan takes out only the deleted frame, and at rest its place i
   const before = liveIds();
   const [gone = ""] = before;
 
-  // Far enough that a settle now would pick other frames.
   const hand = grab();
   hand.by(-1_500, -700);
   await server.run(drop, { input: gone });
@@ -848,8 +783,6 @@ test("a delete mid-pan takes out only the deleted frame, and at rest its place i
   await tick();
   expect(liveIds().toSorted()).toEqual(before.filter((id) => id !== gone).toSorted());
 
-  // The agent puts it back, still mid-pan: a frame added mid-move waits for the rest, so the
-  // deleted one left the live set and did not just leave the page.
   const back = grid.find((f) => f.id === gone) ?? frame(gone, 0, 0);
   await server.run(put, { input: back });
   await expect.poll(() => shellOf(gone)).toBeDefined();
@@ -868,7 +801,6 @@ test("a put mid-move changes no live frame, even one the pan carried out of reac
   await opened(at, 1);
   expect(liveIds()).toEqual(["a"]);
 
-  // "a" is now 0.75 of a view out: at rest it would stop.
   const hand = grab();
   hand.by(1_700, 0);
   await server.run(put, { input: frame("b", -1_500, 0, { html: silent }) });
@@ -940,11 +872,9 @@ test("a shell's picture is its frame's address on the board: version, key and sc
 
   expect(picOf("a")?.getAttribute("src")).toBe(`/api/pictures/${canvas}/a/1?s=0.5&k=key-a1`);
   expect(picOf("a")?.alt).toBe("Frame a");
-  // Pictures off: no key, so the shell is a plain card with no picture to ask for.
   expect(picOf("off")).toBeNull();
   expect(cardOf("off")).toBeTruthy();
 
-  // A new version brings its own key: the picture moves to it, on top until the document paints.
   expect(liveIds()).toContain("a");
   at.clock.advance(paintCapMs);
   await tick();
@@ -962,7 +892,6 @@ test("a shell's picture is its frame's address on the board: version, key and sc
 });
 
 test("a picture that fails (a busy server's 503) is asked again after 1, 2 and 4 s, then left a card", async () => {
-  // No server draws here: each try fails, as a 503 does, and each is one error.
   const errors = { n: 0 };
   const onError = (event: Event) => {
     if (event.target instanceof HTMLImageElement) errors.n++;
@@ -971,7 +900,6 @@ test("a picture that fails (a busy server's 503) is asked again after 1, 2 and 4
   onTestFinished(() => document.removeEventListener("error", onError, true));
   const server = await boot([frame("a", 0, 0, { k: "key-a1", html: silent })]);
   const at = await tab(server);
-  // No rest: the tab's clock moves only by the waits below.
   await expect.poll(() => errors.n).toBe(1);
   const img = picOf("a");
   const src = img?.getAttribute("src");
@@ -986,7 +914,6 @@ test("a picture that fails (a busy server's 503) is asked again after 1, 2 and 4
     await expect.poll(() => errors.n).toBe(i + 2);
   }
 
-  // The fourth failed too: no more tries, the card stays, with the same img and address.
   await tick();
   at.clock.advance(60_000);
   await tick(200);
@@ -1005,8 +932,6 @@ test("a shell asks for its picture at 0.5, at 0.25 when 0.5 is over 8 megapixels
   const at = await tab(server);
   await opened(at, 4);
 
-  // 32 MP at 0.5 is 8 MP, the limit; 80 MP at 0.25 is 5 MP; 128 MP at 0.25 is 8 MP, the limit;
-  // 256 MP at 0.25 is 16 MP: a card.
   expect(picOf("small")?.getAttribute("src")).toBe(`/api/pictures/${canvas}/small/1?s=0.5&k=key-s`);
   expect(picOf("big")?.getAttribute("src")).toBe(`/api/pictures/${canvas}/big/1?s=0.25&k=key-b`);
   expect(picOf("edge")?.getAttribute("src")).toBe(`/api/pictures/${canvas}/edge/1?s=0.25&k=key-e`);

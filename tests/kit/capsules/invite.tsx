@@ -1,6 +1,3 @@
-// Form 1 of a frame (docs/decisions/kit-capsules.md): a component in the body of a factory. It
-// sees only what it depends on: the pieces of the kit and the `t` of its own texts. Its own state
-// is a cell.
 import { data, operation, resource } from "@tinkered/core";
 import { useData, useRun } from "@tinkered/react";
 import { z } from "zod";
@@ -21,7 +18,6 @@ const texts = {
   },
 } satisfies Texts;
 
-/** The `t` of the frame: its texts in the locale of the scope. */
 export const text = resource({
   label: "invite.text",
   tags: [copy.texts(texts)],

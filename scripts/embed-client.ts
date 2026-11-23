@@ -1,10 +1,5 @@
 import { Glob } from "bun";
 
-/**
- * After `vp build`: writes cmds/client-files.gen.ts, one `type: "file"` import per file of
- * dist/client, so `bun build --compile` puts each inside the one binary (Bun's embed pattern).
- * With no client build yet it writes an empty table, so the host still type checks.
- */
 const root = new URL("../dist/client/", import.meta.url);
 const exists = await Bun.file(new URL("index.html", root)).exists();
 const names = exists ? [...new Glob("**/*").scanSync(Bun.fileURLToPath(root))].sort() : [];

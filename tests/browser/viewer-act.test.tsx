@@ -21,22 +21,12 @@ import { routeTree } from "@/routes";
 import { openedKey, visitKey } from "@/viewer/follow";
 import { nameKey, tabMeta } from "@/viewer/gate";
 
-// A viewer answers and decides, in a real Chromium, over `memory` (SPEC-viewer.md § Follow the
-// requests 10 to 16; SPEC-queue.md § A viewer answers and decides). The oracle is the
-// viewer-queue chart: each test names the arrows it walks. The server stands in for
-// share.server.ts and the queue: the board holds the frames, the requests, their messages and
-// the server's clock. Each viewer call (`request.edit`, `answer`, `accept`, `reopen`, `close`)
-// answers as the test plans: by default it writes the request as the queue's store does and
-// answers its kind; a plan answers `wrongState` after another viewer's write, `gone`, `full`,
-// `slow`, or a server fault, and writes nothing of its own.
-
 const live = "c".repeat(32);
 const pass = "4".repeat(32);
 const home = "0123456789ab";
 const serverNow = 1_800_000_000_000;
 const minute = 60_000;
 
-/** A call of a viewer, by its name in the contract. */
 type Call =
   | "request.edit"
   | "request.answer"
@@ -44,36 +34,27 @@ type Call =
   | "request.reopen"
   | "request.close";
 
-/** What a write does: a patch of the request, and a message. */
 type Change = {
   n: number;
   patch: Partial<Request>;
   message?: { kind: Message["kind"]; from: string; text: string | null; option?: number | null };
 };
 
-/** What the next viewer call answers, if not its own kind. */
 type Plan =
   | { kind: "gone" | "full" | "slow" | "fail" }
   | { kind: "wrongState"; state: State; first: Change };
 
-/** The stub server's state; it outlives a server, as a database does. */
 const store = {
-  /** The name each pass holds. */
   names: new Map<string, string>(),
   requests: [] as Request[],
   messages: [] as Message[],
-  /** Each viewer call that reached the server, with its input, in order. */
   calls: [] as Array<{ call: Call; input: unknown }>,
   plan: [] as Plan[],
-  /** Frame Home's version, and the key of its picture; null: Home was removed. */
   home: { version: 1, k: "kh1" } as { version: number; k: string } | null,
-  /** The kept versions of Home, each with the key of its picture. */
   kept: [] as Array<{ version: number; k?: string }>,
-  /** Frame Side is on the board, far from Home. */
   side: false,
 };
 
-/** Frame Home's box. */
 const homeBox = { name: "Home", x: 0, y: 0, w: 400, h: 300 };
 
 let current: Scope.Handle | null = null;
@@ -105,14 +86,12 @@ const passOnly = operation({
     passMeta.safeParse(input.meta).data?.pass === pass ? undefined : input.refuse({ ended: true }),
 });
 
-/** `mayAct`'s name half: a live pass with no name is refused `{ name: true }`. */
 const named = operation({
   label: "test.actNamed",
   input: transport.hook.start,
   run: (_, { input }) => (store.names.has(pass) ? undefined : input.refuse({ name: true })),
 });
 
-/** A request on the store, with its ask: `n`, its text, and a patch. Newer for a lower `n`. */
 function stored(n: number, text: string, patch: Partial<Request> = {}) {
   const at = serverNow - minute * 10 * n;
   const row: Request = {
@@ -142,7 +121,6 @@ function stored(n: number, text: string, patch: Partial<Request> = {}) {
   return row;
 }
 
-/** A message of a request on the store. */
 function said(r: Request, m: Partial<Message> & Pick<Message, "kind" | "from">, at: number) {
   const message: Message = {
     canvas: "home",
@@ -163,13 +141,11 @@ function said(r: Request, m: Partial<Message> & Pick<Message, "kind" | "from">, 
   return message;
 }
 
-/** Changes request `n` on the store, with a new `updated`, and adds the message. */
 function changeStored(change: Change) {
   const i = store.requests.findIndex((r) => r.n === change.n);
   const before = store.requests[i];
   if (!before) throw new Error(`no request #${change.n}`);
 
-  // The server's time now, and later than each write before it.
   const row: Request = { ...before, ...change.patch, updated: serverNow + store.messages.length };
   store.requests[i] = row;
   const m = change.message ? said(row, change.message, row.updated) : null;
@@ -201,7 +177,6 @@ const seed = operation({
   },
 });
 
-/** A change's message, as the test writes it. */
 const changeMessage = z.object({
   kind: messageKind,
   from: z.string(),
@@ -209,7 +184,6 @@ const changeMessage = z.object({
   option: z.number().nullable().optional(),
 });
 
-/** A change, as an agent's or another viewer's call writes it: the board pushes it. */
 const write = operation({
   label: "test.actWrite",
   input: z.object({ n: z.number(), patch: request.partial(), message: changeMessage.optional() }),
@@ -221,7 +195,6 @@ const write = operation({
   },
 });
 
-/** A viewer call's input, as the stub reads it. */
 const callInput = z.object({
   n: z.number(),
   text: z.string().optional(),
@@ -230,7 +203,6 @@ const callInput = z.object({
 
 type CallInput = z.infer<typeof callInput>;
 
-/** What each call writes when it saves, as the queue's store writes it. */
 const saves: Record<Call, (from: string, input: CallInput) => Change> = {
   "request.edit": (from, { n, text }) => ({
     n,
@@ -259,7 +231,6 @@ const saves: Record<Call, (from: string, input: CallInput) => Change> = {
   }),
 };
 
-/** What a planned refusal answers. A fault throws. */
 function refusedBy(plan: Plan) {
   switch (plan.kind) {
     case "fail":
@@ -275,11 +246,6 @@ function refusedBy(plan: Plan) {
   }
 }
 
-/**
- * One viewer call of the stub: it keeps the call, then answers as the test planned (a
- * `wrongState` after another viewer's write), or saves and answers `saved`. Each call's own stub
- * gives `saved` its kind.
- */
 const called = operation({
   label: "test.actCalled",
   input: z.object({
@@ -399,7 +365,6 @@ async function serve() {
   return server;
 }
 
-/** A fresh store and browser that kept the name `name` (or none); `fill` puts requests on it. */
 async function boot(fill: () => void, name: string | null = "Mai") {
   localStorage.removeItem(visitKey + "home");
   localStorage.removeItem(openedKey + "home");
@@ -465,7 +430,6 @@ const dialog = (n: number) => page.getByRole("dialog", { name: `Request #${n}` }
 const alertIn = (n: number) => dialog(n).getByRole("alert");
 const mark = (n: number) => dialog(n).element().querySelector(".e-sb")?.getAttribute("aria-label");
 
-/** The lines of the thread: each message and each step, oldest first. */
 const lines = (n: number) =>
   [...dialog(n).element().querySelectorAll(".e-thread > li")].map((li) => {
     const walk = document.createTreeWalker(li, NodeFilter.SHOW_TEXT);
@@ -474,13 +438,11 @@ const lines = (n: number) =>
     return words.join(" ").replace(/\s+/g, " ").trim();
   });
 
-/** Opens request `n` by its pin. */
 async function openIt(n: number) {
   await pin(n).click();
   await expect.element(dialog(n)).toBeVisible();
 }
 
-/** The calls that reached the server, as `call` and input. */
 const calls = () => store.calls.map(({ call, input }) => ({ call, input }));
 
 test("the thread shows each message oldest first, and each step as one line with the name; an agent has a square avatar; an HTML part shows in a sandboxed iframe (Follow the requests 10, 12, 13)", async () => {
@@ -525,10 +487,8 @@ test("the thread shows each message oldest first, and each step as one line with
     "Mai corrected it · 8 min",
     "C claude-1 7 min Which blue do you mean? Brand blue Link blue",
   ]);
-  // The agent's avatar is square; a person's is round.
   const avatars = [...dialog(1).element().querySelectorAll(".e-thread .e-avatar")];
   expect(avatars.map((a) => a.getAttribute("data-agent"))).toEqual(["false", "true"]);
-  // The HTML part: a sandboxed iframe with scripts and no origin of its own.
   const part = dialog(1).element().querySelector("iframe");
   expect(part?.getAttribute("sandbox")).toBe("allow-scripts");
   expect(part?.getAttribute("title")).toBe("HTML part from claude-1");
@@ -573,7 +533,6 @@ test("a question: an option button answers it, or the textbox Answer and Send; t
     "M Mai just now Brand blue",
     "Back in the queue, in its first place",
   ]);
-  // The picked option shows picked; no option button answers again.
   expect(dialog(1).getByRole("button", { name: "Brand blue" }).elements()).toHaveLength(0);
 
   await userEvent.keyboard("{Escape}");
@@ -611,7 +570,6 @@ test("a result: Accept makes it done; Open again asks a note, Cancel keeps it, S
   expect(lines(1).at(-1)).toBe("Mai accepted the result · just now");
   expect(dialog(1).getByRole("button", { name: "Accept" }).elements()).toHaveLength(0);
 
-  // A done request: Open again, with a note.
   await dialog(1).getByRole("button", { name: "Open again" }).click();
   await dialog(1).getByRole("textbox", { name: "Note" }).fill("The label is too loud.");
   await dialog(1).getByRole("button", { name: "Send" }).click();
@@ -640,7 +598,6 @@ test("a result: Accept makes it done; Open again asks a note, Cancel keeps it, S
   ]);
 });
 
-/** The switch of a picture in the popover of request `n`, its sides, and the picture on show. */
 const compare = (n: number) => {
   const group = dialog(n).getByRole("radiogroup", { name: "Picture" });
   const side = (name: string) => group.getByRole("radio", { name, exact: true });
@@ -653,10 +610,6 @@ const compare = (n: number) => {
   return { group, side, pictures };
 };
 
-/**
- * The address of a picture of Home at a version, with its key, and the kit version when the pane
- * keeps one (the board here has no kit cell: a pane of now has none).
- */
 const homePicture = (version: number, k: string, kit?: number) =>
   `/api/pictures/home/${home}/${version}?s=0.5&k=${k}${kit === undefined ? "" : `&kit=${kit}`}`;
 
@@ -671,7 +624,6 @@ test("a result: one picture, the switch Before | After on its top edge, open on 
     });
     said(
       r,
-      // The look changed during the work: kit version 4 at the claim, 5 at the resolve (K10).
       {
         kind: "result",
         from: "claude-1",
@@ -692,7 +644,6 @@ test("a result: one picture, the switch Before | After on its top edge, open on 
   expect(side("After").element()).toHaveAttribute("aria-checked", "true");
   expect(side("Before").element()).toHaveAttribute("aria-checked", "false");
   expect(pictures()).toEqual([{ alt: "After: Home", src: homePicture(3, "kh3", 5) }]);
-  // The switch sits on the top edge of the picture.
   const edge = dialog(1).element().querySelector(".e-cmpr-pic")?.getBoundingClientRect();
   const top = group.element().getBoundingClientRect();
   expect(top.top).toBeLessThan(edge?.top ?? 0);
@@ -702,18 +653,15 @@ test("a result: one picture, the switch Before | After on its top edge, open on 
   expect(pictures()).toEqual([{ alt: "Before: Home", src: homePicture(2, "kh2", 4) }]);
   expect(side("Before").element()).toHaveAttribute("aria-checked", "true");
 
-  // While the note is written, only the switch shows; a click on a side opens it.
   await dialog(1).getByRole("button", { name: "Open again" }).click();
   expect(pictures()).toEqual([]);
   expect(side("After").element()).toHaveAttribute("aria-checked", "false");
   expect(side("Before").element()).toHaveAttribute("aria-checked", "false");
   await side("After").click();
   expect(pictures()).toEqual([{ alt: "After: Home", src: homePicture(3, "kh3", 5) }]);
-  // Cancel: the picture is as it was before the note.
   await dialog(1).getByRole("button", { name: "Cancel" }).click();
   expect(pictures()).toEqual([{ alt: "Before: Home", src: homePicture(2, "kh2", 4) }]);
 
-  // After a decision, only the switch shows.
   await dialog(1).getByRole("button", { name: "Accept" }).click();
   await expect.poll(() => mark(1)).toBe("Done");
   expect(pictures()).toEqual([]);
@@ -765,7 +713,6 @@ test("a result done with no answer: the step says it, only Open again shows, and
     said(r, { kind: "result", from: "claude-1", text: "Done." }, r.updated);
   });
   await tab(server);
-  // A done request has no pin: the list Done opens it.
   await page.getByRole("button", { name: /^Requests/ }).click();
   const panel = page.getByRole("complementary", { name: "Requests" });
   await panel.getByRole("button", { name: "Open" }).click();
@@ -897,7 +844,6 @@ test("needs a person: the reason shows; the textbox sends it back made clear, or
   await expect.poll(() => mark(2)).toBe("Closed");
   expect(lines(2).at(-1)).toBe("Mai closed it · just now");
 
-  // 3 tries with no outcome: the thread says why it needs a person.
   await userEvent.keyboard("{Escape}");
   await openIt(3);
   expect(lines(3).at(-1)).toBe("3 tries with no outcome: it needs a person · 1 min");
@@ -952,7 +898,6 @@ test("More: Correct the request (Cancel, Save) while it waits, off with the hint
   await expect.poll(() => lines(1).at(-1)).toBe("Mai corrected it · just now");
   expect(lines(1)[0]).toBe("M Mai 10 min Add a short FAQ here, with a short answer each.");
 
-  // In work: Correct is off, with its hint; Take back ends the work.
   await userEvent.keyboard("{Escape}");
   await openIt(2);
   expect(mark(2)).toBe("claude-1");
@@ -965,7 +910,6 @@ test("More: Correct the request (Cancel, Save) while it waits, off with the hint
   await expect.poll(() => mark(2)).toBe("Taken back");
   expect(lines(2).at(-1)).toBe("Mai took it back · just now");
 
-  // Another viewer's request: Close request in the place of Take back.
   await userEvent.keyboard("{Escape}");
   await openIt(3);
   await dialog(3).getByRole("button", { name: "More" }).click();
@@ -1002,7 +946,6 @@ test("another viewer acted first (wrongState): nothing is saved, the popover sho
   });
   await tab(server);
 
-  // Tom accepts while Mai writes her note; the server answered wrongState to her reopen.
   await openIt(1);
   await dialog(1).getByRole("button", { name: "Open again" }).click();
   await dialog(1).getByRole("textbox", { name: "Note" }).fill("Make it grey.");
@@ -1028,7 +971,6 @@ test("another viewer acted first (wrongState): nothing is saved, the popover sho
   await dialog(1).getByRole("button", { name: "Send" }).click();
   await expect.poll(() => mark(1)).toBe("Waiting for an agent");
 
-  // The page saw the change while Mai typed: it sends nothing, and says who acted.
   await userEvent.keyboard("{Escape}");
   await openIt(2);
   await dialog(2).getByRole("textbox", { name: "Answer" }).fill("The logo's blue.");
@@ -1048,7 +990,6 @@ test("another viewer acted first (wrongState): nothing is saved, the popover sho
     .element(dialog(2).getByRole("textbox", { name: "Answer" }))
     .toHaveValue("The logo's blue.");
 
-  // An agent started work while Mai corrected: Not saved, Copy text and Take back.
   await userEvent.keyboard("{Escape}");
   const copied = vi.spyOn(navigator.clipboard, "writeText").mockResolvedValue(undefined);
   await openIt(2);
@@ -1165,7 +1106,6 @@ test("the link that Copy link gives opens the panel and the request when the can
   await expect.element(dialog(2)).toBeVisible();
   await expect.element(page.getByRole("complementary", { name: "Requests" })).toBeVisible();
   expect(dialog(1).elements()).toHaveLength(0);
-  // The place is at 40% of the canvas's width and height, at the zoom of the first Fit.
   const view = page.getByRole("region", { name: "Frames" }).element().getBoundingClientRect();
   await expect
     .poll(() => Math.abs(pin(2).element().getBoundingClientRect().left - view.width * 0.4))

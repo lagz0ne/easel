@@ -1,6 +1,5 @@
 import { inspect } from "node:util";
 
-/** Report unhandled work, close through the caller, then leave with failure. */
 export function observeServerPanics(
   abort: (error: unknown) => void,
   closed: Promise<unknown>,

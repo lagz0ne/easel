@@ -1,51 +1,3 @@
-// Proof that the E3 and E4 designs meet their requirements and the design system.
-//
-// The design review is a loop: requirement, design, proof, review, then a
-// correction to the requirement or to the design. This script is the proof
-// step. It reads the live HTML of each frame on the two Doop canvases and
-// checks it against docs/epics.md and against the library's components and
-// tokens. The canvases and their pages: docs/design-canvas.md.
-//
-// Scope: the E3 and E4 frames on the product canvas (always), each frame on a system
-// page of the library canvas (always), and each other frame on either canvas
-// that asks for sign-off (ready_for_dev or needs_review).
-// A draft is an exploration: it may break the rules until it asks for review.
-//
-// Usage: bun scripts/design-proof.ts
-// Key: DOOP_KEY, or the file ~/.config/secrets/doop-agent-key.
-//
-// One finding is one line: `<frame> <rule id> <what is there>`.
-// Rules:
-//   R1 each E3 and E4 ID shows on a state of a sheet, or is in NOT_SHOWN with a reason.
-//   R2 each ID on a sheet is an ID of the sheet's epic in docs/epics.md.
-//   R3 F1: each state of F1 shows on a sheet, and each has its own look.
-//   R4 F2: each full screen shows the count.
-//   R5 N4: each open request and each row shows its reference.
-//   R6 N10: a Composer in the error state shows why and keeps the text.
-//   S1 no raw colour outside the tokens.
-//   S2 type and shape use the tokens.
-//   S3 nothing redraws a component: no native control outside one.
-//   S4 a frame does not restyle a class of a component.
-//   S5 all instances of a component are at one revision.
-//   S6 at most one primary Button in a Popover.
-//   S7 each instance is a component of the system.
-//   S8 spacing (padding, margin, gap) is a step of the scale: var(--e-N), 0 or auto.
-//   S9 line height is a token pair of the type scale: var(--e-leading-N), 1 or normal.
-//   S10 motion: transform and opacity only, 300ms at most, the ease-out curve,
-//       hover only on a fine pointer, and a reduced-motion fallback.
-//   S11 a shadow is one of three elevations, or a ring.
-//   S12 a size is on the 4px grid.
-//   S13 the product canvas has the library's tokens, with the same values.
-//   S14 each text colour has WCAG AA contrast (4.5:1) on each surface, in light and dark (E3 S14).
-//   T1 text: … not ..., curly quotes, a no-break space between a number and its unit.
-//
-// E8 (build step 5, the seed look): the seed frames on page `Work · E8 One look, fast` are
-// frames of a team, made with the kit, not screens of easel, so S1 to S14 do not apply to them.
-// Each one is checked, in any status, by:
-//   K8 the frame holds the look and the kit (easel-look, easel-kit), and each pair of
-//      contrast() (src/kit/compose.ts) passes: text 4.5:1, a field edge and the ring 3:1.
-//   R2 each ID in its name is an E8 ID.
-
 import { Client } from "@modelcontextprotocol/sdk/client/index.js";
 import { StreamableHTTPClientTransport } from "@modelcontextprotocol/sdk/client/streamableHttp.js";
 import { createScope } from "@tinkered/core";
@@ -53,17 +5,11 @@ import type { Scope as TinkerScope } from "@tinkered/core";
 
 import { contrast } from "@/kit/compose";
 
-// easel · Design system: the tokens and the component mains (the library).
 const LIBRARY = "zPdfXgdRrQ";
-// easel · Product design: the screens and sheets of each epic.
 const PRODUCT = "xFJSTXA-v5";
 const API = "https://doop.vibea.dev/api/frames";
 const MCP = "https://doop.vibea.dev/mcp";
 
-// screen, page and sheet: the design of an epic, checked in any status. A page is a full
-// screen that is not the canvas (a gate, the ended page, the CLI): it has no count (R4).
-// main: a frame on a system page (a component's main, or Foundations).
-// ready: any other frame that asks for sign-off. A draft is free to explore.
 type Kind = "screen" | "page" | "sheet" | "main" | "ready";
 
 const E4: ReadonlyArray<{ id: string; kind: Kind }> = [
@@ -129,7 +75,6 @@ const E4: ReadonlyArray<{ id: string; kind: Kind }> = [
   { id: "Q84YFf2dBZ", kind: "screen" },
 ];
 
-// The E3 design: page `Work · E3 Share and look`.
 const E3: ReadonlyArray<{ id: string; kind: Kind }> = [
   { id: "t1khXPEL09", kind: "sheet" },
   { id: "-Ck-zZRXd-", kind: "page" },
@@ -153,7 +98,6 @@ const E3: ReadonlyArray<{ id: string; kind: Kind }> = [
   { id: "dRXlfnNKR3", kind: "page" },
   { id: "k57fxBGG06", kind: "screen" },
   { id: "snGUZR-mMv", kind: "screen" },
-  // A canvas with no frames has no requests, so no count (F2: none at 0).
   { id: "lY0qbt9UOG", kind: "page" },
   { id: "1JwTBweA0t", kind: "screen" },
   { id: "bubjKGKm3E", kind: "screen" },
@@ -170,9 +114,6 @@ const EPICS: ReadonlyArray<{ epic: string; frames: ReadonlyArray<{ id: string; k
 
 const DESIGN: Array<Frame> = EPICS.flatMap((e) => e.frames.map((f) => ({ ...f, epic: e.epic })));
 
-// The E8 seed look (E8.W01 to E8.W05): the look of ui.shadcn.com, which the user picked on
-// 2026-11-22. Its look values, the form, the list and the dashboard of K3, and a state with
-// focus and an error.
 const E8_KIT: ReadonlyArray<string> = [
   "2ChgqgBBcK",
   "x_s2rZXTvo",
@@ -181,10 +122,8 @@ const E8_KIT: ReadonlyArray<string> = [
   "9hPIX7B-4t",
 ];
 
-// Each frame on these pages of the library is part of the system: always checked.
 const SYSTEM_PAGES = new Set(["1 · Foundations", "2 · Primitives", "3 · Patterns", "4 · Layout"]);
 
-// A frame in one of these states must use the system (S1 to S12, T1).
 const READY = new Set(["ready_for_dev", "needs_review"]);
 
 const COMPONENTS: Readonly<Record<string, string>> = {
@@ -220,7 +159,6 @@ const COMPONENTS: Readonly<Record<string, string>> = {
   clbzalz58t: "Dock",
 };
 
-// IDs that no picture can prove. Each one is proven elsewhere.
 const NOT_SHOWN: Readonly<Record<string, string>> = {
   M1: "order of the queue: SPEC-queue, queue-lease chart",
   M3: "what an agent gets: SPEC-queue, SPEC-mcp",
@@ -231,7 +169,6 @@ const NOT_SHOWN: Readonly<Record<string, string>> = {
   M8: "scope of a change: SPEC-queue, SPEC-mcp",
   N7: "a pin moves with its frame: SPEC-viewer",
   F4: "time to show: SPEC-viewer live board",
-  // E4.5: the dispatcher has no screen. The team lead uses the CLI and GitHub.
   D1: "one queue: SPEC-queue, queue-lease chart",
   D2: "an agent that asks gets work: SPEC-queue (M7)",
   D6: "a delivery starts an agent: SPEC-queue, queue-dispatch chart",
@@ -239,11 +176,9 @@ const NOT_SHOWN: Readonly<Record<string, string>> = {
   D8: "one outcome for each request: queue-dispatch chart",
   D9: "the way and its cause: SPEC-queue, easel deliveries",
   D10: "GitHub issues follow requests: SPEC-queue, queue-dispatch chart",
-  // E3: a picture shows the state, not how fast it comes.
   S11: "200 frames stay smooth: tests/browser/viewer-canvas.test.tsx (p95 handler time)",
 };
 
-// F1 states and the StateBadge state that shows each.
 const F1_STATES = [
   "waiting",
   "inwork",
@@ -268,7 +203,6 @@ type Instance = {
   props: Record<string, string>;
   text: string;
   parent: Instance | undefined;
-  // The main of a component (data-doop-component), not an instance of it.
   main: boolean;
 };
 
@@ -278,7 +212,6 @@ type Parsed = {
   instances: Array<Instance>;
   css: Array<Css>;
   natives: Array<string>;
-  // The copy a viewer reads: text nodes and text attributes, one per line.
   copy: string;
 };
 
@@ -298,7 +231,6 @@ const readKey = async (): Promise<string> => {
   return (await file.text()).trim();
 };
 
-// HTMLRewriter gives attribute values with their entities.
 const decode = (s: string): string =>
   s
     .replace(/&quot;/g, '"')
@@ -318,12 +250,9 @@ const parseProps = (raw: string | null): Record<string, string> => {
   return out;
 };
 
-// --- Read one frame -------------------------------------------------------
-
 type Open = {
   inst: Instance | undefined;
   sample: boolean;
-  // Inside <style> or <script>: its text is code, not copy.
   raw: boolean;
   style: Css | undefined;
   prop: string | undefined;
@@ -333,7 +262,6 @@ type ReadState = { frame: string; stack: Array<Open>; parsed: Parsed };
 
 const NATIVE = new Set(["button", "input", "textarea", "select"]);
 
-// A sample design drawn inside a frame card, not product UI.
 const SAMPLE_CLASSES = new Set(["pic", "gone"]);
 
 const top = (s: ReadState): Open | undefined => s.stack[s.stack.length - 1];
@@ -388,7 +316,6 @@ const noteInline = (s: ReadState, el: HTMLRewriterTypes.Element, sample: boolean
 const openStyle = (s: ReadState, el: HTMLRewriterTypes.Element, tag: string): Css | undefined => {
   if (tag !== "style" || el.hasAttribute("data-doop-tokens")) return undefined;
 
-  // A main's own CSS (component-source) belongs to the component too.
   const owner =
     el.getAttribute("data-doop-component-css") ??
     el.getAttribute("data-doop-component-source") ??
@@ -398,7 +325,6 @@ const openStyle = (s: ReadState, el: HTMLRewriterTypes.Element, tag: string): Cs
   return block;
 };
 
-// A main has no data-doop-props: read each prop from its element.
 const mainProp = (
   s: ReadState,
   el: HTMLRewriterTypes.Element,
@@ -464,7 +390,6 @@ const onText = (s: ReadState, t: HTMLRewriterTypes.Text): void => {
 
   addCopy(s, open, t);
 
-  // A space ends each text node, so the text of two parts never joins ("first" "M20").
   const text = t.lastInTextNode ? `${t.text} ` : t.text;
   for (const o of s.stack) if (o.inst !== undefined) o.inst.text += text;
   addPropText(s, open, t.text);
@@ -496,8 +421,6 @@ const loadFrame = async (f: Frame, key: string): Promise<Parsed | undefined> => 
   return parseFrame(f.id, await res.text());
 };
 
-// --- Which frames: E4, the system pages, and frames that ask for sign-off --
-
 type CanvasFrame = { canvas: string; id: string; name: string; page: string; status: string };
 
 const isRecord = (v: unknown): v is Record<string, unknown> => typeof v === "object" && v !== null;
@@ -514,11 +437,9 @@ const listOf = (v: unknown, k: string): Array<unknown> => {
   return Array.isArray(out) ? out : [];
 };
 
-// A token value is a string or a number; compare both as text.
 const scalar = (v: unknown): string =>
   typeof v === "string" || typeof v === "number" ? String(v) : "";
 
-// One token as one line: its type, its value, then its value in each theme.
 const tokenLine = (t: unknown): string => {
   const themes = isRecord(t) ? t.themes : undefined;
   const byTheme = isRecord(themes)
@@ -562,7 +483,6 @@ const tokensOf = async (client: Client, canvas: string): Promise<Map<string, str
   return new Map(listOf(body, "tokens").map((t) => [field(t, "name"), tokenLine(t)]));
 };
 
-// The HTTP API has no frame list for an agent key; the MCP get_canvas has.
 const readDoop = async (key: string): Promise<Doop> => {
   const client = new Client({ name: "easel-design-proof", version: "1" });
   const transport = new StreamableHTTPClientTransport(new URL(MCP), {
@@ -607,9 +527,6 @@ const chooseFrames = (canvas: Array<CanvasFrame>): Scope => {
   return scope;
 };
 
-// S13: the product canvas has a copy of the library tokens (Doop does not
-// share tokens through a library). A change goes to the library first.
-// S14 (E3): text on a surface, in each theme. --e-faint is left out: it is for disabled text only.
 const CONTRAST_PAIRS: ReadonlyArray<readonly [string, string]> = [
   ["--e-text", "--e-bg"],
   ["--e-text", "--e-surface"],
@@ -626,7 +543,6 @@ const CONTRAST_PAIRS: ReadonlyArray<readonly [string, string]> = [
   ["--e-on-primary", "--e-primary"],
 ];
 
-// A token line is `color <light> dark=<dark>`; a theme with no value of its own keeps the light one.
 const colourIn = (line: string | undefined, theme: string): string | undefined => {
   if (line === undefined) return undefined;
   const parts = line.split(" ");
@@ -679,8 +595,6 @@ const printScope = (scope: Scope): void => {
   );
 };
 
-// --- Design system: S1 to S4 ----------------------------------------------
-
 type Decl = { selector: string; prop: string; value: string };
 
 const declarations = (css: string): Array<Decl> => {
@@ -705,18 +619,11 @@ const COLOUR = /#[0-9a-fA-F]{3,8}\b|\brgba?\(|\bhsla?\(|\b(white|black|red|blue|
 const SHAPE_PROPS = new Set(["font-size", "font-weight", "border-radius", "font-family"]);
 const SHAPE_OK = /^(0|inherit|normal|none|50%|var\([^()]+\))$/;
 
-// A shorthand such as `50% 50% 50% var(--e-radius-s)` passes if each part does.
 const shapeOk = (value: string): boolean =>
   value.split(/\s+(?![^(]*\))/).every((part) => SHAPE_OK.test(part));
 
-// --- Detail: S8 to S12 -----------------------------------------------------
-// Sources: Emil Kowalski, emil-design-eng (motion); Vercel Web Interface
-// Guidelines (motion, type, copy); Refactoring UI (spacing scale, elevation);
-// Radix Themes (size and line-height pairs).
-
 const DEPTH: Readonly<Record<string, number>> = { "(": 1, ")": -1, "{": 1, "}": -1 };
 
-// Split on a separator that is not inside parentheses.
 const splitTop = (value: string, sep: string): Array<string> => {
   const out: Array<string> = [];
   let depth = 0;
@@ -744,8 +651,6 @@ const SPACE_OK = /^(0|auto|var\(--e-\d\))$/;
 const LEADING_OK = /^(1|normal|inherit|var\(--e-leading-\d\))$/;
 const SIZE_PROP = /^(min-|max-)?(width|height)$/;
 
-// Elevation 1 (card), 2 (pin), 3 (popover, menu): a contact layer and an
-// ambient layer, as Refactoring UI. Anything else is a ring.
 const ELEVATION = new Set([
   "0 0 0 1px var(--e-line),0 1px 2px var(--e-shadow-low)",
   "0 1px 2px var(--e-shadow-mid),0 2px 6px var(--e-shadow-low)",
@@ -774,8 +679,6 @@ const durationsMs = (v: string): Array<number> =>
 
 type MotionRule = { why: string; bad: (prop: string, v: string) => boolean };
 
-// A loop may run longer and ease in and out; nothing else may. A loop is an animation that runs for
-// ever, or more than once: a bare number in it (no unit, outside a curve) is its count.
 const isLoop = (p: string, v: string): boolean =>
   v.includes("infinite") ||
   (p.startsWith("animation") &&
@@ -860,7 +763,6 @@ const withoutHoverMedia = (css: string): string => {
   return out;
 };
 
-// S10 on a whole stylesheet: hover needs a fine pointer; motion needs a fallback.
 const checkBlock = (frame: string, owner: string, css: string): void => {
   if (/:hover\b/.test(withoutHoverMedia(css))) {
     report(frame, "S10", `${owner} has :hover outside (hover:hover) and (pointer:fine)`);
@@ -881,7 +783,6 @@ const checkDecl = (frame: string, owner: string, d: Decl): void => {
   checkDetail(frame, what, d);
 };
 
-// A component's CSS is the same in each frame: report it on the system, once.
 const checkCss = (frame: string, parsed: Parsed): void => {
   for (const block of parsed.css) {
     const comp = COMPONENTS[block.owner];
@@ -891,8 +792,6 @@ const checkCss = (frame: string, parsed: Parsed): void => {
     for (const d of declarations(block.css)) checkDecl(where, owner, d);
   }
 };
-
-// --- Copy: T1 --------------------------------------------------------------
 
 const COPY_RULES: ReadonlyArray<{ why: string; bad: RegExp }> = [
   { why: "three dots, not …", bad: /\.\.\./ },
@@ -930,10 +829,7 @@ const checkRestyle = (frame: string, parsed: Parsed): void => {
   }
 };
 
-// --- Instances: requirements and S5 to S7 ---------------------------------
-
 type Proof = {
-  // Each requirement ID of a designed epic, and its epic.
   epic: Map<string, string>;
   shown: Map<string, Array<string>>;
   badgeStates: Set<string>;
@@ -1039,12 +935,9 @@ const checkFrame = (proof: Proof, f: Frame, parsed: Parsed): void => {
   }
 };
 
-// --- E8: the seed look, K8 and R2 -------------------------------------------
-
 const styleById = (html: string, id: string): string | undefined =>
   new RegExp(`<style id="${id}">([\\s\\S]*?)</style>`).exec(html)?.[1];
 
-// The look values of a `:root` block, by CSS name.
 const lookValuesOf = (css: string): Record<string, string> =>
   Object.fromEntries(
     [...css.matchAll(/(--[a-z0-9-]+):\s*([^;]+);/g)].map((m) => [m[1] ?? "", (m[2] ?? "").trim()]),
@@ -1058,7 +951,6 @@ const readE8Ids = async (): Promise<Set<string>> => {
   return new Set([...part.matchAll(/^\| (K\d+)\s+\|/gm)].flatMap((m) => (m[1] ? [m[1]] : [])));
 };
 
-// R2: the IDs that a frame proves end its name: `E8.W02 Seed: form, the K3 brief (K1 K4)`.
 const checkE8Name = (f: CanvasFrame, ids: Set<string>): void => {
   const claimed = /\(([^()]*)\)\s*$/.exec(f.name)?.[1] ?? "";
   for (const m of claimed.matchAll(/\b([A-Z]\d{1,2})\b/g)) {
@@ -1068,7 +960,6 @@ const checkE8Name = (f: CanvasFrame, ids: Set<string>): void => {
   }
 };
 
-// K8: each pair of the frame's own look and kit, measured with the kit's one contrast().
 const checkE8Pairs = (scope: TinkerScope.Handle, id: string, html: string): void => {
   const look = styleById(html, "easel-look");
   const kit = styleById(html, "easel-kit");
@@ -1105,8 +996,6 @@ const checkE8 = async (canvas: Array<CanvasFrame>, key: string): Promise<void> =
     checkE8Pairs(scope, id, await res.text());
   }
 };
-
-// --- Canvas: R1, R3, S5 ---------------------------------------------------
 
 const readEpicIds = async (): Promise<Map<string, string>> => {
   const text = await Bun.file("docs/epics.md").text();
@@ -1201,7 +1090,6 @@ const main = async (): Promise<number> => {
   checkTokens(doop.tokens);
   checkContrast(doop.tokens.library);
 
-  // Fetch in parallel, check in order, so the report has one order.
   const frames = await Promise.all(
     scope.frames.map(async (f) => ({ f, parsed: await loadFrame(f, key) })),
   );

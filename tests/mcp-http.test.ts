@@ -25,10 +25,6 @@ import { mcpHttp, mcpMeta } from "@/mcp/http.server";
 import { ops } from "@/ops";
 import { queue } from "@/queue";
 
-// `POST /mcp` (SPEC-mcp.md § A remote agent adds easel), as the server cmd joins it: the route
-// in the server's scope, and the scope of MCP on a port to it, with each request's token as the
-// meta of its calls. The MCP client is the SDK's, over HTTP, with a fetch that runs the route.
-
 const closers: Array<() => unknown> = [];
 
 afterEach(async () => {
@@ -37,7 +33,6 @@ afterEach(async () => {
 
 const origin = "https://easel.test";
 
-/** The server's scope, with the route of MCP, and the scope of MCP on a port to it. */
 async function boot() {
   const clock = makeTestClock({ now: 1_800_000_000_000 });
   const out: string[] = [];
@@ -90,7 +85,6 @@ async function boot() {
   });
   const setupCode = () => /setup code: (\S+)/.exec(out.join(""))?.[1] ?? "";
 
-  /** One request to `/mcp`, as the route table runs it. */
   const fetch = async (url: string | URL, init?: RequestInit) =>
     server.run(mcpHttp.route, { tags: [transport.request(new Request(url, init))] });
 
@@ -99,7 +93,6 @@ async function boot() {
 
 type Srv = Awaited<ReturnType<typeof boot>>;
 
-/** A user's CLI: its runs, and the token that its hosts file keeps. */
 async function easel(srv: Srv) {
   const dir = mkdtempSync(join(tmpdir(), "easel-mcp-http-"));
   closers.push(() => rmSync(dir, { recursive: true, force: true }));
@@ -129,7 +122,6 @@ async function easel(srv: Srv) {
   return { scope, out, token };
 }
 
-/** Ann, the first owner, and Bob, a member that she approved: each with a token. */
 async function team(srv: Srv) {
   const ann = await easel(srv);
   const setup = { kind: "login", name: "ann", setup: srv.setupCode(), noWait: false } as const;
@@ -146,7 +138,6 @@ async function team(srv: Srv) {
   return { ann: ann.token(), bob: bob.token() };
 }
 
-/** The SDK's client on `/mcp`, with a token. */
 async function client(srv: Srv, token: string) {
   const link = new StreamableHTTPClientTransport(new URL(`${origin}/mcp`), {
     fetch: srv.fetch,

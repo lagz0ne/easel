@@ -1,8 +1,3 @@
-/**
- * Fails when a prod build holds test code: `@tinkered/core/testing` (test capsules, test clock,
- * presets) or a `*.testing.ts` file (a capsule's test capsule, ADR 0127 in tinkered). A prod
- * file never imports them, so the bundler leaves them out; this check catches the mistake.
- */
 const metafiles = Bun.argv.slice(2);
 
 const test = [/@tinkered\/core\/dist\/testing\./, /\.testing\.tsx?$/];

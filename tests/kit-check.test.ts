@@ -6,9 +6,6 @@ import { check } from "@/kit/check.server";
 
 import { bad, frame, testKit } from "./kit/fixture";
 
-// K5 (SPEC-kit.md § Rules, judged rule 12): the check finds what is not in the look or the kit,
-// at its line and column, with the fix. It finds nothing in a frame made only from the kit.
-
 const scopes: Array<{ close: () => Promise<unknown> }> = [];
 
 afterEach(async () => {
@@ -156,7 +153,6 @@ test("the design system is made one time for each kit version", async () => {
   const scope = await open();
   const html = `<p class="btn">x</p>`;
   const one = await scope.run(check, { input: { html, kit: await testKit(7) } });
-  // A kit version never changes: the same number with other pieces still reads the first one.
   const same = await scope.run(check, {
     input: { html, kit: { ...(await testKit(7)), css: "" } },
   });

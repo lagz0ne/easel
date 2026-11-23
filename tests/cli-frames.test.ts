@@ -21,10 +21,6 @@ import { framesApi, maxDocBytes, maxMadeCssBytes, maxSentDocBytes } from "@/fram
 import { framesLoads, framesOps, mayRead } from "@/frames/ops.server";
 import { framesServer } from "@/frames/store.server";
 
-// `easel canvas new|ls`, `put`, `ls`, `get` and `rm` (SPEC-frames.md § Journeys) as the cmd runs
-// them: the CLI's capsule over the memory transport, each command's exit code by frames'
-// success lists (SPEC-cli fact rule 3), and the shell's fault exits through the frames bridge.
-
 const closers: Array<() => unknown> = [];
 
 afterEach(async () => {
@@ -35,7 +31,6 @@ const tick = (ms = 20) => new Promise((done) => setTimeout(done, ms));
 
 const origin = "https://easel.test";
 
-/** A `frame.list` that never answers, so the CLI's deadline ends it. */
 const hangingList = operation({
   label: "test.hangingList",
   input: framesApi["frame.list"].input,
@@ -45,7 +40,6 @@ const hangingList = operation({
   },
 });
 
-/** A `frame.delete` that never answers, so the CLI's deadline ends it. */
 const hangingDelete = operation({
   label: "test.hangingDelete",
   input: framesApi["frame.delete"].input,
@@ -55,7 +49,6 @@ const hangingDelete = operation({
   },
 });
 
-/** A `frame.get` that throws: the server's `failed` fault. */
 const brokenGet = operation({
   label: "test.brokenGet",
   input: framesApi["frame.get"].input,
@@ -64,10 +57,8 @@ const brokenGet = operation({
   },
 });
 
-/** `hang`: list and delete never answer. `noFrames`: a server older than frames, without its api. */
 type Boot = { hang?: boolean; broken?: boolean; noFrames?: boolean };
 
-/** One server: access and frames on SQLite in memory, and a memory transport. */
 async function boot(options: Boot = {}) {
   const clock = makeTestClock({ now: 1_800_000_000_000 });
   const out: string[] = [];
@@ -113,7 +104,6 @@ type Srv = Awaited<ReturnType<typeof boot>>;
 
 type Options = { json?: boolean; stdin?: string; path?: string };
 
-/** One CLI, as the cmd builds it: what it prints, its runs, and a folder for its files. */
 async function easel(srv: Srv, options: Options = {}) {
   const dir = mkdtempSync(join(tmpdir(), "easel-cli-frames-"));
   closers.push(() => rmSync(dir, { recursive: true, force: true }));
@@ -160,7 +150,6 @@ async function easel(srv: Srv, options: Options = {}) {
       scope.run(cli.run, {
         input: { kind: "login", name: "ann", setup: srv.setupCode(), noWait: false },
       }),
-    /** Each JSON line printed since the last read. */
     lines: () =>
       out
         .splice(0)
@@ -171,7 +160,6 @@ async function easel(srv: Srv, options: Options = {}) {
   };
 }
 
-/** Ann, the first owner, signed in on her own CLI, and a canvas `flow`. */
 async function ann(srv: Srv, options: Options = {}) {
   const a = await easel(srv, options);
   expect(await a.login()).toBe(0);
@@ -182,7 +170,6 @@ async function ann(srv: Srv, options: Options = {}) {
   return a;
 }
 
-/** Ann's CLI, the frame she put, and its id. */
 async function withFrame(srv: Srv, html = "<p>1</p>") {
   const a = await ann(srv);
   expect(await a.run({ kind: "put", canvas: "flow", file: a.file("one.html", html) })).toBe(0);
@@ -190,8 +177,6 @@ async function withFrame(srv: Srv, html = "<p>1</p>") {
 
   return { a, id: String(made.id) };
 }
-
-// ---- easel canvas new|ls
 
 test("canvas new prints the key and exits 0; a taken key exits 1; a name with no key exits 65 and sends nothing", async () => {
   const srv = await boot();
@@ -234,8 +219,6 @@ test("canvas ls and ls print one line per canvas or frame without --json", async
   expect(await a.run({ kind: "ls", canvas: "flow" })).toBe(0);
   expect(a.out.join("")).toMatch(/^[0-9a-f]{12}\thome\t0,0 1440x900\tv1\n$/);
 });
-
-// ---- easel put
 
 test("put makes a frame and exits 0; a put with --id at its version exits 0, updated or unchanged", async () => {
   const srv = await boot();
@@ -322,8 +305,6 @@ test("put - reads the document from stdin", async () => {
   expect(a.lines()).toMatchObject([{ frame: { html: "<p>from stdin</p>" } }]);
 });
 
-// ---- easel put: the findings of the kit check (SPEC-cli.md § Learn the kit, SPEC-kit K5)
-
 test("put prints each finding on stderr as file:line:col rule what. Fix: fix, at most 20, then the count; it exits 0", async () => {
   const srv = await boot();
   const a = await easel(srv, { json: false });
@@ -396,7 +377,6 @@ test("put of a document over 1 MiB of UTF-8 exits 1, tooBig, and sends nothing",
 test("put of a document under 1 MiB whose JSON is over the socket's limit exits 1, tooBig, and sends nothing", async () => {
   const srv = await boot();
   const a = await ann(srv);
-  // 1 MiB less one of `"`: under maxDocBytes as UTF-8, but each is `\"` as JSON, 2 bytes.
   const quotes = '"'.repeat(maxDocBytes - 1);
   expect(Buffer.byteLength(JSON.stringify(quotes))).toBeGreaterThan(maxSentDocBytes);
 
@@ -404,7 +384,6 @@ test("put of a document under 1 MiB whose JSON is over the socket's limit exits 
   expect(a.lines()).toEqual([{ kind: "tooBig", maxBytes: maxDocBytes }]);
   await a.run({ kind: "ls", canvas: "flow" });
   expect(a.lines()).toEqual([{ kind: "found", frames: [] }]);
-  // Under the limit as JSON, quotes go: half a MiB of them.
   const half = '"'.repeat(maxDocBytes / 2);
   expect(await a.run({ kind: "put", canvas: "flow", file: a.file("h.html", half) })).toBe(0);
 });
@@ -456,7 +435,6 @@ test("put of a folder sends a folder frame: each .ts and .tsx file by its path; 
   const paths = ["index.tsx", "entities.ts", "copy.ts", "view.tsx", "panes.tsx"];
   mkdirSync(join(dir, ".cache"), { recursive: true });
   for (const path of paths) writeFileSync(join(dir, path), readFileSync(new URL(path, source)));
-  // Not a file of the frame: another type of file, and a folder whose name starts with ".".
   writeFileSync(join(dir, "notes.md"), "# notes");
   writeFileSync(join(dir, ".cache", "x.ts"), "export {};");
   a.out.splice(0);
@@ -475,7 +453,6 @@ test("put of a folder sends a folder frame: each .ts and .tsx file by its path; 
   expect(await a.run({ kind: "get", canvas: "flow", id })).toBe(0);
   expect(a.out.join("")).toMatch(/^==> copy\.ts <==\n/);
 
-  // A finding of a folder names its file; a folder with no index.tsx is bad usage, 64.
   writeFileSync(
     join(dir, "view.tsx"),
     `${readFileSync(join(dir, "view.tsx"), "utf8")}import "./none";\n`,
@@ -498,8 +475,6 @@ test("put of a .tsx file over 256 KiB exits 1, tooBig, and sends nothing", async
   await a.run({ kind: "ls", canvas: "flow" });
   expect(a.lines()).toEqual([{ kind: "found", frames: [] }]);
 });
-
-// ---- easel ls, get, rm
 
 test("ls exits 0 with the frames, and 1 for a canvas that is not there", async () => {
   const srv = await boot();
@@ -542,8 +517,6 @@ test("rm exits 0, deleted; a second rm exits 1, gone", async () => {
   expect(await a.run({ kind: "rm", canvas: "flow", id })).toBe(1);
   expect(a.lines()).toEqual([{ kind: "deleted" }, { kind: "gone" }]);
 });
-
-// ---- The shell's fault exits, through the frames bridge
 
 test("each frames command without a sign-in exits 2, refused", async () => {
   const srv = await boot();
@@ -597,8 +570,6 @@ test("a call with no answer in 60 s exits 69: the deadline ends it, not the late
     expect(a.out.join("")).toBe("");
     srv.clock.advance(1);
     await tick(50);
-    // The memory transport settles an aborted call when its peer's run ends: the late answer,
-    // `gone` (exit 1), then comes, and the CLI has already taken the deadline's `link` fault.
     srv.clock.advance(3_600_000);
     expect(await run).toBe(69);
     expect(a.lines()).toEqual([{ unreachable: origin }]);
@@ -630,7 +601,6 @@ test("a server that fails exits 70 with the trace; the token is never printed", 
   expect(await a.run({ kind: "get", canvas: "flow", id })).toBe(70);
   const [line] = a.lines();
   expect(Object.keys(line)).toEqual(["failed"]);
-  // The trace the server gave the fault, so a person can find it: never null.
   expect(line.failed).toMatch(/^[\w-]{8,}$/);
 
   const hosts = readFileSync(join(a.dir, "hosts.json"), "utf8");

@@ -1,27 +1,4 @@
 #!/usr/bin/env bash
-# Check the statecharts (the oracle) and keep their pages in step with their models.
-#
-#   scripts/statecharts.sh [--check] [<chart-name>...]
-#
-# For each row of docs/statecharts/charts.tsv (or only the charts named), it runs the statechart
-# generator on the chart's TLA+ model, checks that TLC's verdict is the row's `expect`
-# (holds: exit 0, breaks: exit 1), and compares the generated chart.mmd with the ```mermaid block
-# in docs/statecharts/<chart>.md.
-#
-#   (no flag)  rewrite a block that differs, in place.
-#   --check    change nothing; exit 1 when a block differs or a verdict is not the expected one.
-#
-# It prints one line per chart: `<chart> ok`, `<chart> DIFF` or `<chart> BROKE`. Details go to
-# stderr.
-#
-# charts.tsv: tab-separated `chart  tla  cfg  view  expect`, with paths relative to
-# docs/statecharts. Blank lines, lines starting with `#`, and the header row are skipped.
-#
-# The generator is easel's own copy: vendor/statechart (scripts/statechart-sync.sh, pinned pstack,
-# MIT). It needs Bun or Node on PATH, and Java and TLC from scripts/tlc.sh: its first run downloads
-# them, at pinned SHA-256, into ~/.cache/easel/tlc, so it needs the network once. $STATECHART
-# replaces the generator. scripts/ship.sh runs --check as a gate, on this host, for a ship that
-# changes docs/statecharts/, a SPEC*.md, vendor/statechart/ or this script.
 set -euo pipefail
 
 root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
@@ -30,7 +7,13 @@ manifest="$dir/charts.tsv"
 tool="${STATECHART:-$root/vendor/statechart/statechart}"
 export PATH="$HOME/.bun/bin:$PATH"
 
-usage() { sed -n '4,4s/^#   //p' "${BASH_SOURCE[0]}"; }
+usage() {
+  cat <<'USAGE'
+scripts/statecharts.sh [--check] [<chart-name>...]
+  (no flag)  rewrite each chart block in docs/statecharts/<chart>.md that differs from its model.
+  --check    change nothing; exit 1 when a block differs or a verdict is not the expected one.
+USAGE
+}
 
 check=0
 declare -A wanted=()
@@ -54,7 +37,6 @@ if [[ ! -x "$tool" ]]; then
   echo "statecharts: no generator at $tool; run scripts/statechart-sync.sh" >&2
   exit 69
 fi
-# Always the pinned Java and TLC, never ones from the environment.
 tlc="$(bash "$root/scripts/tlc.sh")" || {
   echo "statecharts: no Java and TLC; scripts/tlc.sh failed" >&2
   exit 69
@@ -68,11 +50,9 @@ fi
 tmp="$(mktemp -d)"
 trap 'rm -rf "$tmp"' EXIT
 
-# The lines of the one ```mermaid block in a page, without its fences.
 block() { awk '/^```mermaid[[:space:]]*$/ { inside = 1; next } inside && /^```[[:space:]]*$/ { exit } inside' "$1"; }
 blocks() { grep -c '^```mermaid[[:space:]]*$' "$1" || true; }
 
-# Replace the lines of the ```mermaid block in page $1 with the file $2.
 rewrite() {
   CHART="$2" awk '
     /^```mermaid[[:space:]]*$/ && !done { print; while ((getline line < ENVIRON["CHART"]) > 0) print line; skip = 1; next }

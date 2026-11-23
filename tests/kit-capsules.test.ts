@@ -1,10 +1,10 @@
 import { exits } from "@tinkered/cli/test";
 import { createScope, resource } from "@tinkered/core";
 import { createElement } from "react";
-import { afterAll, beforeAll, expect, test } from "vite-plus/test";
+import { afterAll, beforeAll, expect, expectTypeOf, test } from "vite-plus/test";
 
 import { describeCapsule } from "@/kit/capsules/about";
-import { copy, type Locale, locales, textGaps, type Texts } from "@/kit/capsules/copy";
+import { copy, type Locale, locales, type Say, textGaps, type Texts } from "@/kit/capsules/copy";
 import { look } from "@/kit/capsules/look";
 import { renderFrame } from "@/kit/capsules/render.server";
 import { ui } from "@/kit/capsules/ui";
@@ -16,11 +16,6 @@ import { texts as pricingTexts } from "./kit/capsules/pricing/copy";
 import { sampleShape } from "./kit/capsules/pricing/entities";
 import { pricing } from "./kit/capsules/pricing/index";
 
-// The kit as capsules (docs/decisions/kit-capsules.md): the look, the copy and the pieces are
-// capsules, and a frame is a component that depends on them (form 1) or a capsule of its own
-// (form 2). A frame draws in a new scope of its install list; each start checks what its capsule
-// needs, so a frame that draws is a frame whose look, copy and data are whole.
-
 const server = createScope({ capsules: [exits({ file: process.env.TINKER_EXITS })] });
 let seed: Record<string, string> = {};
 
@@ -30,7 +25,6 @@ beforeAll(async () => {
 
 afterAll(() => server.close());
 
-/** The install list of the kit: the seed look, the copy in `locale`, the pieces. */
 const kit = (locale: Locale, values: Record<string, string> = seed) => [
   look({ values, css: seedKitCss }),
   copy({ locale }),
@@ -85,7 +79,6 @@ test("form 2: a capsule draws each locale and each data state, and the same inst
 });
 
 test("a gap in the texts of a part stops its frame before it draws", async () => {
-  // Texts<string> lets any key in: a frame that the agent does not type-check can have gaps.
   const gapped: Texts<string> = {
     en: { "gap.title": "Invite", "gap.access": "{count} have access" },
     vi: { "gap.access": "{n} có quyền" },
@@ -142,7 +135,6 @@ test("a look that fails K8 stops the scope: the pieces do not draw with it", asy
 });
 
 test("a frame that needs a capsule the install does not have does not start", async () => {
-  // The pieces need the copy: with no copy capsule, Tinker names the unit and its capsule.
   const got = await server.run(renderFrame, {
     input: { capsules: [look({ values: seed, css: seedKitCss }), ui()], view: invite.View },
   });
@@ -155,18 +147,10 @@ test("a frame that needs a capsule the install does not have does not start", as
 });
 
 test("the types hold the rules: required config, the keys of a part, and a read-only export", () => {
-  const unused = (say: <K extends string>(part: Texts<K>) => (key: K) => string) => {
-    // @ts-expect-error the look needs its values and the kit's CSS: the compiler names the keys.
-    createScope({ capsules: [look({ css: "" })] });
-    // @ts-expect-error each locale has each key: vi has no text for "a".
-    say({ en: { a: "A" }, vi: {} });
-    const t = say({ en: { a: "A" }, vi: { a: "Á" } });
-    // @ts-expect-error the part has no key "b".
-    t("b");
-    // @ts-expect-error a frame cannot write the plans of the pricing capsule.
-    return pricing.plans.controller;
-  };
-  expect(typeof unused).toBe("function");
+  expectTypeOf({ css: "" }).not.toExtend<Parameters<typeof look>[0]>();
+  expectTypeOf({ en: { a: "A" }, vi: {} }).not.toExtend<Texts<"a">>();
+  expectTypeOf<"b">().not.toExtend<Parameters<Say<"a">>[0]>();
+  expectTypeOf(pricing.plans).not.toHaveProperty("controller");
 });
 
 test("the list of capsules: what each does, its config with its schema, and its exports", async () => {
@@ -192,7 +176,6 @@ test("the list of capsules: what each does, its config with its schema, and its 
       schema: expect.objectContaining({ enum: ["en", "vi"] }),
     },
   ]);
-  // The data states of the frame are in the schema of its config: a tool can draw each one.
   expect(list[3]?.config[0]?.schema).toMatchObject({ enum: ["empty", "one", "many", "long"] });
   expect(list[3]?.exports.map((one) => `${one.name} ${one.kind}`)).toEqual([
     "View resource",
@@ -201,6 +184,5 @@ test("the list of capsules: what each does, its config with its schema, and its 
     "text resource",
   ]);
   expect(list[3]?.exports[2]?.input).toMatchObject({ type: "string" });
-  // The scope's own record: the config as installed.
   expect(got.capsules[1]?.config).toMatchObject({ locale: "vi" });
 });

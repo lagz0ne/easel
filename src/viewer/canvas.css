@@ -1,7 +1,5 @@
 @import "../design/tokens.css";
 
-/* The canvas (SPEC-viewer.md): a quiet toolbar over the frames. Colour, space and type come only
-   from the design tokens (SPEC-design.md fact rule 1); px here are borders and places. */
 .e-canvas {
   position: fixed;
   inset: 0;
@@ -11,7 +9,6 @@
   font-family: var(--e-font);
 }
 
-/* Text for a screen reader only: it takes no room and does not show. */
 .e-unseen {
   position: absolute;
   width: 1px;
@@ -21,7 +18,6 @@
   clip-path: inset(50%);
 }
 
-/* The top of the canvas: the status `Reconnecting`, or an alert on a fault. */
 .e-top {
   position: absolute;
   top: var(--e-3);
@@ -43,9 +39,6 @@
   color: var(--e-danger);
 }
 
-/* The dock (the library's Dock): the canvas tools at the bottom centre, as icons. The library's
-   tokens that tokens.css has not taken yet (--e-line, --e-hover, --e-accent-bg, --e-radius-l)
-   fall back to the nearest token it has. */
 .e-dock {
   position: absolute;
   bottom: var(--e-4);
@@ -134,9 +127,6 @@
   font-size: var(--e-size-3);
 }
 
-/* The viewport takes the drag, the wheel and the pinch; the browser does none of its own. */
-/* It holds the empty text, under the world: a request's popover shows over it. */
-/* It is `.e-light`: the space stays light gray in a dark theme, as in Doop (SPEC-design.md). */
 .e-viewport {
   position: absolute;
   inset: 0;
@@ -148,8 +138,6 @@
   contain: strict;
 }
 
-/* In request mode, the pointer is the speech bubble of the button Request, as in the comment
-   mode of Figma and Miro. Its tip is the tail of the bubble, where the pin goes. */
 .e-canvas[data-mode="request"] .e-viewport {
   cursor:
     url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='24' height='24' viewBox='0 0 24 24'%3E%3Cpath d='M7.9 20A9 9 0 1 0 4 16.1L2 22Z' fill='white' stroke='black' stroke-width='1.5' stroke-linejoin='round'/%3E%3C/svg%3E")
@@ -157,7 +145,6 @@
     crosshair;
 }
 
-/* The world: the one element the camera transforms. */
 .e-world {
   position: absolute;
   top: 0;
@@ -170,7 +157,6 @@
   contain: layout style;
 }
 
-/* A label keeps its screen size: the stage writes its inverse zoom and its width. */
 .e-axis {
   margin-left: var(--e-1);
   padding: 0 var(--e-1);
@@ -194,8 +180,6 @@
   border-color: transparent;
 }
 
-/* The label row: the name gets shorter to fit the frame's width; the picks and the controls
-   after it keep their size, and may go past the frame's edge. */
 .e-label {
   position: absolute;
   bottom: 100%;
@@ -222,15 +206,12 @@
   text-overflow: ellipsis;
 }
 
-/* The picture: a plain card until pictures are built (decision C10). */
 .e-card {
   position: absolute;
   inset: 0;
   background-color: var(--e-card);
 }
 
-/* The frame's picture fills its card. Until it decodes, or if it fails, the card's color shows:
-   its alt text stays unseen. */
 .e-pic {
   display: block;
   width: 100%;
@@ -240,7 +221,6 @@
   pointer-events: none;
 }
 
-/* A live document. The viewer is read-only, so a drag or a wheel over it moves the canvas. */
 .e-doc {
   position: absolute;
   inset: 0;
@@ -250,8 +230,6 @@
   pointer-events: none;
 }
 
-/* The controls of a frame (SPEC-kit.md § The capsules, "The controls in the viewer"): a button
-   after its name, and the panel `Controls` in the place of `Requests`. */
 .e-ctl-open {
   display: inline-grid;
   place-items: center;
@@ -356,8 +334,6 @@
   font-size: var(--e-size-1);
 }
 
-/* The controls that a frame placed at `top`: in its label row, after its name, as small as the
-   picks of its data state. */
 .e-ctl-top {
   display: inline-flex;
   gap: var(--e-1);
@@ -395,9 +371,6 @@
   margin: 0;
 }
 
-/* The controls that a frame docked to its left or right edge: a column outside the frame, 8 px
-   from it, that keeps its screen size (`--e-unzoom`, as the pins). Its shell stacks over the
-   frames beside it. */
 .e-shell:has(> .e-ctl-dock) {
   z-index: 1;
 }
@@ -431,8 +404,6 @@
   padding: var(--e-3);
 }
 
-/* A pane of a frame (chart kit-control-link): an iframe with the size of its content, which the
-   pane posts. It has no size until then, so it shows nothing. A column with a pane has its width. */
 .e-pane {
   display: block;
   width: 0;
@@ -450,14 +421,10 @@
   overflow: hidden;
 }
 
-/* An app document that is closing: it stays until its app posts `closed`, but shows nothing. */
 .e-doc-closing {
   visibility: hidden;
 }
 
-/* A request (SPEC-viewer.md § Ask for a change; the E4.1 design). The pins and the popover sit in
-   the world at their place, and undo the zoom (`--e-unzoom`, written by the stage) to keep their
-   screen size. */
 .e-pins {
   position: absolute;
   top: 0;
@@ -471,7 +438,6 @@
   cursor: auto;
 }
 
-/* A pin: a round mark with the author's initial; its tip is the place. */
 .e-pin {
   position: absolute;
   bottom: 0;
@@ -508,7 +474,6 @@
   outline-offset: 2px;
 }
 
-/* The outline of the part a request is on, at its screen width whatever the zoom. */
 .e-outline {
   position: absolute;
   border: calc(2px * var(--e-unzoom, 1)) solid var(--e-accent);
@@ -516,7 +481,6 @@
   pointer-events: none;
 }
 
-/* The removed frame: a dashed area where it was. */
 .e-gone {
   position: absolute;
   border: 2px dashed var(--e-muted);
@@ -524,8 +488,6 @@
   pointer-events: none;
 }
 
-/* A removed frame, where it was, while its request is open (Follow the requests 9): a hairline
-   dashed area with a small note at its top left. */
 .e-gone-frame {
   box-sizing: border-box;
   border-width: 1px;
@@ -540,7 +502,6 @@
   transform-origin: top left;
 }
 
-/* A popover (the design system's Popover): 340 px, a hairline edge, the large radius. */
 .e-pop {
   position: absolute;
   top: var(--e-2);
@@ -571,7 +532,6 @@
   align-items: flex-start;
 }
 
-/* An avatar (the design system's Avatar, size m): a 24 px circle; an agent's is a square. */
 .e-avatar {
   display: grid;
   flex: none;
@@ -623,7 +583,6 @@
   outline: none;
 }
 
-/* While it sends, the text stays, muted. */
 .e-box[data-busy="true"] textarea {
   color: var(--e-muted);
 }
@@ -714,8 +673,6 @@
   border: 0;
 }
 
-/* The head of a request (the design system's ThreadHead): one 40 px line over the top edge of the
-   popover, with a hairline under it. Its fill says that the request waits for the viewer. */
 .e-head {
   display: flex;
   gap: var(--e-2);
@@ -740,7 +697,6 @@
   background-color: var(--e-danger-bg);
 }
 
-/* More and Close: a 14 px icon in a 28 px button. */
 .e-close {
   display: grid;
   flex: none;
@@ -772,7 +728,6 @@
   color: var(--e-text);
 }
 
-/* The gate pages keep the text of a request being typed, to copy. */
 .e-kept {
   display: flex;
   flex-direction: column;
@@ -807,8 +762,6 @@
   border: 1px solid var(--e-muted);
 }
 
-/* The panel `Requests` (SPEC-viewer § The page 3; the library's Sidebar): at the right edge, over
-   the full height. The canvas and the dock use the rest of the width. */
 .e-canvas[data-panel="open"] .e-viewport {
   right: 340px;
 }
@@ -886,7 +839,6 @@
   margin: 0;
 }
 
-/* A count (the library's Count): an accent pill, 16 px for one or two digits. */
 .e-count {
   display: inline-flex;
   align-items: center;
@@ -911,7 +863,6 @@
   box-shadow: 0 0 0 2px var(--e-surface);
 }
 
-/* The list's menu button and its menu. */
 .e-menu-at {
   position: relative;
   margin-left: auto;
@@ -996,7 +947,6 @@
   }
 }
 
-/* A row (the library's RequestRow): no fill for its state; the mark says it. */
 .e-rr {
   position: relative;
   display: flex;
@@ -1037,7 +987,6 @@
   border-radius: 50%;
 }
 
-/* Changed since your last visit: an accent squircle on the avatar's top right corner. */
 .e-rr-changed {
   position: absolute;
   top: 8px;
@@ -1099,7 +1048,6 @@
   text-overflow: ellipsis;
 }
 
-/* A state mark (the library's StateBadge, look=mark): a shape per state. */
 .e-sb {
   display: inline-flex;
   gap: var(--e-2);
@@ -1193,7 +1141,6 @@
   background: linear-gradient(45deg, transparent 42%, currentcolor 42% 58%, transparent 58%);
 }
 
-/* A pin's look (step 7): accent while it waits for a viewer, danger for a person, else quiet. */
 .e-pin[data-look="quiet"] {
   color: var(--e-text);
   background-color: var(--e-surface);
@@ -1204,7 +1151,6 @@
   background-color: var(--e-danger);
 }
 
-/* The reference and the place (ThreadHead): one line, cut with "…". */
 .e-head-ref {
   min-width: 0;
   margin-right: auto;
@@ -1218,14 +1164,10 @@
   margin-right: var(--e-2);
 }
 
-/* The popover of a saved request: its thread and the controls of its state (E4.2, E4.3). */
 .e-req {
-  /* The place of the request comes to 40% of the height: the popover fits under it, over the dock. */
   max-height: calc(60vh - 96px);
 }
 
-/* The head and the controls stay; the thread scrolls, and its end does not scroll the page.
-   The menu More is not cut. */
 .e-req .e-thread {
   min-height: 0;
   overflow-y: auto;
@@ -1256,7 +1198,6 @@
   align-items: flex-start;
 }
 
-/* A hairline above each message after the first. */
 .e-msg ~ .e-msg {
   padding-top: var(--e-3);
   border-top: 1px solid var(--e-divider);
@@ -1269,7 +1210,6 @@
   box-shadow: none;
 }
 
-/* The name and the time of a message (the design system's Message head). */
 .e-msg .e-who {
   display: flex;
   gap: var(--e-2);
@@ -1313,7 +1253,6 @@
   opacity: 0.5;
 }
 
-/* An HTML part, as a live document: a sandboxed frame. */
 .e-part {
   width: 100%;
   height: 160px;
@@ -1351,8 +1290,6 @@ span.e-opt[data-picked="false"] {
   color: var(--e-muted);
 }
 
-/* Two pictures of one frame (the design's Compare, view switch): one picture, 16:10, with a
-   two-way switch on its top edge, as a fieldset legend. Folded, only the switch shows. */
 .e-cmpr {
   position: relative;
   padding-top: 14px;
@@ -1411,7 +1348,6 @@ span.e-opt[data-picked="false"] {
   border-radius: var(--e-radius);
 }
 
-/* The top of a tall frame fills the card; a frame wider than the card shows all its width. */
 .e-cmpr-pic .e-pic {
   width: 100%;
   height: 100%;

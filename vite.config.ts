@@ -10,14 +10,10 @@ import { clientMeta } from "./scripts/client-meta";
 
 const at = (path: string) => fileURLToPath(new URL(path, import.meta.url));
 const alias = { "~": at("tinker"), "@": at("src") };
-/** The Bun server in dev (`bun --hot cmds/api.ts`): Vite answers the page, Bun the rest. */
 const api = `http://127.0.0.1:${process.env.API_PORT ?? 3001}`;
 
 export default defineConfig({
-  // The browser half: the page and its modules, with React Fast Refresh. Bun runs the server.
   root: at("cmds"),
-  // The page build refuses server code in its graph (`.server.` files, bun:, node:). The browser
-  // tests below run the server in the page on purpose, so a test run leaves the guard out.
   plugins: [process.env.VITEST ? [] : pageGuard(), react(), clientMeta(at("."))],
   resolve: { alias },
   build: { outDir: at("dist/client"), emptyOutDir: true },
@@ -30,7 +26,6 @@ export default defineConfig({
     root: at("."),
     projects: [
       {
-        // The server half and the scripts, on the Bun runtime (`bun --bun vp test`).
         resolve: { alias },
         test: {
           name: "server",
@@ -40,10 +35,8 @@ export default defineConfig({
         },
       },
       {
-        // The page's modules, in a real Chromium.
         plugins: [react()],
         resolve: { alias },
-        // Found up front, so a first run does not reload the page mid-test.
         optimizeDeps: {
           include: [
             "@tinkered/cli/test",
@@ -61,9 +54,6 @@ export default defineConfig({
           root: at("."),
           include: ["tests/browser/**/*.test.tsx"],
           setupFiles: ["tests/browser/exits.setup.ts"],
-          // An IP, not `localhost`: another suite on the machine may hold [::1]:63315 (the
-          // default), and Chromium would resolve `localhost` to it and miss this run's session.
-          // Not strict: when that suite holds 63315 itself, take the next free port.
           api: { host: "127.0.0.1", strictPort: false },
           browser: {
             enabled: true,
@@ -75,7 +65,6 @@ export default defineConfig({
       },
     ],
   },
-  // Markdown fences keep the line breaks we wrote.
   fmt: {
     embeddedLanguageFormatting: "off",
     sortImports: {
@@ -100,26 +89,20 @@ export default defineConfig({
     rules: {
       "vite-plus/prefer-vite-plus-imports": "error",
       complexity: ["error", { max: 8 }],
-      // A capsule root answers each call with a promise (Core ADR 0128): await it.
       "typescript/no-floating-promises": "error",
       "tinker/blank-lines": "error",
       "tinker/body-steps": "error",
-      // Another capsule's cell is read through its export, or changed by its op (ADR 0123).
       "tinker/cell-write": "warn",
       curly: ["error", "multi-line"],
       "import/no-relative-parent-imports": "error",
-      // Misreads Vite's `?raw` text imports as missing default exports.
       "import/default": "off",
     },
-    // Type errors come from `bun run typecheck` (tsc), so the linter does not type check.
     options: { typeAware: true, typeCheck: false },
     overrides: [
-      // Plain Node scripts have no tsconfig, so `@/` cannot reach them.
       {
         files: ["**/*.mjs", "**/*.js", "**/*.cjs"],
         rules: { "import/no-relative-parent-imports": "off" },
       },
-      // The kind gate and the cast gate (`tinker check`, types stage): the app's own code.
       { files: ["src/**"], rules: gates },
     ],
   },

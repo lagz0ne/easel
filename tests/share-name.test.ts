@@ -21,19 +21,12 @@ import { mayAct } from "@/queue/guards.server";
 import { requestOps } from "@/queue/ops.server";
 import { queueServer } from "@/queue/store.server";
 
-// `share.name` (SPEC-frames § Contract; SPEC-viewer § Open the link): the viewer gives a name at
-// the first request, not at the link. The page holds a live pass and no password, so it does not
-// open the link again: it sets the name on the pass it holds. The pass is the proof (`mayName`,
-// as `mayRead` judges a pass). A pass takes a name once: a later name does not replace it, and
-// the call answers the name the pass holds.
-
 const closers: Array<() => unknown> = [];
 
 afterEach(async () => {
   for (const close of closers.splice(0).reverse()) await close();
 });
 
-/** One server as cmds/server.ts wires frames, share, the pass's name and the queue. */
 async function boot() {
   const out: string[] = [];
   const stdout = { write: (chunk: string) => out.push(chunk) };
@@ -72,7 +65,6 @@ async function boot() {
   return { server, setupCode };
 }
 
-/** A client: a user with a token, or a viewer's tab whose meta carries `held.pass`. */
 async function client(server: Scope.Handle, held: { token?: string; pass?: string } = {}) {
   const meta = operation({
     label: "test.meta",
@@ -115,7 +107,6 @@ async function client(server: Scope.Handle, held: { token?: string; pass?: strin
   };
 }
 
-/** Canvas `flow`, shared (with `password`, if one): Ann's client and the link. */
 async function sharedFlow(srv: Awaited<ReturnType<typeof boot>>, password?: string) {
   const text = randomBytes(32).toString("base64url");
   const digest = createHash("sha256").update(text).digest("hex");
@@ -134,7 +125,6 @@ async function sharedFlow(srv: Awaited<ReturnType<typeof boot>>, password?: stri
   return { a, link: shared.path.slice("/s/".length) };
 }
 
-/** A viewer's tab that opened `link` (with `password`, if one) and holds its pass. */
 async function tab(srv: Awaited<ReturnType<typeof boot>>, link: string, password?: string) {
   const t = await client(srv.server);
   const opened = await t.scope.run(frames.viewer["share.open"], {
@@ -145,7 +135,6 @@ async function tab(srv: Awaited<ReturnType<typeof boot>>, link: string, password
   return t;
 }
 
-/** The fault a call ended in, and its payload; null when it answered. */
 const faultOf = (call: Promise<unknown>) =>
   call.then(
     () => null,
@@ -179,7 +168,6 @@ test("a pass takes a name only once: a later name does not replace it, and the c
   expect(await mai.name("Mai")).toEqual({ kind: "named", name: "Mai" });
   expect(await mai.name("Tom")).toEqual({ kind: "named", name: "Mai" });
 
-  // A pass that opened with the name this browser kept holds it too.
   const kept = await client(srv.server);
   const opened = await kept.scope.run(frames.viewer["share.open"], { input: { link, name: "Bo" } });
   kept.held.pass = opened.kind === "open" ? opened.pass : "";

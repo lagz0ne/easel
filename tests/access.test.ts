@@ -18,16 +18,12 @@ import { codeLife, limits, loginOps, maxPending, waitMax } from "@/access/login.
 import { accessServer } from "@/access/store.server";
 import { ownerOps, userOps } from "@/access/users.server";
 
-// access over the memory transport, against the access-login chart (docs/statecharts) and
-// SPEC-access's rules. The server runs on a test clock; each client is one CLI at one address.
-
 const closers: Array<() => unknown> = [];
 
 afterEach(async () => {
   for (const close of closers.splice(0).reverse()) await close();
 });
 
-/** Lets a call cross the memory transport and reach its `await`. */
 const tick = (ms = 20) => new Promise((done) => setTimeout(done, ms));
 
 const minute = 60_000;
@@ -41,7 +37,6 @@ type Boot = {
   clock?: ReturnType<typeof makeTestClock>;
 };
 
-/** One server: SQLite, access, and a memory transport. Its log lines and spans are kept. */
 async function boot(options: Boot = {}) {
   const clock = options.clock ?? makeTestClock({ now: 1_800_000_000_000 });
   const out: string[] = [];
@@ -73,7 +68,6 @@ async function boot(options: Boot = {}) {
   return { server, clock, out, spans, logs, setupCode };
 }
 
-/** A token as the CLI makes it, and the digest it sends. */
 function token() {
   const text = randomBytes(32).toString("base64url");
 
@@ -82,7 +76,6 @@ function token() {
 
 type Client = { token?: string; peer?: string; forwarded?: string };
 
-/** One CLI: its address (the door's peer header), and its token once it has one. */
 async function cli(server: Scope.Handle, options: Client = {}) {
   const held = { token: options.token };
   const meta = operation({
@@ -105,7 +98,6 @@ async function cli(server: Scope.Handle, options: Client = {}) {
 
   return {
     held,
-    /** Ends this CLI's scope: before its server closes, so its close does not wait on a peer. */
     close: () => scope.close(),
     start: (name: string, digest: string) =>
       scope.run(access.login["login.start"], { input: { name, digest } }),
@@ -122,7 +114,6 @@ async function cli(server: Scope.Handle, options: Client = {}) {
   };
 }
 
-/** The fault a call ended in, and its payload; null when it answered. */
 const faultOf = (call: Promise<unknown>) =>
   call.then(
     () => null,
@@ -134,7 +125,6 @@ const faultOf = (call: Promise<unknown>) =>
 
 const signIn = { fault: "refused", payload: { signIn: true } };
 
-/** Ann becomes the first owner with the setup code; her CLI then holds her token. */
 async function firstOwner(srv: Awaited<ReturnType<typeof boot>>, name = "ann") {
   const ann = await cli(srv.server, { peer: "198.51.100.1" });
   const t = token();
@@ -147,7 +137,6 @@ async function firstOwner(srv: Awaited<ReturnType<typeof boot>>, name = "ann") {
   return ann;
 }
 
-/** The agent starts a login from its own address: its code and request. */
 async function startAgent(server: Scope.Handle, name = "agent", peer = "203.0.113.7") {
   const agent = await cli(server, { peer });
   const t = token();
@@ -162,8 +151,6 @@ async function startAgent(server: Scope.Handle, name = "agent", peer = "203.0.11
     expiresAt: answer.expiresAt,
   };
 }
-
-// ---- The first owner (chart region Owners: s0 -> s2; judged rule 4)
 
 test("the setup code makes the first owner once; then it answers taken", async () => {
   const srv = await boot();
@@ -202,7 +189,6 @@ test("a setup name that a waiting code carries answers taken (judged rule 7)", a
   expect((await ann.setup("anne", srv.setupCode(), token().digest)).kind).toBe("granted");
 });
 
-// Three starts on a file: each open and close syncs it to disk, seconds under load (30 s budget).
 test("the server restarts: users and logins stay, the old setup code answers wrong, and a request is forgotten a day after its code ends (expired)", async () => {
   const folder = mkdtempSync(join(tmpdir(), "easel-access-"));
   closers.push(() => rmSync(folder, { recursive: true, force: true }));
@@ -225,7 +211,6 @@ test("the server restarts: users and logins stay, the old setup code answers wro
   for (const client of [ann, agent, denied.agent]) await client.close();
   await second.server.close();
 
-  // A day and more later: the codes that ended are no longer kept; the user and its token are.
   clock.advance(25 * 60 * minute);
   const third = await boot({ file, clock });
   const again = await cli(third.server, { token: t.text });
@@ -249,11 +234,9 @@ test("a row that does not parse is skipped at start; the log says how many, not 
   const log = srv.out.join("");
   expect(log).toContain("skipped 1 rows");
   expect(log).not.toContain("secret-not-a-digest");
-  // The bad row is no user: the server still waits for its first owner.
   expect((await firstOwner(srv)).held.token).toBeTruthy();
 }, 30_000);
 
-/** A file-backed server for restart tests: a fresh folder, removed after the test. */
 function dbFile() {
   const folder = mkdtempSync(join(tmpdir(), "easel-access-"));
   closers.push(() => rmSync(folder, { recursive: true, force: true }));
@@ -336,14 +319,11 @@ test("an approve server in production with no EASEL_DB does not start, and says 
 
   expect(failed).toContain("MissingConfig");
   expect(out.join("")).toContain("needs EASEL_DB");
-  // With a file, or in open mode on loopback, it starts; dev keeps memory with a warning.
   expect((await boot({ file: dbFile(), durable: true })).setupCode()).toHaveLength(9);
   const open = await boot({ mode: "open", origin: "http://localhost:4318", durable: true });
   expect(open.out.join("")).toContain("no EASEL_DB");
   expect((await boot()).out.join("")).toContain("no EASEL_DB");
 }, 30_000);
-
-// ---- An agent joins (chart region The agent)
 
 test("approve: the agent waits, is told granted, and its token works (s6 -> s11 -> s12)", async () => {
   const srv = await boot();
@@ -433,7 +413,6 @@ test("the agent stops waiting after 50 s; the agent resumes (login --resume) ont
   srv.clock.advance(waitMax);
 
   expect(await waiting).toEqual({ kind: "pending" });
-  // It stopped waiting (`--no-wait`); later it resumes with the request (`--resume`).
   expect(await ann.approve(code)).toMatchObject({ kind: "approved" });
   expect((await agent.wait(request)).kind).toBe("granted");
 });
@@ -467,8 +446,6 @@ test("a lost granted answer: the next wait answers granted again (s11 -> s13 -> 
   expect((await agent.me()).name).toBe("agent");
 });
 
-// ---- Revoke (judged rules 8-9)
-
 test("a revoke before the agent heard granted: it is told denied, never granted (s11 -> s10)", async () => {
   const srv = await boot();
   const ann = await firstOwner(srv);
@@ -486,7 +463,6 @@ test("the server answers granted, but the answer is lost; then an owner revokes 
   const ann = await firstOwner(srv);
   const { agent, token: t, code, request } = await startAgent(srv.server);
   await ann.approve(code);
-  // This granted answer never reaches the CLI: it does not keep the token.
   expect((await agent.wait(request)).kind).toBe("granted");
 
   expect(await ann.revoke("agent")).toEqual({ kind: "revoked" });
@@ -509,7 +485,6 @@ test("a revoke of a signed-in agent refuses its next call (s12 -> s14 -> s5)", a
   expect(await faultOf(agent.me())).toEqual(signIn);
   expect(await agent.wait(request)).toEqual({ kind: "denied" });
   expect(await ann.revoke("agent")).toEqual({ kind: "gone" });
-  // The name is free again: a new login for it waits.
   expect((await startAgent(srv.server, "agent", "203.0.113.9")).code).toHaveLength(9);
 });
 
@@ -572,8 +547,6 @@ test("the last owner answers last; an owner may revoke themselves while another 
   expect((await agent.list()).users.map((u) => [u.name, u.role])).toEqual([["agent", "owner"]]);
 });
 
-// ---- Sign out, and calls with no token
-
 test("whoami, then logout: the token is refused after it, and the name logs in again", async () => {
   const srv = await boot();
   const ann = await firstOwner(srv);
@@ -587,7 +560,6 @@ test("whoami, then logout: the token is refused after it, and the name logs in a
   expect(await faultOf(agent.end())).toEqual(signIn);
   expect(await agent.wait(request)).toEqual({ kind: "denied" });
   expect((await ann.list()).users.map((u) => u.name)).toEqual(["ann"]);
-  // The same name logs in again, with a new token.
   const again = token();
   const next = await agent.start("agent", again.digest);
   if (next.kind !== "pending") throw new Error(`not pending: ${next.kind}`);
@@ -642,8 +614,6 @@ test("users.list shows users and the waiting codes, oldest first, and no digest"
   expect(JSON.stringify(list)).not.toMatch(/digest|[0-9a-f]{64}/);
 });
 
-// ---- Names (judged rule 7)
-
 test("a name in use answers taken: a user has it, or a waiting code carries it", async () => {
   const srv = await boot();
   const ann = await firstOwner(srv);
@@ -664,8 +634,6 @@ test("a digest in use answers taken", async () => {
 
   expect(await other.start("other", t.digest)).toEqual({ kind: "taken" });
 });
-
-// ---- Rate limits (judged rules 10-11)
 
 test("5 login.start a minute from one address; each counts whatever it answers; then slow", async () => {
   const srv = await boot();
@@ -738,10 +706,8 @@ test("X-Forwarded-For counts only from a trusted proxy, and never an entry the c
   const one = await via("6.6.6.6, 192.0.2.1");
   for (let i = 0; i < limits["login.wait"]; i++) await one.wait("0".repeat(32));
 
-  // The client wrote the first entry: a new one does not make a new address.
   expect((await (await via("7.7.7.7, 192.0.2.1")).wait("0".repeat(32))).kind).toBe("slow");
   expect((await (await via("192.0.2.2", "fd00::1")).wait("0".repeat(32))).kind).toBe("expired");
-  // From a peer that is not trusted, the header is not read: all of it is one address.
   const outside = (forwarded: string) => cli(srv.server, { peer: "192.0.2.99", forwarded });
   for (let i = 0; i < limits["login.wait"]; i++) {
     await (await outside(`192.0.2.${i}`)).wait("0".repeat(32));
@@ -756,11 +722,9 @@ test("X-Forwarded-For is read from the right past each trusted proxy (Cloudflare
   const one = await via("6.6.6.6, 192.0.2.1, 173.245.48.5");
   for (let i = 0; i < limits["login.wait"]; i++) await one.wait("0".repeat(32));
 
-  // The client is the first entry from the right that is not a trusted proxy.
   expect((await (await via("192.0.2.1, 173.245.48.9")).wait("0".repeat(32))).kind).toBe("slow");
   expect((await (await via("7.7.7.7, 192.0.2.1")).wait("0".repeat(32))).kind).toBe("slow");
   expect((await (await via("192.0.2.2, 173.245.48.5")).wait("0".repeat(32))).kind).toBe("expired");
-  // Every entry trusted: the leftmost is the client.
   const inside = await via("10.9.9.9, 173.245.48.5");
   for (let i = 0; i < limits["login.wait"]; i++) await inside.wait("0".repeat(32));
   expect((await (await via("10.9.9.9")).wait("0".repeat(32))).kind).toBe("slow");
@@ -798,8 +762,6 @@ test("the env: trusted proxies are loopback when unset, an entry that is not a C
   }
 });
 
-// ---- open (judged rule 12)
-
 test("open: each login is granted at once, as an owner; there is no setup code", async () => {
   const srv = await boot({ mode: "open", origin: "http://localhost:4318" });
   const solo = await cli(srv.server);
@@ -828,8 +790,6 @@ test("open does not start unless the public origin is loopback", async () => {
   }
 });
 
-// ---- Secrets (judged rule 13)
-
 test("no token, digest, code or request reaches a span, a log record, or an invalid fault", async () => {
   const srv = await boot();
   const ann = await firstOwner(srv);
@@ -839,8 +799,6 @@ test("no token, digest, code or request reaches a span, a log record, or an inva
   agent.held.token = t.text;
   await agent.me();
   await agent.end();
-  // The client checks the input before it sends: its error names the field, not the value. The
-  // server's own `invalid` fault is checked over the socket (access-door.test.ts).
   const bad = await Promise.try(() =>
     agent.setup("x", "BCDF-GHJ1", `${t.digest.slice(0, 63)}g`),
   ).then(

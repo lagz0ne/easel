@@ -15,24 +15,6 @@ import { passMeta, shareApi } from "@/frames/share";
 import { routeTree } from "@/routes";
 import { gates, keepName, nameKey, openLink, tabMeta } from "@/viewer/gate";
 
-// In a real Chromium: the share link's page over `memory`, with the app's own routes (the
-// viewer-gate-password chart). The page asks no name at the link; a name this browser kept rides
-// `share.open`. The server here stands in for share.server.ts, which needs SQLite.
-// Each link the stub knows plays one case; any other link is gone:
-// - `live` opens to `home` with the pass the guard takes;
-// - `stale` opens twice with a pass the guard turns away, as a link that ends after it opened,
-//   then is gone: a page that opened it a third time would end on that, with 3 calls, not loop;
-// - `evicted` opens first with a pass the guard turns away (the link's oldest, trimmed past
-//   1000), then with a good one;
-// - `flooded` answers `slow` twice (the flood limit), then opens;
-// - `stuck` answers `slow`, then opens with a pass the guard turns away;
-// - `guarded` asks a password: none answers `locked`, `rightPw` opens with a new pass each time,
-//   `waitPw` starts a lock of a minute on the stub's clock (as the 5th wrong try does) and answers
-//   `slow`; in the lock every try answers `slow` with the time left, even `rightPw`; any other
-//   password is `wrong`. The test
-//   locks its passes (a password set or changed) or ends it (unshare) and pushes the refusal, as
-//   share.server.ts does.
-
 const live = "a".repeat(32);
 const stale = "b".repeat(32);
 const evicted = "c".repeat(32);
@@ -44,23 +26,15 @@ const badPass = "d".repeat(32);
 const rightPw = "correct horse";
 const waitPw = "after five wrong";
 
-/**
- * The `guarded` link's server side: its passes, which of them a password change locked, whether
- * it ended, and the end of its lock (none: no lock), on `stubClock`.
- */
 const guard: { passes: Set<string>; locked: Set<string>; ended: boolean; lockEnds: number | null } =
   { passes: new Set(), locked: new Set(), ended: false, lockEnds: null };
 
-/** The stub server's clock: a test moves it with the tab's. */
 let stubClock = makeTestClock();
 
-/** `share.open` calls the stub answered, by link. */
 const calls = new Map<string, number>();
-/** The name each `share.open` call sent, in order: undefined for none. */
 const sentNames: Array<string | undefined> = [];
 const callsTo = (link: string) => calls.get(link) ?? 0;
 
-/** What `share.open` answers. */
 type Answer =
   | { kind: "open"; canvas: string; pass: string }
   | { kind: "slow"; retryIn: number }
@@ -72,7 +46,6 @@ const opened = (p: string) => ({ kind: "open" as const, canvas: "home", pass: p 
 const slow = { kind: "slow" as const, retryIn: 5_000 };
 const gone = { kind: "gone" as const };
 
-/** Each link the stub knows: its answer to the n-th call. */
 const answers = new Map<string, (n: number) => Answer>([
   [live, () => opened(pass)],
   [stale, (n: number) => (n <= 2 ? opened(badPass) : gone)],
@@ -81,7 +54,6 @@ const answers = new Map<string, (n: number) => Answer>([
   [stuck, (n: number) => (n === 1 ? slow : opened(badPass))],
 ]);
 
-/** `guarded`'s answer to the n-th call, with `password` or none. */
 const guardedAnswer = (n: number, password?: string): Answer => {
   if (guard.ended) return gone;
   if (password === undefined) return { kind: "locked" };
@@ -111,7 +83,6 @@ const open = operation({
   },
 });
 
-/** What the guard refuses a read of `home` with `held`; none when it may read. */
 const refusalOf = (held: string) => {
   if (held === pass) return undefined;
   if (!guard.passes.has(held) || guard.ended) return { ended: true };
@@ -119,10 +90,6 @@ const refusalOf = (held: string) => {
   return guard.locked.has(held) ? { locked: true } : undefined;
 };
 
-/**
- * `mayRead`'s pass half: the pass for `home` reads `home`, as does a live pass of `guarded`; a
- * pass a password change locked is refused `locked`; any other read has ended.
- */
 const passOnly = operation({
   label: "test.passOnly",
   input: transport.hook.start,
@@ -134,7 +101,6 @@ const passOnly = operation({
   },
 });
 
-/** A password set or changed on `guarded` (every pass locked), or an unshare; then the push. */
 const changeGuarded = operation({
   label: "test.changeGuarded",
   input: z.enum(["password", "unshare"]),
@@ -177,7 +143,6 @@ async function boot() {
   return server;
 }
 
-/** A tab: its own scope and clock, and the app's routes drawn at `path`. */
 async function tab(server: Scope.Handle, path: string) {
   const clock = makeTestClock();
   const scope = await createScope({
@@ -193,7 +158,6 @@ async function tab(server: Scope.Handle, path: string) {
   const history = createMemoryHistory({ initialEntries: [path] });
   const router = createRouter({ routeTree, history, context: { scope } });
   const root = createRoot(document.body.appendChild(document.createElement("div")));
-  // A test that fails leaves no page behind for the next one.
   onTestFinished(() => root.unmount());
   root.render(
     <ScopeProvider scope={scope}>
@@ -204,7 +168,6 @@ async function tab(server: Scope.Handle, path: string) {
   return { scope, root, clock, history };
 }
 
-/** The tab's gate cell for a link, as the page reads it. */
 const gateOf = operation({
   label: "test.gateOf",
   input: z.string(),
@@ -214,7 +177,6 @@ const gateOf = operation({
 
 const tick = (ms = 50) => new Promise((done) => setTimeout(done, ms));
 
-/** Every role a viewer could press, type in, pick or follow. */
 const interactive = [
   "button",
   "link",
@@ -231,14 +193,12 @@ const interactive = [
   "tab",
 ] as const;
 
-/** The page shows no control at all: the ended page's. */
 function expectNoControl() {
   for (const role of interactive) {
     expect(page.getByRole(role).elements(), role).toHaveLength(0);
   }
 }
 
-/** The canvas's controls: Request, Requests, Zoom in, Zoom out and Fit, and no other control. */
 function expectCanvasControlsOnly() {
   for (const role of interactive.filter((r) => r !== "button")) {
     expect(page.getByRole(role).elements(), role).toHaveLength(0);
@@ -264,7 +224,6 @@ test("the link opens with no name asked and none kept, then the canvas shows its
   expect(sentNames).toEqual([undefined]);
   expect(localStorage.getItem(nameKey)).toBeNull();
 
-  // A frame name is text: markup in it is shown, never drawn.
   server.run(putFrame, { input: { id: "f2", name: "<b>Checkout</b>" } });
   await expect.element(frameList().getByText("<b>Checkout</b>")).toBeVisible();
   expect(document.querySelector('section[aria-label="Frames"] b')).toBeNull();
@@ -284,7 +243,6 @@ test("a name this browser kept, trimmed, rides share.open in each tab; a kept na
   first.root.unmount();
   await first.scope.close();
 
-  // Another tab of the same browser, with a session of its own: it sends the kept name.
   sessionStorage.clear();
   const second = await tab(server, `/s/${live}`);
   await expect.element(frameList().getByText("Home")).toBeVisible();
@@ -314,7 +272,6 @@ test("an unknown link, a path that is no link, and a pass turned away twice each
     shown.root.unmount();
     await shown.scope.close();
   }
-  // The link with a pass turned away was opened once more before the page said it ended.
   expect(callsTo(stale)).toBe(2);
   expect(calls.has("not-a-link")).toBe(false);
 
@@ -328,7 +285,6 @@ test("a pass the server ended while the link is live opens the link once more, a
   await expect.element(frameList().getByText("Home")).toBeVisible();
   expect(callsTo(evicted)).toBe(2);
   expect(endedHeading().elements()).toHaveLength(0);
-  // Its read is back: a pass trimmed once more, later, opens the link once more too.
   await expect
     .poll(() => shown.scope.run(gateOf, { input: evicted }))
     .toMatchObject({ page: "canvas", again: false });
@@ -344,7 +300,6 @@ test("a dropped link says Reconnecting, and the frames read so far stay", async 
   expect(reconnecting().elements()).toHaveLength(0);
 
   await server.close();
-  // The board knows the link dropped; then the page must say so, by then and not later.
   await expect
     .poll(() => shown.scope.resolve(frames.board.faults).get().frames?.fault)
     .toBe("link");
@@ -356,14 +311,11 @@ test("a dropped link says Reconnecting, and the frames read so far stay", async 
 });
 
 test("past the flood limit the page stays on Opening, with no wait page, and calls again after retryIn each time", async () => {
-  // The jitter, pinned: half of its 1 s.
   vi.spyOn(Math, "random").mockReturnValue(0.5);
   onTestFinished(() => void vi.restoreAllMocks());
   const server = await boot();
   const shown = await tab(server, `/s/${flooded}`);
 
-  // The slow comes while the route loads: the page says Opening there, to a screen reader only.
-  // The eye sees the empty canvas, as in Figma and Miro (user, 2026-11-23).
   await expect.element(page.getByRole("status")).toHaveTextContent("Opening the link");
   expect(getComputedStyle(page.getByRole("status").element()).clipPath).toBe("inset(50%)");
   expect(callsTo(flooded)).toBe(1);
@@ -371,7 +323,6 @@ test("past the flood limit the page stays on Opening, with no wait page, and cal
   expect(page.getByRole("heading").elements()).toHaveLength(0);
   expect(page.getByRole("alert").elements()).toHaveLength(0);
 
-  // retryIn is 5 s, and the page adds up to 1 s (here 0.5 s) so tabs slowed together spread out.
   shown.clock.advance(5_499);
   await tick();
   expect(callsTo(flooded)).toBe(1);
@@ -392,15 +343,12 @@ test("leaving a link mid-retry stops its loop, and a late answer for another lin
   await expect.element(page.getByRole("status")).toHaveTextContent("Opening the link");
   expect(callsTo(stuck)).toBe(1);
 
-  // The tab goes to another link while `stuck` waits out its retryIn: that loader is aborted.
   shown.history.push(`/s/${live}`);
   await expect.element(frameList().getByText("Home")).toBeVisible();
   shown.clock.advance(10_000);
   await tick(100);
   expect(callsTo(stuck)).toBe(1);
 
-  // A run of `stuck` that nothing aborts (no signal) answers late, after the tab opened `live`
-  // again, with a pass turned away: it is kept for `stuck`, and the tab still sends `live`'s.
   calls.delete(stuck);
   const late = shown.scope.run(openLink, { input: { link: stuck } });
   await expect.poll(() => callsTo(stuck)).toBe(1);
@@ -423,7 +371,6 @@ const passwordHeading = () => page.getByRole("heading", { name: "This link needs
 const changedHeading = () =>
   page.getByRole("heading", { name: "The password of this link changed" });
 
-/** Types `password` on the password page and presses Open. */
 async function enter(password: string) {
   await passwordBox().fill(password);
   await openButton().click();
@@ -445,7 +392,6 @@ test("a password link asks the password at once, with no name, and never says to
   await enter(rightPw);
   await expect.element(frameList().getByText("Home")).toBeVisible();
   expectCanvasControlsOnly();
-  // Its calls: the open, the wrong try and the right one, none with a name.
   expect(callsTo(guarded)).toBe(3);
   expect(sentNames).toEqual([undefined, undefined, undefined]);
 
@@ -489,7 +435,6 @@ test("past 5 wrong tries the page says to wait; the right password 20 s later do
     .poll(() => shown.scope.run(gateOf, { input: guarded }))
     .toEqual({ link: guarded, page: "password", alert: "wait", changed: false });
 
-  // 20 s into the lock, the right password: the server answers slow with the 40 s left.
   advance(20_000);
   const before = callsTo(guarded);
   await enter(rightPw);
@@ -498,7 +443,6 @@ test("past 5 wrong tries the page says to wait; the right password 20 s later do
   await expect.element(page.getByRole("alert")).toHaveTextContent(waitText);
   expect(frameList().elements()).toHaveLength(0);
 
-  // The page waits the 40 s and up to 1 s more (here 0.5 s).
   advance(40_499);
   await tick();
   expect(page.getByRole("alert").elements()).toHaveLength(1);
@@ -530,7 +474,6 @@ test("a password set or changed while the canvas shows takes the tab back to the
   ).toHaveLength(1);
   expect(passwordHeading().elements()).toHaveLength(0);
   expect(frameList().elements()).toHaveLength(0);
-  // It asks; it does not open the link again on its own.
   expect(callsTo(guarded)).toBe(before);
   expect(await shown.scope.run(tabMeta)).not.toHaveProperty("pass");
   await enter("not the password");

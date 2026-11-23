@@ -2,16 +2,13 @@ import { exits } from "@tinkered/cli/test";
 import { createScope, operation } from "@tinkered/core";
 import type { Scope } from "@tinkered/core";
 import { memory } from "@tinkered/core/testing";
-import { afterEach, expect, test } from "vite-plus/test";
+import { afterEach, expect, expectTypeOf, test } from "vite-plus/test";
 import { z } from "zod";
 
 import { greet } from "@/greet";
 import { greetOps } from "@/greet/greet.server";
 import { todo } from "@/todo";
 import { todoOps } from "@/todo/ops.server";
-
-// The todo feature as the two cmds install it: the server serves the board and implements the
-// api; each tab reads the board and calls the api. Over `memory`, the same protocol as the socket.
 
 const closers: Array<() => Promise<unknown>> = [];
 
@@ -49,7 +46,6 @@ async function boot() {
   return { server, tab };
 }
 
-/** A tab's reader of every todo, kept in use: a keyed board serves only the parts a tab reads. */
 const everyTodo = (scope: Scope.Handle) => {
   const reader = scope.resolve(todo.board.todos.where({}));
   reader.watch(() => undefined);
@@ -108,7 +104,6 @@ test("the greet api and the todo api live side by side in one scope", async () =
   });
 });
 
-/** Another feature's op, as `src/stats` would write it: it reaches todo through the door only. */
 const openCount = operation({
   label: "stats.open",
   input: z.null(),
@@ -125,8 +120,8 @@ test("another feature reads the list through the door, on either side, and canno
 
   expect(a.run(openCount, { input: null })).toBe(1);
   expect(server.run(openCount, { input: null })).toBe(1);
-  // @ts-expect-error the door shows a read view: no controller, so no write from outside
-  expect(todo.board.todos.controller).toBeUndefined();
+  expectTypeOf(todo.board.todos).not.toHaveProperty("controller");
+  expect(Reflect.get(todo.board.todos, "controller")).toBeUndefined();
 });
 
 test("with 1,000 todos, one toggle sends one member over the wire, not the list", async () => {

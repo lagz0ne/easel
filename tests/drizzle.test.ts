@@ -7,7 +7,7 @@ import { bunSqlite } from "@tinkered/bun/sqlite";
 import { exits } from "@tinkered/cli/test";
 import { capsule, createScope } from "@tinkered/core";
 import type { Scope } from "@tinkered/core";
-import { afterAll, beforeAll, describe, expect, test } from "vite-plus/test";
+import { afterAll, beforeAll, describe, expect, expectTypeOf, test } from "vite-plus/test";
 
 import { drizzlePg } from "~/components/drizzle-pg/index.server";
 import { drizzleSqlite } from "~/components/drizzle-sqlite/index.server";
@@ -19,15 +19,12 @@ import * as sqliteOps from "./drizzle/notes-sqlite";
 const folder = mkdtempSync(join(tmpdir(), "drizzle-"));
 afterAll(() => rmSync(folder, { recursive: true, force: true }));
 
-/** A Postgres server for Bun.sql: CI sets it; without it that driver is skipped. */
 const PG_URL = process.env.PG_URL;
 const pgMigrations = "tests/drizzle/migrations/pg";
 const sqliteMigrations = "tests/drizzle/migrations/sqlite";
 
-/** A call that owns its session (ADR 0090): its end commits or rolls back its tx. */
 const own = () => ({ signal: new AbortController().signal });
 
-/** One row per driver. The app's operations and the checks never change. */
 const drivers = [
   {
     name: "Postgres / Bun.sql",
@@ -57,7 +54,6 @@ const drivers = [
 
 for (const driver of drivers) {
   describe.skipIf(driver.skip)(driver.name, () => {
-    // Both op sets share one shape; the pg type stands for both.
     const ops = driver.ops as typeof pgOps;
     let app: Scope.Handle;
 
@@ -121,7 +117,7 @@ for (const driver of drivers) {
       }).ready;
 
       expect(Array.isArray(seen)).toBe(true);
-    }, 30_000); // boots and migrates a second database, as beforeAll does
+    }, 30_000);
 
     test("the capsule record shows the driver and migrate as setup", () => {
       const record = app.capsules.find((entry) => entry.label.startsWith("drizzle"))!;
@@ -132,8 +128,9 @@ for (const driver of drivers) {
 }
 
 test("no driver is a type error and fails at createScope", () => {
-  // @ts-expect-error driver is required
-  expect(() => createScope({ capsules: [drizzlePg()] })).toThrow("MissingConfig");
+  expectTypeOf<[]>().not.toExtend<Parameters<typeof drizzlePg>>();
+  const bare: ReturnType<typeof drizzlePg> = Reflect.apply(drizzlePg, undefined, []);
+  expect(() => createScope({ capsules: [bare] })).toThrow("MissingConfig");
 });
 
 test("a forced session close rolls back; a graceful close commits", async () => {

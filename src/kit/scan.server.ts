@@ -1,17 +1,8 @@
 import { operation, resource } from "@tinkered/core";
 import { z } from "zod";
 
-// The parts of a document that the K5 check reads (SPEC-kit.md § compose, `check`). It reads the
-// start tags as the HTML tokenizer does (WHATWG HTML § 13.2.5): a comment, a doctype and an end
-// tag hold no attribute, and the text of `script`, `style` and the other raw text elements holds
-// no tag. So a class name in a text or a comment is no class name. Each part keeps its offset in
-// the source, for the line and the column of a finding; character references are not decoded.
-// Bun's HTMLRewriter (lol-html) gives no offsets, so the check does not use it.
-
-/** A text of the document and the offset where it starts. */
 export type Part = { text: string; at: number };
 
-/** The parts of a document, each in document order. */
 export type Parts = {
   off: boolean;
   classes: Part[];
@@ -22,10 +13,8 @@ export type Parts = {
   pieces: Part[];
 };
 
-/** The attributes of a start tag, the first of each name, with their lowercase names. */
 type Attributes = Array<Part & { key: string }>;
 
-/** The parts that hold the attributes that the check reads; `on`: each event handler. */
 const lists = new Map<string, "classes" | "styles" | "paints" | "scripts">([
   ["class", "classes"],
   ["style", "styles"],
@@ -35,20 +24,13 @@ const lists = new Map<string, "classes" | "styles" | "paints" | "scripts">([
   ["on", "scripts"],
 ]);
 
-/** What comes next: a comment, a doctype or an end tag (skipped), or a start tag and its name. */
 const token = /<!--[\s\S]*?(?:-->|$)|<[!?/][^>]*>?|<([a-zA-Z][^\t\n\f\r />]*)/g;
 
-/**
- * One attribute, read where the last one ended: the space before it, its name, then `=` and a
- * quoted value (its quote, its text) or an unquoted one.
- */
 const attribute =
   /[\t\n\f\r /]*([^\t\n\f\r />][^\t\n\f\r />=]*)(?:[\t\n\f\r ]*=[\t\n\f\r ]*(?:(["'])([\s\S]*?)(?:\2|$)|([^\t\n\f\r >]*)))?/y;
 
-/** The end of a start tag. */
 const tagEnd = /[\t\n\f\r /]*>?/y;
 
-/** The elements whose text is raw, with the end tag that ends each. */
 const rawText = new Map<string, RegExp>();
 
 for (const name of [
@@ -65,34 +47,22 @@ for (const name of [
   rawText.set(name, new RegExp(`</${name}[\\t\\n\\f\\r />]`, "gi"));
 }
 
-/** The elements that tell more than their attributes: the raw text elements and `meta`. */
 const tells = new Set(["meta", ...rawText.keys()]);
 
-/** The script types that run as JavaScript. */
 const scriptTypes = new Set([undefined, "", "module", "text/javascript", "application/javascript"]);
 
-/**
- * The reader of start tags. A resource, not an operation: it runs for each tag of a document,
- * and a span for each tag would cost more than the read of the tag.
- */
 export const tagReader = resource({
   label: "kit.tagReader",
   target: "scope",
   factory: () => {
     return {
-      /**
-       * The attributes of the start tag whose name ends at `at`; each one that the check reads
-       * goes into its part. `end`: the offset after the tag.
-       */
       attributes: (parts: Parts, html: string, at: number) => {
         const attributes: Attributes = [];
-        // Shared sticky expressions: a read is sync, so no other read moves them.
         attribute.lastIndex = at;
 
         for (let match = attribute.exec(html); match; match = attribute.exec(html)) {
           const key = `${match[1]}`.toLowerCase();
           const value = match[3] ?? match[4] ?? "";
-          // The value ends the match, or stands just before its closing quote.
           const part = { text: value, at: match.index + match[0].lastIndexOf(value) };
           tagEnd.lastIndex = match.index + match[0].length;
           if (attributes.some((seen) => seen.key === key)) continue;
@@ -109,7 +79,6 @@ export const tagReader = resource({
   },
 });
 
-/** The text of a raw text element: a `<style>` or a JavaScript `<script>` goes into its part. */
 export const readRaw = operation({
   label: "kit.readRaw",
   input: z.custom<{ parts: Parts; html: string; name: string; type?: string; end: number }>(),
@@ -125,7 +94,6 @@ export const readRaw = operation({
   },
 });
 
-/** What an element itself tells: the kit is off, a piece, the text of a raw text element. */
 export const sortElement = operation({
   label: "kit.sortElement",
   input: z.custom<{
@@ -150,7 +118,6 @@ export const sortElement = operation({
   },
 });
 
-/** The parts of a document that the check reads. */
 export const scan = operation({
   label: "kit.scan",
   input: z.string(),

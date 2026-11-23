@@ -7,10 +7,6 @@ import { afterEach, expect, test } from "vite-plus/test";
 
 import { fontFaces, fontRoute, heldFonts, inlineFonts } from "@/kit/fonts.server";
 
-// The fonts that easel holds (SPEC-kit.md § The seed): a look that names Geist or Geist Mono gets
-// its `@font-face`, and `GET /api/fonts/{dir}/{file}` gives the file to any origin, as a frame's
-// origin is `null`.
-
 const closers: Array<() => unknown> = [];
 
 afterEach(async () => {
@@ -36,7 +32,6 @@ test("a look that names a held font gets its face; a look with no held font gets
     '@font-face {\n  font-family: "Geist";\n  src: url("/api/fonts/geist-1.9.2/Geist-Variable.woff2") format("woff2");\n  font-weight: 100 900;\n  font-style: normal;\n  font-display: swap;\n}\n' +
       '@font-face {\n  font-family: "Geist Mono";\n  src: url("/api/fonts/geist-1.9.2/GeistMono-Variable.woff2") format("woff2");\n  font-weight: 100 900;\n  font-style: normal;\n  font-display: swap;\n}\n',
   );
-  // A color named Geist is no font: only `--font-*` values count.
   const none = await s.run(fontFaces, {
     input: { "--font-sans": "Roboto, sans-serif", "--primary": "Geist" },
   });
@@ -55,7 +50,6 @@ test("GET /api/fonts gives a held font to any origin and keeps it a year; anothe
     expect(res.headers.get("Cache-Control")).toBe("public, max-age=31536000, immutable");
     const bytes = new Uint8Array(await res.arrayBuffer());
 
-    // A WOFF2 file starts with "wOF2".
     expect(new TextDecoder().decode(bytes.slice(0, 4))).toBe("wOF2");
   }
 
@@ -82,7 +76,6 @@ test("Inter, the font of the viewer, is held in three files by range, as Google 
   const faces = await s.run(fontFaces, { input: { "--e-font": '"Inter", sans-serif' } });
   const inter = await s.run(fontFaces, { input: { "--font-sans": '"Inter", sans-serif' } });
 
-  // Only `--font-*` names a font of a look; the viewer's own faces are in tokens.css.
   expect(faces).toBe("");
   expect(inter.match(/font-family: "Inter";/g)).toHaveLength(3);
   expect(inter.match(/unicode-range: U\+/g)).toHaveLength(3);

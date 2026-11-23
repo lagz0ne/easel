@@ -1,4 +1,3 @@
-// A new process for the make test: reads { source, classNames } on stdin, prints the made CSS.
 import { createScope } from "@tinkered/core";
 
 import { make } from "@/kit/make.server";

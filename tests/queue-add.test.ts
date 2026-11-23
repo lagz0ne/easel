@@ -4,12 +4,13 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 
 import { operation } from "@tinkered/core";
-import { afterEach, expect, test } from "vite-plus/test";
+import { afterEach, expect, expectTypeOf, test } from "vite-plus/test";
+import type { z } from "zod";
 
 import { frames } from "@/frames";
 import { queue } from "@/queue";
 import { requests } from "@/queue/cells";
-import { maxOpen } from "@/queue/contract";
+import { maxOpen, requestContracts } from "@/queue/contract";
 import { perAddress, perPass } from "@/queue/ops.server";
 
 import {
@@ -26,16 +27,9 @@ import {
   watchQueue,
 } from "./support/queue";
 
-// request.add, request.list and the board cells, over the memory transport (SPEC-queue.md § A
-// viewer asks for a change; judged rules 2, 5, 13, 14, 16; fact rules 1, 2). Each test that
-// follows a rule of a chart names it: queue-lease (docs/statecharts/queue-lease.md), request-life,
-// and viewer-pin-post for the order of the answers of a send.
-
 afterEach(async () => {
   for (const close of closers.splice(0).reverse()) await close();
 });
-
-// ---- A viewer asks (queue-lease "a viewer posts it"; request-life "a viewer asks")
 
 test("a viewer posts it: added with n 1; it is open, with no claim and tries 0, its first message the ask, and every tab shows it with the viewer's name within 1 s (AnUnclaimedRequestHasNoClaim)", async () => {
   const srv = await boot();
@@ -104,7 +98,6 @@ test("the same key again answers added with the same n and saves nothing: one re
   expect(await bo.add("flow", id, "Move it.", key)).toEqual({ kind: "added", n: 1 });
   const again = await Promise.all([1, 2, 3].map(() => bo.add("flow", id, "Move it.", key)));
   expect(again).toEqual([1, 2, 3].map(() => ({ kind: "added", n: 1 })));
-  // The same key on another canvas is another request.
   await a.scope.run(frames.api["canvas.create"], { input: { name: "other" } });
   expect(await a.add("other", null, "Here.", key)).toEqual({ kind: "added", n: 1 });
 
@@ -137,7 +130,6 @@ test("a frame removed in the meantime answers gone, and nothing is saved (GoneSe
   expect(await a.add("nowhere", null)).toEqual({ kind: "gone" });
   expect(await a.add("flow", "0123456789ab")).toEqual({ kind: "gone" });
   expect((await a.list()).requests).toEqual([]);
-  // A request on the canvas needs no frame.
   expect(await bo.add("flow", null)).toEqual({ kind: "added", n: 1 });
 });
 
@@ -148,8 +140,6 @@ test(
     const srv = await boot();
     const { a, id } = await sharedFlow(srv);
 
-    // A user's calls count under the name. Fill the canvas within its limits: the clock moves a
-    // minute before each 10th.
     for (let i = 1; i <= maxOpen; i++) {
       if (i % perPass === 0) srv.clock.advance(60_000);
       expect(await a.add("flow", id, `Request ${i}.`)).toEqual({ kind: "added", n: i });
@@ -170,13 +160,11 @@ test(`past ${perPass} calls a minute for one pass, or ${perAddress} for one clie
   for (let i = 1; i <= perPass; i++) expect((await bo.add("flow", id)).kind).toBe("added");
   srv.clock.advance(1_000);
   expect(await bo.add("flow", id)).toEqual({ kind: "slow", retryIn: 59_000 });
-  // Another pass from another address is not slowed by Bo.
   const cy = await viewer(srv, link, "Cy", "203.0.113.2");
   expect((await cy.add("flow", id)).kind).toBe("added");
   srv.clock.advance(59_000);
   expect((await bo.add("flow", id)).kind).toBe("added");
 
-  // Many passes behind one address: 30 calls a minute in all.
   srv.clock.advance(60_000);
   const crowd = await Promise.all(
     [1, 2, 3, 4].map((i) => viewer(srv, link, `Viewer${i}`, "203.0.113.9")),
@@ -191,8 +179,6 @@ test(`past ${perPass} calls a minute for one pass, or ${perAddress} for one clie
   expect(listed.requests).toHaveLength(perPass + 2 + perAddress);
 });
 
-// ---- Who may ask (fact rules 1, 2)
-
 test("the name comes from the pass, or from the user, never from the input: an author in the input is invalid", async () => {
   const srv = await boot();
   const { a, id, link } = await sharedFlow(srv);
@@ -202,21 +188,25 @@ test("the name comes from the pass, or from the user, never from the input: an a
 
   const listed = await a.list({ canvas: "flow" });
   expect(listed.requests.map((r) => r.author)).toEqual(["Bo", "ann"]);
-  const forge = () =>
-    // @ts-expect-error the contract takes no author: the name is the pass's
-    bo.scope.run(queue.viewer["request.add"], {
-      input: {
-        canvas: "flow",
-        frameId: null,
-        version: null,
-        x: 0,
-        y: 0,
-        text: "Hi.",
-        key: newKey(),
-        author: "Mallory",
+  expectTypeOf<z.input<(typeof requestContracts)["request.add"]["input"]>>().not.toHaveProperty(
+    "author",
+  );
+  const forge = (): Promise<unknown> =>
+    Reflect.apply(Reflect.get(bo.scope, "run"), bo.scope, [
+      queue.viewer["request.add"],
+      {
+        input: {
+          canvas: "flow",
+          frameId: null,
+          version: null,
+          x: 0,
+          y: 0,
+          text: "Hi.",
+          key: newKey(),
+          author: "Mallory",
+        },
       },
-    });
-  // The contract is strict on both sides: the client refuses to send it, as the server would.
+    ]);
   await expect(Promise.resolve().then(forge)).rejects.toThrow("DataValidationFailed");
 });
 
@@ -281,8 +271,6 @@ test("request.list lists the requests of one canvas or of all, in one state or a
   expect((await a.list({ state: "person" })).requests).toEqual([]);
 });
 
-// ---- The board
-
 test("the board carries the time of the server for a canvas: a tab reads now, so a lease ends for every tab at one time", async () => {
   const srv = await boot();
   const { link } = await sharedFlow(srv);
@@ -313,14 +301,11 @@ test(
   },
 );
 
-/** The requests on the board of a server, as the store set them. */
 const listAll = operation({
   label: "test.listAll",
   depends: { all: requests.atScope.controller },
   run: ({ all }) => all.get().map((r) => ({ n: r.n, author: r.author, status: r.status })),
 });
-
-// ---- Kept versions (judged rule 16; SPEC-frames judged rule 16)
 
 test(
   "frames keeps each version that a request refers to: a put that replaces it, and a delete of its frame, save it first; a version no request refers to is not kept",
@@ -335,7 +320,6 @@ test(
       a.scope.run(frames.api["frame.put"], { input: { canvas: "flow", id, html, base } });
 
     await put("<p>2</p>", 1);
-    // A viewer saw version 2.
     await a.add("flow", id, "Change it.", newKey(), 2);
     await put("<p>3</p>", 2);
     await put("<p>4</p>", 3);

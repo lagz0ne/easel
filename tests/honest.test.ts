@@ -10,8 +10,6 @@ type Answer = transport.Answer;
 type Reply = transport.Reply;
 type Stream = transport.Stream;
 
-// "If the server fails, we need to know": no failure ends as silence on the client.
-
 const closers: Array<() => unknown> = [];
 
 afterEach(async () => {
@@ -20,7 +18,6 @@ afterEach(async () => {
 
 const tick = (ms = 40) => new Promise((r) => setTimeout(r, ms));
 
-/** A service with a bug: its answer and its stream throw (rpc and remoteData never do). */
 const answer = operation({
   label: "boom.answer",
   input: callInput,
@@ -109,7 +106,6 @@ test("an address no one has pushes missing, as a 404 on a call", async () => {
 
 test("a socket that cannot open makes the key's fault link, as data", async () => {
   const board = remoteData({ todos: data({ initial: [] as string[] }) });
-  // The socket route is down: every upgrade answers 503.
   const bun = Bun.serve({ port: 0, fetch: () => new Response(null, { status: 503 }) });
   closers.push(() => bun.stop(true));
   const c = await createScope({

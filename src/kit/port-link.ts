@@ -1,16 +1,6 @@
 import { capsule, data, operation, resource, tag, transport } from "@tinkered/core";
 import { z } from "zod";
 
-// A Tinker backend over a MessagePort (SPEC-kit.md § The capsules, "A capsule across scopes"): a
-// capsule served in one scope (`portServer`, with its services) is read and called from a scope
-// in another realm, such as a sandboxed iframe (`portClient`). rpc and remoteData work over it as
-// they work over `ws`: a call is one message and its reply; a watch is one message, then its
-// pushes until it ends or the client stops it. Values go as text with the JSON codec, as over
-// `ws`. The shape is the one of Tinker's `memory` backend; only the wire is a port. Prior art:
-// Figma plugins (the UI iframe talks to the main thread by postMessage), and Comlink (an RPC over
-// a MessagePort).
-
-/** The messages on the port. A call and a watch carry an id that their answers repeat. */
 const asked = { id: z.number(), address: z.string(), meta: z.record(z.string(), z.string()) };
 
 const wire = z.discriminatedUnion("t", [
@@ -20,11 +10,9 @@ const wire = z.discriminatedUnion("t", [
   z.object({ t: z.literal("reply"), id: z.number(), text: z.string().nullable() }),
   z.object({ t: z.literal("push"), id: z.number(), text: z.string() }),
   z.object({ t: z.literal("end"), id: z.number(), ok: z.boolean() }),
-  /** The server stopped serving the port: each call and watch on the way ends as a link fault. */
   z.object({ t: z.literal("gone") }),
 ]);
 
-/** A reply, as the server's protocol makes it and the client's protocol reads it. */
 const replyShape = z.union([
   z.object({
     ok: z.literal(true),
@@ -38,7 +26,6 @@ const replyShape = z.union([
   }),
 ]);
 
-/** A text that the JSON codec reads; anything else fails the parse. */
 const jsonText = z.string().transform((text, ctx): unknown => {
   try {
     return JSON.parse(text);
@@ -48,12 +35,10 @@ const jsonText = z.string().transform((text, ctx): unknown => {
   }
 });
 
-/** A reply's text, read; a text that is not a reply is a decode fault of the client. */
 const replyText = jsonText
   .pipe(replyShape)
   .catch({ ok: false as const, kind: "decode" as const, payload: { side: "client" } });
 
-/** A value as the JSON codec writes it; undefined when it cannot (a BigInt, a cycle). */
 const encoded = z.unknown().transform((value): string | undefined => {
   try {
     return JSON.stringify(value ?? null);
@@ -64,15 +49,10 @@ const encoded = z.unknown().transform((value): string | undefined => {
 
 const linkLost = transport.lost({ ok: false, kind: "link", sent: true });
 
-// ---------- the client ----------
-
-/** The port of the client: it can come after the scope starts (an iframe gets it on its hello). */
 export const linkPort = tag<Promise<MessagePort>>({ label: "portLink.port" });
 
-/** The meta of each call and watch, as `ws.client`'s: a bearer token, read on each one. */
 const linkMeta = tag<transport.MetaOp>({ label: "portLink.meta" });
 
-/** How a watch ends: stopped or ended by the server, no one serves it, or a value JSON cannot write. */
 type Opened =
   | { ok: true }
   | { ok: false; kind: "missing"; payload: object }
@@ -82,7 +62,6 @@ type Watching = { push: (text: string) => void; end: (how: Opened) => void };
 
 const watchLost = { ok: false, kind: "link", payload: { sent: true } } as const;
 
-/** The client's calls and watches on the way, by id, and the port once it came. */
 const waiting = resource({
   label: "portLink.waiting",
   target: "scope",
@@ -92,7 +71,6 @@ const waiting = resource({
     const watches = new Map<number, Watching>();
     const counter = { next: 1 };
 
-    // Each answer of the server goes to its call or its watch, by id.
     const answers = {
       reply: (id: number, text: string | null) => {
         calls.get(id)?.(
@@ -136,7 +114,6 @@ const waiting = resource({
   },
 });
 
-/** A call out: one message, and its reply back; a stopped call is a `link` fault. */
 const send = operation({
   label: "portLink.send",
   input: transport.callInput,
@@ -159,7 +136,6 @@ const send = operation({
   },
 });
 
-/** A watch out: one message, then each push, until the server ends it or the client stops it. */
 const open = operation({
   label: "portLink.open",
   input: transport.watchInput,
@@ -205,16 +181,11 @@ const clientWatch: transport.Watch = operation({
   },
 });
 
-/** The client's side, as the protocol reads it. */
 const clientSide = data<{ protocol: transport.Protocol; side: transport.ClientSide } | null>({
   label: "portLink.clientSide",
   initial: null,
 });
 
-/**
- * The client: rpc (`remote: portClient`) and remoteData (`read: portClient`) reach the services of
- * the scope at the other end of its port.
- */
 export const portClient = capsule({
   label: "portLink.client",
   config: { port: linkPort.required, meta: linkMeta.optional },
@@ -227,7 +198,6 @@ export const portClient = capsule({
       return next();
     },
     run(event) {
-      // One name for each test: a type test narrows only the name that it tests.
       const [call, watch] = [event, event];
       const kept = event.load(clientSide, transport.kept).get();
       const hook = { run: event.run, log: event.log, signal: event.call?.signal };
@@ -239,8 +209,6 @@ export const portClient = capsule({
   },
 });
 
-// ---------- the server ----------
-
 const textIn = {
   address: z.string(),
   meta: z.record(z.string(), z.string()),
@@ -248,7 +216,6 @@ const textIn = {
   text: z.string(),
 };
 
-/** A call that came on a port: its text in, the reply's text out (null: no one serves it). */
 const serveIn = z.object(textIn);
 
 const serve = operation({
@@ -259,7 +226,6 @@ const serve = operation({
   },
 });
 
-/** A watch that came on a port: each push as text, until `left`; false: no one serves it. */
 const streamIn = z.object({
   ...textIn,
   push: z.custom<(text: string) => void>((v) => typeof v === "function"),
@@ -274,10 +240,6 @@ const serveStream = operation({
   },
 });
 
-/**
- * Serves a port until `stop` aborts; it ends then. Each call and watch on it runs in a session of
- * this run, so the run lasts as the port does, as a server's `listen`.
- */
 const acceptIn = z.object({
   port: z.custom<MessagePort>(
     (v) => typeof MessagePort !== "undefined" && v instanceof MessagePort,
@@ -302,7 +264,6 @@ const serverSide = data<{ protocol: transport.Protocol; side: transport.ServerSi
 
 const sessionMeta = { role: "state", explain: "One call or watch that came on a port" } as const;
 
-/** A reply as text: null when no one serves the address; an encode fault when JSON cannot. */
 const answerText = z
   .custom<transport.Reply | null>()
   .transform((reply) =>
@@ -314,10 +275,6 @@ const answerText = z
 
 const badText = JSON.stringify({ ok: false, kind: "decode", payload: { side: "server" } });
 
-/**
- * The server: it serves its services on each port that `accept` gets. Each call and each watch
- * runs in its own session of the accept, as a request does over `ws` (`transport.request`).
- */
 export const portServer = capsule({
   label: "portLink.server",
   config: { services: services.required },
@@ -340,7 +297,6 @@ export const portServer = capsule({
       const kept = event.load(serverSide, transport.kept).get();
       const hook = { run: event.run, log: event.log, signal: event.call?.signal };
 
-      // A call: its text read, answered by the protocol, the reply as text.
       const answer = (input: z.infer<typeof serveIn>) => {
         const { text, ...asked } = input;
         const value = jsonText.safeParse(text);
@@ -351,7 +307,6 @@ export const portServer = capsule({
           .then((reply) => answerText.parse(reply));
       };
 
-      // A watch: its text read, each push as text, until `left`.
       const stream = (input: z.infer<typeof streamIn>) => {
         const { text, push, ...asked } = input;
         const value = jsonText.safeParse(text);
@@ -364,7 +319,6 @@ export const portServer = capsule({
         });
       };
 
-      // A port: each message on it, in a session of this run, until `stop`.
       const listen = ({ port: wire$, stop }: z.infer<typeof acceptIn>) => {
         const streams = new Map<number, AbortController>();
         const session = (address: string, signal: AbortSignal) => {

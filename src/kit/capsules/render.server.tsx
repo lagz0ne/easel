@@ -6,18 +6,8 @@ import { z } from "zod";
 
 import { look } from "./look";
 
-// One frame drawn from its capsules (docs/decisions/kit-capsules.md): a new scope with the
-// frame's install list, its start (each capsule checks what it needs), then the View in that
-// scope, then the scope closes. The same install list and the same code give the same HTML. A
-// change of the locale or of the data state is a new install list, so a new scope.
-//
-// Only easel's own code draws here (SPEC-kit.md fact rule 13): the kit's capsules and the tests.
-// The code of an agent runs in the server process here, out of each sandbox, so an agent's frame
-// draws only in its sandboxed iframe or in the Chromium of the pictures.
-
 const refusal = z.object({ kind: z.string(), payload: z.unknown() });
 
-/** The answer of a render: the HTML and the styles, or the refusal of a start. */
 export type Rendered =
   | {
       kind: "rendered";
@@ -27,10 +17,6 @@ export type Rendered =
     }
   | { kind: "refused"; refused: string; payload: unknown };
 
-/**
- * The View of a frame and the styles of its look, built in its scope; `refused` when a unit does
- * not build (a part whose texts have a gap raises `CopyGaps`).
- */
 const buildFrame = operation({
   label: "kit.capsules.build",
   input: z.custom<{ scope: Scope.Handle; view: Resource.Handle<ComponentType> }>(),
@@ -46,11 +32,6 @@ const buildFrame = operation({
   },
 });
 
-/**
- * The frame `view` in a new scope of `capsules`: `rendered` with its HTML, the styles of its look
- * and the scope's list of capsules (as it was after the render), or `refused` with the kind and
- * the payload of the start that stopped the scope.
- */
 export const renderFrame = operation({
   label: "kit.capsules.render",
   input: z.custom<{
@@ -71,7 +52,6 @@ export const renderFrame = operation({
       return { kind: "refused", refused: kind, payload };
     }
 
-    // A part whose texts have a gap does not build: its frame is refused too (`CopyGaps`).
     const built = units.buildFrame.run({ input: { scope: started.live, view: input.view } });
     if (built.kind === "refused") {
       await scope.close();
@@ -79,7 +59,6 @@ export const renderFrame = operation({
     }
 
     const { View, styles } = built;
-    // `prerender` waits for each read that suspends (a cell's first read), then gives the HTML.
     const { prelude } = await prerender(
       createElement(ScopeProvider, { scope, children: createElement(View) }),
     );

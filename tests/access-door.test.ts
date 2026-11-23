@@ -11,18 +11,12 @@ import { access } from "@/access";
 
 type Server = typeof import("../cmds/server");
 
-// access in the real server command, over its own port: the socket's door, the setup code in the
-// log, the trusted proxies and `open` (SPEC-access judged rules 10, 12 and 13).
-
-/** The real server command, run in this process; the lint bans a static parent import. */
 const server: Server = await import(new URL("../cmds/server.ts", import.meta.url).href);
 
-/** Takes the telemetry the command sends, so nothing leaves this machine. */
 const collector = Bun.serve({ port: 0, fetch: () => new Response(null, { status: 204 }) });
 
 afterAll(() => collector.stop());
 
-/** Runs the command with this env; its log lines are kept. */
 async function run(env: Record<string, string>) {
   const stop = new AbortController();
   const out: string[] = [];
@@ -49,7 +43,6 @@ async function run(env: Record<string, string>) {
   return { url, out, codes, close };
 }
 
-/** A raw socket to `host`, as any client may send: each call is one frame, answered in turn. */
 async function socket(host: string) {
   const ws = new WebSocket(`ws://${host}/rpc`);
   const replies = new Map<number, (text: string) => void>();
@@ -83,8 +76,6 @@ test("the door writes the peer itself: a client's own peer header and X-Forwarde
       "expired",
     );
   }
-  // A client that says it is the trusted proxy, forwarding for someone new. Believed, it would
-  // be a new address; it is this machine, at its limit.
   const headers = { "x-easel-peer": "10.0.0.1", "x-forwarded-for": "192.0.2.77" };
   const forged = await createScope({
     capsules: [
@@ -130,7 +121,6 @@ test("the setup code is in the log once, and works over the socket; an invalid f
   await app.close();
 });
 
-/** This machine's first address that is not loopback, if it has one. */
 const outside = Object.values(networkInterfaces())
   .flat()
   .find((net) => net && !net.internal && net.family === "IPv4")?.address;

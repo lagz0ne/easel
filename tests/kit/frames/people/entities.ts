@@ -1,4 +1,3 @@
-// The entity of the frame, its data states, its cells and its operations.
 import { data, operation, remoteData, rpc, tag } from "@tinkered/core";
 import { z } from "zod";
 
@@ -30,10 +29,8 @@ export const remove = operation({
   run: ({ people }, { input }) => people.update((list) => list.filter((one) => one.id !== input)),
 });
 
-/** The names show in capitals: a state of the View that a control of the viewer sets. */
 export const capitals = data({ label: "people.capitals", initial: false });
 
-/** A control: a new person at the end of the list, with the first free id. */
 export const addPerson = operation({
   label: "people.add",
   depends: { people: people.controller },
@@ -45,14 +42,12 @@ export const addPerson = operation({
     }),
 });
 
-/** A control: the list has no person. */
 export const removeAll = operation({
   label: "people.removeAll",
   depends: { people: people.controller },
   run: ({ people }) => people.set([]),
 });
 
-/** A control: the names show in capitals, or not. */
 export const setCapitals = operation({
   label: "people.setCapitals",
   input: z.boolean(),
@@ -60,7 +55,6 @@ export const setCapitals = operation({
   run: ({ capitals }, { input }) => capitals.set(input),
 });
 
-/** A call of a pane: a new person with the name given, at the end of the list. */
 export const addNamed = operation({
   label: "people.addNamed",
   input: z.string().trim().min(1),
@@ -76,7 +70,6 @@ export const addNamed = operation({
   },
 });
 
-/** A call of a pane: the names show in capitals, or not. It gives the new value. */
 export const capitalsTo = operation({
   label: "people.capitalsTo",
   input: z.boolean(),
@@ -87,10 +80,8 @@ export const capitalsTo = operation({
   },
 });
 
-/** The cells that the panes read, live: the frame serves them, and each pane has a mirror. */
 export const board = remoteData({ people, capitals });
 
-/** The calls that the panes make: the only way that a pane changes the frame. */
 export const api = rpc({
   "people.call.add": { input: addNamed.input, output: person },
   "people.call.capitals": { input: capitalsTo.input, output: z.boolean() },

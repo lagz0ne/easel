@@ -30,17 +30,12 @@ import {
   runtimeRoute,
 } from "@/kit/runtime.server";
 
-// The runtime of a kit version (SPEC-kit.md § App frames, "The runtime"; K11): built one time,
-// kept with the kit version at its first use, the same bytes after a restart and after an update
-// of easel, served at an address that never changes, and the names of the import check.
-
 const closers: Array<() => unknown> = [];
 
 afterEach(async () => {
   for (const close of closers.splice(0).reverse()) await close();
 });
 
-/** A runtime that a test gives the server in place of a build: each name, one small file each. */
 function fakeRuntime(mark: string): BuiltRuntime {
   const imports = Object.fromEntries(
     runtimeNames.map((name) => [name, `${name.replace(/^@/, "").replaceAll("/", "__")}.js`]),
@@ -54,7 +49,6 @@ function fakeRuntime(mark: string): BuiltRuntime {
 
 type Boot = { file?: string; runtime?: BuiltRuntime | null };
 
-/** One server: SQLite, access, frames, the kit's calls and a memory transport, as cmds/server.ts. */
 async function boot(options: Boot = {}) {
   const clock = makeTestClock({ now: 1_800_000_000_000 });
   const out: string[] = [];
@@ -82,7 +76,6 @@ async function boot(options: Boot = {}) {
   return { server, setupCode };
 }
 
-/** An agent signed in as Ann, the first owner; with `known`, the pass of her first start. */
 async function agentOf(srv: Awaited<ReturnType<typeof boot>>, known?: string) {
   const client = async (token?: string) => {
     const meta = operation({
@@ -114,10 +107,8 @@ async function agentOf(srv: Awaited<ReturnType<typeof boot>>, known?: string) {
   return client(text);
 }
 
-/** The pass of Ann on each server that she started. */
 const passes = new Map<object, string>();
 
-/** The route's answer for one file of a runtime. */
 const fetchFile = (server: Scope.Handle, kitVersion: string, sha: string, file: string) =>
   server.run(runtimeRoute, { input: { kit: kitVersion, sha, file } });
 
@@ -135,7 +126,6 @@ test(
     expect(Object.keys(first.imports)).toEqual([...runtimeNames]);
     for (const file of Object.values(first.imports)) expect(first.files[file]).toBeDefined();
     const all = Object.values(first.files).join("\n");
-    // React's development build warns in the console; the runtime holds the production build.
     expect(all).not.toContain("is deprecated and will be removed");
     expect(first.files["react.js"]).toMatch(/useState/);
     expect(first.files["easel__frame.js"]).toMatch(/frameLogic/);
@@ -149,9 +139,7 @@ test(
     const srv = await boot();
     const a = fakeRuntime("a");
 
-    // No kit version 9: no runtime, and nothing is written.
     expect(await srv.server.run(runtimeOf, { input: 9 })).toBeNull();
-    // Before the first use, the names are those of the runtime that this easel will give.
     expect(await srv.server.run(runtimeNamesOf, { input: 1 })).toEqual([...runtimeNames]);
 
     const first = await srv.server.run(runtimeOf, { input: 1 });
@@ -174,7 +162,6 @@ test(
       const before = await (await fetchFile(one.server, "1", a.sha, "react.js")).text();
       await one.server.close();
 
-      // An update of easel: its runtime is another one. Kit version 1 keeps the one it has.
       const b = fakeRuntime("b");
       const two = await boot({ file, runtime: b });
       expect((await two.server.run(runtimeOf, { input: 1 }))?.sha).toBe(a.sha);
@@ -219,7 +206,6 @@ test(
       const a = fakeRuntime("a");
       const one = await boot({ file, runtime: a });
       const ann = await agentOf(one);
-      // No runtime yet: its first use gives the one of this easel, so nothing to accept.
       expect(await ann.run(kit.api["kit.accept"], { input: {} })).toEqual({
         kind: "unchanged",
         kit: 1,
@@ -245,7 +231,6 @@ test(
       const before = await again.run(kit.api["look.get"], { input: { at: 1 } });
       expect(got).toEqual({ ...before, kit: 2 });
 
-      // The accept kept the look's revision, so a change on revision 1 is not stale.
       const set = await again.run(kit.api["look.set"], {
         input: {
           look: { color: { primary: { $value: { colorSpace: "srgb", components: [0, 0, 0.5] } } } },
@@ -277,7 +262,6 @@ test(
     const a = fakeRuntime("a");
     await srv.server.run(runtimeOf, { input: 1 });
 
-    // The address names the kit version and the SHA-256: `/api/runtime/1/<sha-256>/`.
     const address = srv.server.run(runtimeAddress, { input: { kit: 1, sha: a.sha } });
     expect(address).toBe(`/api/runtime/1/${a.sha}/`);
     const got = await fetchFile(srv.server, "1", a.sha, "zod.js");
@@ -287,7 +271,6 @@ test(
     expect(got.headers.get("access-control-allow-origin")).toBe("*");
     expect(got.headers.get("content-type")).toBe("text/javascript; charset=utf-8");
 
-    // Another kit version, another SHA-256, a file it does not have, or a malformed address: 404.
     for (const [at, sha, file] of [
       ["2", a.sha, "zod.js"],
       ["1", "0".repeat(64), "zod.js"],
@@ -339,7 +322,6 @@ test(
     expect(
       tsx.kind === "checked" && tsx.findings.map((f) => `${f.line}:${f.col} ${f.rule}`),
     ).toEqual(["1:19 kit/import"]);
-    // A check writes no runtime: the kit version still has none.
     expect(await srv.server.run(runtimeNamesOf, { input: 1 })).toEqual([...runtimeNames]);
 
     const off = await agent.run(kit.api["kit.check"], {

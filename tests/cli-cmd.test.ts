@@ -26,22 +26,13 @@ import { maxDocBytes } from "@/frames/contract";
 
 type Cmd = typeof import("../cmds/server");
 
-// The `easel` command for real: the server command in this process on its own port, and the CLI
-// as its own process (`bun cmds/easel.ts`), each with its own hosts file. The flags, the exit
-// codes, the hosts file, and the chart's arrows that need a real socket: a lost `granted` answer,
-// a reply that never comes, and a CLI that is stopped while it waits. A CLI that must wait out a
-// deadline or a backoff runs in this process on a test clock, over the real socket.
-
-/** The real commands, loaded at run time; the lint bans a static parent import. */
 const server: Cmd = await import(new URL("../cmds/server.ts", import.meta.url).href);
 const easelCmd: Cmd = await import(new URL("../cmds/easel.ts", import.meta.url).href);
 
 const root = new URL("..", import.meta.url).pathname;
 
-/** A test that starts CLI processes: each start of `bun` takes a while on a busy machine. */
 const slow = { timeout: 30_000 };
 
-/** Takes the telemetry the server sends, so nothing leaves this machine. */
 const collector = Bun.serve({ port: 0, fetch: () => new Response(null, { status: 204 }) });
 
 const closers: Array<() => unknown> = [];
@@ -54,7 +45,6 @@ afterEach(async () => {
 
 afterAll(() => collector.stop());
 
-/** The real server command on port 0: its URL, and its log (with the setup code). */
 async function serve() {
   const stop = new AbortController();
   const out: string[] = [];
@@ -82,7 +72,6 @@ async function serve() {
   return { origin: `http://localhost:${url.port}`, port: url.port, setupCode };
 }
 
-/** A home of its own: its hosts file is `<home>/.config/easel/hosts.json`. */
 function home() {
   const dir = mkdtempSync(join(tmpdir(), "easel-cmd-"));
   closers.push(() => rmSync(dir, { recursive: true, force: true }));
@@ -92,7 +81,6 @@ function home() {
 
 const hostsOf = (dir: string) => join(dir, ".config", "easel", "hosts.json");
 
-/** The CLI as its own process, in its home: its exit code and what it printed. */
 function spawn(dir: string, args: string[]) {
   const child = Bun.spawn([process.execPath, "cmds/easel.ts", ...args], {
     cwd: root,
@@ -126,7 +114,6 @@ async function easel(dir: string, ...args: string[]) {
   };
 }
 
-/** A CLI that runs on: what it has printed so far, and its first line once there is one. */
 function running(child: Subprocess<"ignore", "pipe", "pipe">) {
   const printed = { text: "" };
   const done = (async () => {
@@ -140,7 +127,6 @@ function running(child: Subprocess<"ignore", "pipe", "pipe">) {
   return { child, printed, firstLine, ended: async () => (await done, printed.text) };
 }
 
-/** The cmd's main in this process: its exit code and what it printed. */
 async function main(args: string[], env: Record<string, string> = {}) {
   const out: string[] = [];
   const codes: number[] = [];
@@ -159,8 +145,6 @@ async function main(args: string[], env: Record<string, string> = {}) {
   return { code: codes[0], out: out.join("") };
 }
 
-// ---- The flags, and what ends a run before it reaches a server
-
 test("usage is 64, --help is 0, a hosts file that is not one is 78, no server is 64", async () => {
   const dir = home();
   const env = { HOME: dir };
@@ -176,7 +160,6 @@ test("usage is 64, --help is 0, a hosts file that is not one is 78, no server is
   expect((await main(["users", "approve"], env)).code).toBe(64);
   expect((await main(["users", "approve", "not-a-code"], env)).code).toBe(64);
   expect((await main(["login", "x", "--name", "Not Valid!"], env)).code).toBe(64);
-  // A stopped --print-token cannot resume, and the first owner keeps her own token.
   expect((await main(["login", "x", "--name", "gh", "--print-token", "--no-wait"], env)).code).toBe(
     64,
   );
@@ -199,7 +182,6 @@ test("usage is 64, --help is 0, a hosts file that is not one is 78, no server is
   expect((await main(["whoami", "--json"], env)).out).toBe(
     `${JSON.stringify({ config: hostsOf(dir) })}\n`,
   );
-  // A valid file with no server: root reads it anyway (64); anyone else cannot (78).
   writeFileSync(hostsOf(dir), JSON.stringify({ hosts: {} }));
   chmodSync(hostsOf(dir), 0o000);
   expect((await main(["whoami"], { XDG_CONFIG_HOME: join(dir, ".config") })).code).toBe(
@@ -248,8 +230,6 @@ test("EASEL_TOKEN: with no EASEL_SERVER it is usage (64); it reads no hosts file
   });
   expect(readFileSync(hostsOf(dir), "utf8")).toBe("{ not json");
 });
-
-// ---- End to end
 
 test(
   "end to end: setup, the agent logs in, an owner approves, whoami, revoke, and the agent is refused",
@@ -342,12 +322,6 @@ test(
   },
 );
 
-/**
- * A socket proxy in front of the server. While `lose` is on, a reply that carries `lose` is
- * dropped: with `close`, the CLI's socket is closed too, as when a network drops a packet and
- * then the link; without it, the socket stays open and the CLI is never answered (half-open).
- * `once` drops only the first.
- */
 function lossyProxy(port: string, lose = "granted", how = { close: true, once: true }) {
   const dropped: string[] = [];
   const state = { lose: true };
@@ -384,10 +358,6 @@ function lossyProxy(port: string, lose = "granted", how = { close: true, once: t
   return { origin: `http://localhost:${proxy.port}`, dropped, state };
 }
 
-/**
- * The CLI as the cmd builds it, in this process on a test clock, over a real socket: the call
- * deadline and the backoff pass when the test advances the clock, not in real time.
- */
 async function clocked(origin: string, path: string) {
   const clock = makeTestClock({ now: Date.now() });
   const out: string[] = [];
@@ -414,7 +384,6 @@ async function clocked(origin: string, path: string) {
   return {
     clock,
     run: (command: Command) => scope.run(cli.run, { input: command }),
-    /** Each JSON line printed since the last read. */
     lines: () =>
       out
         .splice(0)
@@ -426,7 +395,6 @@ async function clocked(origin: string, path: string) {
   };
 }
 
-/** Moves the clock on, a second at a time, until the run ends. */
 async function drive(clock: { advance: (ms: number) => void }, run: Promise<number>) {
   const done = { code: -1 };
   void run.then((code) => (done.code = code));
@@ -437,7 +405,6 @@ async function drive(clock: { advance: (ms: number) => void }, run: Promise<numb
   return run;
 }
 
-/** The first owner, signed in straight to the server on her own clocked CLI. */
 async function owner(srv: { origin: string; setupCode: () => string }) {
   const ann = await clocked(srv.origin, hostsOf(home()));
   const setup = await ann.run({
@@ -496,7 +463,6 @@ test(
     for (let i = 0; i < 200 && !proxy.dropped.length; i++) await Bun.sleep(10);
     expect(proxy.dropped).toHaveLength(1);
     await Bun.sleep(50);
-    // SPEC-cli.md § Contract: a call with no answer after 60 s is a `link` fault.
     agent.clock.advance(60_000);
     expect(await drive(agent.clock, run)).toBe(0);
     expect(agent.lines().map((line) => line.kind)).toEqual(["pending", "granted"]);
@@ -559,8 +525,6 @@ test(
   },
 );
 
-// ---- frames on the real cmds: the guard, the socket's maxPayload and the flags as typed
-
 test(
   "frames on the real server: a guest is refused (2), a document a little over 1 MiB answers tooBig on the socket, and bad put flags are one usage line (64)",
   slow,
@@ -572,13 +536,10 @@ test(
     const env = { HOME: ann };
     expect((await main(["canvas", "new", "Flow", "--json"], env)).code).toBe(0);
 
-    // cmds/server.ts puts the user guard on frames.api: no token, no canvases.
     expect(await main(["canvas", "ls", "--json", "--server", srv.origin], { HOME: guest })).toEqual(
       { code: 2, out: `${JSON.stringify({ refused: { signIn: true } })}\n` },
     );
 
-    // The socket's maxPayload is 2 MiB: over the real socket, without the CLI's own check, the
-    // server answers tooBig and the socket stays open.
     const token = String(
       JSON.parse(readFileSync(hostsOf(ann), "utf8")).hosts[srv.origin].user.token,
     );
@@ -607,7 +568,6 @@ test(
     });
     expect(await put("<p>1</p>")).toMatchObject({ kind: "created", version: 1 });
 
-    // The flags, through argv: --id without --base, and a bad --base, each one line, no help.
     const file = join(ann, "x.html");
     writeFileSync(file, "<p>x</p>");
     const id = "0123456789ab";
@@ -669,7 +629,6 @@ test(
     expect(await easel(ann, "users", "approve", code)).toMatchObject({ code: 0 });
     const [exited, out] = await Promise.all([asked.exited, new Response(asked.stdout).text()]);
     expect(exited).toBe(0);
-    // Bun itself may make `~/.bun` in a fresh home; easel keeps nothing.
     expect(readdirSync(lead).filter((name) => name !== ".bun")).toEqual([]);
 
     const token = out.trim();

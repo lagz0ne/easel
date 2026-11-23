@@ -2,7 +2,7 @@ import { exits } from "@tinkered/cli/test";
 import { createScope, rpc } from "@tinkered/core";
 import type { Scope as CoreScope } from "@tinkered/core";
 import { memory } from "@tinkered/core/testing";
-import { afterEach, describe, expect, test } from "vite-plus/test";
+import { afterEach, describe, expect, expectTypeOf, test } from "vite-plus/test";
 import { z } from "zod";
 
 import { routes } from "~/components/requests/index.server";
@@ -11,8 +11,6 @@ import { keepDates } from "./fixtures/todo/codec";
 import { api, board } from "./fixtures/todo/contracts";
 import { addTodo, joinPresence, removeTodo, signedIn, toggleTodo } from "./fixtures/todo/data";
 import { listen, wsClient, wsServer } from "./support/ws";
-
-// Tests wire their own scopes, as server.ts and main.tsx do; browser.test.ts runs those two whole.
 
 const tick = (ms = 40) => new Promise((r) => setTimeout(r, ms));
 const closers: Array<() => unknown> = [];
@@ -46,7 +44,6 @@ async function boot(kind: "memory" | "ws") {
   const { bun, url } = listen(server, [transport]);
   closers.push(() => bun.stop(true));
   const base = `${url}/api`;
-  /** A client scope, as main.tsx builds it; not waited, so a refused start can be read. */
   const open = (who?: string) => {
     const headers: Record<string, string> = who ? { cookie: `sid=${who}` } : {};
     const options = { codec: keepDates, headers } as const;
@@ -71,7 +68,6 @@ async function boot(kind: "memory" | "ws") {
     const client = open(who);
     return Object.assign(await client.ready, { end: client.end });
   };
-  /** Online until the client closes, as main.tsx does. */
   const online = (client: Scope) =>
     void client
       .run(api["presence.join"], { input: null })
@@ -110,18 +106,17 @@ for (const kind of ["memory", "ws"] as const) {
     test("a guest: the client starts; the board shows its own fault, refused, as data", async () => {
       const { open } = await boot(kind);
       const guest = open();
-      await guest.ready; // a fault never fails start, so the scope stays open
-      expect(guest.resolve(board.todos).get()).toEqual([]); // the cell keeps its initial value
+      await guest.ready;
+      expect(guest.resolve(board.todos).get()).toEqual([]);
       const error = guest.resolve(board.faults).get().todos;
 
       expect(board.fault.is(error)).toBe(true);
-      expect(api.fault.is(error)).toBe(false); // another definition's brand
+      expect(api.fault.is(error)).toBe(false);
       expect(error).toMatchObject({
         address: "todos",
         fault: "refused",
         payload: { signIn: true },
       });
-      // The scope still works: a call answers its own fault, not Disposed.
       const call = await guest.run(api["todo.add"], { input: { title: "x" } }).then(
         () => null,
         (e: unknown) => e,
@@ -138,8 +133,8 @@ for (const kind of ["memory", "ws"] as const) {
       const [item] = ann.resolve(board.todos).get();
 
       expect(item).toMatchObject({ title: "Write the ADR", by: "duke", done: false });
-      expect(item!.at).toBeInstanceOf(Date); // the protocol's codec
-      await until(() => ann.resolve(board.activity).get().length === 1); // its own stream: may land after todos (F35)
+      expect(item!.at).toBeInstanceOf(Date);
+      await until(() => ann.resolve(board.activity).get().length === 1);
       expect(ann.resolve(board.activity).get()[0]).toMatchObject({
         who: "duke",
         what: 'added "Write the ADR"',
@@ -156,7 +151,7 @@ for (const kind of ["memory", "ws"] as const) {
       await ann.run(api["todo.remove"], { input: { id } });
       await until(() => titles(duke).length === 0);
 
-      const stale = await duke.run(api["todo.toggle"], { input: { id } }); // a value, typed by the output shape
+      const stale = await duke.run(api["todo.toggle"], { input: { id } });
       expect(stale).toEqual({ kind: "gone", id });
       expect(
         duke
@@ -177,7 +172,7 @@ for (const kind of ["memory", "ws"] as const) {
       await duke1.end();
       await tick(80);
 
-      expect(watcher.resolve(board.people).get()).toEqual(["duke"]); // duke2 still open
+      expect(watcher.resolve(board.people).get()).toEqual(["duke"]);
       await duke2.end();
       await until(() => watcher.resolve(board.people).get().length === 0);
     });
@@ -186,7 +181,6 @@ for (const kind of ["memory", "ws"] as const) {
 
 test("on the wire: one socket, rpc and the board on the same frames and codec", async () => {
   const { base } = await boot("ws");
-  /** One frame out; the first message back for each id. */
   const exchange = async (headers: Record<string, string>, frame: unknown[]) => {
     const socket = new WebSocket(base, { headers } as never);
     const got = new Map<number, { t?: string; e?: number }>();
@@ -205,10 +199,9 @@ test("on the wire: one socket, rpc and the board on the same frames and codec", 
   const added = await exchange(duke, [{ i: 1, a: "todo.add", t: '{"title":"Raw"}' }]);
   expect(added.get(1)?.t).toMatch(/^\{"ok":true,"value":\{"id":"[0-9a-f-]+"\}\}$/);
 
-  // A board key is an rpc stream key: its watch gives the value now as the first push.
   const read = await exchange(duke, [
     { i: 1, a: "todos", t: "null", w: 1 },
-    { i: 2, a: "todos", t: "null" }, // a call finds no reply key there
+    { i: 2, a: "todos", t: "null" },
   ]);
   expect(read.get(1)?.t).toMatch(
     /^\{"ok":true,"value":\[\{"id":"[^"]+","title":"Raw","done":false,"by":"duke","at":\{"\$date":"[^"]+"\}\}\]\}$/,
@@ -254,7 +247,6 @@ describe("one rpc capsule: the same handle on both sides", () => {
       await until(() => ann.resolve(board.people).get().includes("bot"));
       break;
     }
-    // The client scope stays open: only the break can end the server's watch.
     await until(() => !ann.resolve(board.people).get().includes("bot"));
   });
 
@@ -275,27 +267,29 @@ describe("one rpc capsule: the same handle on both sides", () => {
   });
 
   test("api: one job, implement or remote; both or neither fails start", async () => {
-    // @ts-expect-error: neither
-    await expect(createScope({ capsules: [api({})] }).ready).rejects.toMatchObject({
+    const both = {
+      remote: memory.client,
+      implement: {
+        "todo.add": addTodo,
+        "todo.toggle": toggleTodo,
+        "todo.remove": removeTodo,
+        "presence.join": joinPresence,
+      },
+    };
+
+    expectTypeOf({}).not.toExtend<Parameters<typeof api>[0]>();
+    expectTypeOf(both).not.toExtend<Parameters<typeof api>[0]>();
+
+    const neither: ReturnType<typeof api> = Reflect.apply(api, undefined, [{}]);
+    const twice: ReturnType<typeof api> = Reflect.apply(api, undefined, [both]);
+    await expect(createScope({ capsules: [neither] }).ready).rejects.toMatchObject({
       kind: "MissingConfig",
       payload: { key: "implement | remote" },
     });
-    const both = createScope({
-      capsules: [
-        exits({ file: process.env.TINKER_EXITS }),
-        // @ts-expect-error: both
-        api({
-          remote: memory.client,
-          implement: {
-            "todo.add": addTodo,
-            "todo.toggle": toggleTodo,
-            "todo.remove": removeTodo,
-            "presence.join": joinPresence,
-          },
-        }),
-      ],
-    });
-    await expect(both.ready).rejects.toMatchObject({ kind: "MissingConfig" });
+
+    const scope = createScope({ capsules: [exits({ file: process.env.TINKER_EXITS }), twice] });
+    await expect(scope.ready).rejects.toMatchObject({ kind: "MissingConfig" });
+
     expect(() => rpc({ answer: { input: z.null(), output: z.null() } })).toThrow(
       '"answer" is a reserved key',
     );

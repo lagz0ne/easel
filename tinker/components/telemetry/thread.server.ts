@@ -19,24 +19,19 @@ import {
   tracesUrl,
 } from "./settings";
 
-/** The built worker command; the server command binds it, so tests and dev stay in process. */
 export const telemetryWorker = tag({
   label: "telemetry.worker",
   parse: z.instanceof(URL),
 });
 
-/** What the worker command reads from `workerData`; the request side resolves every value. */
 export type ThreadSettings = {
   service: string;
-  // easel diverges from upstream 0.30.1: null when the URL is not given; the worker sends none of that kind.
   traces: string | null;
   logs: string | null;
   fd: number | null;
-  /** True when the host's sink has no descriptor: the worker posts its console text back. */
   relay: boolean;
 };
 
-/** What the worker posts back: ready, a health report, a flush answer, console text, or its final health. */
 export type ThreadMessage =
   | { ready: true }
   | { console: string }
@@ -44,7 +39,6 @@ export type ThreadMessage =
   | { flushed: number }
   | { final: Telemetry.Health };
 
-/** The request thread's side of the ring: what the observers and the worker owner use. */
 export type ThreadRing = {
   data: Uint8Array;
   state: Int32Array;
@@ -52,21 +46,15 @@ export type ThreadRing = {
   push(): void;
   stop(): void;
   dropped(): number;
-  /** Called after a turn is dropped, so the owner can publish the count at once. */
   watch(listener: () => void): void;
 };
 
-/** What the telemetry root uses of the worker: its start, a flush, and its close. */
 export type ThreadWorker = {
   ready: Promise<void>;
   flush(): Promise<void>;
   close(publishFinal: boolean): Promise<void>;
 };
 
-/**
- * The request thread's one write: a line into a shared ring, read by a worker thread.
- * The thread-stream design: Atomics, no blocking, and a full ring drops and counts.
- */
 export const threadRing = resource({
   label: "telemetry.ring",
   target: "scope",
@@ -102,13 +90,11 @@ export const threadRing = resource({
           setImmediate(owned.push);
         }
       },
-      /** One copy per event-loop turn: encode the turn's lines, then publish the write index. */
       push: () => {
         scheduled = false;
         if (!lines) return;
 
         const { read, written } = encoder.encodeInto(text, scratch);
-        // The indexes are Int32 and wrap after 2 GiB; the unsigned difference stays right.
         const at = Atomics.load(state, 0);
         const unread = (at - Atomics.load(state, 1)) >>> 0;
         const free = size - unread;
@@ -123,14 +109,12 @@ export const threadRing = resource({
           if (first < written) data.set(scratch.subarray(first, written), 0);
 
           Atomics.store(state, 0, at + written);
-          // The worker polls every 10 ms; a wake per turn cost more than the copy itself.
           if (unread + written >= size >> 2) Atomics.notify(state, 0);
         }
 
         text = "";
         lines = 0;
       },
-      /** After the worker stops, every line is dropped and counted. */
       stop() {
         owned.push();
         open = false;
@@ -144,10 +128,6 @@ export const threadRing = resource({
   },
 });
 
-/**
- * Starts the worker on the ring and owns its close; a dead worker stays failed, as pino's does.
- * Close joins the worker's own close (1.5 s for storage); a stuck worker stops at 3 s.
- */
 export const telemetryThread = resource({
   label: "telemetry.thread",
   target: "scope",
@@ -156,7 +136,6 @@ export const telemetryThread = resource({
     ring: threadRing,
     module: telemetryWorker.required,
     service: telemetryService,
-    // easel diverges from upstream 0.30.1: optional, as on the in-process sink (no URL, no exporter).
     tracesUrl: tracesUrl.optional,
     logsUrl: logsUrl.optional,
     console: consoleOutput,
@@ -177,8 +156,6 @@ export const telemetryThread = resource({
     };
     const worker = new threads.Worker(module, {
       name: "telemetry",
-      // The worker inherits Node's flags, but a worker file rejects `--input-type` (from `node -e`).
-      // A given list is checked for flags a worker cannot take, so only that case passes one.
       execArgv: process.execArgv.some((flag) => flag.startsWith("--input-type"))
         ? process.execArgv.filter((flag) => !flag.startsWith("--input-type"))
         : undefined,
@@ -215,7 +192,6 @@ export const telemetryThread = resource({
         last = next;
         if (publishing) health.set({ ...next, dropped: next.dropped + ring.dropped() });
       },
-      /** A drop on the request side: the last report again, with the new count. */
       republish: () => owned.publish(last),
       stopped(failure: string) {
         open = false;
@@ -283,7 +259,6 @@ export const telemetryThread = resource({
 
 const worker = { role: "worker", explain: "Sends telemetry from its own thread" } as const;
 
-/** The request side's sink: start waits for the worker and taps the hose; close joins it. */
 export const threadSink: Capsule.Hooks = {
   async start({ load, tap, next }) {
     await (
@@ -304,7 +279,6 @@ export const threadSink: Capsule.Hooks = {
   },
 };
 
-/** The request thread's observer: one JSON.stringify per span or line, then one ring write. */
 export const threadObserver = resource({
   label: "telemetry.threadObserver",
   depends: {
@@ -324,9 +298,7 @@ export const threadObserver = resource({
           try {
             thread.write(JSON.stringify(owned.spanLine(span, time, false)));
             return;
-          } catch {
-            /* A cycle or a nested bigint: send encoded values instead. */
-          }
+          } catch {}
         }
 
         thread.write(JSON.stringify(owned.spanLine(span, time, true)));
@@ -336,14 +308,11 @@ export const threadObserver = resource({
           try {
             thread.write(JSON.stringify(owned.logLine(entry, false)));
             return;
-          } catch {
-            /* Encoded below. */
-          }
+          } catch {}
         }
 
         thread.write(JSON.stringify(owned.logLine(entry, true)));
       },
-      /** True when JSON keeps every attribute value of the span and its events. */
       plainSpan(span: Observe.Span) {
         if (!owned.plain(span.attributes)) return false;
         for (let index = 0; index < span.events.length; index++) {
@@ -351,7 +320,6 @@ export const threadObserver = resource({
         }
         return true;
       },
-      /** False for a value JSON would lose; the line then carries encoded values. */
       plain(values: Record<string, unknown>) {
         for (const key in values) {
           const type = typeof values[key];
@@ -365,7 +333,6 @@ export const threadObserver = resource({
         for (const key in values) encoded[key] = encodeValue.run({ input: values[key], ns: quiet });
         return encoded;
       },
-      /** Raw span fields for one wire line; `encoded` lines carry `encodeValue` strings. */
       spanLine(span: Observe.Span, time: number, encoded: boolean): Telemetry.Wire {
         return [
           "s",
@@ -411,8 +378,6 @@ export const threadObserver = resource({
   },
 });
 
-/** A tab's checked batch goes to the worker as one line, under the server's service. Built in
- * the route's quiet namespace, as `browserIngest` is. */
 export const threadIngest = resource({
   label: "telemetry.threadIngest",
   target: "namespace",
@@ -425,7 +390,6 @@ export const threadIngest = resource({
   }),
 });
 
-/** The browser route for a root that sends from the worker: the same checks, the ring as sink. */
 export const threadRoute = operation({
   ...telemetryRoute,
   label: "telemetry.threadRoute",

@@ -5,17 +5,12 @@ import { z } from "zod";
 
 import { portClient, portServer } from "@/kit/port-link";
 
-// A capsule across scopes (SPEC-kit.md § The capsules, "A capsule across scopes"): one scope
-// serves a part of a capsule on a MessagePort, and a scope at the other end reads it live and
-// calls it, as a frame and its controls will in two iframes.
-
 const closers: Array<() => unknown> = [];
 
 afterEach(async () => {
   for (const close of closers.splice(0).reverse()) await close();
 });
 
-/** The part of a frame that another scope can read: names in capitals or not. */
 const capitals = data({ label: "test.capitals", parse: z.boolean(), initial: false });
 const board = remoteData({ capitals });
 
@@ -25,7 +20,6 @@ const api = rpc({
 
 const shared = capsule({ label: "test.shared", exports: { board, api } });
 
-/** An rpc whose server throws: the client gets `failed`. */
 const broken = rpc({ "broken.call": { input: z.null(), output: z.null() } });
 const brokenPart = capsule({ label: "test.broken", exports: { api: broken } });
 
@@ -48,11 +42,9 @@ const setCapitals = operation({
   },
 });
 
-/** An rpc that the frame does not serve. */
 const other = rpc({ "nope.call": { input: z.null(), output: z.null() } });
 const lost = capsule({ label: "test.lost", exports: { api: other } });
 
-/** A guard on the frame's side that refuses each call: the client gets `refused`. */
 const closed = rpc({ "closed.call": { input: z.null(), output: z.null() } });
 const closedPart = capsule({ label: "test.closed", exports: { api: closed } });
 
@@ -68,7 +60,6 @@ const neverRuns = operation({
   run: () => null,
 });
 
-/** The frame's scope, which serves the part, and a scope at the other end of a port. */
 async function pair() {
   const channel = new MessageChannel();
   const frame = await createScope({
@@ -82,7 +73,6 @@ async function pair() {
     ],
   }).ready;
   closers.push(() => frame.close());
-  // It serves the port until `stop`, as a server's listen.
   const stop = new AbortController();
   const served = frame.run(portServer.accept, {
     input: { port: channel.port1, stop: stop.signal },
@@ -117,12 +107,10 @@ test("a scope at the other end of a port calls the frame's capsule and reads its
   closers.push(stop);
   await expect.poll(() => reader.get()).toBe(false);
 
-  // A call runs in the frame's scope; its write reaches the reader on the other side.
   expect(await control.run(shared.api["capitals.set"], { input: true })).toEqual({ was: false });
   expect(frame.controller(capitals).get()).toBe(true);
   await expect.poll(() => reader.get()).toBe(true);
 
-  // A write in the frame's own scope (its own button) reaches it too.
   await frame.run(setCapitals, { input: false });
   await expect.poll(() => reader.get()).toBe(false);
   expect(seen).toContain(true);
@@ -152,7 +140,6 @@ test("each fault of a call across the port: the frame throws, a guard refuses, a
     payload: { closed: true },
   });
 
-  // The client's own call, with no contract in front: the frame's protocol checks the input.
   const raw = (value: unknown) =>
     control.run(portClient.call, { input: { address: "capitals.set", value, meta: {} } });
   expect(await raw("yes")).toMatchObject({ ok: false, kind: "invalid" });
@@ -161,7 +148,6 @@ test("each fault of a call across the port: the frame throws, a guard refuses, a
 });
 
 test("a reply that is not one is a decode fault; a call with no reply stops as a link fault", async () => {
-  // A port whose other end answers each call with a text that is not a reply, or not at all.
   const channel = new MessageChannel();
   channel.port1.addEventListener("message", (event: MessageEvent) => {
     const id = Reflect.get(Object(event.data), "id");
@@ -182,7 +168,6 @@ test("a reply that is not one is a decode fault; a call with no reply stops as a
     kind: "decode",
     payload: { side: "client" },
   });
-  // The caller stops waiting: the call ends, and its reply would be a link fault.
   const stop = new AbortController();
   const waits = scope.settle(portClient.call, { input, signal: stop.signal });
   stop.abort();
@@ -197,7 +182,6 @@ test("a watch of an address that no one serves ends; a watch value JSON cannot w
       input: { address, value, meta: {}, push: (reply) => pushed.push(reply) },
     });
 
-  // Each ends, and pushes its fault: the frame serves no such address, or nothing left this side.
   await watch("nope.cell", null);
   await watch("test.capitals", 1n);
   expect(pushed).toMatchObject([
@@ -221,7 +205,6 @@ test("when the frame's side stops serving the port, a call and a watch on the wa
     input: { port: channel.port1, stop: stop.signal },
   });
 
-  // A client whose messages do not reach the server yet: they wait on the way.
   const late = Promise.withResolvers<MessagePort>();
   const control = await createScope({
     capsules: [exits({ file: process.env.TINKER_EXITS }), portClient({ port: late.promise })],

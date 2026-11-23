@@ -22,15 +22,12 @@ const requestShape = z
 const nameShape = z.string();
 const codeShape = z.union([z.string(), z.number()]);
 
-/** Caught native errors are not operation input; each failure field is checked on its own. */
 const failureShape = z.object({
   name: z.unknown().optional(),
   code: z.unknown().optional(),
   cause: z.unknown().optional(),
 });
 
-/** Closing this session or an ancestor ends HTTP waits before graceful work drains.
- * Stop tags also end waits without closing a layer; caller cancellation keeps Core's result. */
 export const http = resource({
   label: "http",
   target: "session",
@@ -68,7 +65,6 @@ export const http = resource({
   },
 });
 
-/** HTTP statuses are results; only sending or reading failures raise HttpRequestFailed. */
 export const httpRequest = operation({
   label: "http.request",
   input: requestShape,

@@ -10,24 +10,11 @@ import { makeDispatchTables, storedChannel } from "./channels.server";
 import { maxTries, queueApi, stateOf } from "./contract";
 import { githubBase, githubCall, githubFetch, githubMessage, scrub } from "./github.server";
 
-// The dispatcher (SPEC-queue.md § The dispatcher gets a request to the agents; judged rules 19 to
-// 24), against the queue-dispatch chart (docs/statecharts/queue-dispatch.md). Each second, a
-// round looks at the requests by the time of the run, so a lease that runs out (which writes
-// nothing) starts a waiting period as a release does. For each waiting period and channel,
-// `startDelivery` inserts one delivery, by the unique request, channel, kind and period; then each
-// delivery that is due gets one attempt. An attempt reads the repository first, then opens the
-// issue, or writes on it again. `endAttempt` keeps what it did. A delivery only tells: it writes
-// `deliveries` only, and changes no request (judged rule 19). Only the dispatcher writes
-// `deliveries`, and only through `startDelivery` and `endAttempt` (fact rule 7).
-
-/** A round each second: a waiting period gets its first attempt within 5 s. */
 export const roundMs = 1000;
 
-/** A delivery fails after 3 attempts. The 2nd waits 10 s, the 3rd 30 s (judged rule 20). */
 export const maxAttempts = 3;
 export const retryAfter = [10_000, 30_000] as const;
 
-/** The key of one delivery: its request, channel, kind and period. */
 const deliveryKey = z.object({
   request: z.string(),
   channel: z.string(),
@@ -35,32 +22,18 @@ const deliveryKey = z.object({
   period: z.number(),
 });
 
-/** A delivery that is due: its key, and the attempts so far. */
 const due = deliveryKey.extend({ attempts: z.number(), created: z.number() });
 
-/**
- * The start of a waiting period: the time of the call that made the request waiting (it wrote
- * `updated`), or `claimedUntil` for a lease that ran out (no write).
- */
 const periodSql = "COALESCE(r.claimed_until, r.updated)";
 
-/** A request that is waiting at `$now` (`stateOf`'s `waiting`, in SQL). */
 const waitingSql = `r.status = 'open' AND (r.claimed_until IS NULL OR r.claimed_until <= $now)
   AND r.tries < $max`;
 
-/**
- * Each waiting period that a channel has no delivery for. A channel gets the periods that start
- * after it was set (§ A team lead sets the channels, step 1).
- */
 const newPeriods = `SELECT r.id AS request, c.name AS channel, 'waiting' AS kind, ${periodSql} AS period
   FROM queue_requests r JOIN queue_channels c ON ${periodSql} >= c.created
   WHERE ${waitingSql} AND NOT EXISTS (SELECT 1 FROM queue_deliveries d
     WHERE d.request = r.id AND d.channel = c.name AND d.kind = 'waiting' AND d.period = ${periodSql})`;
 
-/**
- * Each issue to close: a request that left the queue (a question, a result, or closed), whose last
- * sent waiting period on a channel has no `out` delivery yet (§ The dispatcher, step 6).
- */
 const newOuts = `WITH last AS (
     SELECT d.request, d.channel, MAX(d.period) AS period FROM queue_deliveries d
     JOIN queue_requests r ON r.id = d.request
@@ -71,10 +44,6 @@ const newOuts = `WITH last AS (
     SELECT 1 FROM queue_deliveries o WHERE o.request = last.request AND o.channel = last.channel
       AND o.kind = 'out' AND o.period = last.period)`;
 
-/**
- * One delivery, in one conditional insert (judged rule 20): a period that has one already, for
- * this channel and kind, inserts nothing. It is `pending`, with its first attempt now.
- */
 export const startDelivery = operation({
   label: "queue.startDelivery",
   input: deliveryKey.extend({ now: z.number() }),
@@ -96,10 +65,6 @@ export const startDelivery = operation({
       }),
 });
 
-/**
- * One round, by the time of the run: a delivery for each new waiting period and each issue to
- * close, then the deliveries that are due. It runs quiet: a round a second is no span.
- */
 const dispatchRound = operation({
   label: "queue.dispatchRound",
   depends: { connection: bunSqlite.connection, startDelivery },
@@ -123,7 +88,6 @@ const dispatchRound = operation({
   },
 });
 
-/** The parts of a request that an attempt reads. */
 const attemptRow = z.object({
   id: z.string(),
   canvas: z.string(),
@@ -134,15 +98,9 @@ const attemptRow = z.object({
   tries: z.number(),
   acceptedBy: z.string().nullable(),
   updated: z.number(),
-  /** The text of the request now: its ask, or its last edit. */
   text: z.string().nullable(),
 });
 
-/**
- * Why a delivery is no longer due, by the state of its request now; null while it is due. A
- * `waiting` delivery is due while its request waits in its period (judged rule 20: the dispatcher
- * delivers only a request that is waiting); an `out` one while the request is out of the queue.
- */
 const endedBy = operation({
   label: "queue.endedBy",
   input: z.object({ kind: deliveryKind, period: z.number(), row: attemptRow, now: z.number() }),
@@ -158,7 +116,6 @@ const endedBy = operation({
   },
 });
 
-/** A channel as it is now, if it is the one that the delivery was made for. */
 const channelNow = operation({
   label: "queue.channelNow",
   input: due,
@@ -174,7 +131,6 @@ const channelNow = operation({
     ),
 });
 
-/** The request of a delivery, with its text now; and the issue of its earlier deliveries. */
 const requestNow = operation({
   label: "queue.requestNow",
   input: due.extend({ since: z.number() }),
@@ -208,11 +164,6 @@ const requestNow = operation({
   },
 });
 
-/**
- * What an attempt needs, read again at its start: the channel, the request, its state, and the
- * issue of earlier deliveries. `ended` when the delivery is no longer due: the channel was
- * removed, the request is gone, or it is not in the state of its delivery now (`endedBy`).
- */
 const readAttempt = operation({
   label: "queue.readAttempt",
   input: due,
@@ -233,7 +184,6 @@ const readAttempt = operation({
   },
 });
 
-/** One call to GitHub, as one step of an attempt: `ok` with the body, or `failed` with its cause. */
 const githubStep = operation({
   label: "queue.githubStep",
   input: z.object({
@@ -262,12 +212,6 @@ const githubStep = operation({
   },
 });
 
-/**
- * The one place where a viewer's text meets GitHub: each `@` before a name gets a zero-width
- * space after it, so a mention or a trigger word in the text notifies no person and starts no
- * workflow (as Renovate and Dependabot escape mentions in quoted text). Then the text goes in a
- * fence with more backticks than the longest run in it, at least 3, so it cannot end the fence.
- */
 const viewerBlock = operation({
   label: "queue.viewerBlock",
   input: z.string(),
@@ -280,7 +224,6 @@ const viewerBlock = operation({
   },
 });
 
-/** The texts of an attempt on GitHub: the issue, a comment on a new period, and the close. */
 const issueTexts = operation({
   label: "queue.issueTexts",
   input: z.object({ row: attemptRow, trigger: z.string(), state: z.string() }),
@@ -311,16 +254,13 @@ const issueTexts = operation({
   },
 });
 
-/** The issue that an attempt wrote on. */
 const issueNumber = z.object({ number: z.number() });
 
-/** What one step of an attempt on GitHub takes: the channel, and the texts of the request. */
 const stepInput = z.object({
   channel: storedChannel,
   texts: z.object({ title: z.string(), issue: z.string(), again: z.string(), close: z.string() }),
 });
 
-/** The first read of each attempt: a public repository fails it, and nothing goes to GitHub. */
 const readRepo = operation({
   label: "queue.readRepo",
   input: storedChannel,
@@ -338,7 +278,6 @@ const readRepo = operation({
   },
 });
 
-/** The first waiting period of a request on a channel: a new issue, with the label. */
 const openIssue = operation({
   label: "queue.openIssue",
   input: stepInput,
@@ -363,7 +302,6 @@ const openIssue = operation({
   },
 });
 
-/** A later waiting period: the issue opens again if it is closed, then a comment with the trigger. */
 const writeAgain = operation({
   label: "queue.writeAgain",
   input: stepInput.extend({ ref: z.number() }),
@@ -391,7 +329,6 @@ const writeAgain = operation({
   },
 });
 
-/** The request left the queue: a comment with its state, then the issue closes. */
 const closeIssue = operation({
   label: "queue.closeIssue",
   input: stepInput.extend({ ref: z.number(), state: z.string() }),
@@ -418,13 +355,6 @@ const closeIssue = operation({
   },
 });
 
-/**
- * One attempt of a delivery on GitHub. It reads the repository first: a public one fails with
- * the cause `public`, and nothing goes to GitHub (judged rule 22). A first waiting period opens an
- * issue with the label; a later one opens the issue again if it is closed, then writes a comment
- * that starts with the trigger. An `out` delivery writes the state as a comment, and closes the
- * issue. Each step that fails ends the attempt with its cause.
- */
 const attemptOnGithub = operation({
   label: "queue.attemptOnGithub",
   input: z.object({
@@ -442,26 +372,18 @@ const attemptOnGithub = operation({
     if (read.kind === "failed") return read;
 
     const texts = issueTexts.run({ input: { row, trigger: channel.trigger, state } });
-    // An `out` delivery starts only after a waiting one was sent, so it always has its issue.
     if (ref === null) return openIssue.run({ input: { channel, texts } });
     if (input.kind === "waiting") return writeAgain.run({ input: { channel, texts, ref } });
     return closeIssue.run({ input: { channel, texts, ref, state } });
   },
 });
 
-/** How an attempt ended: sent (with its issue), failed (with its cause), or no longer due. */
 const outcome = z.discriminatedUnion("kind", [
   z.object({ kind: z.literal("sent"), ref: z.number().nullable() }),
   z.object({ kind: z.literal("failed"), cause: z.string() }),
   z.object({ kind: z.literal("ended"), cause: z.string() }),
 ]);
 
-/**
- * Keeps how an attempt ended, in one conditional write on the delivery's status and attempts
- * (judged rule 20): `sent` with its issue; a failure waits 10 s, then 30 s, and the 3rd is
- * `failed` with its cause; a delivery that is no longer due is `failed` with the cause `ended`.
- * A write that finds the delivery changed by another attempt writes nothing.
- */
 export const endAttempt = operation({
   label: "queue.endAttempt",
   input: z.object({ delivery: due, outcome, now: z.number() }),
@@ -503,7 +425,6 @@ export const endAttempt = operation({
   },
 });
 
-/** One attempt of a delivery that is due: read it again, try it on GitHub, keep how it ended. */
 const attemptDelivery = operation({
   label: "queue.attemptDelivery",
   input: due,
@@ -529,24 +450,14 @@ const attemptDelivery = operation({
   },
 });
 
-/** The dispatcher's counts: its rounds, and the deliveries whose attempt runs now. */
 const dispatchCounts = resource({
   label: "queue.dispatchCounts",
   target: "scope",
   factory: () => ({ rounds: 0, busy: new Set<string>() }),
 });
 
-/**
- * Each attempt in its own trace: the loop runs quiet, and a call to GitHub must still show (its
- * span holds no token: an input is never an attribute).
- */
 const traced = namespace({});
 
-/**
- * The dispatcher's loop: a round each second by the clock of the run, until the scope closes.
- * Each due delivery gets its attempt beside the loop, one at a time for each delivery, so a call
- * to GitHub that waits 10 s does not hold the next round.
- */
 const dispatchEvery = operation({
   label: "queue.dispatchEvery",
   depends: {
@@ -571,7 +482,6 @@ const dispatchEvery = operation({
         counts.busy.add(key);
         void attempt
           .run({ input: one, signal, ns: traced })
-          // An attempt that threw counts as a failure, so it cannot be tried each second forever.
           .catch(() => {
             const outcome = { kind: "failed" as const, cause: "easel: the attempt failed" };
             const now = clock.currentTimeMillis();
@@ -585,7 +495,6 @@ const dispatchEvery = operation({
   },
 });
 
-/** Starts the loop, stopped by the scope's close. A round a second is no span (`quiet`). */
 export const dispatcher = resource({
   label: "queue.dispatcher",
   target: "scope",
@@ -597,17 +506,12 @@ export const dispatcher = resource({
   },
 });
 
-/** The dispatcher's count of rounds, and of attempts that run now: a test waits on them. */
 export const dispatchState = operation({
   label: "queue.dispatchState",
   depends: { counts: dispatchCounts },
   run: ({ counts }) => ({ rounds: counts.rounds, busy: counts.busy.size }),
 });
 
-/**
- * `request.deliveries`: each delivery of the request, oldest first, and the count of channels
- * of the server. No request on the canvas with that number is `gone`.
- */
 export const listDeliveries = operation({
   label: "request.deliveries.do",
   input: queueApi["request.deliveries"].input,
@@ -639,11 +543,6 @@ export const listDeliveries = operation({
   },
 });
 
-/**
- * The server side of the dispatcher, filled by the cmd. Install it after `queueServer`: it makes
- * the tables of channels and deliveries, then starts the loop. `fetch` reaches GitHub; `base` is
- * the root of its REST API.
- */
 export const dispatchServer = capsule({
   label: "dispatchServer",
   config: { fetch: githubFetch, base: githubBase },

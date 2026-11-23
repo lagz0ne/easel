@@ -8,9 +8,6 @@ import { routes } from "~/components/requests/index.server";
 
 const { hook } = transport;
 
-// Duke's case: an authed and an unauthed transport. The signed one depends on the principal;
-// to get the principal, the client first asks the auth status over the public one.
-
 const closers: Array<() => unknown> = [];
 
 afterEach(async () => {
@@ -19,7 +16,6 @@ afterEach(async () => {
 
 const tick = (ms = 30) => new Promise((r) => setTimeout(r, ms));
 
-// ---- shared definitions
 const principal = z.discriminatedUnion("kind", [
   z.object({ kind: z.literal("in"), who: z.string(), token: z.string() }),
   z.object({ kind: z.literal("out") }),
@@ -30,11 +26,9 @@ const notes = data({ initial: [] as string[] });
 const board = remoteData({ notes });
 const api = rpc({ "note.add": { input: z.string(), output: z.number() } });
 
-// ---- the server: ONE transport; the route table sends each address to its service.
-// The public service reads the cookie; the signed services check the bearer token.
 async function boot() {
-  const sessions = new Map<string, string>(); // cookie sid -> who (a sign-in adds a row)
-  const tokens = new Map<string, string>(); // bearer token -> who
+  const sessions = new Map<string, string>();
+  const tokens = new Map<string, string>();
   const user = tag<string>({ label: "user" });
   const statusOf = operation({
     label: "auth.status.do",
@@ -72,7 +66,7 @@ async function boot() {
   const server = await createScope({
     capsules: [
       exits({ file: process.env.TINKER_EXITS }),
-      auth({ implement: { "auth.status": statusOf } }), // public: no hooks
+      auth({ implement: { "auth.status": statusOf } }),
       board({ serve: true, onStart: [bearer] }),
       api({ onStart: [bearer], implement: { "note.add": add } }),
       memory.server({ services: [auth, board, api] }),
@@ -83,12 +77,9 @@ async function boot() {
   return { server, sessions, tokens };
 }
 
-// ---- the client command: two client sets to one server, as two sockets to one URL
-// (Core 0.17.7).
 const signed = createMemory();
 let statusCalls = 0;
 
-/** The signed transport's credentials: ask the public one who we are, then send the bearer. */
 const credentials = operation({
   label: "credentials",
   depends: { status: auth["auth.status"] },
@@ -122,7 +113,6 @@ test("signed in: the auth check goes over the public transport; the rest carries
   expect(await duke.run(api["note.add"], { input: "hello" })).toBe(1);
   await tick();
   expect(duke.resolve(board.notes).get()).toEqual(["duke: hello"]);
-  // A public call needs no principal: a guest asks it fine.
   expect(await duke.run(auth["auth.status"], { input: null })).toMatchObject({
     kind: "in",
     who: "duke",
@@ -147,15 +137,15 @@ test("the guest signs in later: the next request asks again, and the board fills
   const ann = await client(server, "s2");
 
   expect(ann.resolve(board.faults).get().notes?.fault).toBe("refused");
-  sessions.set("s2", "ann"); // the user signs in (the cookie now names a session)
-  expect(await ann.run(api["note.add"], { input: "now in" })).toBe(1); // the next call has the bearer
+  sessions.set("s2", "ann");
+  expect(await ann.run(api["note.add"], { input: "now in" })).toBe(1);
   const end = Date.now() + 3000;
   let value: unknown = null;
   while (value === null && Date.now() < end) {
     if (ann.resolve(board.faults).get().notes) await tick(20);
     else value = ann.resolve(board.notes).get();
   }
-  expect(value).toEqual(["ann: now in"]); // the watch tried again with back-off and got the bearer
+  expect(value).toEqual(["ann: now in"]);
 });
 
 test("the cost: one auth check per signed request (as tRPC headers()); caching it is the app's choice", async () => {

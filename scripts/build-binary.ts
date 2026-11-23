@@ -1,28 +1,3 @@
-/**
- * One compiled easel binary (`easel serve` and the CLI), with `Bun.build` and the oxc-parser
- * plugin below. `build:server` (dist/server, the image) and scripts/release-binaries.sh (the
- * three release targets) both build with it, so each binary holds the same code.
- *
- *   bun scripts/build-binary.ts --outfile <file> [--target <bun target>] [--sourcemap]
- *     [--metafile <file>] [--entry <file>]...
- *
- * Entries: cmds/easel.ts and cmds/telemetry-worker.ts (the worker thread), or each --entry (the
- * probe of tests/kit-binary.test.ts). The flags are those of `bun build --compile --bytecode
- * --format=esm --minify --define process.env.NODE_ENV="production"`.
- *
- * oxc-parser (SPEC-kit.md fact rule 10): its loader (src-js/bindings.js) finds its native file by
- * a name that it makes at run time, so a compiled binary cannot find it. The plugin replaces that
- * loader with a static `require` of the `.node` file of the target, with the same exports, and
- * imports the walk of its `Visitor` statically (it loads it with a relative `require` at run time). The
- * other targets' binding packages must be installed: the release installs with
- * `bun install --frozen-lockfile --os='*' --cpu='*'`. Lightning CSS needs no plugin: its static
- * `require` is in src/kit/lightningcss.server.ts.
- *
- * The runtime of app frames (SPEC-kit.md § App frames, "The runtime"): the build makes it with the
- * one `buildRuntime` of the server, from the pins of package.json, and puts it in the binary as the
- * module `easel:runtime` (cmds/runtime.ts reads it). So the binary needs no node_modules to give a
- * kit version its runtime, and a test can compare its SHA-256 with the one of a build in a scope.
- */
 import { parseArgs } from "node:util";
 
 import { createScope } from "@tinkered/core";
@@ -48,7 +23,6 @@ if (!outfile) {
   process.exit(64);
 }
 
-/** The binding of oxc-parser for each release target. With no target, the build is for this host. */
 const targets: Array<{ target: Bun.Build.CompileTarget; binding: string }> = [
   { target: "bun-darwin-arm64", binding: "darwin-arm64" },
   { target: "bun-linux-x64-baseline", binding: "linux-x64-gnu" },
@@ -70,7 +44,6 @@ if (!binding) {
   process.exit(64);
 }
 
-/** The exports of oxc-parser's loader at the pin; a new pin with other exports fails the build. */
 const loaderExports = [
   "Severity",
   "ParseResult",
@@ -110,8 +83,6 @@ const oxcStatic: BunPlugin = {
         ].join("\n"),
       };
     });
-    // The Visitor loads its walk at its first use by a relative `require` that it makes at run
-    // time, which a compiled binary cannot find: the same modules, imported statically.
     build.onLoad({ filter: /oxc-parser[\\/]src-js[\\/]visit[\\/]index\.js$/ }, async ({ path }) => {
       const original = await Bun.file(path).text();
       const lazy =

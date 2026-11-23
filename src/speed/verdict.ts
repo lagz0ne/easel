@@ -3,13 +3,8 @@ import { z } from "zod";
 
 import { budget, hotItem } from "./budget";
 
-// The logic of the speed gate (SPEC-speed.md § The design 3 and 4): the stats of a step's runs,
-// its verdict against its budget and the base, and the findings of the hot path list. The script
-// `scripts/speed.ts` is the thin host around them.
-
 const runs = z.array(z.number()).min(1);
 
-/** p50 and p95 of a step's runs by nearest rank, and the longest. */
 export const speedStats = operation({
   label: "speed.stats",
   input: runs,
@@ -23,12 +18,6 @@ export const speedStats = operation({
   },
 });
 
-/**
- * A step's verdict: over its budget; else more than `alert` over the base's value, by at least
- * `floor` of the budget (an alert, not a failure); else in time. The value is the stat that the
- * budget is of. The floor keeps a change that no person sees, such as 8 ms of a 1000 ms budget,
- * from an alert.
- */
 export const speedVerdict = operation({
   label: "speed.verdict",
   input: z.object({ runs, base: runs.optional(), budget, alert: z.number(), floor: z.number() }),
@@ -51,11 +40,6 @@ export const speedVerdict = operation({
   },
 });
 
-/**
- * The gate (SPEC-speed.md § The design 3 and 4): red when a step is over its budget or the hot
- * path list has a finding, which stops the deploy; an alert when a step is only slower than the
- * base, which stops nothing; else green.
- */
 export const speedGate = operation({
   label: "speed.gate",
   input: z.object({
@@ -70,11 +54,6 @@ export const speedGate = operation({
   },
 });
 
-/**
- * A request's name on the hot path list: its path, with no query. Each picture is one name, and
- * the hash of a built file (8 characters after a dash, as Vite names a file) is `*`, so a new
- * build keeps its names.
- */
 export const hotName = operation({
   label: "speed.hotName",
   input: z.string(),
@@ -88,10 +67,6 @@ export const hotName = operation({
 
 const seenItem = hotItem.pick({ kind: true, name: true });
 
-/**
- * The findings of the hot path list: each item that came before `easel:open` and is not on the
- * list, then each item of the list with no reason. Each says what to do.
- */
 export const hotPathFindings = operation({
   label: "speed.hotPathFindings",
   input: z.object({ seen: z.array(seenItem), list: z.array(hotItem) }),

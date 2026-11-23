@@ -6,8 +6,6 @@ import { z } from "zod";
 
 import { listen, wsClient, wsServer } from "./support/ws";
 
-// F35: one write changes two keys. Does a client ever see one key changed without the other?
-
 const closers: Array<() => unknown> = [];
 
 afterEach(async () => {
@@ -48,12 +46,9 @@ async function torn(kind: "memory" | "ws") {
     ],
   }).ready;
   closers.push(() => client.close());
-  await new Promise((r) => setTimeout(r, 30)); // the watches are open
-  // Each time either key changes, the two must agree: n todos, n activity lines.
+  await new Promise((r) => setTimeout(r, 30));
   let seen = 0;
   let apart = 0;
-  // Read as React does: a store change schedules a render; the render reads after this task's
-  // microtasks. So the check reads in a microtask, not inside the set.
   const check = () =>
     queueMicrotask(() => {
       seen++;

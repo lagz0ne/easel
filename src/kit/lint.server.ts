@@ -4,15 +4,6 @@ import { z } from "zod";
 
 import { oxc, placesOf } from "./oxc.server.ts";
 
-// The rule `kit/class-built` as an Oxlint JS plugin (SPEC-kit.md § App frames; fact rule 9), for
-// an agent's own app frame files, as the Tinker rules are a plugin: `jsPlugins: [{ name: "easel",
-// specifier: "<this file>" }]`, then `"easel/class-built": "error"`. It reads the file with the
-// one oxc-parser and the one walk of the class places (`places.ts`) of the server check, so a
-// frame that passes it has no `kit/class-built` at the put. (Oxlint's own tree is oxc's too, but
-// its node types come from another version of the types.) The K5 verdicts need the kit version,
-// so they stay on the server (`easel kit check`).
-
-/** The places that are built, in a source: none when it does not parse (the put says why). */
 export const builtPlaces = operation({
   label: "kit.builtPlaces",
   input: z.string(),
@@ -25,7 +16,6 @@ export const builtPlaces = operation({
   },
 });
 
-/** A scope for the rule: it has no capsules, so its runs are sync, as a rule's visit is. */
 const scope = createScope();
 
 const classBuilt = defineRule({

@@ -1,10 +1,6 @@
 import { operation } from "@tinkered/core";
 import { z } from "zod";
 
-// The nearest name, for the fix of a finding: the edit distance of Levenshtein (1966), as the
-// "did you mean" of git and of the TypeScript compiler.
-
-/** One row of the edit distance table: the row of `a` up to `char`, from the row before it. */
 export const editRow = operation({
   label: "kit.editRow",
   input: z.custom<{ before: number[]; char: string; b: string }>(),
@@ -20,7 +16,6 @@ export const editRow = operation({
   },
 });
 
-/** The edit distance of `a` and `b`, or `most + 1` when it is more than `most`. */
 export const editDistance = operation({
   label: "kit.editDistance",
   input: z.custom<{ a: string; b: string; most: number }>(),
@@ -37,7 +32,6 @@ export const editDistance = operation({
   },
 });
 
-/** The nearest name to `name`, if it is near enough to be the one that was meant. */
 export const nearestName = operation({
   label: "kit.nearestName",
   input: z.custom<{ name: string; names: Iterable<string> }>(),

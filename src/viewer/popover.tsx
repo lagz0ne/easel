@@ -25,11 +25,6 @@ import type { Line, RequestView, Shown } from "./follow";
 import { Age, Initial, OutdatedMark, Place, StateMark } from "./panel";
 import { stage } from "./stage";
 
-// The popover of a saved request (SPEC-viewer.md § Follow the requests 10 to 16; the E4.1, E4.2
-// and E4.3 designs): its head with `More` and `Close`, its thread, and the controls of its state.
-// Any viewer of the link can use them; each use is a message with the viewer's name.
-
-/** A textbox: its name, and the hint in it while it is empty. */
 const boxTexts = {
   correct: { name: "Request", hint: "" },
   answer: { name: "Answer", hint: "Or write an answer…" },
@@ -37,10 +32,8 @@ const boxTexts = {
   clear: { name: "Make it clear, then send it back", hint: "Make it clear, then send it back…" },
 } as const;
 
-/** The states in which `Take back` (or `Close request`) shows in `More` (step 11). */
 const takeable: readonly Shown[] = ["waiting", "inWork", "question", "person"];
 
-/** Why nothing was saved, after "Not sent: ", and what to do then. */
 const missed = {
   gone: { why: "this request is not on the canvas any more.", next: "" },
   full: { why: "this canvas has too many open requests.", next: " Send again when some are done." },
@@ -49,7 +42,6 @@ const missed = {
   failed: { why: "easel had a problem.", next: " Send again." },
 } as const;
 
-/** One step of the thread: the name, what was done, and the time. */
 function Step({ line }: { line: Extract<Line, { kind: "step" }> }) {
   return (
     <li className="e-step">
@@ -68,7 +60,6 @@ function Step({ line }: { line: Extract<Line, { kind: "step" }> }) {
   );
 }
 
-/** The options of a question: buttons while it waits for its answer, else the picked one shows. */
 function Options({ line, v }: { line: Extract<Line, { kind: "message" }>; v: RequestView }) {
   const run = useRun(actOn);
   const at = { canvas: v.r.canvas, n: v.r.n, now: v.shown };
@@ -97,12 +88,6 @@ function Options({ line, v }: { line: Extract<Line, { kind: "message" }>; v: Req
   );
 }
 
-/**
- * A message's pictures, with the switch on their top edge: `Before` | `After` on a result (step
- * 13), `When asked` | `Now` on the ask of a request that may be outdated (step 14). It opens while
- * no textbox is open; else only the switch shows. A change of the request, or a textbox, folds it
- * again.
- */
 function Proof({ v, line, box }: { v: RequestView; line: Message; box: Box | null }) {
   const { proof } = line;
   if (proof === null) return null;
@@ -122,7 +107,6 @@ function Proof({ v, line, box }: { v: RequestView; line: Message; box: Box | nul
 
 type Message = Extract<Line, { kind: "message" }>;
 
-/** One message of the thread: the avatar (square for an agent), the name, the time, the text. */
 function Said({ line, v, box }: { line: Message; v: RequestView; box: Box | null }) {
   return (
     <li className="e-msg">
@@ -138,7 +122,6 @@ function Said({ line, v, box }: { line: Message; v: RequestView; box: Box | null
         </p>
         {line.text ? <p className="e-text">{line.text}</p> : null}
         {line.html ? (
-          // An HTML part runs as a live document does: scripts, and no origin of its own.
           <iframe
             className="e-part"
             title={`HTML part from ${line.from}`}
@@ -153,7 +136,6 @@ function Said({ line, v, box }: { line: Message; v: RequestView; box: Box | null
   );
 }
 
-/** The thread, oldest first (step 12). `box` is the textbox open on the request, if one is. */
 function Thread({ v, box }: { v: RequestView; box: Box | null }) {
   return (
     <ol className="e-thread">
@@ -168,10 +150,6 @@ function Thread({ v, box }: { v: RequestView; box: Box | null }) {
   );
 }
 
-/**
- * A request's close, for a button: the act `close`, at the state the popover shows. Its name is
- * `Take back` for the author, else `Close request`; `always` names it `Close request` (step 15).
- */
 function CloseButton({ v, menu, always }: { v: RequestView; menu: boolean; always?: boolean }) {
   const run = useRun(actOn);
   const at = { canvas: v.r.canvas, n: v.r.n, now: v.shown };
@@ -188,7 +166,6 @@ function CloseButton({ v, menu, always }: { v: RequestView; menu: boolean; alway
   );
 }
 
-/** Another viewer, or an agent, acted first: who, and what the text can do now (step 16). */
 function FirstNotice({ v, here }: { v: RequestView; here: Acts }) {
   const kept = here.box ? " Your text is kept." : "";
   const reopens = here.box === "note" && v.shown === "accepted";
@@ -197,7 +174,6 @@ function FirstNotice({ v, here }: { v: RequestView; here: Acts }) {
   return <p role="alert">{`Not sent: ${v.lastAct} first.${kept}${again}`}</p>;
 }
 
-/** Why the last act saved nothing, if it did not. */
 function Notice({ v, here }: { v: RequestView; here: Acts }) {
   if (here.step !== "notSent" || here.why === "none") return null;
   if (here.why === "first") return <FirstNotice v={v} here={here} />;
@@ -210,7 +186,6 @@ function Notice({ v, here }: { v: RequestView; here: Acts }) {
   return <p role="alert">{`Not sent: ${why}${kept}${next}`}</p>;
 }
 
-/** The name, when this browser kept none: the act asks it once (E4.2 M16). */
 function NameField() {
   const name = useData(typedName);
   const type = useRun(typeName);
@@ -236,14 +211,12 @@ function NameField() {
   );
 }
 
-/** `Take back` for the author, else `Close request`: the name of the close of the request. */
 function CloseName({ author }: { author: string }) {
   const me = useData(myName({}));
 
   return <>{author === me ? "Take back" : "Close request"}</>;
 }
 
-/** The buttons under a correction an agent started first: Cancel, Copy text, Take back. */
 function StartedActs({ v, here }: { v: RequestView; here: Acts }) {
   const cancel = useRun(cancelBox);
   const copy = useRun(copyText);
@@ -261,10 +234,6 @@ function StartedActs({ v, here }: { v: RequestView; here: Acts }) {
   );
 }
 
-/**
- * The buttons under a textbox: Cancel and Save for a correction, Cancel for a note, `Close
- * request` for a request that needs a person.
- */
 function BoxActs({ v, box, here }: { v: RequestView; box: Box; here: Acts }) {
   const cancel = useRun(cancelBox);
   if (here.why === "started") return <StartedActs v={v} here={here} />;
@@ -291,7 +260,6 @@ function BoxActs({ v, box, here }: { v: RequestView; box: Box; here: Acts }) {
   );
 }
 
-/** The textbox itself, and its Send. Enter sends; Shift+Enter is a new line. */
 function BoxField({
   v,
   box,
@@ -318,7 +286,6 @@ function BoxField({
         value={here.text}
         readOnly={busy}
         autoFocus={box === "correct" || box === "note"}
-        // A correction opens with the text of the request: the caret goes after it.
         onFocus={(event) =>
           event.currentTarget.setSelectionRange(here.text.length, here.text.length)
         }
@@ -340,13 +307,8 @@ function BoxField({
   );
 }
 
-/**
- * A textbox of the request (step 15): its text goes in the call of its kind. A text for a state
- * the request left waits for a second Send.
- */
 function BoxForm({ v, box, here }: { v: RequestView; box: Box; here: Acts }) {
   const run = useRun(actOn);
-  // After "Not sent", a text that no call of the new state takes waits: Send is off.
   const stuck = here.why === "first" && !boxFits[box].includes(v.shown);
   const ready = !stuck && here.step !== "sending";
   const act: Act = { call: boxCalls[box], text: here.text };
@@ -367,7 +329,6 @@ function BoxForm({ v, box, here }: { v: RequestView; box: Box; here: Acts }) {
   );
 }
 
-/** The buttons of a result, or of a done request: Accept, and Open again (step 15). */
 function Decide({ v, here }: { v: RequestView; here: Acts }) {
   const run = useRun(actOn);
   const open = useRun(openBox);
@@ -400,13 +361,8 @@ function Decide({ v, here }: { v: RequestView; here: Acts }) {
   );
 }
 
-/** The states whose controls are `Open again`, and `Accept` for a result (step 15). */
 const decided: readonly Shown[] = ["result", "accepted", "doneNoAnswer"];
 
-/**
- * The fill of the head (ThreadHead `tone`): `waits` while a question or a result waits for the
- * viewer, `person` while the request needs a person, `plain` for the rest.
- */
 const headTone: Record<Shown, "plain" | "waits" | "person"> = {
   waiting: "plain",
   inWork: "plain",
@@ -419,7 +375,6 @@ const headTone: Record<Shown, "plain" | "waits" | "person"> = {
   takenBack: "plain",
 };
 
-/** The controls of the request's state (step 15), or the textbox the viewer opened. */
 function Controls({ v, here }: { v: RequestView; here: Acts }) {
   if (here.box) return <BoxForm v={v} box={here.box} here={here} />;
   if (v.shown === "question") return <BoxForm v={v} box="answer" here={here} />;
@@ -430,7 +385,6 @@ function Controls({ v, here }: { v: RequestView; here: Acts }) {
   return <Notice v={v} here={here} />;
 }
 
-/** A request that may be outdated has `Close request` (step 15): a viewer may keep it, or close it. */
 function OutdatedActs({ v, here }: { v: RequestView; here: Acts }) {
   return (
     <>
@@ -442,7 +396,6 @@ function OutdatedActs({ v, here }: { v: RequestView; here: Acts }) {
   );
 }
 
-/** The menu `More` (step 11): Correct the request, Copy link, and Take back or Close request. */
 function MoreMenu({ v }: { v: RequestView }) {
   const open = useRun(openBox);
   const copy = useRun(copyLink);
@@ -471,7 +424,6 @@ function MoreMenu({ v }: { v: RequestView }) {
   );
 }
 
-/** The button `More`, and its menu while it is open. */
 function More({ v }: { v: RequestView }) {
   const open = useData(moreMenu);
   const toggle = useRun(toggleMore);
@@ -497,11 +449,6 @@ function More({ v }: { v: RequestView }) {
   );
 }
 
-/**
- * The popover of a saved request (steps 10 to 16): a dialog by its pin, with its state mark,
- * number and place, `More` and `Close`; the thread; and the controls of its state. While it is
- * open, its changed mark goes (step 17).
- */
 export function Opened({ v, list }: { v: RequestView; list: readonly FrameInfo[] }) {
   const close = useRun(escape);
   const acts = useData(acting);

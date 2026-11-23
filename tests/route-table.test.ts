@@ -5,8 +5,6 @@ import { memory } from "@tinkered/core/testing";
 import { afterEach, expect, test } from "vite-plus/test";
 import { z } from "zod";
 
-// O5: the server transport routes by a table built at start (gRPC addService, an HTTP router).
-
 const closers: Array<() => unknown> = [];
 
 afterEach(async () => {
@@ -23,7 +21,6 @@ const startError = async (capsules: NonNullable<Parameters<typeof createScope>[0
   return { kind: Object(error).kind, payload: Object(error).payload };
 };
 
-/** A watch's first push, then the watch ends: a remoteData key is an rpc stream key. */
 const first = async (scope: Scope.Handle, address: string) => {
   const stop = new AbortController();
   const got = Promise.withResolvers<string>();
@@ -56,12 +53,11 @@ test("strict: false: two services with one address, the first wins and start war
   const warned = lines.find((l) => l.startsWith("protocol duplicate address"));
   expect(warned).toContain('"winner":"remoteData"');
   expect(warned).toContain('"shadowed":"rpc"');
-  // The board's key is a stream key: a call finds no reply key there (404), a watch gets the value.
   const reply = await scope.run(memory.server.serve, {
     input: { address: "todo.add", text: "null", meta: {} },
   });
   expect(reply).toBeNull();
-  expect(await first(scope, "todo.add")).toEqual({ ok: true, value: 0 }); // the board answered
+  expect(await first(scope, "todo.add")).toEqual({ ok: true, value: 0 });
 });
 
 test("two services with one address fail start, naming the address and both", async () => {
@@ -147,8 +143,6 @@ test("30 definitions × 3 keys and one rpc with 30 keys: each call reaches its o
   }
   for (const k of keys) expect(await ask(k)).toEqual({ ok: true, value: `answered ${k}` });
   const count = (name: string) => spans.filter((x) => x.name === name).length;
-  // Each ask ran exactly one service: 90 board watches, 30 rpc answers. Asking in turn would
-  // have run up to 31 services per ask.
   expect([count("remoteData.stream"), count("rpc.answer")]).toEqual([90, 30]);
 });
 

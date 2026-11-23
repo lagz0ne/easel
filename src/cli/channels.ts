@@ -11,14 +11,6 @@ import { exits } from "./exit";
 import { say } from "./output";
 import { queueDeadline, queueExitOf, queueFault } from "./queue";
 
-// `easel channel set|ls|rm` and `easel deliveries` (SPEC-queue.md § A team lead sets the
-// channels, § The dispatcher gets a request to the agents, step 7). `channel` is an owner's
-// command; `deliveries` a user's. Each prints its answer and exits by the call's success list in
-// the queue's contract (SPEC-cli.md fact rule 3). A bad flag is 64 and an input that the contract
-// refuses is 65, both before the call. The token comes from a file, never from a flag, and the
-// CLI never prints it: `channel ls` shows its last 4 characters only.
-
-/** One channel or deliveries command, as the cmd read it from its flags: each value as typed. */
 export const channelCommand = z.discriminatedUnion("kind", [
   z.object({
     kind: z.literal("set"),
@@ -36,7 +28,6 @@ export const channelCommand = z.discriminatedUnion("kind", [
 
 export type ChannelCommand = z.infer<typeof channelCommand>;
 
-/** Bad flags: the text says what to do, and the run exits 64 before it calls. */
 const usage = operation({
   label: "cli.channelUsage",
   input: z.string(),
@@ -48,7 +39,6 @@ const usage = operation({
   },
 });
 
-/** An input that the contract refuses: the issues, printed, and 65 before it sends. */
 const invalid = operation({
   label: "cli.channelInvalid",
   input: z.array(z.object({ path: z.array(z.unknown()), message: z.string() })),
@@ -62,7 +52,6 @@ const invalid = operation({
   },
 });
 
-/** The token in `--token-file`, with no space around it; null when the file cannot be read. */
 const tokenOf = operation({
   label: "cli.tokenOf",
   input: z.string(),
@@ -75,7 +64,6 @@ const tokenOf = operation({
   },
 });
 
-/** `easel channel set`, read: its input before the contract checks it, or the line of a bad flag. */
 const setCall = operation({
   label: "cli.channelSetCall",
   input: channelCommand.options[0],
@@ -97,7 +85,6 @@ const setCall = operation({
   },
 });
 
-/** What `channel.set` prints: what it means, and whether it is an error. */
 const setText = operation({
   label: "cli.channelSetText",
   input: z.object({
@@ -126,10 +113,6 @@ const setText = operation({
   },
 });
 
-/**
- * `easel channel set <name> github --repo o/n --label l [--trigger t] --token-file f`
- * (`channel.set`): easel checks the repository with the token, then saves the channel.
- */
 const channelSet = operation({
   label: "cli.channelSet",
   input: channelCommand.options[0],
@@ -166,7 +149,6 @@ const channelSet = operation({
   },
 });
 
-/** `easel channel ls` (`channel.list`): one line for each channel, with the end of its token. */
 const channelLs = operation({
   label: "cli.channelLs",
   depends: {
@@ -194,7 +176,6 @@ const channelLs = operation({
   },
 });
 
-/** `easel channel rm <name>` (`channel.remove`): its issues stay on GitHub. */
 const channelRm = operation({
   label: "cli.channelRm",
   input: channelCommand.options[2],
@@ -228,10 +209,8 @@ const channelRm = operation({
   },
 });
 
-/** The listed answer of `request.deliveries`. */
 const listed = queueContracts["request.deliveries"].output.options[0];
 
-/** What `easel deliveries` prints for a list: a line for each delivery, or why there is none. */
 const deliveriesText = operation({
   label: "cli.deliveriesText",
   input: listed,
@@ -255,7 +234,6 @@ const deliveriesText = operation({
   },
 });
 
-/** `easel deliveries <canvas> <n>` (`request.deliveries`): each delivery of the request. */
 const deliveries = operation({
   label: "cli.deliveries",
   input: channelCommand.options[3],
@@ -301,7 +279,6 @@ const deliveries = operation({
   },
 });
 
-/** Runs one channel or deliveries command; answers its exit code. The shell's `cli.run` sends each here. */
 export const channelRun = operation({
   label: "cli.channel",
   input: channelCommand,

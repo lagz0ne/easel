@@ -35,11 +35,9 @@ export declare namespace Errors {
   };
   type Name = keyof Payloads;
   type Of<N extends Name> = Error & { kind: N; payload: Payloads[N] };
-  /** Core's `ctx.raise`, typed to this registry: the kind picks the payload. */
   type Raise = <N extends Name>(kind: N, payload: Payloads[N]) => never;
 }
 
-/** Abort consumers keep the native AbortError name and code without a per-call stack. */
 export const abortReasons = {
   closed: new DOMException("The owner closed", "AbortError"),
   changed: new DOMException("The account changed", "AbortError"),

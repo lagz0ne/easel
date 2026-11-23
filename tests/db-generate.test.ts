@@ -3,7 +3,6 @@ import { join } from "node:path";
 
 import { afterAll, expect, test } from "vite-plus/test";
 
-// Inside the repo, so the schema file finds drizzle-orm in node_modules.
 const folder = mkdtempSync(join(import.meta.dirname, ".gen-"));
 afterAll(() => rmSync(folder, { recursive: true, force: true }));
 
@@ -18,7 +17,6 @@ export const todos = sqliteTable("todos", {
 });
 `;
 
-/** Run the dev step in the folder; return how many migrations exist after it. */
 const generate = () => {
   const run = Bun.spawnSync([process.execPath, script, folder], { stdout: "pipe", stderr: "pipe" });
   expect(run.exitCode).toBe(0);

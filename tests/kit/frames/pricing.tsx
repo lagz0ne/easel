@@ -1,5 +1,3 @@
-// A usual app frame (SPEC-kit.md § App frames): logic and View, the kit's classes and Tailwind
-// utilities in the class places only. The check finds nothing in it.
 import { data, operation } from "@tinkered/core";
 import { useData, useRun } from "@tinkered/react";
 import { cn, frameLogic } from "@easel/frame";

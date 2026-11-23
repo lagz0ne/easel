@@ -4,20 +4,15 @@ import { parentPort, workerData } from "node:worker_threads";
 
 export declare namespace TelemetryWorker {
   type Health = { kind: string; pending: number; dropped: number };
-  /** What the request side resolved and sent in `workerData`. */
   type Settings = {
     service: string;
-    // easel diverges from upstream 0.30.1: null when the server was given no URL for that kind.
     traces: string | null;
     logs: string | null;
     fd: number | null;
     relay: boolean;
   };
-  /** The console mirror's sink: the descriptor, or posts back when the host's sink has none. */
   type Output = { writableNeedDrain: boolean; write(text: string): void };
-  /** What the command binds inline: the request side's settings and the descriptor sink. */
   type Input = { settings: Settings; console: Output | null };
-  /** The worker root's drain, as this glue drives it. */
   type Drain = {
     take(line: string): void;
     health(): Health;
@@ -30,12 +25,10 @@ export declare namespace TelemetryWorker {
 
 type Shared = { data: Uint8Array; state: Int32Array; settings: TelemetryWorker.Settings };
 
-/** The worker's inputs, as the request side sent them; the command binds them inline. */
 export function telemetryWorkerInput(): TelemetryWorker.Input {
   const { settings } = workerData as Shared;
   if (settings.fd === null) {
     if (!settings.relay) return { settings, console: null };
-    // A host sink with no descriptor writes on the request thread, as the in-process path did.
     const port = parentPort!;
     return {
       settings,
@@ -47,7 +40,6 @@ export function telemetryWorkerInput(): TelemetryWorker.Input {
   const held: Buffer[] = [];
   const console = {
     writableNeedDrain: false,
-    /** Lines go straight to the descriptor, as sonic-boom does; EAGAIN waits a turn. */
     write(text: string) {
       if (text) held.push(Buffer.from(text));
 
@@ -72,10 +64,6 @@ export function telemetryWorkerInput(): TelemetryWorker.Input {
   return { settings, console };
 }
 
-/**
- * Native glue for the telemetry worker: ring reads, the port, and close.
- * @param drain - From the command's worker root; why: the queue that sends and mirrors.
- */
 export async function serveTelemetryWorker(drain: TelemetryWorker.Drain) {
   const { data, state } = workerData as Shared;
   const port = parentPort!;
@@ -83,7 +71,6 @@ export async function serveTelemetryWorker(drain: TelemetryWorker.Drain) {
   const control = { closing: false, flushes: [] as number[] };
   let read = Atomics.load(state, 1);
 
-  /** Health crosses threads only when its kind changes; every returned send changes it. */
   const post = () => {
     const health = drain.report();
     if (health) port.postMessage({ health });
@@ -114,7 +101,6 @@ export async function serveTelemetryWorker(drain: TelemetryWorker.Drain) {
     }
     if (control.closing) break;
 
-    // Poll every 10 ms; the request side wakes the worker early once a quarter of the ring waits.
     const wait = Atomics.waitAsync(state, 0, at, 10);
     if (wait.async) await wait.value;
   }
@@ -123,12 +109,6 @@ export async function serveTelemetryWorker(drain: TelemetryWorker.Drain) {
   port.close();
 }
 
-/**
- * The whole lines between two ring indexes; the request side writes only whole lines.
- * @param bytes - From the shared ring; why: the text the request thread wrote.
- * @param from - From the read index; why: where the unread text starts.
- * @param to - From the write index; why: where it ends.
- */
 function ringLines(bytes: Buffer, from: number, to: number) {
   const mask = bytes.length - 1;
   const start = from & mask;
@@ -143,12 +123,6 @@ function ringLines(bytes: Buffer, from: number, to: number) {
   return lines;
 }
 
-/**
- * Lines go to the drain in turns of 64 (up to 128 records); it waits at 384 of its 512 cap.
- * @param drain - From the command's worker root; why: the queue that takes each line.
- * @param lines - From the ring; why: the lines to take.
- * @param control - From the port; why: a close takes every line without waiting.
- */
 async function takeLines(
   drain: TelemetryWorker.Drain,
   lines: string[],

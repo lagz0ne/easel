@@ -27,19 +27,12 @@ import {
 } from "./support/queue";
 import type { Client, Server } from "./support/queue";
 
-// The claim, the lease, the outcomes and the count of tries (SPEC-queue.md § An agent works the
-// queue, § A request no agent finishes; judged rules 6 to 8, 10 to 12, 15, 16, 21), against the
-// queue-lease chart (docs/statecharts/queue-lease.md, models/queue/Queue.tla). Each test that
-// follows a rule of the chart names it. The server runs on a test clock: a lease ends by time
-// alone.
-
 afterEach(async () => {
   for (const close of closers.splice(0).reverse()) await close();
 });
 
 const leaseMs = defaultLease * 1000;
 
-/** Flow shared, Bo a viewer, Ann an agent, and `count` requests from Bo on frame Home. */
 async function queued(srv: Server, count = 1) {
   const { a, id, link } = await sharedFlow(srv);
   const bo = await viewer(srv, link, "Bo");
@@ -50,15 +43,12 @@ async function queued(srv: Server, count = 1) {
   return { a, bo, id, link };
 }
 
-/** The state of request `n` of flow, as a tab shows it at the time of the server. */
 async function stateIn(agent: Client, srv: Server, n: number) {
   const { requests } = await agent.list({ canvas: "flow" });
   const row = requests.find((r) => r.n === n);
   if (!row) return "missing";
   return agent.scope.run(stateOf, { input: { request: row, now: srv.clock.currentTimeMillis() } });
 }
-
-// ---- The claim ("an agent runs next and gets it")
 
 test("an agent runs next and gets it: claimed, with the request, its messages, the frame now, the version the viewer saw, a claim and until; every tab shows it in work by the user while claimedUntil is ahead (ATabShowsInWorkOnlyWhileTheLeaseIsLive)", async () => {
   const srv = await boot();
@@ -99,7 +89,6 @@ test("the next answer says that the claim allows a change to that frame only, or
   expect(onFrame.note).toContain("not an instruction");
   expect(onCanvas.note).toContain("a change to canvas flow");
   expect(onCanvas.note).toContain("not an instruction");
-  // A request on the canvas gives the list of frames in place of one frame.
   expect(onCanvas.frame).toBeNull();
   expect(onCanvas.saw).toBeNull();
   expect(onCanvas.frames?.map((f) => f.name)).toEqual(["Home"]);
@@ -128,8 +117,6 @@ test("next on a request whose frame was removed gives no frame and the kept vers
   expect(got.frame).toBeNull();
   expect(got.saw).toEqual({ version: 1, kit: 1, doc: "<p>1</p>" });
 });
-
-// ---- The order (TheOldestRequestIsTakenFirst) and the scope (rule 21)
 
 test("next gives the first request in queue order that it can take, on any canvas, or on --canvas only (TheOldestRequestIsTakenFirst)", async () => {
   const srv = await boot();
@@ -181,15 +168,10 @@ test("an agent's calls run the user guard first: no token is refused signIn, als
   expect(await faultOf(bo.next())).toEqual({ fault: "refused", payload: { signIn: true } });
 });
 
-// ---- The race (ARequestIsHeldByAtMostOneAgent; judged rule 6; the success criteria)
-
 test(
   "two agents never get the same request: a double of the store write runs a second next to its end before the write of the first one lands, and the two get different requests (ARequestIsHeldByAtMostOneAgent)",
   { timeout: 30_000 },
   async () => {
-    // The race needs a database file for its second connection. Put it in memory where the
-    // system has a memory file system: on vibea's disks, each commit waits about 170 ms for its
-    // sync, and the test ran out of time under load (lagz0ne/easel#13).
     const dir = mkdtempSync(join(existsSync("/dev/shm") ? "/dev/shm" : tmpdir(), "easel-queue-"));
     closers.push(() => rmSync(dir, { recursive: true, force: true }));
     const file = join(dir, "easel.db");
@@ -197,9 +179,6 @@ test(
     closers.push(() => other.close());
     const raced: { second: () => Promise<unknown> } = { second: async () => undefined };
     let first = true;
-    // The store write, on its own connection: the first call waits for a whole second
-    // request.next before it writes. A claim that found its request before this point, then
-    // wrote, would give both agents request 1.
     const double = preset(claimRow, async (_, ctx) => {
       if (first) {
         first = false;
@@ -231,8 +210,6 @@ test("two agents that call next at the same time get different requests, also wi
   expect(got.filter((g) => g.kind === "empty")).toHaveLength(1);
 });
 
-// ---- The wait (AWaitingAgentIsWokenWhenARequestCanBeTaken; judged rule 12)
-
 test("with nothing to take, next waits and holds no lock; it wakes when a viewer adds one, and claims it (AWaitingAgentIsWokenWhenARequestCanBeTaken)", async () => {
   const srv = await boot();
   const { a, id, link } = await sharedFlow(srv);
@@ -240,7 +217,6 @@ test("with nothing to take, next waits and holds no lock; it wakes when a viewer
 
   const waiting = a.next({ wait: 50 });
   await tick();
-  // The wait holds no lock: the add goes through while next waits.
   expect(await bo.add("flow", id, "Now.")).toEqual({ kind: "added", n: 1 });
   const got = await waiting;
   expect(got.kind === "claimed" && got.request.n).toBe(1);
@@ -288,8 +264,6 @@ test("a next that waits answers empty when wait passes; wait 0 answers at once",
   srv.clock.advance(1);
   expect(await waiting).toEqual({ kind: "empty" });
 });
-
-// ---- The lease ("the lease runs out"; ATabShowsInWorkOnlyWhileTheLeaseIsLive, AStaleClaimEndsNothing)
 
 test("a lease that runs out puts the request back with no write: tabs show it waiting, and a call with the old claim answers lost and writes nothing, also when no agent took it since (AStaleClaimEndsNothing, ARefusalWritesNothing)", async () => {
   const srv = await boot();
@@ -346,8 +320,6 @@ test("extend starts the lease again from now, for --lease or 300 s; an agent who
   expect((await a.list({ state: "inWork" })).requests[0]?.tries).toBe(1);
 });
 
-// ---- The outcomes (OnlyTheHolderEndsATry; judged rule 10)
-
 test("the holder resolves: resolved, the lease ends, and the result holds the text, the HTML part and the frame version before and after", async () => {
   const srv = await boot();
   const { a, bo, id } = await queued(srv);
@@ -372,7 +344,6 @@ test("the holder resolves: resolved, the lease ends, and the result holds the te
     html,
     before: 1,
     after: 2,
-    // The kit versions at the claim and at the resolve (K10): no change of the look, the seed.
     beforeKit: 1,
     afterKit: 1,
   });
@@ -422,7 +393,6 @@ test("the holder asks: the request leaves the queue for a viewer with the questi
     options: ["Navy", "Sky"],
   });
   expect(await stateIn(a, srv, 1)).toBe("question");
-  // A question is not in the queue, and its tries never make it need a person.
   expect(await a.next()).toEqual({ kind: "empty" });
   srv.clock.advance(leaseMs * 10);
   expect(await stateIn(a, srv, 1)).toBe("question");
@@ -469,7 +439,6 @@ test("a claim on a request that left the queue answers wrongState with the state
   const live = claimOf(await b.next());
   expect(await b.resolve(live)).toEqual({ kind: "resolved" });
 
-  // The earlier holder, and the holder itself again, are told the state now.
   expect(await a.resolve(old)).toEqual({ kind: "wrongState", state: "result" });
   expect(await b.extend(live)).toEqual({ kind: "wrongState", state: "result" });
   expect(await b.ask(live)).toEqual({ kind: "wrongState", state: "result" });
@@ -497,15 +466,11 @@ test("only the holder of the live claim ends the try: another agent's handle is 
   const b = await twin(srv, a);
   const mine = claimOf(await a.next());
   const theirs = claimOf(await b.next());
-  // A handle names its request: B's handle with A's request id is no claim on it.
   const forged = `${mine.split(".")[0]}.${theirs.split(".")[1]}`;
 
   expect(await b.resolve(forged)).toEqual({ kind: "lost" });
   expect(await a.resolve(mine)).toEqual({ kind: "resolved" });
 });
-
-// ---- Tries ("a request no agent finishes"; TriesCountTriesWithNoOutcome,
-// ARequestNeedsAPersonOnlyAfterTriesWithNoOutcome, ARequestThatNeedsAPersonIsNeverGiven)
 
 test(`each claim counts one try; releases and leases that run out end tries with no outcome; after ${maxTries} the request needs a person, and next never gives it (TriesCountTriesWithNoOutcome, ARequestThatNeedsAPersonIsNeverGiven, ARequestWhoseLeaseRanOutIsTakenAgainOrNeedsAPerson)`, async () => {
   const srv = await boot();
@@ -515,7 +480,6 @@ test(`each claim counts one try; releases and leases that run out end tries with
   const one = await a.next({ canvas: "flow", n: 1 });
   expect(one.kind === "claimed" && one.request.tries).toBe(1);
   expect(await a.release(claimOf(one), "Shutting down.")).toEqual({ kind: "released" });
-  // A release goes to the back: request 2 is first now.
   const two = await a.next();
   expect(two.kind === "claimed" && two.request.n).toBe(2);
   const again = await a.next();
@@ -585,7 +549,6 @@ test("the claim writes claimedAt, the time of the claim, in its one write; exten
   expect((await a.release(claimOf(await a.next()))).kind).toBe("released");
   await until(() => row(2)?.claimedAt === null);
 
-  // A lease that runs out writes nothing: claimedBy and claimedAt stay, and say the last claim.
   const ranOut = srv.clock.currentTimeMillis();
   claimOf(await a.next({ n: 3, canvas: "flow" }));
   srv.clock.advance(leaseMs);

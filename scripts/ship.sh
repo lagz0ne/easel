@@ -1,31 +1,16 @@
 #!/usr/bin/env bash
-# ship.sh: the one way onto main. Trunk-based: no branches, no PRs. Small commits, many a day.
-#
-#   scripts/ship.sh -m "feat(todo): msg" -- <paths...>    gate exactly these paths on HEAD, commit, push
-#   scripts/ship.sh --full -m "..." -- <paths...>           the full gate before the push (see below)
-#   scripts/ship.sh -r <sha> [-m msg]                       a gated revert of <sha>
-#   scripts/ship.sh --fix -m "fix: ..." -- <paths...>       ship while main is red (the fix forward)
-#   scripts/ship.sh -p <patch> -m "..." [-- <paths...>]     also ship a patch (repeat -p): for a shared
-#       file, ship only your hunks (git diff f > p, cut the others' hunks). The git index is shared by
-#       every agent here, so ship never reads or writes it for your change.
-#
-# Several agents share this checkout, so ship takes only the paths you name, as they are when you run
-# it (git objects: later edits don't leak in), on top of HEAD, and never anyone else's WIP.
-# The gate runs on that exact tree, in a clean copy under .ship/. Deploy first (the user's
-# choice, 2026-11-23: live in less than a minute): the push deploys at once (deploy.yml), and CI
-# gates run after it; a red gate puts the live site back on the last green commit.
-#   fast (default): install, check:style, typecheck. Docs only (*.md): check:style only.
-#   --full: install, check:style, check:plain (types, rules, tests), build, scripts/smoke.sh
-#     (browser); and for a change under docs/statecharts/ or vendor/statechart/, to a SPEC*.md,
-#     or to scripts/statecharts.sh or scripts/tlc.sh, scripts/statecharts.sh --check first.
-#     Use it for a risky change: CI runs all of it too, but after the deploy.
-# Green: one commit, pushed. Red: nothing committed; the logs stay in ~/.cache/ship/<repo>/<run>/.
-# Stop the line: while a `trunk-red` issue is open (CI's trunk-status workflow files it), only --fix
-# and -r ship. One ship at a time on this machine (flock on .ship/lock); others wait their turn.
-# The pre-push hook (.githooks/pre-push) refuses a push to main that did not come from here.
 set -euo pipefail
 die() { echo "ship: $*" >&2; exit 1; }
 log() { echo "ship: $*" >&2; }
+usage() {
+  cat <<'USAGE'
+scripts/ship.sh -m "feat(todo): msg" -- <paths...>   gate these paths on HEAD, commit, push
+scripts/ship.sh --full -m "..." -- <paths...>          add check:plain, build, smoke (and charts) to the gate
+scripts/ship.sh -r <sha> [-m msg]                      a gated revert of <sha>
+scripts/ship.sh --fix -m "fix: ..." -- <paths...>      ship while main is red (fix forward)
+scripts/ship.sh -p <patch> -m "..." [-- <paths...>]    also ship a patch (repeat -p): your hunks of a shared file
+USAGE
+}
 export PATH="$HOME/.bun/bin:$HOME/.npm-global/bin:$PATH"
 
 msg="" revert="" fix=0 full=0 patches=()
@@ -36,6 +21,7 @@ while [[ $# -gt 0 ]]; do
     --fix) fix=1; shift ;;
     --full) full=1; shift ;;
     -p) patches+=("$(realpath -- "$2")"); shift 2 ;;
+    -h | --help) usage; exit 0 ;;
     --) shift; break ;;
     *) die "unknown arg '$1' (paths go after --)" ;;
   esac
@@ -70,7 +56,6 @@ mkdir -p .ship
 exec 9>>.ship/lock
 flock -n 9 || { log "another ship is running; waiting for it"; flock 9; }
 
-# The tree to ship: HEAD + your paths (or HEAD with <sha> undone). Prints the tree id.
 make_tree() {
   if [[ -n "$revert" ]]; then
     git merge-tree --write-tree --merge-base="$revert" HEAD "$revert^" 2>/dev/null | head -n1 \
@@ -88,7 +73,7 @@ make_tree() {
   rm -f "$idx"
 }
 
-gate() {  # <tree> <run dir>; sets $stage on failure
+gate() {
   local tree="$1" run="$2" docs=1 charts=0 f
   for f in $(git diff-tree -r --name-only HEAD "$tree"); do
     [[ "$f" == *.md ]] || docs=0
@@ -96,11 +81,11 @@ gate() {  # <tree> <run dir>; sets $stage on failure
   done
   mkdir -p "$run/tree"
   git archive "$tree" | tar -x -C "$run/tree"
-  if [[ $full -eq 1 && $charts -eq 1 ]]; then  # the charts are the oracle: a spec or chart ships only as its models say
+  if [[ $full -eq 1 && $charts -eq 1 ]]; then
     stage=statecharts; bash "$run/tree/scripts/statecharts.sh" --check >"$run/statecharts.log" 2>&1 || return 1
   fi
   stage=install; (cd "$run/tree" && bun install --frozen-lockfile) >"$run/install.log" 2>&1 || return 1
-  if [[ $full -eq 0 && $docs -eq 0 ]]; then  # the fast lane: style and typecheck at once
+  if [[ $full -eq 0 && $docs -eq 0 ]]; then
     local sp tp
     (cd "$run/tree" && bun run check:style) >"$run/style.log" 2>&1 & sp=$!
     (cd "$run/tree" && bun run typecheck) >"$run/typecheck.log" 2>&1 & tp=$!
@@ -125,7 +110,6 @@ for attempt in 1 2 3; do
   base="$(git rev-parse HEAD)"
   tree="$(make_tree)" || die "nothing shipped"
   [[ "$tree" != "$(git rev-parse HEAD^{tree})" ]] || die "nothing to ship: HEAD already has these paths as they are"
-  # Outside the repo (vp skips gitignored trees), on the same disk as bun's cache (install hardlinks).
   run="${SHIP_RUNS:-$HOME/.cache/ship/$(basename "$repo")}/$(date -u +%Y%m%dT%H%M%SZ)-${tree:0:7}"
   log "gating ${tree:0:7} on ${base:0:7} (try $attempt; logs in $run)"
   t0=$SECONDS stage=""
@@ -141,14 +125,13 @@ for attempt in 1 2 3; do
   commit="$(printf '%s\n' "$msg" | git commit-tree "$tree" -p "$base")"
   git update-ref -m "ship: $msg" HEAD "$commit" "$base" || { log "HEAD moved while gating; again"; continue; }
   if [[ -n "$revert" ]]; then
-    # bring the reverted files to the new HEAD, except where someone has uncommitted work in them
     for f in $(git diff --name-only "$base" "$commit"); do
       git diff --quiet "$base" -- "$f" 2>/dev/null || continue
       if git cat-file -e "$commit:$f" 2>/dev/null; then git checkout "$commit" -- "$f"
       else git rm -q -f -- "$f" 2>/dev/null || true; fi
     done
   else
-    [[ ${#paths[@]} -eq 0 ]] || git reset -q -- "${paths[@]}"   # your patches' files: the index stays theirs
+    [[ ${#paths[@]} -eq 0 ]] || git reset -q -- "${paths[@]}"
   fi
   if SHIP_GATED=1 git push -q origin main 2>/dev/null; then
     log "shipped ${commit:0:7} to origin/main (gate $((SECONDS - t0)) s). It deploys now (deploy.yml, ~45 s); CI gates run after it, and a red one rolls the site back and opens a trunk-red issue."

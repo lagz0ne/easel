@@ -24,8 +24,6 @@ export { threadDrain } from "./drain.server";
 
 const sends = {
   service: telemetryService.required,
-  // easel diverges from upstream 0.30.1: no URL means no exporter for that kind (OTel's convention), so a server
-  // starts without Victoria (SPEC-ops.md fact rule 4).
   tracesUrl: tracesUrl.optional,
   logsUrl: logsUrl.optional,
   console: consoleOutput,
@@ -33,12 +31,6 @@ const sends = {
 
 const records = { level: logLevel, history: spanHistory, origin: telemetryOrigin } as const;
 
-/**
- * The server's telemetry. Each is the sink of its own root: list it first, so it closes last.
- * `server` sends on this thread (dev, tests, the worker itself); `thread` sends from a worker.
- * `route` takes the tab's batches; mount it in the route table. It runs quiet (`routes.ns`):
- * taking a batch makes no span or log line, so a sink never traces its own ingest.
- */
 export const telemetry = {
   server: capsule({
     label: "telemetry",
@@ -54,7 +46,6 @@ export const telemetry = {
     exports: { route: threadRoute },
     hooks: threadSink,
   }),
-  /** The worker thread's root: it sends what the ring brings, and traces nothing of its own. */
   worker: capsule({
     label: "telemetry",
     config: sends,

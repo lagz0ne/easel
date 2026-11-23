@@ -1,4 +1,3 @@
-// The View of the frame: it composes the pieces of the kit, with its own texts.
 import { ui } from "@easel/kit";
 import { resource } from "@tinkered/core";
 import { useData, useRun } from "@tinkered/react";

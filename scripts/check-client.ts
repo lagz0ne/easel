@@ -1,9 +1,3 @@
-/**
- * Fails when the client build holds a server module. It reads the bundler's own module list
- * (the metafile), so a server module counts however it got in: an import, a re-export, a barrel.
- * A compiled server's metafile holds both sides: the page's modules are the inputs of the
- * outputs its HTML entry made, so only those count.
- */
 const [metafile = "dist/meta.json"] = Bun.argv.slice(2);
 
 const meta = (await Bun.file(metafile).json()) as {
@@ -24,7 +18,6 @@ const server = [
   /^cmds\/(server|host|dev|telemetry-worker)\.ts$/,
   /^src\/backend\//,
   /^tinker\/base\/(main-host|panics\.server|telemetry-worker)\.ts$/,
-  // @tinkered/bun's main entry is the server's (serve, ws.server); the page takes `/client` only.
   /@tinkered\/bun\/dist\/index\.mjs$/,
 ];
 

@@ -24,11 +24,6 @@ import { json, stderr, stdout } from "./output";
 import { queueCommand, queueRun } from "./queue";
 import { approveUser, denyUser, listUsers, logout, revokeUser, whoami } from "./users";
 
-// The `easel` CLI's capsule (SPEC-cli.md): one command against one server. The cmd reads the
-// flags and the hosts file's path (fact rule 1), and fills the config: where to print, `--json`,
-// the hosts file, and the server. It reaches the server only through access's rpc client.
-
-/** An owner's `easel users` command. */
 const usersCommand = z.discriminatedUnion("kind", [
   z.object({ kind: z.literal("ls") }),
   z.object({ kind: z.literal("approve"), code, owner: z.boolean() }),
@@ -36,7 +31,6 @@ const usersCommand = z.discriminatedUnion("kind", [
   z.object({ kind: z.literal("revoke"), name }),
 ]);
 
-/** An owner's `easel errors` command (SPEC-ops.md). */
 const errorsCommand = z.discriminatedUnion("kind", [
   errorsLsInput.extend({ kind: z.literal("ls") }),
   z.object({ kind: z.literal("show"), find: errorsShowInput }),
@@ -45,7 +39,6 @@ const errorsCommand = z.discriminatedUnion("kind", [
   z.object({ kind: z.literal("tick") }),
 ]);
 
-/** One command of the shell's own, as the cmd read it from its flags. */
 const shellCommand = z.discriminatedUnion("kind", [
   z.object({
     kind: z.literal("login"),
@@ -62,7 +55,6 @@ const shellCommand = z.discriminatedUnion("kind", [
   z.object({ kind: z.literal("errors"), act: errorsCommand }),
 ]);
 
-/** One command, as the cmd read it from its flags: the shell's, a frames, share, queue, channel or look one. */
 export const command = z.discriminatedUnion("kind", [
   ...shellCommand.options,
   z.object({ kind: z.literal("mcp") }),
@@ -75,7 +67,6 @@ export const command = z.discriminatedUnion("kind", [
 
 export type Command = z.infer<typeof command>;
 
-/** Runs one `easel users` command; answers its exit code. */
 const users = operation({
   label: "cli.usersCommand",
   input: usersCommand,
@@ -94,7 +85,6 @@ const users = operation({
   },
 });
 
-/** Runs one `easel errors` command; answers its exit code. */
 const errors = operation({
   label: "cli.errorsCommand",
   input: errorsCommand,
@@ -115,7 +105,6 @@ const errors = operation({
   },
 });
 
-/** Runs one of the shell's own commands; answers its exit code. */
 const shell = operation({
   label: "cli.shell",
   input: shellCommand,
@@ -140,7 +129,6 @@ const shell = operation({
   },
 });
 
-/** Runs one command; answers its exit code (SPEC-cli.md § Contract). */
 const run = operation({
   label: "cli.run",
   input: command,
@@ -157,10 +145,6 @@ const run = operation({
   },
 });
 
-/**
- * The token this server's user holds, as the call's bearer (RFC 6750): the `meta` of the rpc
- * client, read on each call. `EASEL_TOKEN` comes first. None when the CLI holds no token for it.
- */
 const bearer = operation({
   label: "cli.bearer",
   depends: { entryOf, envToken },

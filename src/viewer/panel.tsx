@@ -18,12 +18,6 @@ import {
 } from "./follow";
 import type { Outdated, RequestView, Shown } from "./follow";
 
-// The panel `Requests` and the button that opens it (SPEC-viewer.md § Follow the requests 1 to
-// 9, 17; the E4.4 design: the library's Sidebar, RequestRow, StateBadge and Count). The panel
-// reads each request as `requestViews` gives it, so the list, the count, the pins and the popover
-// say one state.
-
-/** The word of each state (step 6): its mark's accessible name and tooltip. In work: the agent. */
 export const stateWords: Record<Exclude<Shown, "inWork">, string> = {
   waiting: "Waiting for an agent",
   question: "Question for you",
@@ -35,7 +29,6 @@ export const stateWords: Record<Exclude<Shown, "inWork">, string> = {
   takenBack: "Taken back",
 };
 
-/** The mark of a state, named by its word. In work, the half circle and the agent's name. */
 export function StateMark({ shown, agent }: { shown: Shown; agent: string | null }) {
   const word = shown === "inWork" ? (agent ?? "") : stateWords[shown];
 
@@ -47,14 +40,12 @@ export function StateMark({ shown, agent }: { shown: Shown; agent: string | null
   );
 }
 
-/** The word of each cause of "may be outdated" (step 6). */
 const outdatedWords: Record<Outdated["cause"], string> = {
   changed: "May be outdated: the frame changed",
   removed: "May be outdated: the frame was removed",
   old: "May be outdated: a long wait",
 };
 
-/** The mark of a request that may be outdated: a dotted circle, named by its cause (step 6). */
 export function OutdatedMark({ cause }: { cause: Outdated["cause"] }) {
   const word = outdatedWords[cause];
 
@@ -65,12 +56,10 @@ export function OutdatedMark({ cause }: { cause: Outdated["cause"] }) {
   );
 }
 
-/** The first letter of a name, for a pin or an avatar. */
 export function Initial({ name }: { name: string | null }) {
   return <>{(name?.trim().charAt(0) ?? "").toUpperCase() || "?"}</>;
 }
 
-/** How long ago, at the server's time as the clock capsule says it (fact rule 9). */
 export function Age({ from }: { from: number }) {
   const now = useData(serverTime) ?? from;
   const minutes = Math.floor(Math.max(now - from, 0) / 60_000);
@@ -83,7 +72,6 @@ export function Age({ from }: { from: number }) {
   return <>{days < 2 ? "Yesterday" : `${days}\u00a0days`}</>;
 }
 
-/** Where a request is: "On <frame>", also of a removed frame, or "On the whole canvas". */
 export function Place({ r, list }: { r: RequestView["r"]; list: readonly FrameInfo[] }) {
   const gone = useData(frames.board.removed.of({ canvas: r.canvas, id: r.frameId ?? "" }));
   if (r.frameId === null) return <>On the whole canvas</>;
@@ -92,7 +80,6 @@ export function Place({ r, list }: { r: RequestView["r"]; list: readonly FrameIn
   return <>{name ? `On ${name}` : ""}</>;
 }
 
-/** A count, as the library's Count: an accent pill. Its parent says it in words. */
 function Count({ n }: { n: number }) {
   return (
     <span className="e-count" aria-hidden="true">
@@ -101,10 +88,6 @@ function Count({ n }: { n: number }) {
   );
 }
 
-/**
- * The button `Requests` in the dock (step 1): it shows the count of requests that wait for a
- * viewer, and its name says it. It shows pressed while the panel is open.
- */
 export function RequestsButton({ canvas }: { canvas: string }) {
   const waiting = useData(requestViews({ canvas })).filter((v) =>
     forAViewer.includes(v.shown),
@@ -130,7 +113,6 @@ export function RequestsButton({ canvas }: { canvas: string }) {
   );
 }
 
-/** One request in the list (step 5; the library's RequestRow). A press opens it. */
 function Row({
   v,
   list,
@@ -183,7 +165,6 @@ function Row({
   );
 }
 
-/** A group of rows with its heading, or nothing when it has no row. */
 function Group({
   title,
   views,
@@ -218,7 +199,6 @@ function Group({
   );
 }
 
-/** The menu of the panel's head: the lists `Open` and `Done`, each with its count of rows. */
 function ListMenu({ open, done }: { open: number; done: number }) {
   const shown = useData(panelList);
   const menu = useData(listMenu);
@@ -259,7 +239,6 @@ function ListMenu({ open, done }: { open: number; done: number }) {
   );
 }
 
-/** What the list `Open` says on a canvas with no request at all. */
 function NoRequests() {
   return (
     <div className="e-none">
@@ -272,7 +251,6 @@ function NoRequests() {
   );
 }
 
-/** The list on show: `Open` in its two groups, or `Done`; or what an empty list says. */
 function Lists({
   views,
   canvas,
@@ -307,11 +285,6 @@ function Lists({
   );
 }
 
-/**
- * The panel `Requests` at the right edge (steps 2 to 5): its head with the count and the menu
- * of lists, then the list `Open` in two groups, `Waits for you` and `Other requests`, or the list
- * `Done`, newest first.
- */
 export function Panel({
   canvas,
   list,

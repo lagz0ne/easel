@@ -1,17 +1,6 @@
 import { operation } from "@tinkered/core";
 import { z } from "zod";
 
-// The seed (SPEC-kit.md § Terms): the look and the kit that the binary holds. The first start
-// writes them as kit version 1 (`seedKit`, fact rule 7). Only `seedKit` reads this file.
-//
-// The look of shadcn/ui's own site (ui.shadcn.com, MIT): the "neutral" base color, converted from
-// oklch to sRGB; Geist and Geist Mono (OFL-1.1), which easel serves (`src/kit/fonts.ts`); and the
-// shapes of shadcn/ui's "Maia" style: pill buttons, fields and badges, round cards. Tailwind's
-// scales (MIT) give the rest. The user chose it on 2026-11-22: a look with no color of its own
-// does not push frames toward one style. Where a shadcn/ui value fails K8 (judged rule 7), the
-// value here is the nearest one that passes, and its `$description` says so.
-
-/** The colors of the look: name, sRGB hex, and why it is not the shadcn/ui value, if it is not. */
 export const seedColors: ReadonlyArray<readonly [string, string, string?]> = [
   ["background", "#ffffff"],
   ["foreground", "#0a0a0a"],
@@ -61,7 +50,6 @@ export const seedColors: ReadonlyArray<readonly [string, string, string?]> = [
   ["black", "#000000"],
 ];
 
-/** Geist, as on ui.shadcn.com, then Tailwind's font stack while it loads or for a missing glyph. */
 const sans = [
   "Geist",
   "ui-sans-serif",
@@ -85,7 +73,6 @@ const mono = [
   "monospace",
 ];
 
-/** Tailwind's type scale, in rem. */
 const textSizes: ReadonlyArray<readonly [string, number]> = [
   ["xs", 0.75],
   ["sm", 0.875],
@@ -102,7 +89,6 @@ const textSizes: ReadonlyArray<readonly [string, number]> = [
   ["9xl", 8],
 ];
 
-/** shadcn/ui's radii: `--radius` 0.625rem (10px), and the others from it (0.6 to 2.6 times), in px. */
 const radii: ReadonlyArray<readonly [string, number]> = [
   ["sm", 6],
   ["md", 8],
@@ -113,7 +99,6 @@ const radii: ReadonlyArray<readonly [string, number]> = [
   ["4xl", 26],
 ];
 
-/** Tailwind's shadows: each layer is x, y, blur, spread (px) and the alpha of black. */
 const shadows: ReadonlyArray<readonly [string, ReadonlyArray<readonly number[]>]> = [
   ["2xs", [[0, 1, 0, 0, 0.05]]],
   ["xs", [[0, 1, 2, 0, 0.05]]],
@@ -148,7 +133,6 @@ const shadows: ReadonlyArray<readonly [string, ReadonlyArray<readonly number[]>]
   ["2xl", [[0, 25, 50, -12, 0.25]]],
 ];
 
-/** A DTCG 2025.10 sRGB color of a hex, with its alpha when it is not opaque. */
 export const srgbOf = operation({
   label: "kit.srgbOf",
   input: z.object({ hex: z.string(), alpha: z.number().optional() }),
@@ -162,7 +146,6 @@ export const srgbOf = operation({
   }),
 });
 
-/** A DTCG group of one type: each row is a name and its `$value`. */
 export const groupOf = operation({
   label: "kit.groupOf",
   input: z.object({ type: z.string(), rows: z.array(z.tuple([z.string(), z.unknown()])) }),
@@ -172,10 +155,6 @@ export const groupOf = operation({
   }),
 });
 
-/**
- * The seed look in the DTCG format 2025.10: a color is `{ colorSpace: "srgb", components, hex }`,
- * a dimension `{ value, unit }`, a font family a list of names, a shadow a list of layers.
- */
 export const seedLook = operation({
   label: "kit.seedLook",
   depends: { srgbOf, groupOf },
@@ -229,11 +208,6 @@ export const seedLook = operation({
   }),
 });
 
-/**
- * The kit's own CSS: its base rules (`@layer base`) and its class pieces (`@layer components`),
- * in Tailwind's syntax. The class names are those of the E8 study (A+T); the shapes are those of
- * shadcn/ui's "Maia" style. Each uses only look values (judged rule 11).
- */
 export const seedKitCss = `@layer base {
   html {
     color-scheme: light;

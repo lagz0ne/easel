@@ -8,10 +8,6 @@ import { planShape, plans, sample, samples } from "./entities";
 import { choose } from "./logic";
 import { View } from "./view";
 
-// Form 2 of a frame (docs/decisions/kit-capsules.md): a capsule with its own files. Its config is
-// its data state; its start writes the rows of that state, checked by the entity's schema; its
-// exports are what a tool and another frame may use.
-
 const about = tag({ label: "pricing.about", parse: aboutShape });
 
 export const pricing = capsule({

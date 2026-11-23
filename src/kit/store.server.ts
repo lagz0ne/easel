@@ -10,19 +10,6 @@ import { easelRuntime } from "./runtime.server";
 import { seedKitCss, seedLook } from "./seed.server";
 import { sources } from "./source.server";
 
-// The kit's state (SPEC-kit.md): its kit versions, in the app's one SQLite file. A kit version is
-// one row that never changes and is never removed (judged rule 4). It holds all that `compose`
-// needs: the look (DTCG 2025.10, with its revision), the look as a `:root` block, the kit's own
-// CSS, its made CSS (made one time, with `make`, before the write; judged rules 2, 5) and its
-// element pieces (none yet: build order step 4). The newest row is the current kit version. Only
-// `seedKit`, `saveLook` and `undoLook` write (fact rule 2). The board's cell `kit` is set at scope after the
-// rows are stored, from the row as stored (judged rule 6).
-//
-// `runtime` is the SHA-256 of the kit version's runtime, in `kit_runtimes` (SPEC-kit.md § App
-// frames, "The runtime"). It is null until the first use of the kit version by an app frame;
-// `runtimeOf` (runtime.server.ts) then sets it one time, and it never changes. A change of the look
-// keeps the runtime of the kit version before it: the look is in CSS, not in the runtime.
-
 const schema = `
 CREATE TABLE IF NOT EXISTS kit_versions (
   version INTEGER PRIMARY KEY NOT NULL,
@@ -43,7 +30,6 @@ CREATE TABLE IF NOT EXISTS kit_runtimes (
   made INTEGER NOT NULL
 );`;
 
-/** A JSON column: its text, read as JSON. */
 const jsonText = z.string().transform((text, ctx): unknown => {
   try {
     return JSON.parse(text);
@@ -55,7 +41,6 @@ const jsonText = z.string().transform((text, ctx): unknown => {
 
 const piece = z.object({ name: z.string(), template: z.string() });
 
-/** A kit version's row, read. */
 const versionRow = z
   .object({
     version: z.number(),
@@ -77,7 +62,6 @@ export type KitVersion = z.infer<typeof versionRow>;
 
 const columns = "version, look_rev, look, look_values, root, source, css, pieces";
 
-/** The current kit version: the newest row. Null only before the seed. */
 export const readKit = operation({
   label: "kit.readKit",
   depends: { connection: bunSqlite.connection },
@@ -89,7 +73,6 @@ export const readKit = operation({
   },
 });
 
-/** The kit version `at` as stored; null when it is not. */
 export const readKitAt = operation({
   label: "kit.readKitAt",
   input: z.number(),
@@ -102,10 +85,6 @@ export const readKitAt = operation({
   },
 });
 
-/**
- * After a write of a kit version: the board's cell `kit` of each canvas, from the newest row as
- * stored (judged rule 6), at scope, so each tab and each session sees it.
- */
 const showNewest = operation({
   label: "kit.showNewest",
   depends: { cells: kit.atScope.controller, readKit },
@@ -119,22 +98,13 @@ const showNewest = operation({
   },
 });
 
-/** The kit version `kit` and look revision `rev` of the newest row, or of the row written. */
 const revRow = z.object({ kit: z.number(), rev: z.number() });
 
 const newest =
   "SELECT version AS kit, look_rev AS rev FROM kit_versions ORDER BY version DESC LIMIT 1";
 
-/** The newest kit version, as an SQL value. */
 const top = "(SELECT MAX(version) FROM kit_versions)";
 
-/**
- * `saveLook`: the one write of a new look (fact rule 2; judged rules 2, 3). One statement checks
- * the base, compares the look values, raises the revision and writes the next kit version, with
- * no await between: of two writes on one revision the first wins, and the other answers `stale`
- * (K14). The new kit version keeps the kit's own CSS, its made CSS and its pieces as stored: a
- * change of the look makes no CSS (fact rule 4). Then the board's cell `kit` of each canvas.
- */
 export const saveLook = operation({
   label: "kit.saveLook",
   input: z.object({
@@ -172,12 +142,6 @@ export const saveLook = operation({
   },
 });
 
-/**
- * `undoLook`: one step back on the revision `base` (fact rule 2; judged rules 2, 8; K9). One
- * statement writes, as the next kit version, the look, its values and its `:root` block of the
- * newest kit version of the revision before, with the kit as it is now. So a second step gives
- * the changed look back. No kit version is removed. Then the board's cell `kit` of each canvas.
- */
 export const undoLook = operation({
   label: "kit.undoLook",
   input: z.number(),
@@ -205,15 +169,6 @@ export const undoLook = operation({
   },
 });
 
-/**
- * `acceptRuntime`: the one write of an accept (SPEC-kit.md § App frames, "Accept the runtime of
- * this easel"; the chart kit-runtime). One transaction keeps the runtime of this easel (once for
- * each SHA-256), and one statement writes the next kit version as the newest one, with the same
- * look revision, look, kit CSS, made CSS and pieces, and this runtime. It writes only when the
- * newest kit version has a runtime and that runtime is another one: so of two accepts the first
- * writes, and the other answers `unchanged`. A kit version with no runtime yet gets this one at
- * its first use. Then the board's cell `kit` of each canvas.
- */
 export const acceptRuntime = operation({
   label: "kit.acceptRuntime",
   depends: { connection: bunSqlite.connection, easelRuntime, showNewest },
@@ -244,12 +199,6 @@ export const acceptRuntime = operation({
   },
 });
 
-/**
- * The seed as kit version 1, when the store has no kit version (fact rule 7): the look, measured
- * with `contrast` (fact rule 6; a seed that fails K8 throws, and the server does not start), and
- * the kit's CSS, made once with `make` before the write. The insert writes only into an empty
- * store, so a second start, or two at once, keeps the kit version that is there (K11).
- */
 export const seedKit = operation({
   label: "kit.seedKit",
   depends: {
@@ -297,14 +246,12 @@ export const seedKit = operation({
   },
 });
 
-/** At start, before frames read their rows: the table, and the seed when the store is empty. */
 export const kitStart = operation({
   label: "kit.start",
   depends: { connection: bunSqlite.connection, seedKit },
   run: async ({ connection, seedKit }) => {
     const db = connection.db.$client;
     db.exec(schema);
-    // A store made before the runtime: its kit versions get the column, null (no runtime yet).
     const known = db.query("PRAGMA table_info(kit_versions)").all();
     if (!known.some((c) => z.object({ name: z.literal("runtime") }).safeParse(c).success)) {
       db.exec("ALTER TABLE kit_versions ADD COLUMN runtime TEXT");
@@ -313,7 +260,6 @@ export const kitStart = operation({
   },
 });
 
-/** The current kit version as the check and the make step read it (src/kit/schema.ts). */
 export const frameKit = operation({
   label: "kit.frameKit",
   depends: { readKit },
@@ -330,11 +276,6 @@ export const frameKit = operation({
   },
 });
 
-/**
- * The board's cell `kit` of each canvas named, from the current kit version as stored (judged
- * rule 6), set at scope, so each tab and each session sees it. frames call it at start and when
- * a canvas is made.
- */
 export const showKit = operation({
   label: "kit.showKit",
   input: z.array(z.string()),

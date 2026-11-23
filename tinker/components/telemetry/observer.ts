@@ -7,10 +7,6 @@ import { encodeValue, quiet, spanBody } from "./records";
 import type { Telemetry } from "./records";
 import { logLevel, spanHistory, telemetryService, telemetrySide } from "./settings";
 
-/**
- * Transfers trusted records to the telemetry root; callers must not edit them afterward.
- * The server route validates outside data before this operation receives it.
- */
 export const ingestTelemetry = operation({
   label: "telemetry.ingest",
   depends: { queue },
@@ -27,7 +23,6 @@ export const flushTelemetry = operation({
 const held = { role: "state", explain: "Holds spans and logs until a flush" } as const;
 const sends = { role: "worker", explain: "Sends queued records" } as const;
 
-/** Sends what reaches the queue: a timer sends it, close sends what is left. */
 export const queueSend: Capsule.Hooks = {
   async start({ load, run, next }) {
     const owned = await load(queue, held, { ns: quiet });
@@ -40,10 +35,6 @@ export const queueSend: Capsule.Hooks = {
   },
 };
 
-/**
- * The sink of its own root: it taps the hose, then sends as `queueSend` does. Its own units
- * load and run in the quiet namespace, so the hose never shows them.
- */
 export const queueSink: Capsule.Hooks = {
   ...queueSend,
   async start(event) {
@@ -56,7 +47,6 @@ export const queueSink: Capsule.Hooks = {
   },
 };
 
-/** Each native observer callback owns its queue and console work. */
 export const observer = resource({
   label: "telemetry.observer",
   depends: {
@@ -112,7 +102,6 @@ export const observer = resource({
       const encoded = queue.add("log", side, record);
       if (side !== "browser") queue.writeConsole(encoded, record);
       else if (!show) {
-        /* No console binding on this owner. */
       } else if (record.level >= LEVELS.error) show.error(record);
       else if (record.level >= LEVELS.warn) show.warn(record);
       else show.info(record);

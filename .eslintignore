@@ -1,10 +1,6 @@
-# Vendored by scripts/agent-skills-sync.sh: kept as upstream.
 .claude/skills/
 .claude/references/
 .claude/agents/
 .claude/commands/
-# Vendored by scripts/statechart-sync.sh: kept as upstream.
 vendor/
-# App frames of the kit tests: agent documents, not easel code; kept as written, so their lines
-# and columns hold (tests/kit-tsx.test.ts).
 tests/kit/frames/*.tsx

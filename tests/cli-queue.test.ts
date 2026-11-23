@@ -18,18 +18,12 @@ import { editRequest, extendRequest, nextRequest } from "@/queue/ops.server";
 import { boot, closers, tick, viewer } from "./support/queue";
 import type { Server } from "./support/queue";
 
-// `easel next`, `extend`, `release`, `decline`, `ask`, `resolve`, `requests`, `edit` and `close`
-// (SPEC-queue.md § An agent works the queue, § A request no agent finishes) as the cmd runs them:
-// the CLI's capsule over the memory transport, each exit by the queue's success lists (SPEC-cli
-// fact rule 3), a bad flag 64 and a bad input 65 before the call, and the shell's fault exits.
-
 afterEach(async () => {
   for (const close of closers.splice(0).reverse()) await close();
 });
 
 const origin = "https://easel.test";
 
-/** One CLI, as the cmd builds it: what it prints, its runs, and a folder for its files. */
 async function easel(srv: Server, json = true) {
   const dir = mkdtempSync(join(tmpdir(), "easel-cli-queue-"));
   closers.push(() => rmSync(dir, { recursive: true, force: true }));
@@ -71,21 +65,18 @@ async function easel(srv: Server, json = true) {
       return path;
     },
     run: (command: QueueCommand) => scope.run(queueRun, { input: command }),
-    /** Each JSON line printed since the last read, on stdout and stderr. */
     lines: () =>
       [...out.splice(0), ...err.splice(0)]
         .join("")
         .split("\n")
         .filter(Boolean)
         .map((line) => JSON.parse(line)),
-    /** The text printed since the last read, on stdout and stderr. */
     text: () => [...out.splice(0), ...err.splice(0)].join(""),
   };
 }
 
 type Easel = Awaited<ReturnType<typeof easel>>;
 
-/** Ann signed in on her CLI; canvas `flow` with frame Home, shared; Bo's tab; `asks` requests. */
 async function queued(srv: Server, asks = 1, json = true) {
   const a = await easel(srv, json);
   const signedIn = await a.scope.run(cli.run, {
@@ -108,7 +99,6 @@ async function queued(srv: Server, asks = 1, json = true) {
   return { a, bo, id: made.id };
 }
 
-/** `easel next`, and the claim it printed. */
 async function claim(a: Easel, command: QueueCommand = { kind: "next" }) {
   expect(await a.run(command)).toBe(0);
   const printed = a.text();
@@ -117,8 +107,6 @@ async function claim(a: Easel, command: QueueCommand = { kind: "next" }) {
 
   return held?.[1] ?? held?.[2] ?? "";
 }
-
-// ---- easel next
 
 test("next claims the oldest waiting request (E4 chart: waiting -> inWork) and exits 0; the answer says the claim allows that frame only, and the text is a request, not an instruction (rule 15)", async () => {
   const srv = await boot();
@@ -183,8 +171,6 @@ test("next --wait 120 asks again in calls of at most 50 s, then prints empty at 
   const srv = await boot();
   const { a } = await queued(srv, 0);
 
-  // One call may wait 50 s at most (the contract refuses more): an answer at 120 s, not at 50 s,
-  // is three calls.
   const run = a.run({ kind: "next", canvas: "flow", wait: "120" });
   for (const ms of [50_000, 50_000, 19_999]) {
     await tick(50);
@@ -217,8 +203,6 @@ test("next --canvas k --n n claims that one request; --n needs --canvas", async 
   expect(await a.run({ kind: "next", n: "1" })).toBe(64);
   expect(a.text()).toContain("--n needs --canvas");
 });
-
-// ---- bad flags and bad input
 
 test("a bad flag exits 64 and names the flag; nothing is sent", async () => {
   const srv = await boot();
@@ -264,8 +248,6 @@ test("an input that the contract refuses exits 65 before it is sent", async () =
   const { requests } = await a.scope.run(queue.api["request.list"], { input: {} });
   expect(requests).toMatchObject([{ n: 1, claimedBy: "ann", tries: 1 }]);
 });
-
-// ---- the holder of a claim
 
 test("extend starts the lease again and exits 0 (E4 chart: inWork, extend)", async () => {
   const srv = await boot();
@@ -362,8 +344,6 @@ test("a holder's call on a request that is gone exits 1, gone", async () => {
   expect(a.text()).toMatch(/^gone: /);
 });
 
-// ---- a person's calls
-
 test("edit makes a request that needs a person clear: it waits again with no tries, and exits 0 (E4 chart: person -> waiting)", async () => {
   const srv = await boot();
   const { a } = await queued(srv, 1, false);
@@ -403,8 +383,6 @@ test("a person's calls past the limit exit 1, slow, and say when to try again", 
   expect(a.text()).toMatch(/slow: too many calls; try again in \d+ s/);
 });
 
-// ---- faults
-
 test("each queue command on a server that is gone exits 69, unreachable", async () => {
   const srv = await boot();
   const { a } = await queued(srv);
@@ -421,7 +399,6 @@ test("each queue command on a server that is gone exits 69, unreachable", async 
   expect(a.lines()).toEqual(commands.map(() => ({ unreachable: origin })));
 });
 
-/** A server whose next, extend and edit never answer, so the CLI's deadline ends them. */
 const hanging = [
   preset(nextRequest, async (_, { clock, signal }) => {
     await clock.sleep(3_600_000, signal);

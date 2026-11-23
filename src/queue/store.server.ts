@@ -5,31 +5,11 @@ import { z } from "zod";
 import { message, messages, request, requests } from "./cells";
 import { maxOpen, maxTries, stateOf } from "./contract";
 
-// The queue's state: requests and their messages in the app's one SQLite file, so they survive a
-// restart. Each write is one SQLite transaction with no `await` in it: its conditional write is
-// one statement, and its message goes in with it (judged rules 6, 9, 10). The cells are set after
-// the commit, from the rows as stored. Only `saveRequest`, `claimRequest` and `endTry` write
-// (fact rule 4). Nothing stored says "in work" or "needs a person": they come from `status`,
-// `claimedUntil`, `tries` and the time (judged rule 7, `stateOf`).
-//
-// The claim keeps the digest of its handle, and the frame version at the claim (`claim_version`,
-// the `before` of a result). Two triggers keep each frame version that a request or a message
-// refers to (SPEC-frames judged rule 16): a put that replaces it, or a delete of its frame, saves
-// the old document, with its made CSS, its kit version and its JS, in `frames_kept` first, in the same
-// statement. Each start makes the triggers again, so a store made before the kit gets the new
-// ones.
-
-/**
- * True in SQL, in a trigger on `frames_frames`, when a request or a message refers to the version
- * of the `OLD` row: the version the viewer saw, the version at a claim, or the `before` or
- * `after` of a result.
- */
 const referred = `(EXISTS (SELECT 1 FROM queue_requests r WHERE r.canvas = OLD.canvas AND r.frame_id = OLD.id
     AND OLD.version IN (r.version, r.claim_version))
   OR EXISTS (SELECT 1 FROM queue_messages m JOIN queue_requests r ON r.id = m.request
     WHERE r.canvas = OLD.canvas AND r.frame_id = OLD.id AND OLD.version IN (m.before_v, m.after_v)))`;
 
-/** The tables, the index of the queue order, and the triggers, made at start, after frames'. */
 const schema = `
 CREATE TABLE IF NOT EXISTS queue_requests (
   id TEXT PRIMARY KEY NOT NULL,
@@ -90,7 +70,6 @@ BEGIN
   VALUES (OLD.canvas, OLD.id, OLD.version, OLD.html, OLD.css, OLD.kit, OLD.js);
 END;`;
 
-/** The columns that a store made before them gets: the time of a claim, and the kit versions. */
 const addedColumns = [
   ["queue_requests", "claimed_at"],
   ["queue_requests", "kit"],
@@ -99,23 +78,17 @@ const addedColumns = [
   ["queue_messages", "after_kit"],
 ] as const;
 
-/**
- * A request's columns, as the board names them. A request or a result stored before the kit
- * refers to kit version 1, the seed (SPEC-kit judged rule 4).
- */
 const requestColumns = `canvas, id, n, frame_id AS frameId, version, COALESCE(kit, 1) AS kit, x, y,
   author, key, status,
   claimed_by AS claimedBy, claimed_until AS claimedUntil, claimed_at AS claimedAt, tries,
   queued_at AS queuedAt,
   accepted_by AS acceptedBy, created, updated`;
 
-/** A message's columns, as the board names them. */
 const messageColumns = `canvas, id, request, kind, sender AS "from", text, html, options,
   pick AS option, before_v AS before, after_v AS after,
   CASE WHEN kind = 'result' THEN COALESCE(before_kit, 1) END AS beforeKit,
   CASE WHEN kind = 'result' THEN COALESCE(after_kit, 1) END AS afterKit, created`;
 
-/** A message's row: its options are kept as JSON. */
 const messageRow = message.extend({
   options: z
     .string()
@@ -123,17 +96,9 @@ const messageRow = message.extend({
     .transform((kept) => (kept === null ? null : z.array(z.string()).parse(JSON.parse(kept)))),
 });
 
-/** A request, waiting at `$now`, in the scope `$canvas` and `$n` (each `null`: any). */
 const waitingIn = `status = 'open' AND (claimed_until IS NULL OR claimed_until <= $now)
   AND tries < $max AND ($canvas IS NULL OR canvas = $canvas) AND ($n IS NULL OR n = $n)`;
 
-/**
- * The claim, one statement (judged rule 6, SQS's visibility timeout; a job queue's
- * `UPDATE … WHERE id = (SELECT …) RETURNING`): it finds the first waiting request in queue order
- * and writes its claim. SQLite runs one statement alone, so nothing comes between the find and
- * the write. `tries` goes up by one (judged rule 11); `claim_version` is the frame's version now,
- * and `claim_kit` the current kit version: the `before` and `beforeKit` of a result.
- */
 export const claimSql = `UPDATE queue_requests SET claimed_by = $me, claimed_until = $until,
   claimed_at = $now, claim_digest = $digest, tries = tries + 1, updated = $now,
   claim_version = (SELECT f.version FROM frames_frames f
@@ -143,18 +108,11 @@ WHERE id = (SELECT id FROM queue_requests WHERE ${waitingIn}
   ORDER BY queued_at, canvas, n LIMIT 1)
 RETURNING ${requestColumns}, claim_version AS claimVersion`;
 
-/** The time of the store's writes, and its log of rows it skipped at start. */
 const stdout = tag<{ write(chunk: string): unknown } | null>({
   label: "queue.stdout",
   default: null,
 });
 
-/**
- * Rings when a request becomes waiting: an add, an edit, an answer, a reopen or a release. A
- * `request.next` that waits listens, and tries again when it rings (judged rule 12). It is also
- * where a dispatcher will hear of each new waiting period. A lease that runs out rings nothing:
- * the one that waits wakes at the earliest `claimedUntil` by itself.
- */
 export const waitingBell = resource({
   label: "queue.waitingBell",
   target: "scope",
@@ -162,7 +120,6 @@ export const waitingBell = resource({
     const ears = new Set<AbortController>();
 
     return {
-      /** A signal that aborts at the next ring. Call `done` when it is no longer needed. */
       listen: () => {
         const ear = new AbortController();
         ears.add(ear);
@@ -176,7 +133,6 @@ export const waitingBell = resource({
   },
 });
 
-/** The state of a row now, for a `wrongState` answer. */
 const rowState = operation({
   label: "queue.rowState",
   input: z.object({ row: request, now: z.number() }),
@@ -184,7 +140,6 @@ const rowState = operation({
   run: ({ stateOf }, { input }) => stateOf.run({ input: { request: input.row, now: input.now } }),
 });
 
-/** `request.add`'s first look (the viewer-pin-post chart): the `n` of a key seen on the canvas. */
 export const seenKey = operation({
   label: "queue.seenKey",
   input: z.object({ canvas: z.string(), key: z.string() }),
@@ -200,7 +155,6 @@ export const seenKey = operation({
       )?.n ?? null,
 });
 
-/** A new request: where, what, from whom, and the ids of the request and its first message. */
 const addWrite = z.object({
   canvas: z.string(),
   id: z.string(),
@@ -216,24 +170,13 @@ const addWrite = z.object({
   now: z.number(),
 });
 
-/** The count of a canvas's requests that are not resolved and not closed (judged rule 14). */
 const openCount =
   "SELECT COUNT(*) AS open FROM queue_requests WHERE canvas = $canvas AND status IN ('open', 'asking', 'person')";
 
-/** A message as a viewer's call or a new request adds it: no HTML part, no versions. */
 const plainMessage = `INSERT INTO queue_messages (id, canvas, request, kind, sender, text, pick, created)
   VALUES ($id, $canvas, $request, $kind, $from, $text, $option, $now)
   RETURNING ${messageColumns}`;
 
-/**
- * `request.add`'s write, with its first message, the `ask`, in one transaction (judged rules 2,
- * 5, 13). A key seen on the canvas answers `added` with its `n`, and writes nothing; a frame or a
- * canvas that is not there answers `gone`; 200 open answers `full`. Else `n` is one more than the
- * highest of the canvas, in the insert's own statement, so two at once never share one. A new
- * request is `open`, with no claim and no tries, at the back of the queue. Its `kit` is the kit
- * version that the viewer saw. None, or one past the current kit version, is saved as the
- * current one: no tab shows a kit version that is not stored yet.
- */
 export const saveRequest = operation({
   label: "queue.saveRequest",
   input: addWrite,
@@ -321,7 +264,6 @@ export const saveRequest = operation({
   },
 });
 
-/** A viewer's call on a request: which, by whom, its text, and the new message's id. */
 const viewerWrite = z.object({
   kind: z.enum(["edit", "answer", "accept", "reopen", "close"]),
   canvas: z.string(),
@@ -333,26 +275,18 @@ const viewerWrite = z.object({
   now: z.number(),
 });
 
-/**
- * Each viewer's call, as one conditional write on `status` and the lease (judged rule 9): where
- * it may run, and what it sets. `$now` is the time; `$from` the sender.
- */
 const viewerSql = {
-  // Waiting, or needs a person: open, no tries, at the back of the queue.
   edit: {
     set: `status = 'open', tries = 0, queued_at = $now, claimed_by = NULL, claimed_until = NULL,
       claimed_at = NULL, claim_digest = NULL`,
     where: `(status = 'open' AND (claimed_until IS NULL OR claimed_until <= $now)) OR status = 'person'`,
   },
-  // A question: open, no tries, in its first place (E4.2 M19).
   answer: { set: "status = 'open', tries = 0", where: "status = 'asking'" },
   accept: { set: "accepted_by = $from", where: "status = 'resolved' AND accepted_by IS NULL" },
-  // A result: open, no tries, at the back of the queue; past 200 open, `full` (judged rule 14).
   reopen: {
     set: "status = 'open', tries = 0, accepted_by = NULL, queued_at = $now",
     where: `status = 'resolved' AND (${openCount}) < ${maxOpen}`,
   },
-  // Also in work: the close ends the lease, so the holder's next call answers wrongState.
   close: {
     set: `status = 'closed', claimed_by = NULL, claimed_until = NULL, claimed_at = NULL,
       claim_digest = NULL`,
@@ -360,10 +294,6 @@ const viewerSql = {
   },
 } as const;
 
-/**
- * Why a viewer's call changed no row: no request is `gone`; a reopen of a result on a canvas with
- * 200 open is `full`; else `wrongState` with the state now.
- */
 const missedChange = operation({
   label: "queue.missedChange",
   input: z.object({ kind: viewerWrite.shape.kind, row: request.nullable(), now: z.number() }),
@@ -375,7 +305,6 @@ const missedChange = operation({
   },
 });
 
-/** An answer's option, when it is an index into the options of the question (JSON); else null. */
 const pickedOption = operation({
   label: "queue.pickedOption",
   input: z.object({ write: viewerWrite, asked: z.string().nullable() }),
@@ -386,13 +315,6 @@ const pickedOption = operation({
   },
 });
 
-/**
- * A viewer's call, with its message, in one transaction: one conditional update (judged rule 9).
- * When it changes no row, the same transaction answers `gone` with no request, `full` for a
- * reopen of a result on a canvas with 200 open, else `wrongState` with the state now. A refusal
- * writes nothing (judged rule 1). An answer's option counts only as an index into the options of
- * the question it answers.
- */
 export const changeRequest = operation({
   label: "queue.changeRequest",
   input: viewerWrite,
@@ -466,7 +388,6 @@ export const changeRequest = operation({
   },
 });
 
-/** A claim's write: who, the digest of its handle, its lease, and the scope it takes from. */
 const claimWrite = z.object({
   canvas: z.string().nullable(),
   n: z.number().nullable(),
@@ -476,14 +397,8 @@ const claimWrite = z.object({
   now: z.number(),
 });
 
-/** The claimed row, with the frame version at the claim. */
 const claimedRow = request.extend({ claimVersion: z.number().nullable() });
 
-/**
- * The store write of a claim: `claimSql`, one statement. Null when no request in the scope is
- * waiting. Nothing awaits inside it: a test double of it may await before it runs, to force the
- * race of two claims (the success criteria).
- */
 export const claimRow = operation({
   label: "queue.claimRow",
   input: claimWrite,
@@ -502,7 +417,6 @@ export const claimRow = operation({
   },
 });
 
-/** `request.next`'s claim: the one-statement write, then the cell, from the row it returned. */
 export const claimRequest = operation({
   label: "queue.claimRequest",
   input: claimWrite,
@@ -517,10 +431,6 @@ export const claimRequest = operation({
   },
 });
 
-/**
- * The earliest `claimedUntil` ahead of `now` of a request in the scope that is waiting once it
- * passes (not at 3 tries): when a `request.next` that waits must look again (judged rule 12).
- */
 export const soonestEnd = operation({
   label: "queue.soonestEnd",
   input: z.object({ canvas: z.string().nullable(), n: z.number().nullable(), now: z.number() }),
@@ -537,7 +447,6 @@ export const soonestEnd = operation({
     ).until,
 });
 
-/** What the holder of a claim does: one of the calls of an agent after `request.next`. */
 const tryWrite = z.object({
   id: z.string(),
   digest: z.string(),
@@ -559,24 +468,16 @@ const endWrite = z.discriminatedUnion("kind", [
   tryWrite.extend({ kind: z.literal("resolve"), text: z.string(), html: z.string().nullable() }),
 ]);
 
-/** The lease ends: no holder, no times, no handle. */
 const endLease = "claimed_by = NULL, claimed_until = NULL, claimed_at = NULL, claim_digest = NULL";
 
-/** What each call of the holder sets (judged rules 10, 11): `tries` stays as it is. */
 const endSql = {
   extend: "claimed_until = $until",
-  // Waiting again at once, at the back of the queue. The try counts.
   release: `${endLease}, queued_at = $now`,
   decline: `status = 'person', ${endLease}`,
   ask: `status = 'asking', ${endLease}`,
   resolve: `status = 'resolved', ${endLease}`,
 } as const;
 
-/**
- * Why a call of a holder changed no row, in the order of judged rule 8: no request is `gone`; a
- * `status` that is not `open` is `wrongState` with the state now; else `lost` (another handle, or
- * a lease that ran out, also when no agent took the request since).
- */
 const missedTry = operation({
   label: "queue.missedTry",
   input: z.object({ row: request.nullable(), now: z.number() }),
@@ -588,7 +489,6 @@ const missedTry = operation({
   },
 });
 
-/** The message of a call of the holder; null for an extend, which adds none. */
 const tryMessage = operation({
   label: "queue.tryMessage",
   input: z.object({
@@ -631,10 +531,6 @@ const tryMessage = operation({
   },
 });
 
-/**
- * The row of a call of the holder, with the version and the kit version at the claim, and the
- * frame's version and the kit version now.
- */
 const heldRow = request.extend({
   claimVersion: z.number().nullable(),
   current: z.number().nullable(),
@@ -642,13 +538,6 @@ const heldRow = request.extend({
   kitNow: z.number().nullable(),
 });
 
-/**
- * Each call of the holder of a claim, as one conditional write with its message (judged rules 8,
- * 10): the request must be `open`, hold this handle, and have a live lease. When it changes no
- * row, the same transaction reads the row and answers `gone`, `wrongState` or `lost`
- * (`missedTry`); a refusal writes nothing. A result's `before` and `beforeKit` are the version
- * and the kit version at the claim; its `after` and `afterKit` are those of now (K10).
- */
 export const endTry = operation({
   label: "queue.endTry",
   input: endWrite,
@@ -731,7 +620,6 @@ export const endTry = operation({
   },
 });
 
-/** What `request.next` gives with a claim: the thread, the frame now, and what the viewer saw. */
 export const readClaimed = operation({
   label: "queue.readClaimed",
   input: z.object({ row: request, claimVersion: z.number().nullable() }),
@@ -791,11 +679,6 @@ export const readClaimed = operation({
   },
 });
 
-/**
- * Whether a request or a message refers to a frame version in a kit version (a kept view,
- * SPEC-frames § Pictures): the request (what the viewer saw, or the claim), or a result's
- * `before` or `after`, each with its own kit version (K10).
- */
 export const seenView = operation({
   label: "queue.seenView",
   input: z.object({ canvas: z.string(), id: z.string(), version: z.number(), kit: z.number() }),
@@ -817,7 +700,6 @@ export const seenView = operation({
     ).seen === 1,
 });
 
-/** At start: the tables and triggers, then the cells from the rows it read, and only from them. */
 const load = operation({
   label: "queue.load",
   depends: {
@@ -829,7 +711,6 @@ const load = operation({
   run: async ({ connection, requestCells, messageCells, out }) => {
     const db = connection.db.$client;
     db.exec(schema);
-    // A store made before them gets the columns, null in each row.
     for (const [table, column] of addedColumns) {
       const columns = db.query(`PRAGMA table_info(${table})`).all();
       if (!columns.some((c) => z.object({ name: z.literal(column) }).safeParse(c).success)) {
@@ -851,7 +732,6 @@ const load = operation({
   },
 });
 
-/** The server side of the queue, filled by the cmd. Install it after `framesServer`. */
 export const queueServer = capsule({
   label: "queueServer",
   config: { stdout },

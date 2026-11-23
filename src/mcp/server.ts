@@ -13,28 +13,17 @@ import { queueApi } from "@/queue/contract";
 import { answerText } from "./texts";
 import { contracts, successLists, tools } from "./tools";
 
-// An MCP server of easel's calls (SPEC-mcp.md): each tool runs exactly one call of the contract
-// through the rpc client of the scope, so the server's guards run as they do on the socket. No
-// tool has logic of its own (fact rule 1). The link is the cmd's: stdio for `easel mcp`.
-//
-// The SDK loads only when a serve starts (`import()`): the server's first answer does not wait for
-// it, and the bundle of the binary cannot run its module before zod's.
-
-/** The MCP link to serve on, made by the cmd when the serve starts. */
 export const mcpLink = tag<() => Promise<Transport>>({ label: "mcp.link" });
 
-/** What the server tells an agent in its answer to `initialize`. */
 const instructions =
   "Frames are made from the kit of this easel. Call `kit_capsules` before the first app frame.";
 
-/** A JSON Schema object at the top, as MCP takes one. */
 const objectSchema = z.looseObject({
   type: z.literal("object"),
   properties: z.record(z.string(), z.looseObject({})).optional(),
   required: z.array(z.string()).optional(),
 });
 
-/** A schema as MCP takes it: a JSON Schema object at the top. A call with no input takes `{}`. */
 const asObject = z.custom<z.ZodType>().transform((schema) => {
   const json = z.toJSONSchema(schema, { io: "input", unrepresentable: "any" });
   const top =
@@ -43,7 +32,6 @@ const asObject = z.custom<z.ZodType>().transform((schema) => {
   return objectSchema.parse(top);
 });
 
-/** Each tool as `tools/list` answers it. */
 const toolList = operation({
   label: "mcp.tools",
   run: (): Tool[] =>
@@ -56,10 +44,6 @@ const toolList = operation({
     })),
 });
 
-/**
- * What was wrong with an input: each issue's path and message, and never its value (judged rule
- * 1). A zod error, a list of issues, or anything else, which says only that the input is wrong.
- */
 const issuesText = z.unknown().transform((raw) => {
   const segment = z.union([
     z.string(),
@@ -85,7 +69,6 @@ const issuesText = z.unknown().transform((raw) => {
   return `the input is wrong${told ? `: ${told}` : ""}. Fix it, then call again.`;
 });
 
-/** One line for each fault: what happened, and what to do next (SPEC-mcp.md § Built on Tinker). */
 const faultText = z
   .object({ fault: z.string(), address: z.string(), payload: z.unknown(), trace: z.string() })
   .transform(({ fault, address, payload, trace }) => {
@@ -103,7 +86,6 @@ const faultText = z
     return told[fault] ?? failed;
   });
 
-/** The fields of an rpc fault that its text reads. */
 const rpcFault = z.object({
   fault: z.string(),
   address: z.string(),
@@ -112,12 +94,10 @@ const rpcFault = z.object({
   execution: z.string().optional(),
 });
 
-/** One call of the table, as a tool runs it: its raw input, parsed by its own contract. */
 type Caller = {
   settle(call: { rawInput: unknown; signal: AbortSignal }): PromiseLike<RunResult<object>>;
 };
 
-/** A call that did not answer, as a tool error. An error that is no rpc fault is thrown on. */
 export const faultResult = operation({
   label: "mcp.faultResult",
   input: z.unknown(),
@@ -140,7 +120,6 @@ export const faultResult = operation({
   },
 });
 
-/** A call's answer, as it is: an error when its kind is not on the call's success list. */
 export const answerResult = operation({
   label: "mcp.answerResult",
   input: z.object({ address: z.enum(Object.keys(successLists)), value: z.looseObject({}) }),
@@ -155,7 +134,6 @@ export const answerResult = operation({
   },
 });
 
-/** A tool call: its call run through the rpc client, its answer as a tool result. */
 export const mcpCall = operation({
   label: "mcp.call",
   input: z.object({
@@ -215,7 +193,6 @@ export const mcpCall = operation({
   },
 });
 
-/** An MCP server of the table, with no link yet: the stdio and the HTTP serves connect it. */
 export const mcpServer = operation({
   label: "mcp.server",
   depends: { toolList, call: mcpCall },
@@ -237,7 +214,6 @@ export const mcpServer = operation({
   },
 });
 
-/** Serves MCP on the link until it closes, or until the run stops. */
 export const mcpServe = operation({
   label: "mcp.serve",
   depends: { mcpServer, link: mcpLink.required },

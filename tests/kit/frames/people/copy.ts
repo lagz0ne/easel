@@ -1,4 +1,3 @@
-// The texts of the frame in each locale, and its `t`.
 import { copy, type Texts } from "@easel/kit";
 import { resource } from "@tinkered/core";
 

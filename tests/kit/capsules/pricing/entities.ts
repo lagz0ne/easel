@@ -1,9 +1,6 @@
 import { data, tag } from "@tinkered/core";
 import { z } from "zod";
 
-// The entity of the pricing frame: a plan, its schema, and its data states. The state is the
-// capsule's config, so each state is one install, and a tool can list them from the schema.
-
 export const planShape = z.object({
   id: z.string(),
   name: z.string().min(1),
@@ -37,8 +34,6 @@ export const samples: Record<Sample, Plan[]> = {
 
 export const sample = tag<Sample>({ label: "pricing.sample", default: "many", parse: sampleShape });
 
-/** The plans that the frame shows: its start writes the rows of the data state. */
 export const plans = data<Plan[]>({ label: "pricing.plans", initial: [] });
 
-/** The plan that the viewer chose, if any. */
 export const chosen = data<string | null>({ label: "pricing.chosen", initial: null });

@@ -5,7 +5,6 @@ import { afterAll, beforeEach, expect, test } from "vite-plus/test";
 import { routes } from "~/components/requests/index.server";
 import { telemetry } from "~/components/telemetry/index.server";
 
-/** Keeps what the root sends, by path, so nothing leaves this machine. */
 const sent: { traces: string[]; logs: string[] } = { traces: [], logs: [] };
 
 const collector = Bun.serve({
@@ -23,7 +22,6 @@ const sends = {
   logsUrl: new URL(`${collector.url}logs`),
 };
 
-/** The two server sinks: this thread's, and the worker's (the built server's). */
 const sinks = {
   server: () => telemetry.server(sends),
   thread: () =>
@@ -33,7 +31,6 @@ const sinks = {
     }),
 };
 
-/** A tab log line, as the tab's sink sends it. */
 const tabLine = { time: Date.now(), level: 30, msg: "tab line", service: "tab", side: "browser" };
 
 beforeEach(() => {
@@ -70,7 +67,6 @@ for (const [name, make] of Object.entries(sinks)) {
     stop.abort();
     await app.close();
 
-    // The server traced nothing for taking the batches; the tab's own lines still go out.
     const spans = sent.traces.flatMap((body) =>
       JSON.parse(body).resourceSpans.flatMap(
         (group: { scopeSpans: { spans: { name: string }[] }[] }) =>

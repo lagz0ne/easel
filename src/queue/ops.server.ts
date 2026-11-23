@@ -21,31 +21,20 @@ import {
   waitingBell,
 } from "./store.server";
 
-// The queue's calls (SPEC-queue.md). A viewer's calls run after `mayAct`; an agent's after
-// `user`. All take the time from the `clock` of the run (fact rule 3, judged rule 3).
-
-/** A viewer's calls in a minute, for each pass (or user), and for each client address. */
 export const perPass = 10;
 export const perAddress = 30;
 
-/** A new id for a request or a message: 48 random bits, as 12 hex digits. */
 const newId = operation({
   label: "queue.newId",
   run: (_, { random }) => random.uuid().replaceAll("-", "").slice(0, 12),
 });
 
-/** 128 random bits from the system's secure source, as 32 hex digits: a claim's secret. */
 const newSecret = operation({
   label: "queue.newSecret",
   depends: { bytes: secretBytes },
   run: ({ bytes }) => Buffer.from(bytes.run({ input: 16 })).toString("hex"),
 });
 
-/**
- * A viewer's limits (judged rule 14): 10 calls a minute for each pass, then 30 for each client
- * address (the trusted `X-Forwarded-For`, by `clientAddress`). Null when the call may go on, else
- * `slow` with the ms until it may. The same limiter and sliding minute as `login.start`.
- */
 const viewerLimit = operation({
   label: "queue.viewerLimit",
   input: z.string(),
@@ -61,11 +50,6 @@ const viewerLimit = operation({
   },
 });
 
-/**
- * `request.add`: a key seen on the canvas answers `added` with its `n` first, before the limits
- * and the frame (the viewer-pin-post chart); then `slow`, then the write (`saveRequest`): `gone`,
- * `full` or `added`. The name is the sender's, from the pass or the user (fact rule 2).
- */
 export const addRequest = operation({
   label: "request.add.do",
   input: requestApi["request.add"].input,
@@ -90,7 +74,6 @@ export const addRequest = operation({
   },
 });
 
-/** A viewer's call on one request: which, its text and option. */
 const viewerCall = z.object({
   kind: z.enum(["edit", "answer", "accept", "reopen", "close"]),
   canvas: z.string(),
@@ -99,7 +82,6 @@ const viewerCall = z.object({
   option: z.number().nullable(),
 });
 
-/** A viewer's call: past the limits `slow`, else the one conditional write (`changeRequest`). */
 const actOn = operation({
   label: "queue.actOn",
   input: viewerCall,
@@ -115,7 +97,6 @@ const actOn = operation({
   },
 });
 
-/** `request.edit`: a request that waits or needs a person; open, no tries, at the back. */
 export const editRequest = operation({
   label: "request.edit.do",
   input: requestApi["request.edit"].input,
@@ -135,7 +116,6 @@ export const editRequest = operation({
   },
 });
 
-/** `request.answer`: a question; open, no tries, in its first place (E4.2 M19). */
 export const answerRequest = operation({
   label: "request.answer.do",
   input: requestApi["request.answer"].input,
@@ -157,7 +137,6 @@ export const answerRequest = operation({
   },
 });
 
-/** `request.accept`: a result that no viewer accepted yet. */
 export const acceptRequest = operation({
   label: "request.accept.do",
   input: requestApi["request.accept"].input,
@@ -179,7 +158,6 @@ export const acceptRequest = operation({
   },
 });
 
-/** `request.reopen`: a result, accepted or not; open, no tries, at the back. */
 export const reopenRequest = operation({
   label: "request.reopen.do",
   input: requestApi["request.reopen"].input,
@@ -198,7 +176,6 @@ export const reopenRequest = operation({
   },
 });
 
-/** `request.close`: open (also in work), a question, or needs a person. It ends the lease. */
 export const closeRequest = operation({
   label: "request.close.do",
   input: requestApi["request.close"].input,
@@ -220,7 +197,6 @@ export const closeRequest = operation({
   },
 });
 
-/** What a claim allows (judged rule 15): its frame only, or its canvas for a request on it. */
 const claimNoteOf = operation({
   label: "queue.claimNoteOf",
   input: z.object({ canvas: z.string(), frameId: z.string().nullable() }),
@@ -233,10 +209,8 @@ const claimNoteOf = operation({
   },
 });
 
-/** `request.next`'s input, read: its scope, with each part `null` when none was given. */
 const nextScope = z.object({ canvas: z.string().nullable(), n: z.number().nullable() });
 
-/** One try of `request.next`: the claim (one write), then what it gives; null with none to take. */
 const tryClaim = operation({
   label: "queue.tryClaim",
   input: nextScope.extend({ lease: z.number() }),
@@ -265,11 +239,6 @@ const tryClaim = operation({
   },
 });
 
-/**
- * The wait of `request.next` between two tries: false at its end (or when the caller left); else
- * it sleeps until the bell rings, the earliest `claimedUntil` in the scope passes, or its end,
- * and answers true. It holds no lock (judged rule 12).
- */
 const waitTurn = operation({
   label: "queue.waitTurn",
   input: nextScope.extend({ end: z.number(), ear: z.instanceof(AbortSignal) }),
@@ -285,7 +254,6 @@ const waitTurn = operation({
   },
 });
 
-/** `request.next`'s input with its defaults: the scope, the lease in seconds, and when the wait ends. */
 const nextPlan = operation({
   label: "queue.nextPlan",
   input: queueApi["request.next"].input,
@@ -296,12 +264,6 @@ const nextPlan = operation({
   }),
 });
 
-/**
- * `request.next`: claims the first waiting request in queue order in its scope (any canvas, one
- * canvas, or one `n` of a canvas, rule 21), for the lease, in one write (`claimRequest`, judged
- * rule 6). With none, it waits up to `wait` (`waitTurn`), and tries again each time it wakes. At
- * `wait`, `empty`.
- */
 export const nextRequest = operation({
   label: "request.next.do",
   input: queueApi["request.next"].input,
@@ -310,7 +272,6 @@ export const nextRequest = operation({
     const { scope, lease, end } = nextPlan.run({ input });
 
     for (;;) {
-      // Listen before the try, so a request that becomes waiting during it wakes the wait.
       const ear = bell.listen();
       const got = await tryClaim.run({ input: { ...scope, lease } });
       if (got) {
@@ -325,7 +286,6 @@ export const nextRequest = operation({
   },
 });
 
-/** A claim's parts: the request's id, and the digest of its secret, which the store kept. */
 const claimParts = operation({
   label: "queue.claimParts",
   input: z.string(),
@@ -336,7 +296,6 @@ const claimParts = operation({
   },
 });
 
-/** A call of the holder of a claim: which, and what it carries. */
 const holderCall = z.discriminatedUnion("kind", [
   z.object({ kind: z.literal("extend"), claim: z.string(), lease: z.number() }),
   z.object({ kind: z.literal("release"), claim: z.string(), reason: z.string() }),
@@ -356,7 +315,6 @@ const holderCall = z.discriminatedUnion("kind", [
   }),
 ]);
 
-/** A call of the holder: the claim's parts, the time, and one write (`endTry`, judged rule 8). */
 const holderAct = operation({
   label: "queue.holderAct",
   input: holderCall,
@@ -373,7 +331,6 @@ const holderAct = operation({
   },
 });
 
-/** `request.extend`: the lease starts again, for `lease` (300 s when none). */
 export const extendRequest = operation({
   label: "request.extend.do",
   input: queueApi["request.extend"].input,
@@ -394,7 +351,6 @@ export const extendRequest = operation({
   },
 });
 
-/** `request.release`: waiting again at once, at the back of the queue. The try counts. */
 export const releaseRequest = operation({
   label: "request.release.do",
   input: queueApi["request.release"].input,
@@ -412,7 +368,6 @@ export const releaseRequest = operation({
   },
 });
 
-/** `request.decline`: the request needs a person, with the reason. */
 export const declineRequest = operation({
   label: "request.decline.do",
   input: queueApi["request.decline"].input,
@@ -430,7 +385,6 @@ export const declineRequest = operation({
   },
 });
 
-/** `request.ask`: a question for a viewer; the request leaves the queue. */
 export const askRequest = operation({
   label: "request.ask.do",
   input: queueApi["request.ask"].input,
@@ -454,7 +408,6 @@ export const askRequest = operation({
   },
 });
 
-/** `request.resolve`: the result, with the frame version before and after. */
 export const resolveRequest = operation({
   label: "request.resolve.do",
   input: queueApi["request.resolve"].input,
@@ -473,7 +426,6 @@ export const resolveRequest = operation({
   },
 });
 
-/** `request.list`: the requests of one canvas or of all, in one state or all, in queue order. */
 export const listRequests = operation({
   label: "request.list.do",
   input: queueApi["request.list"].input,
@@ -493,7 +445,6 @@ export const listRequests = operation({
   },
 });
 
-/** The server's side of `requestApi`: `queue.viewer({ implement: requestOps, onStart: [mayAct] })`. */
 export const requestOps = {
   "request.add": addRequest,
   "request.edit": editRequest,
@@ -503,7 +454,6 @@ export const requestOps = {
   "request.close": closeRequest,
 } as const;
 
-/** The server's side of `queueApi`: `queue.api({ implement: queueOps, onStart: [user] })`. */
 export const queueOps = {
   "request.next": nextRequest,
   "request.extend": extendRequest,

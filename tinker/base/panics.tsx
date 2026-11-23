@@ -1,4 +1,3 @@
-/** Show the error text only when the entry is in dev mode. */
 export function ErrorDetails({ error, dev }: { error: unknown; dev: boolean }) {
   const detail = dev ? (error instanceof Error ? error.message : String(error)) : undefined;
 

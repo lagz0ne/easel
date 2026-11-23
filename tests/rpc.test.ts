@@ -11,14 +11,11 @@ import { listen, wsClient as tab, wsServer as server } from "./support/ws";
 
 const { hook } = transport;
 
-// The template app's api over the socket, and the rules of ws.server: origin, frame size.
-
 const more = rpc({
   refuse: { input: z.object({ why: z.string() }), output: z.null() },
   crash: { input: z.null(), output: z.null() },
 });
 
-/** An `onStart` that says no: the call answers `refused`, with this payload. */
 const no = operation({
   label: "no",
   input: hook.start,
@@ -75,7 +72,6 @@ afterAll(async () => {
   await backend.close();
 });
 
-/** A server root with one more bound option, for the socket rules. */
 const serverWith = (options: { origin?: string; maxPayload?: number }) =>
   createScope({
     capsules: [
@@ -85,7 +81,6 @@ const serverWith = (options: { origin?: string; maxPayload?: number }) =>
     ],
   });
 
-/** One raw frame on a fresh socket: the first answer back, or the close code. */
 const raw = async (frame: string, url = base) => {
   const socket = new WebSocket(url);
   const got = await new Promise<{ t?: string; e?: number; closed?: number }>((done) => {
@@ -171,7 +166,6 @@ test("an unknown address is 404; a foreign origin is 403", async () => {
 });
 
 test("a bound public origin is the one a socket must come from, over an http request URL", async () => {
-  /** 101 when the upgrade would go ahead; else the answer's status. */
   const open = async (origin: string | undefined, headers: Record<string, string>) => {
     const proxied = await serverWith({ origin }).ready;
     const reply = proxied
@@ -185,10 +179,8 @@ test("a bound public origin is the one a socket must come from, over an http req
 
   expect(await open("https://app.example", { origin: "https://app.example" })).toBe(101);
   expect(await open("https://app.example", { origin: "https://evil.example" })).toBe(403);
-  // Bound, the request URL's own origin no longer counts.
   expect(await open("https://app.example", { origin: "http://app.example" })).toBe(403);
   expect(await open("https://app.example", {})).toBe(101);
-  // Unset, the request URL's origin is the one, as before.
   expect(await open(undefined, { origin: "http://app.example" })).toBe(101);
   expect(await open(undefined, { origin: "https://app.example" })).toBe(403);
 });
@@ -210,7 +202,6 @@ test("a bound origin that is not an http(s) URL fails start, naming origin", asy
     return { origin, kind: Object(failure).kind, payload: Object(failure).payload };
   };
 
-  // No scheme, a file URL (its origin is "null"), another scheme, garbage, and "null" itself.
   const origins = ["app.example", "file:///x", "ftp://app.example", "not a url", "null"];
   expect(await Promise.all(origins.map(failureOf))).toEqual(
     origins.map((origin) => ({
@@ -268,7 +259,6 @@ test("a maxPayload that is not a positive whole number fails start, naming ws.ma
     }
   };
 
-  // NaN is what `Number(env.X)` gives for an unset or bad value: it would turn the cap off.
   const values = [Number.NaN, 0, -1, 1.5, Infinity];
   expect(await Promise.all(values.map(failureOf))).toEqual(
     values.map((maxPayload) => ({

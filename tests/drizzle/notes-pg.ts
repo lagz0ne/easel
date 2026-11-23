@@ -7,7 +7,6 @@ import type { Errors } from "~/components/errors";
 
 import { notes } from "./pg-schema";
 
-/** Adds a note in the call's transaction. The row type comes from the schema. */
 export const addNote = operation({
   label: "notes.add",
   input: z.object({ title: z.string().min(1) }),
@@ -18,7 +17,6 @@ export const addNote = operation({
   },
 });
 
-/** Adds two notes, then fails: the session rolls both back. */
 export const addTwoThenFail = operation({
   label: "notes.addTwoThenFail",
   depends: { tx: drizzlePg.tx },
@@ -29,7 +27,6 @@ export const addTwoThenFail = operation({
   },
 });
 
-/** Two ops in one call share the one transaction: a subflow sees the parent's tx. */
 export const addAndVote = operation({
   label: "notes.addAndVote",
   input: z.object({ title: z.string().min(1) }),
@@ -44,24 +41,18 @@ export const addAndVote = operation({
   },
 });
 
-/** Reads outside any transaction, on the shared db. */
 export const listNotes = operation({
   label: "notes.list",
   depends: { db: drizzlePg.db },
   run: async ({ db }) => db.select().from(notes).orderBy(asc(notes.id)),
 });
 
-/** Empties the table, so a shared Postgres starts each run clean. */
 export const clearNotes = operation({
   label: "notes.clear",
   depends: { tx: drizzlePg.tx },
   run: async ({ tx }) => void (await tx.delete(notes)),
 });
 
-/**
- * The "own" pattern: a subflow called with `signal` gets its own session, so its own
- * transaction commits at once. The outer op takes no tx itself, so it holds no write turn.
- */
 export const keepOneThenFail = operation({
   label: "notes.keepOneThenFail",
   depends: { add: addNote, fail: addTwoThenFail },

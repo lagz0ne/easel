@@ -10,19 +10,8 @@ import { deadline, exitOf, exits, faultExit } from "./exit";
 import { entryOf, envToken, saveEntry, server } from "./hosts";
 import { json, say } from "./output";
 
-// `easel login` (SPEC-access.md § Join a server, § Become the first owner), checked against the
-// access-login chart (docs/statecharts/access-login.md). The CLI makes the token and sends only
-// its digest (RFC 7636's code challenge). It keeps the token and the pending request in the
-// hosts file before it waits, so a CLI that stops can resume (§ How a token is made, step 2).
-
-/**
- * When the socket drops while the CLI waits, it asks again after 1, 2, 4, 8 and 16 s: a lost
- * answer is safe to ask for again (step 4). After the last, it exits 69 and the login stays
- * pending for `--resume`.
- */
 export const relinkAfter = [1_000, 2_000, 4_000, 8_000, 16_000] as const;
 
-/** A token as the CLI makes it: 32 random bytes; and the SHA-256 it sends, as hex. */
 const newToken = operation({
   label: "cli.newToken",
   run: () => {
@@ -34,7 +23,6 @@ const newToken = operation({
 
 const user = z.object({ name: z.string(), role: z.enum(roles), since: z.number() });
 
-/** Signed in: the token is kept as the user's, and nothing waits any more. */
 const signedIn = operation({
   label: "cli.signedIn",
   input: z.object({
@@ -57,11 +45,6 @@ const signedIn = operation({
   },
 });
 
-/**
- * `login --print-token` is granted: the token, one time, on stdout (judged rule 2), and nothing
- * kept. Without `--json`, stdout holds only the token, so it goes straight into a secret
- * (`gh auth token` prints so); the next step goes to stderr.
- */
 const printed = operation({
   label: "cli.printed",
   input: z.object({ address: z.enum(["login.start", "login.wait"]), user, token: z.string() }),
@@ -78,7 +61,6 @@ const printed = operation({
   },
 });
 
-/** An answer that is no success, said on the error stream, and its exit code. */
 const no = operation({
   label: "cli.no",
   input: z.object({
@@ -95,15 +77,10 @@ const no = operation({
   },
 });
 
-/** What `login.wait` answers: the CLI reads it as the contract typed it. */
 type WaitAnswer = Awaited<ReturnType<(typeof loginApi)["login.wait"]["run"]>>;
 
 const pending = z.object({ name: z.string(), code: z.string(), expiresAt: z.number() });
 
-/**
- * The pending answer, printed at once as the first line: the code, and when it runs out. With
- * `--print-token`, a person's text goes to stderr: stdout is for the token only.
- */
 const sayPending = operation({
   label: "cli.sayPending",
   input: pending.extend({ print: z.boolean() }),
@@ -118,7 +95,6 @@ const sayPending = operation({
     }),
 });
 
-/** A login the CLI waits on; `print`: `--print-token`, which keeps nothing. */
 const waiting = z.object({
   name: z.string(),
   code: z.string(),
@@ -128,7 +104,6 @@ const waiting = z.object({
   print: z.boolean(),
 });
 
-/** A login that ended with no token: the hosts file forgets it; `--print-token` kept none. */
 const forget = operation({
   label: "cli.forget",
   input: z.boolean(),
@@ -138,11 +113,6 @@ const forget = operation({
   },
 });
 
-/**
- * One answer of `login.wait`: the exit code, or null to ask again. `granted` keeps the token, or
- * prints it with `--print-token`; `denied` and `expired` keep nothing (that token never works),
- * and `--print-token` leaves the hosts file as it was; `slow` waits `retryIn` first.
- */
 const waited = operation({
   label: "cli.waited",
   input: z.object({ answer: z.custom<WaitAnswer>(), login: waiting }),
@@ -179,10 +149,6 @@ const waited = operation({
   },
 });
 
-/**
- * One `login.wait` call, and what follows: the exit code, or how many times in a row the socket
- * has dropped, to ask again. A dropped socket waits before it asks again (`relinkAfter`).
- */
 const waitOnce = operation({
   label: "cli.waitOnce",
   input: z.object({ login: waiting, lost: z.number() }),
@@ -194,7 +160,6 @@ const waitOnce = operation({
     stop.abort();
 
     if (reply.status !== "success") {
-      // A call past its deadline is cancelled with a `link` fault: the same as a dropped socket.
       const error = reply.status === "failed" ? reply.error : reply.reason;
       const link = loginApi.fault.is(error) && error.fault === "link";
       const after = link ? relinkAfter[lost] : undefined;
@@ -209,11 +174,6 @@ const waitOnce = operation({
   },
 });
 
-/**
- * Waits on a pending login until it ends. It prints the pending answer first, then asks
- * `login.wait` again after each `pending` (each call waits at most 50 s on the server, SPEC.md
- * rule 2) and after a dropped socket: the CLI keeps asking while it waits.
- */
 const waitOn = operation({
   label: "cli.waitOn",
   input: waiting,
@@ -228,7 +188,6 @@ const waitOn = operation({
   },
 });
 
-/** `easel login --resume`: waits on the login the hosts file keeps. */
 export const waitLogin = operation({
   label: "cli.waitLogin",
   depends: { entryOf, say, waitOn, server: server.required },
@@ -244,11 +203,6 @@ export const waitLogin = operation({
   },
 });
 
-/**
- * A pending answer of `login.start`: kept, then waited on unless `--no-wait`. With
- * `--print-token` (`print`), nothing is kept, and the CLI waits on the login it holds in memory:
- * a stopped one cannot resume.
- */
 const pendingLogin = operation({
   label: "cli.pendingLogin",
   input: waiting.extend({ noWait: z.boolean() }),
@@ -266,7 +220,6 @@ const pendingLogin = operation({
   },
 });
 
-/** `login.start`: pending (see `pendingLogin`), or its end. */
 const startLogin = operation({
   label: "cli.startLogin",
   input: z.object({
@@ -327,7 +280,6 @@ const startLogin = operation({
   },
 });
 
-/** `login.setup`: the first owner is signed in, or nothing is kept. */
 const setupLogin = operation({
   label: "cli.setupLogin",
   input: z.object({ name: z.string(), code: z.string(), token: z.string(), digest: z.string() }),
@@ -363,11 +315,6 @@ const setupLogin = operation({
   },
 });
 
-/**
- * Why this server takes no new login now: it holds a token, or a login waits. A new login would
- * drop a token that may work (the chart's AWorkingTokenIsNeverDropped). With `EASEL_TOKEN`, the
- * CLI keeps no file, so a login could keep nothing.
- */
 const busy = operation({
   label: "cli.busy",
   depends: { entryOf, server: server.required, envToken },
@@ -384,10 +331,6 @@ const busy = operation({
   },
 });
 
-/**
- * `easel login`: a new login on this server, with an owner's approval or the setup code. With
- * `--print-token` it keeps nothing, so it drops no token and needs no free entry.
- */
 export const login = operation({
   label: "cli.login",
   input: z.object({

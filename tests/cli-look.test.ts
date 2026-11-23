@@ -26,11 +26,6 @@ import { kitApi } from "@/kit/contract";
 import { kitOps } from "@/kit/ops.server";
 import { runtimeOf } from "@/kit/runtime.server";
 
-// `easel look get|set|undo` (SPEC-kit.md § Change the look, E8.2) as the cmd runs them: the CLI's
-// capsule over the memory transport, each command's exit code by kit's success lists (SPEC-cli
-// fact rule 3): found, updated and unchanged 0; stale, unreadable, none and gone 1; a patch that
-// is not a change of the look 65; bad flags 64; a refusal 2; a server that throws 70.
-
 const closers: Array<() => unknown> = [];
 
 afterEach(async () => {
@@ -39,7 +34,6 @@ afterEach(async () => {
 
 const origin = "https://easel.test";
 
-/** A `look.undo` that throws: the server's `failed` fault. */
 const brokenUndo = operation({
   label: "test.brokenUndo",
   input: kitApi["look.undo"].input,
@@ -48,7 +42,6 @@ const brokenUndo = operation({
   },
 });
 
-/** One server: access, frames and the kit on SQLite in memory, and a memory transport. */
 async function boot(options: { broken?: boolean } = {}) {
   const clock = makeTestClock({ now: 1_800_000_000_000 });
   const out: string[] = [];
@@ -78,7 +71,6 @@ async function boot(options: { broken?: boolean } = {}) {
 
 type Srv = Awaited<ReturnType<typeof boot>>;
 
-/** One CLI, as the cmd builds it: what it prints, its runs, and a folder for its files. */
 async function easel(srv: Srv, options: { json?: boolean; stdin?: string } = {}) {
   const dir = mkdtempSync(join(tmpdir(), "easel-cli-look-"));
   closers.push(() => rmSync(dir, { recursive: true, force: true }));
@@ -125,7 +117,6 @@ async function easel(srv: Srv, options: { json?: boolean; stdin?: string } = {})
       scope.run(cli.run, {
         input: { kind: "login", name: "ann", setup: srv.setupCode(), noWait: false },
       }),
-    /** Each JSON line printed since the last read. */
     lines: () =>
       out
         .splice(0)
@@ -136,7 +127,6 @@ async function easel(srv: Srv, options: { json?: boolean; stdin?: string } = {})
   };
 }
 
-/** Ann, the first owner, signed in on her own CLI. */
 async function ann(srv: Srv, options: { json?: boolean; stdin?: string } = {}) {
   const a = await easel(srv, options);
   expect(await a.login()).toBe(0);
@@ -167,7 +157,6 @@ test("look get -o writes the DTCG file and prints the revision and kit version; 
   const look = JSON.parse(readFileSync(a.path("look.json"), "utf8"));
   expect(look.color.primary.$value.hex).toBe("#171717");
 
-  // The whole file, with one value changed, is a patch of values.
   look.color.primary.$value = { colorSpace: "srgb", components: [0.2, 0.2, 0.8] };
   const edited = a.file("look.json", JSON.stringify(look));
   expect(await a.run({ kind: "set", file: edited, base: "1" })).toBe(0);
@@ -175,7 +164,6 @@ test("look get -o writes the DTCG file and prints the revision and kit version; 
   expect(await a.run({ kind: "set", file: edited, base: "2" })).toBe(0);
   expect(a.lines()).toEqual([{ kind: "unchanged", rev: 2, kit: 2 }]);
 
-  // --at reads an older kit version; one that is not stored is gone (1).
   expect(await a.run({ kind: "get", at: "1" })).toBe(0);
   expect(a.lines()).toMatchObject([{ kind: "found", kit: 1, rev: 1 }]);
   expect(await a.run({ kind: "get", at: "9" })).toBe(1);
@@ -291,7 +279,6 @@ test("kit check prints the count, and each finding on stderr as put does; a .tsx
     `${app}:1:19 kit/import`,
   ]);
 
-  // A file it cannot read is bad usage (64), and nothing is sent.
   expect(await a.run({ kind: "check", file: a.path("none.tsx") })).toBe(64);
 });
 
@@ -318,7 +305,6 @@ test("kit check with --json prints the answer only; many findings end with `and 
   expect(text.err.splice(0).join("")).toContain("over 262144 bytes");
 });
 
-/** An older easel gave kit version 1 another runtime: its row names one that this easel has not. */
 const olderRuntime = operation({
   label: "test.olderRuntime",
   depends: { connection: bunSqlite.connection, runtimeOf },
@@ -339,7 +325,6 @@ test(
     const srv = await boot();
     const text = await ann(srv, { json: false });
 
-    // Kit version 1 has no runtime yet: its first use gives the one of this easel.
     expect(await text.run({ kind: "accept" })).toBe(0);
     expect(text.out.splice(0).join("")).toBe(
       "unchanged: kit version 1 has the runtime of this easel, or gets it at its first use\n",

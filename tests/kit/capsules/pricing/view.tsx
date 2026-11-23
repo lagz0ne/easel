@@ -8,7 +8,6 @@ import { text } from "./copy";
 import { chosen, type Plan, plans } from "./entities";
 import { choose } from "./logic";
 
-/** One plan: a component that the View depends on, as it depends on the pieces. */
 const PlanCard = resource({
   label: "pricing.PlanCard",
   depends: { ui: ui.pieces, t: text, format: copy.format },

@@ -21,11 +21,6 @@ import { framesLoads, framesOps, mayRead } from "@/frames/ops.server";
 import { shareOps, shareServer } from "@/frames/share.server";
 import { framesServer } from "@/frames/store.server";
 
-// Share without a password, over the memory transport, against the frames-share and
-// viewer-gate-password charts (docs/statecharts) and SPEC-frames' share rules. Each test that
-// follows an arrow or a rule is named by its wording. Passwords and unshare, with
-// AnEndedLinkStaysEnded and EndPushedAtOnce, are tests/share-password.test.ts's.
-
 const closers: Array<() => unknown> = [];
 
 afterEach(async () => {
@@ -34,13 +29,11 @@ afterEach(async () => {
 
 const tick = (ms = 30) => new Promise((done) => setTimeout(done, ms));
 
-/** Waits until `ok` holds, a tick at a time, up to 2 s. */
 async function until(ok: () => boolean) {
   for (let i = 0; i < 100 && !ok(); i++) await tick(20);
   expect(ok()).toBe(true);
 }
 
-/** One server as cmds/server.ts wires frames and share, with its spans and log lines kept. */
 async function boot(file = ":memory:") {
   const out: string[] = [];
   const spans: Observe.Span[] = [];
@@ -75,7 +68,6 @@ async function boot(file = ":memory:") {
 
 type Server = Awaited<ReturnType<typeof boot>>;
 
-/** A client: an agent with a token, or a viewer's tab whose meta carries `held.pass`. */
 async function client(
   server: Scope.Handle,
   held: { token?: string; pass?: string } = {},
@@ -108,7 +100,6 @@ async function client(
     share: (canvas: string) => scope.run(frames.api["canvas.share"], { input: { canvas } }),
     put: (canvas: string, html: string, name: string) =>
       scope.run(frames.api["frame.put"], { input: { canvas, html, name } }),
-    /** `name`: the name this browser kept, if it kept one. */
     open: (link: string, name?: string) =>
       scope.run(frames.viewer["share.open"], {
         input: name === undefined ? { link } : { link, name },
@@ -116,7 +107,6 @@ async function client(
   };
 }
 
-/** Ann, the first owner, signed in, and her agent's client. */
 async function ann(srv: Server) {
   const text = randomBytes(32).toString("base64url");
   const digest = createHash("sha256").update(text).digest("hex");
@@ -130,7 +120,6 @@ async function ann(srv: Server) {
   return client(srv.server, { token: text });
 }
 
-/** A shared canvas `flow`: its link, from the path `canvas.share` answered. */
 async function sharedFlow(srv: Server) {
   const a = await ann(srv);
   await a.newCanvas("flow");
@@ -140,7 +129,6 @@ async function sharedFlow(srv: Server) {
   return { a, path: shared.path, link: shared.path.slice("/s/".length) };
 }
 
-/** The fault a call ended in, and its payload; null when it answered. */
 const faultOf = (call: Promise<unknown>) =>
   call.then(
     () => null,
@@ -150,7 +138,6 @@ const faultOf = (call: Promise<unknown>) =>
         : { fault: "other", payload: String(error) },
   );
 
-/** A tab's read of a canvas's frames, watched; its list and its last fault. */
 function watchFrames(tab: Awaited<ReturnType<typeof client>>, canvas: string) {
   const list = tab.scope.resolve(frames.board.frames.where({ canvas }));
   closers.push(list.watch(() => undefined));
@@ -163,8 +150,6 @@ function watchFrames(tab: Awaited<ReturnType<typeof client>>, canvas: string) {
 }
 
 const unknownLink = "0123456789abcdef0123456789abcdef";
-
-// ---- Share a canvas (frames-share-open: "a user shares it (a new link)"; judged rules 11-12)
 
 test("a user shares a canvas: a new link at /s/<link>; sharing it again keeps the link (SharingAgainKeepsTheLink)", async () => {
   const srv = await boot();
@@ -195,8 +180,6 @@ test("share on a canvas that is not there answers gone; a guest's share is refus
   expect((await a.canvases()).canvases).toMatchObject([{ key: "flow", shared: false }]);
 });
 
-// ---- Open a share link (frames-share-open: "the viewer opens the live link"; viewer-gate-open)
-
 test("the viewer opens the live link: open, with the canvas and a pass; an unknown link answers gone", async () => {
   const srv = await boot();
   const { link } = await sharedFlow(srv);
@@ -210,7 +193,6 @@ test("the viewer opens the live link: open, with the canvas and a pass; an unkno
   });
   expect(opened.kind === "open" && opened.pass).not.toBe(link);
   expect(await tab.open(unknownLink)).toEqual({ kind: "gone" });
-  // Each open is its own pass.
   const again = await tab.open(link, "Cy");
   expect(again.kind === "open" && opened.kind === "open" && again.pass !== opened.pass).toBe(true);
 });
@@ -256,8 +238,6 @@ test("mayRead: a pass reads only its own canvas; a made-up pass is refused ended
   ]);
 });
 
-// ---- Bounds (SPEC-frames § Inputs, judged rule 14): the flood limit and the passes a link keeps
-
 test("past 30 opens a minute from one address, any link, share.open answers slow until the minute has passed; another address opens", async () => {
   const srv = await boot();
   const { link } = await sharedFlow(srv);
@@ -268,9 +248,7 @@ test("past 30 opens a minute from one address, any link, share.open answers slow
   for (let i = 0; i < 30; i++) {
     expect((await flood.open(unknownLink)).kind).toBe("gone");
   }
-  // Any link counts, and the open has no password: it is still slowed, never locked out.
   expect(await flood.open(link)).toEqual({ kind: "slow", retryIn: 60_000 });
-  // An IPv6 address is counted by its /64 (decision A8).
   expect(await sameBlock.open(link)).toEqual({ kind: "slow", retryIn: 60_000 });
   expect((await other.open(link)).kind).toBe("open");
 
@@ -293,7 +271,6 @@ test(
     const oldest = await client(srv.server);
     const first = await oldest.open(link);
     oldest.held.pass = first.kind === "open" ? first.pass : "";
-    // Another canvas's link, with one pass older than all of flow's: the trim leaves it.
     await a.newCanvas("side");
     await a.put("side", "<p>2</p>", "Side");
     const side = await a.share("side");
@@ -302,7 +279,6 @@ test(
     const sideOpen = await sider.open(sideLink);
     sider.held.pass = sideOpen.kind === "open" ? sideOpen.pass : "";
 
-    // 999 later viewers, written straight into the table: the link now holds 1000 passes.
     const db = new Database(file);
     closers.push(() => db.close());
     const insert = db.query(
@@ -347,9 +323,6 @@ test(
   },
 );
 
-// ---- Restart (decision C8; judged rule 11)
-
-// Each write is fsynced (synchronous=FULL, decision C6): on a loaded disk, ~0.5 s.
 test(
   "the link is kept readable, the pass only as its digest with the name, if the page sent one; both survive a restart",
   { timeout: 30_000 },
@@ -391,8 +364,6 @@ test(
   },
 );
 
-// ---- Secrets (judged rule 15)
-
 test("no link, pass or pass digest reaches a span, a log record, the console, or an invalid fault", async () => {
   const printed: unknown[] = [];
   for (const level of ["log", "info", "warn", "error", "debug"] as const) {
@@ -408,7 +379,6 @@ test("no link, pass or pass digest reaches a span, a log record, the console, or
   const read = watchFrames(tab, "flow");
   await until(() => read.names().length === 1);
   await tab.open(unknownLink);
-  // The client checks the input before it sends: its error names the field, not the value.
   const bad = await Promise.try(() => tab.open(`${link.slice(0, 31)}g`)).then(
     () => null,
     (error: unknown) => error,
@@ -423,8 +393,6 @@ test("no link, pass or pass digest reaches a span, a log record, the console, or
   }
   expect(seen).not.toContain(link.slice(0, 31));
 });
-
-// ---- Inputs (SPEC-frames § Inputs; judged rule 11)
 
 test("a viewer's name is optional, else 1 to 40 characters, trimmed; any other stops on the client", async () => {
   const srv = await boot();
@@ -444,7 +412,6 @@ test("a viewer's name is optional, else 1 to 40 characters, trimmed; any other s
   }
 });
 
-/** Each is 32 hex digits, and no digit is the same in all: fewer random bits, padded, would be. */
 const expectRandom128 = (secrets: readonly string[]) => {
   for (const secret of secrets) expect(secret).toMatch(/^[0-9a-f]{32}$/);
   for (let digit = 0; digit < 32; digit++) {

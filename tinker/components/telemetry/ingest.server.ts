@@ -10,11 +10,6 @@ import type { Telemetry } from "./records";
 import { telemetryBatch } from "./records.server";
 import { telemetryService } from "./settings";
 
-/**
- * The public origin tab batches must come from; unset, the request URL's own origin. Checked
- * once, when it is bound: anything but an http(s) URL raises `DataValidationFailed` naming
- * `telemetry.origin`, since any other URL has the origin "null", which a sandboxed page sends.
- */
 export const telemetryOrigin = tag<string | null>({
   label: "telemetry.origin",
   default: null,
@@ -26,7 +21,6 @@ export const telemetryOrigin = tag<string | null>({
   },
 });
 
-/** Built in the route's quiet namespace, so its ingest runs quiet too. */
 export const browserIngest = resource({
   label: "telemetry.browserIngest",
   target: "namespace",
@@ -45,7 +39,6 @@ const browserBatch = telemetryBatch.refine(
     batch.traces.every((span) => span.side === "browser"),
 );
 
-/** The request owns its reader and caps retained bytes before JSON or UTF-8 work. */
 export const telemetryBody = resource({
   label: "telemetry.body",
   target: "session",
@@ -90,7 +83,6 @@ export const telemetryBody = resource({
 
 const previewOrigin = /^http:(\/\/[^/:]+\.preview\.tini\.works)$/;
 
-/** One browser batch, posted to this root. The route owns the HTTP checks and replies. */
 export const telemetryRoute = operation({
   label: "telemetry.route",
   input: z.object({}),

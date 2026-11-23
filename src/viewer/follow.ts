@@ -6,18 +6,8 @@ import { message, request } from "@/queue/cells";
 import type { Message, Request } from "@/queue/cells";
 import { maxTries, stateOf } from "@/queue/contract";
 
-// A viewer follows the requests of a canvas (SPEC-viewer.md § Follow the requests; the
-// viewer-queue chart). The board stores no "in work" and no "needs a person": the page derives
-// each state from the board and its estimate of the server's time (fact rule 10). The clock
-// capsule keeps that estimate: the tab's clock plus the offset that the board's `serverClock`
-// gives. It wakes at the next end of a lease, so a lease that runs out shows with no write (fact
-// rule 9). This browser keeps, in `localStorage` only, the time of the last visit and the
-// `updated` of each request when the viewer last opened it: a request changed after both shows
-// the mark `Changed since your last visit` (judged rule 11).
-
 const canvasOf = tag<string>({ label: "viewer.followCanvas" });
 
-/** The state a viewer sees: the queue's state, and "taken back", a close by the author. */
 export const shownStates = [
   "waiting",
   "inWork",
@@ -32,43 +22,28 @@ export const shownStates = [
 
 export type Shown = (typeof shownStates)[number];
 
-/** The states that wait for a viewer: the group `Waits for you`, and the count on `Requests`. */
 export const forAViewer: readonly Shown[] = ["question", "result", "person"];
 
-/** The states of the list `Done`. */
 export const doneStates: readonly Shown[] = ["accepted", "doneNoAnswer", "closed", "takenBack"];
 
-/** A result that no viewer answers for this long is done, with no answer (E4.2 M15). */
 export const noAnswerMs = 3 * 24 * 60 * 60_000;
 
-/**
- * A line of a request's thread (§ Follow the requests 12): a message, with its avatar, name, time
- * and text; or a step, one line with the name, what was done, and the time.
- */
 export type Line =
   | {
       key: string;
       kind: "message";
       from: string;
-      /** An agent sent it: its avatar is square. */
       agent: boolean;
       at: number;
       text: string | null;
       html: string | null;
       options: readonly string[] | null;
-      /** The option that the answer to this question picked, if one did. */
       picked: number | null;
-      /** This question waits for its answer: its options are buttons. */
       live: boolean;
-      /** A result's pictures of its frame: the version before and after, and if it opens. */
       proof: Proof | null;
     }
   | { key: string; kind: "step"; who: string | null; what: string; at: number | null };
 
-/**
- * One side of a switch: its word, the version of the frame (null: the frame was removed), and
- * the kit version it shows in (null: the current one; SPEC-kit K10).
- */
 const pane = z.object({
   label: z.string(),
   version: z.number().nullable(),
@@ -77,11 +52,6 @@ const pane = z.object({
 
 export type Pane = z.infer<typeof pane>;
 
-/**
- * Two pictures of a request's frame (§ Follow the requests 13, 14): `Before` | `After` on a
- * result, `When asked` | `Now` on the ask of a request that may be outdated. `show` is the side
- * it opens on, and `opens` whether it opens.
- */
 const proof = z.object({
   id: z.string(),
   left: pane,
@@ -92,65 +62,42 @@ const proof = z.object({
 
 export type Proof = z.infer<typeof proof>;
 
-/** Why a waiting request may be outdated (SPEC-queue.md § A request becomes outdated). */
 const outdated = z.object({
   cause: z.enum(["changed", "removed", "old"]),
-  /** The frame's name; null for a request on the canvas. */
   frame: z.string().nullable(),
-  /** The frame's version now; null once it was removed. */
   now: z.number().nullable(),
-  /** When the frame was removed. */
   removed: z.number().nullable(),
 });
 
 export type Outdated = z.infer<typeof outdated>;
 
-/** A request made more than this long ago may be outdated. */
 export const oldMs = 7 * 24 * 60 * 60_000;
 
-/** A request as the panel, its pin and its popover show it. */
 export type RequestView = {
   r: Request;
   shown: Shown;
-  /** The text of the request now: its last correction, or its ask. */
   text: string;
-  /** Its messages, oldest first. */
   thread: readonly Message[];
-  /** Its thread as the popover shows it, oldest first. */
   lines: readonly Line[];
-  /** Who acted last, and what they did: "Tom accepted this". */
   lastAct: string;
-  /** It changed since the last visit, and since this browser last opened it. */
   changed: boolean;
-  /** It waits, and may be outdated: why. A mark, not a state. */
   outdated: Outdated | null;
 };
 
-/** The tab's estimate of the server's time, in ms; null until the board's clock is read. */
 export const serverTime = data<number | null>({ label: "viewer.serverTime", initial: null });
 
-/**
- * This browser's last visit to the shown canvas (`since`, server time) and, for each request it
- * opened, its `updated` at that time. Read from `localStorage` when the canvas opens.
- */
 export const visits = data<{
   canvas: string;
   since: number;
   opened: Readonly<Record<string, number>>;
 } | null>({ label: "viewer.visits", initial: null });
 
-/** Where this browser keeps the time of the last visit to a canvas: this, then the canvas. */
 export const visitKey = "easel.visit.";
 
-/** Where this browser keeps the `updated` of each request it opened on a canvas. */
 export const openedKey = "easel.opened.";
 
 const openedMap = z.record(z.string(), z.number());
 
-/**
- * The canvas opens: the page reads the time of the last visit, then writes the time now (step
- * 17). A first visit has none: from now on, a change shows the mark.
- */
 export const startVisit = operation({
   label: "viewer.startVisit",
   input: z.object({ canvas: z.string(), now: z.number() }),
@@ -169,7 +116,6 @@ export const startVisit = operation({
   },
 });
 
-/** The viewer saw a request at its `updated`: its changed mark goes, here and in `localStorage`. */
 export const markSeen = operation({
   label: "viewer.markSeen",
   input: z.object({ canvas: z.string(), id: z.string(), updated: z.number() }),
@@ -184,10 +130,8 @@ export const markSeen = operation({
   },
 });
 
-/** A wake each minute at most, so the ages stay right. */
 export const tickMs = 60_000;
 
-/** How long until the next lease of the canvas ends after `now`, or a minute. */
 const nextWake = operation({
   label: "viewer.nextWake",
   input: z.object({ ends: z.array(z.number().nullable()), now: z.number() }),
@@ -195,10 +139,6 @@ const nextWake = operation({
     Math.min(tickMs, ...ends.flatMap((end) => (end !== null && end > now ? [end - now + 1] : []))),
 });
 
-/**
- * The tab's clock, for the keyed resources below: its time, and a sleep that ends with the scope.
- * In a test it is the test clock.
- */
 export const tabClock = resource({
   label: "viewer.tabClock",
   target: "scope",
@@ -209,10 +149,6 @@ export const tabClock = resource({
   }),
 });
 
-/**
- * The offset of the server's time from this tab's clock, from the board's `serverClock`: each
- * read of the board loads the server's time again. Null until it is read.
- */
 export const clockOffset = resource({
   label: "viewer.clockOffset",
   config: { canvas: canvasOf.required },
@@ -223,11 +159,6 @@ export const clockOffset = resource({
   },
 });
 
-/**
- * The clock capsule for a canvas (fact rule 9): it writes `serverTime`, the tab's clock plus the
- * offset, now, at the end of each lease, and each minute. A new offset, or a new lease, sets it
- * again. It also starts the visit, once the server's time is known.
- */
 export const clockTicker = resource({
   label: "viewer.clockTicker",
   config: { canvas: canvasOf.required },
@@ -255,18 +186,12 @@ export const clockTicker = resource({
       const wait = nextWake.run({ input: { ends, now } });
       clock.sleep(wait, stop.signal).then(tick, () => undefined);
     };
-    // A build that a reader starts writes no cell: the first tick runs after it.
     queueMicrotask(tick);
 
     return true;
   },
 });
 
-/**
- * The state a viewer sees (fact rule 10): the queue's `stateOf` at the server's time; "done, no
- * answer" for a result that no viewer answered for 3 days; and "taken back" for a request closed
- * by its author. The panel, the pin, the popover and the count use it.
- */
 export const shownState = operation({
   label: "viewer.shownState",
   input: z.object({ request, closer: z.string().nullable(), now: z.number() }),
@@ -279,7 +204,6 @@ export const shownState = operation({
   },
 });
 
-/** The messages of each request, oldest first. */
 const threads = operation({
   label: "viewer.threads",
   input: z.array(message),
@@ -292,29 +216,21 @@ const threads = operation({
   },
 });
 
-/** The kinds of message that an agent sends. */
 const agentKinds: readonly Message["kind"][] = ["question", "result", "release", "decline"];
 
-/** The kinds of message that start the request again: tries and a decline count from here. */
 const fresh: readonly Message["kind"][] = ["ask", "edit", "answer", "reopen"];
 
-/** What the thread knows up to a message: what a later message shows depends on it. */
 const sofar = z.object({
-  /** The text of the request: its ask, or its last correction. */
   head: z.string(),
-  /** Since the request last started again: an agent declined it, and how many released it. */
   declined: z.boolean(),
   releases: z.number(),
-  /** The edits that sent the request back from "needs a person". */
   sentBack: z.array(z.string()),
-  /** The last question, and the option that each question's answer picked. */
   question: z.string().nullable(),
   picked: z.record(z.string(), z.number().nullable()),
 });
 
 type Sofar = z.infer<typeof sofar>;
 
-/** The text of the request, and the edits that sent it back, after one message more. */
 const headStep = operation({
   label: "viewer.headStep",
   input: z.object({ was: sofar, m: message }),
@@ -329,7 +245,6 @@ const headStep = operation({
   },
 });
 
-/** A decline and the releases since the request last started again, after one message more. */
 const triesStep = operation({
   label: "viewer.triesStep",
   input: z.object({ was: sofar, m: message }),
@@ -343,7 +258,6 @@ const triesStep = operation({
   },
 });
 
-/** The last question, and the option that its answer picked, after one message more. */
 const questionStep = operation({
   label: "viewer.questionStep",
   input: z.object({ was: sofar, m: message }),
@@ -358,7 +272,6 @@ const questionStep = operation({
   },
 });
 
-/** One message more for `sofar`. */
 const sofarStep = operation({
   label: "viewer.sofarStep",
   input: z.object({ was: sofar, m: message }),
@@ -370,7 +283,6 @@ const sofarStep = operation({
   }),
 });
 
-/** The words of the steps that say only what was done. */
 const doneWords: Partial<Record<Message["kind"], string>> = {
   accept: "accepted the result",
   reopen: "opened it again",
@@ -378,13 +290,10 @@ const doneWords: Partial<Record<Message["kind"], string>> = {
   decline: "gave it back",
 };
 
-/** The steps that give their reason after the words. */
 const withReason: readonly Message["kind"][] = ["release", "decline"];
 
-/** The steps that show the message's text after them: a note to open it again, or to close it. */
 const noteAfter: readonly Message["kind"][] = ["reopen", "close"];
 
-/** The words of a step for a message, after the name; null for a message with no step. */
 const stepWords = operation({
   label: "viewer.stepWords",
   input: z.object({ m: message, author: z.string(), sentBack: z.boolean() }),
@@ -398,7 +307,6 @@ const stepWords = operation({
   },
 });
 
-/** A message as the thread shows it. The ask shows the text of the request now. */
 const messageLine = operation({
   label: "viewer.messageLine",
   input: z.object({ m: message, known: sofar, live: z.boolean(), proof: proof.nullable() }),
@@ -417,7 +325,6 @@ const messageLine = operation({
   }),
 });
 
-/** A result's pictures, for a result on a frame with both its versions; else null. */
 const resultProof = operation({
   label: "viewer.resultProof",
   input: z.object({ m: message, frameId: z.string().nullable(), opens: z.boolean() }),
@@ -431,10 +338,6 @@ const resultProof = operation({
   },
 });
 
-/**
- * The pictures of the ask of a request whose frame changed or was removed (step 14): what the
- * viewer saw, and the frame now. It opens on `When asked`.
- */
 const askProof = operation({
   label: "viewer.askProof",
   input: z.object({ m: message, r: request, outdated: outdated.nullable() }),
@@ -453,7 +356,6 @@ const askProof = operation({
   },
 });
 
-/** The pictures of a message: a result's, or the ask's of a request that may be outdated. */
 const proofOf = operation({
   label: "viewer.proofOf",
   input: z.object({ m: message, r: request, opens: z.boolean(), outdated: outdated.nullable() }),
@@ -463,10 +365,8 @@ const proofOf = operation({
     askProof.run({ input: { m, r, outdated } }),
 });
 
-/** What an answer brings: the request is back in the queue, in its first place (E4.2 M19). */
 const backInQueue = "Back in the queue, in its first place";
 
-/** The lines of one message: the message, its step, or both, in the order the thread shows them. */
 const linesOfMessage = operation({
   label: "viewer.linesOfMessage",
   input: z.object({
@@ -492,7 +392,6 @@ const linesOfMessage = operation({
   },
 });
 
-/** The step when tries ran out: the request needs a person, and no agent said why. */
 const triesLine = operation({
   label: "viewer.triesLine",
   input: z.object({ r: request, last: message.nullable() }),
@@ -504,15 +403,8 @@ const triesLine = operation({
   },
 });
 
-/** What a result done with no answer says, at the end of its 3 days (E4.2 M15). */
 const noAnswer = "No viewer answered in 3 days, so it is done";
 
-/**
- * The steps of the last claim, that no message says: "claude-1 took it" at `claimedAt`, and, for
- * a lease that ran out, that its time ran out at `claimedUntil`. Each end of a lease but its run
- * out sets `claimedBy` and `claimedUntil` to null, so a waiting request that has both had a lease
- * that ran out. The board keeps no earlier claim.
- */
 const claimLines = operation({
   label: "viewer.claimLines",
   input: z.object({ r: request, shown: z.enum(shownStates) }),
@@ -533,10 +425,6 @@ const claimLines = operation({
   },
 });
 
-/**
- * The last lines, that no message says: the last claim, tries ran out to a person, or no viewer
- * answered the result.
- */
 const stateLine = operation({
   label: "viewer.stateLine",
   input: z.object({ r: request, shown: z.enum(shownStates), last: message.nullable() }),
@@ -552,10 +440,6 @@ const stateLine = operation({
   },
 });
 
-/**
- * The step of a request that may be outdated (step 14): how many times its frame changed since
- * the author asked, or when the frame was removed. None for a long wait.
- */
 const outdatedLine = operation({
   label: "viewer.outdatedLine",
   input: z.object({ r: request, outdated: outdated.nullable() }),
@@ -574,7 +458,6 @@ const outdatedLine = operation({
   },
 });
 
-/** What a message did, after its sender's name, when it came first (§ Follow the requests 16). */
 const firstWords: Record<Message["kind"], string> = {
   ask: "asked it",
   edit: "corrected it",
@@ -588,10 +471,6 @@ const firstWords: Record<Message["kind"], string> = {
   close: "closed it",
 };
 
-/**
- * Who acted last on a request, and what they did: "Tom accepted this", or "claude-1 started
- * work on it". A text sent for a state the request left says it.
- */
 const lastActOf = operation({
   label: "viewer.lastActOf",
   input: z.object({ r: request, shown: z.enum(shownStates), thread: z.array(message) }),
@@ -614,7 +493,6 @@ const start: Sofar = {
   picked: {},
 };
 
-/** A request's thread as the popover shows it (§ Follow the requests 12), oldest first. */
 const linesOf = operation({
   label: "viewer.linesOf",
   input: z.object({
@@ -644,14 +522,12 @@ const linesOf = operation({
   },
 });
 
-/** The frame of a request as the board has it now: its name and version, or when it was removed. */
 const frameNow = z.object({
   name: z.string(),
   version: z.number().nullable(),
   removed: z.number().nullable(),
 });
 
-/** A frame's change: it has a newer version than the one the viewer saw, or it was removed. */
 const frameCause = operation({
   label: "viewer.frameCause",
   input: z.object({ r: request, frame: frameNow.nullable() }),
@@ -664,11 +540,6 @@ const frameCause = operation({
   },
 });
 
-/**
- * Why a waiting request may be outdated, in this order: its frame was removed, its frame
- * changed, or it was made more than 7 days ago (SPEC-queue.md § A request becomes outdated).
- * Null for a request in any other state.
- */
 const outdatedOf = operation({
   label: "viewer.outdatedOf",
   input: z.object({
@@ -687,7 +558,6 @@ const outdatedOf = operation({
   },
 });
 
-/** One request as a viewer sees it, from its row, its thread, the time and the visits. */
 const viewOf = operation({
   label: "viewer.viewOf",
   input: z.object({
@@ -714,10 +584,6 @@ const viewOf = operation({
   },
 });
 
-/**
- * Each request of a canvas as a viewer sees it, newest first. Until the board's clock is read,
- * a request's own `updated` stands in for the server's time.
- */
 export const requestViews = resource({
   label: "viewer.requestViews",
   config: { canvas: canvasOf.required },
@@ -735,7 +601,6 @@ export const requestViews = resource({
     const { rows, all, boxes, gone, time, seen, threads, viewOf } = deps;
     const by = threads.run({ input: [...all.get()] });
     const visit = seen?.canvas === ctx.config.canvas ? seen : null;
-    // Each frame of the canvas now, and each removed one, by its id.
     const byId = new Map<string | null, z.infer<typeof frameNow>>([
       ...gone.get().map((f) => [f.id, { ...f, version: null }] as const),
       ...boxes.get().map((f) => [f.id, { ...f, removed: null }] as const),
@@ -759,10 +624,6 @@ export const requestViews = resource({
   },
 });
 
-/**
- * Where each request of a canvas is on the canvas, by its number: on its frame, where its frame
- * was before it was removed, or on the canvas. Null while its frame is not on the board.
- */
 export const requestPlaces = resource({
   label: "viewer.requestPlaces",
   config: { canvas: canvasOf.required },
@@ -786,39 +647,26 @@ export const requestPlaces = resource({
 const idOf = tag<string>({ label: "viewer.seenId" });
 const updatedOf = tag<number>({ label: "viewer.seenUpdated" });
 
-/**
- * The popover of a request is open at its `updated`: the viewer has seen it, so its changed mark
- * goes (step 17). A change while it is open is seen at once too.
- */
 export const seenWhileOpen = resource({
   label: "viewer.seenWhileOpen",
   config: { canvas: canvasOf.required, id: idOf.required, updated: updatedOf.required },
   depends: { markSeen },
   factory: ({ markSeen }, ctx) => {
     const { canvas, id, updated } = ctx.config;
-    // A build that a reader starts writes no cell: the mark goes after it.
     queueMicrotask(() => markSeen.run({ input: { canvas, id, updated } }));
 
     return true;
   },
 });
 
-/** The panel `Requests` is open (step 2). */
 export const panelOpen = data({ label: "viewer.panelOpen", initial: false });
 
-/**
- * The frame whose panel `Controls` is open (SPEC-kit.md § The capsules, "The controls in the
- * viewer"), or null. It shares the side of the page with `Requests`: one closes the other.
- */
 export const controlsFor = data<string | null>({ label: "viewer.controlsFor", initial: null });
 
-/** The list the panel shows: `Open` or `Done`. */
 export const panelList = data<"open" | "done">({ label: "viewer.panelList", initial: "open" });
 
-/** The menu of the panel's head, that picks the list, is open. */
 export const listMenu = data({ label: "viewer.listMenu", initial: false });
 
-/** You press `Requests` in the dock: the panel opens, or closes. */
 export const togglePanel = operation({
   label: "viewer.togglePanel",
   depends: { open: panelOpen.controller, menu: listMenu.controller, ctl: controlsFor.controller },
@@ -829,14 +677,12 @@ export const togglePanel = operation({
   },
 });
 
-/** You press the list's menu button in the panel's head: its menu opens, or closes. */
 export const toggleListMenu = operation({
   label: "viewer.toggleListMenu",
   depends: { menu: listMenu.controller },
   run: ({ menu }) => menu.set(!menu.get()),
 });
 
-/** You pick a list in the menu: the panel shows it, and the menu closes. */
 export const pickList = operation({
   label: "viewer.pickList",
   input: z.enum(["open", "done"]),

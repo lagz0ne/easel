@@ -12,10 +12,6 @@ import {
 } from "./place";
 import { placeQueue } from "./queue";
 
-/**
- * What the address says now: the place its search names (`null` when it names none) and the places the open entry
- * carries in its own state. A reload reads both back.
- */
 export const placeRead = operation({
   label: "place.read",
   depends: { address: placeAddress.required },
@@ -37,7 +33,6 @@ export const placeRead = operation({
   },
 });
 
-/** Write the place and the screens the address names: the page's one writer of both cells. */
 export const placeWrite = operation({
   label: "place.write",
   input: z.object({ place: placeName.nullable(), stack: z.array(placeName) }),
@@ -48,11 +43,6 @@ export const placeWrite = operation({
   },
 });
 
-/**
- * The page's one navigation: open a place through the router, with the screens behind it on the entry, then read the
- * address back into the cells. `replace` rewrites the open entry instead of pushing one: an outside steer is not a
- * move a person made, so it leaves no entry of its own to close.
- */
 export const placeNavigate = operation({
   label: "place.navigate",
   input: z.object({ place: placeName, stack: z.array(placeName), replace: z.boolean() }),
@@ -76,10 +66,6 @@ export const placeNavigate = operation({
   },
 });
 
-/**
- * A person goes to a place: one entry, one screen behind it. It waits in the page's queue, so a push never races the
- * move a leave is waiting for, and going to the place the page already shows is no move at all.
- */
 export const placeGo = operation({
   label: "place.go",
   input: placeName,
@@ -98,10 +84,6 @@ export const placeGo = operation({
   },
 });
 
-/**
- * An outside view asks the page to show a place (`set view`): the same navigation, with the screens the open entry
- * already carries, and no entry of its own, so Back is never asked to close a screen nobody pushed.
- */
 export const placeSetView = operation({
   label: "place.setView",
   input: placeName,
@@ -120,10 +102,6 @@ export const placeSetView = operation({
   },
 });
 
-/**
- * Leave every screen at once: one walk back over the pushes the stack counts, and a wait for the move it brings. The
- * wait gives up after 600 ms (`./queue.ts`), so a move the browser drops cannot hold the page.
- */
 export const placeLeave = operation({
   label: "place.leave",
   depends: {
@@ -148,10 +126,6 @@ export const placeLeave = operation({
   },
 });
 
-/**
- * The browser walked to another entry: settle the move a leave is waiting for, then read the entry's own address and
- * state into the cells, so the page is where the browser is and no dead entry is walked.
- */
 export const placeMoved = operation({
   label: "place.moved",
   depends: { read: placeRead.controller, write: placeWrite.controller, queue: placeQueue },
@@ -161,12 +135,6 @@ export const placeMoved = operation({
   },
 });
 
-/**
- * Take a link's one-time params (`names`) out of the address once the page has used them: the link wins once, and a
- * later open reads the person's own choice instead. The address keeps the place the page opened (`place`, when the
- * caller has one to name), so a reload still lands there, and the router's own entry state rides along, so the page
- * is not read again. A replace, not a push: the entry is the one the link opened.
- */
 export const placeClean = operation({
   label: "place.clean",
   input: z.object({ names: z.array(placeName), place: placeName.optional() }),

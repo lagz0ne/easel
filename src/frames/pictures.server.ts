@@ -25,33 +25,14 @@ import {
 } from "./keys.server";
 import { readPicture, readStill } from "./store.server";
 
-// Pictures (SPEC-frames.md § Pictures; the frames-pictures chart). `GET /api/pictures/<canvas>/
-// <id>/<version>?s=&k=&kit=&r=` needs no user and no pass: its key is the right to it (fact rule
-// 4). The route takes the version and its document in one read, composes it with the kit version
-// (`compose`, SPEC-kit fact rule 3), draws it through the one `pictures.render` (fact rule 3), and
-// checks the frame and the key again before it sends (judged rule 7). The version is the current
-// one in the current kit version, or a kept view: a version and a kit version that a request or a
-// message refers to, also of a removed frame, drawn at the frame's last box (K10). A Chromium from
-// `EASEL_CHROMIUM` draws, through puppeteer-core; with none, pictures are off: the board carries
-// no keys, every picture is 404, and `frame.shot` answers `off`.
-
-/** At most 2 draws at once; a request waits at most 5 s for a slot, and a draw runs at most 20 s. */
 export const drawsAtOnce = 2;
 export const slotWaitMs = 5_000;
 export const drawLimitMs = 20_000;
 
-/** The answers that keep nothing: a refusal, a redirect, a busy server. */
 const noStore = { "Cache-Control": "no-store" } as const;
 
-/** A picture of the current version is the same bytes for ever: only the browser that asked keeps it. */
 export const pictureCache = "private, max-age=31536000, immutable";
 
-/**
- * Where a drawn document may not reach (judged rule 5): loopback, private, link-local, shared,
- * benchmark, multicast and reserved addresses, both families, and the IPv6 forms that carry an
- * IPv4 address (compatible, translated, NAT64, 6to4, Teredo). An IPv4 address mapped into IPv6 is
- * checked as itself by the list.
- */
 const closed = new BlockList();
 
 for (const [net, bits] of [
@@ -84,7 +65,6 @@ for (const [net, bits] of [
   closed.addSubnet(net, bits, "ipv6");
 }
 
-/** How the proxy resolves a host name: every address it has. A test gives its own. */
 export const hostLookup = tag<
   (host: string) => Promise<Array<{ address: string; family: number }>>
 >({
@@ -92,17 +72,11 @@ export const hostLookup = tag<
   default: (host) => lookup(host, { all: true }),
 });
 
-/** How the proxy dials an address it checked, on port 443. A test gives its own. */
 export const proxyDial = tag<(address: string) => Socket>({
   label: "pictures.proxyDial",
   default: (address) => connect({ host: address, port: 443 }),
 });
 
-/**
- * The addresses to connect to, in order, if every address a host has is public (judged rule 5):
- * an IP literal is itself; a name is resolved, and one closed address closes it. Null: no way
- * there.
- */
 export const publicAddress = operation({
   label: "pictures.publicAddress",
   input: z.string(),
@@ -119,23 +93,14 @@ export const publicAddress = operation({
   },
 });
 
-/** The proxy's refusal. */
 const forbidden = "HTTP/1.1 403 Forbidden\r\nContent-Length: 0\r\n\r\n";
 
-/** The proxy's answer when no checked address of a host connects. */
 const unreachable = "HTTP/1.1 502 Bad Gateway\r\nContent-Length: 0\r\n\r\n";
 
-/** The most a proxy request's head may be, up to its blank line. */
 const proxyHeadBytes = 8 * 1024;
 
-/** How long the proxy waits for a client's head, and for each upstream connect. */
 export const proxyWaitMs = 10_000;
 
-/**
- * Where a proxy request may go: the addresses to dial, in order, for a `CONNECT` to port 443 of a
- * host whose every address is public. Null for anything else: plain http, another port, a closed
- * host.
- */
 export const tunnelTarget = operation({
   label: "pictures.tunnelTarget",
   input: z.string(),
@@ -148,9 +113,6 @@ export const tunnelTarget = operation({
   },
 });
 
-/**
- * The proxy's open sockets, both ends of each tunnel: all are destroyed when the scope closes.
- */
 const proxySockets = resource({
   label: "pictures.proxySockets",
   target: "scope",
@@ -162,14 +124,12 @@ const proxySockets = resource({
     });
 
     return {
-      /** Tracks a socket until it closes; an error closes it. */
       keep(socket: Socket) {
         open.add(socket);
         socket.on("close", () => open.delete(socket));
         socket.on("error", () => socket.destroy());
       },
 
-      /** Calls `late` after 10 s, unless the returned stop is called first. */
       deadline(late: () => void) {
         const stop = new AbortController();
         ctx.clock
@@ -178,10 +138,6 @@ const proxySockets = resource({
         return () => stop.abort();
       },
 
-      /**
-       * Joins the client to the first address that connects within 10 s, trying each in turn;
-       * none: 502. Once joined, either end closing closes both: nothing more is written.
-       */
       tunnel(client: Socket, addresses: readonly string[], rest: Buffer) {
         const [address, ...others] = addresses;
         if (address === undefined) {
@@ -215,14 +171,6 @@ const proxySockets = resource({
   },
 });
 
-/**
- * The egress proxy (judged rule 5, on the network): Chromium sends every connection through it,
- * loopback too, and it is the one line a drawn document meets. It opens only a `CONNECT` tunnel
- * to port 443 of a host whose every address is public, and dials the addresses it checked, so a
- * name that resolves again to a closed one later reaches nothing. A plain http request, a
- * WebSocket in the clear, or any other port is refused. A client that sends no head in 10 s is
- * cut off. The prior art is Stripe's smokescreen.
- */
 export const egressProxy = resource({
   label: "pictures.egressProxy",
   target: "scope",
@@ -258,7 +206,6 @@ export const egressProxy = resource({
     });
 
     return {
-      /** The proxy's port on 127.0.0.1, listening from the first ask. */
       port(): Promise<number> {
         listening ??= new Promise<number>((done, fail) => {
           server.once("error", fail);
@@ -274,11 +221,6 @@ export const egressProxy = resource({
   },
 });
 
-/**
- * The flags of a Chromium that draws in a container: no sandbox (the container is the bound), no
- * GPU, no WebRTC UDP outside the proxy (the image's managed policy says the same), a small disk
- * cache and at most 512 MB of script heap.
- */
 const chromiumArgs = [
   "--webrtc-ip-handling-policy=disable_non_proxied_udp",
   "--force-webrtc-ip-handling-policy=disable_non_proxied_udp",
@@ -294,10 +236,6 @@ const chromiumArgs = [
   "--disable-sync",
 ];
 
-/**
- * The one Chromium, started at the first draw (or the first readiness check) and again after it
- * exits. It closes with the server.
- */
 export const chromiumBrowser = resource({
   label: "pictures.browser",
   target: "scope",
@@ -316,7 +254,6 @@ export const chromiumBrowser = resource({
         if (path === null) return Promise.reject(new Error("pictures: no Chromium"));
         if (started) return started;
 
-        // Every connection goes through the egress proxy; `<-loopback>` sends loopback there too.
         const starting = proxy
           .port()
           .then((port) =>
@@ -346,13 +283,8 @@ export const chromiumBrowser = resource({
   },
 });
 
-/**
- * The runtime files that a draw serves: each request whose address starts with `prefix` gets the
- * file of that name, from the stored bytes, and never reaches the network.
- */
 const drawRuntime = z.object({ prefix: z.string(), files: z.record(z.string(), z.string()) });
 
-/** A region of a frame and a scale, as the route checked them, and the runtime of an app frame. */
 const drawInput = z.object({
   html: z.string(),
   w: z.number(),
@@ -362,18 +294,8 @@ const drawInput = z.object({
   runtime: drawRuntime.nullable(),
 });
 
-/**
- * The origin of the runtime in a picture's document. The `.invalid` name (RFC 2606) never
- * resolves: the draw answers each request to it from the stored runtime.
- */
 const runtimeOrigin = "http://runtime.easel.invalid";
 
-/**
- * One draw: a browser context of its own (its own cookies, cache and storage), and in it a page at
- * the frame's size and the scale. A dialog is dismissed. The document is loaded, its fonts are
- * ready, and the region is taken as WebP. The context closes after, or at the signal, and every
- * page in it with it, a popup too. The network is the egress proxy's.
- */
 export const drawPage = operation({
   label: "pictures.drawPage",
   input: drawInput,
@@ -381,23 +303,18 @@ export const drawPage = operation({
   run: async ({ browser }, { input, signal }) => {
     const chrome = await browser.open();
     const context = await chrome.createBrowserContext();
-    // A stop ends the draw at once, wherever it is: a step of Chromium's may never answer once
-    // its context is closing.
     const stopped = Promise.withResolvers<never>();
     stopped.promise.catch(() => undefined);
     const close = () => {
       stopped.reject(new Error("pictures: the draw was stopped"));
       void context.close().catch(() => undefined);
     };
-    // The listener first, then the check: a stop that came while the context was made closes it.
     signal.addEventListener("abort", close, { once: true });
     if (signal.aborted) close();
 
     try {
       const page = await Promise.race([stopped.promise, context.newPage()]);
       page.on("dialog", (dialog) => void dialog.dismiss().catch(() => undefined));
-      // An app frame: its runtime comes from the stored bytes (SPEC-kit.md § App frames, "The
-      // picture of an app frame"); each other request goes to the egress proxy, as for HTML.
       const runtime = input.runtime;
       if (runtime) {
         await Promise.race([stopped.promise, page.setRequestInterception(true)]);
@@ -417,8 +334,6 @@ export const drawPage = operation({
           void request.respond({ ...answer, headers }).catch(() => undefined);
         });
       }
-      // Each step races the stop: the page is sized, the document loaded, its fonts ready, then
-      // the region is taken.
       await Promise.race([
         stopped.promise,
         page.setViewport({ width: input.w, height: input.h, deviceScaleFactor: input.scale }),
@@ -453,7 +368,6 @@ export const drawPage = operation({
   },
 });
 
-/** The draw slots: how many are free, and who waits for one, first come first served. */
 export const drawSlots = resource({
   label: "pictures.slots",
   target: "scope",
@@ -463,11 +377,6 @@ export const drawSlots = resource({
   }),
 });
 
-/**
- * `pictures.render`: the one way a picture is drawn (fact rule 3). It takes a slot, waiting at
- * most 5 s (`busy` past that), and draws, at most 20 s (`late` past that: the draw is stopped).
- * The slot goes to the next in line when the draw has ended.
- */
 export const render = operation({
   label: "pictures.render",
   input: drawInput,
@@ -496,7 +405,6 @@ export const render = operation({
       }
     }
 
-    // `settle`, not `run`: a draw that fails or is stopped is this run's answer, not its failure.
     const quit = new AbortController();
     const drawing = Promise.resolve(
       drawPage.settle({ input, signal: AbortSignal.any([quit.signal, signal]) }),
@@ -523,8 +431,6 @@ export const render = operation({
         .then(() => ({ kind: "late" as const })),
     ]).finally(() => stop.abort());
     if (drawn.kind !== "drawn") {
-      // Stopped: the draw ends at its signal (its context closes); wait for that, so no draw
-      // outlives the request and its slot is back before the 503 goes out.
       quit.abort();
       await drawing;
     }
@@ -532,7 +438,6 @@ export const render = operation({
   },
 });
 
-/** The route's raw input: its path params and query, each a string; each is checked in `run`. */
 const routeInput = z.object({
   canvas: z.string(),
   id: z.string(),
@@ -543,7 +448,6 @@ const routeInput = z.object({
   r: z.string().optional(),
 });
 
-/** A scale as the address writes it: 0.25, 0.5, 1 or 2, and no other spelling. */
 const scales = new Map([
   ["0.25", 0.25],
   ["0.5", 0.5],
@@ -551,7 +455,6 @@ const scales = new Map([
   ["2", 2],
 ]);
 
-/** A picture's address on this server, as a path: what `frame.shot` answers, and a 307's Location. */
 const pictureAddress = operation({
   label: "pictures.address",
   input: z.object({
@@ -567,7 +470,6 @@ const pictureAddress = operation({
     `${picturePrefix}${at.canvas}/${at.id}/${at.version}?s=${at.s ?? ""}&k=${at.k}&kit=${at.kit}${at.r === undefined ? "" : `&r=${at.r}`}`,
 });
 
-/** A refusal: no body, never stored; a 503 says when to try again. */
 const refusal = operation({
   label: "pictures.refusal",
   input: z.union([z.literal(400), z.literal(404), z.literal(503)]),
@@ -580,7 +482,6 @@ const refusal = operation({
 
 const box = z.object({ x: z.number(), y: z.number(), w: z.number(), h: z.number() });
 
-/** `r=x,y,w,h`: four whole numbers of at most 5 digits. */
 const regionQuery = z
   .string()
   .regex(/^\d{1,5},\d{1,5},\d{1,5},\d{1,5}$/)
@@ -588,10 +489,6 @@ const regionQuery = z
   .pipe(z.tuple([z.number(), z.number(), z.number(), z.number()]))
   .transform(([x, y, w, h]) => ({ x, y, w, h }));
 
-/**
- * The scale and region a picture's query asks for (`region` null: the whole frame); null when
- * either is malformed.
- */
 const readAsk = operation({
   label: "pictures.ask",
   input: z.object({ s: z.string().optional(), r: z.string().optional() }),
@@ -604,10 +501,6 @@ const readAsk = operation({
   },
 });
 
-/**
- * The part of the frame to draw: the region, or the whole frame. Null when it is off the frame,
- * under a pixel either way, or its picture at the scale is past 16000 px a side or 8 MP.
- */
 const pictureBox = operation({
   label: "pictures.box",
   input: z.object({ region: box.nullable(), w: z.number(), h: z.number(), scale: z.number() }),
@@ -621,10 +514,8 @@ const pictureBox = operation({
   },
 });
 
-/** A version or a kit version as the address writes it: 1 to 999999999, no other spelling. */
 const numberQuery = /^[1-9]\d{0,8}$/;
 
-/** The current kit version; the store has one from the first start (`kitStart`). */
 const kitNow = operation({
   label: "pictures.kitNow",
   depends: { readKit },
@@ -636,11 +527,6 @@ const kitNow = operation({
   },
 });
 
-/**
- * The kit version to draw a stored version in: the one asked, when it is the current kit version
- * and the version is the current one, or when a request or a message refers to the two (a kept
- * view). Else null: no kit version asked, or another one.
- */
 const viewKit = operation({
   label: "pictures.viewKit",
   input: z.object({
@@ -662,7 +548,6 @@ const viewKit = operation({
   },
 });
 
-/** A version and a kit version as the address writes them; null when either is malformed. */
 const addressed = operation({
   label: "pictures.addressed",
   input: z.object({ version: z.string(), kit: z.string().optional() }),
@@ -676,10 +561,6 @@ const addressed = operation({
   },
 });
 
-/**
- * The look to draw a version in (`viewKit`), as stored, or null; and the current kit version, for
- * a redirect.
- */
 const viewLook = operation({
   label: "pictures.viewLook",
   input: z.object({
@@ -699,7 +580,6 @@ const viewLook = operation({
   },
 });
 
-/** A picture's version, read with its canvas's key generation: as `readPicture` answers it. */
 const readRow = z.object({
   current: z.number().nullable(),
   gen: z.number(),
@@ -715,12 +595,6 @@ const readRow = z.object({
     .nullable(),
 });
 
-/**
- * Where a picture address with a good key goes: the document to draw, with its made CSS, the kit
- * version's look and CSS, and the box, when the version is stored and the two are the current
- * ones or a kept view. Else 404 for a removed frame or a version not yet made; 307 to the address
- * of the current version in the current kit version for any other version or kit version.
- */
 const placePicture = operation({
   label: "pictures.place",
   input: routeInput.extend({ asked: z.number(), kit: z.number().nullable(), row: readRow }),
@@ -742,10 +616,6 @@ const placePicture = operation({
   },
 });
 
-/**
- * The version and the kit version a picture address names, when its key is good (`placePicture`).
- * Else 404 with pictures off, a malformed version or kit version, a missing frame or a wrong key.
- */
 const findPicture = operation({
   label: "pictures.find",
   input: routeInput,
@@ -776,11 +646,6 @@ const findPicture = operation({
   },
 });
 
-/**
- * The document of a picture: `compose` of an HTML frame; for an app frame (`js`), `composeApp`
- * of its JS with the runtime of the kit version that it was made for, at `runtimeOrigin`, and the
- * stored files of that runtime for the draw to serve.
- */
 const pictureDoc = operation({
   label: "pictures.doc",
   input: z.object({
@@ -809,11 +674,6 @@ const pictureDoc = operation({
   },
 });
 
-/**
- * Draws the box of the frame, composed with the kit version (`pictureDoc`): 400 off the frame or past the limits; 503 with no slot or past
- * 20 s; 404 when the version is not there any more (its frame was deleted and it is not kept) or
- * its keys changed during the draw; else the picture.
- */
 const drawPicture = operation({
   label: "pictures.draw",
   input: z.object({
@@ -861,15 +721,6 @@ const drawPicture = operation({
   },
 });
 
-/**
- * `GET /api/pictures/{canvas}/{id}/{version}`: the picture (SPEC-frames § Pictures). A scale
- * outside the four, a malformed region, or a region off the frame or past 8 MP or 16000 px a
- * side is 400. With pictures off, a wrong key, a missing frame, a version not yet made, or a
- * malformed kit version, 404. A kept view is drawn as the current one is, in its own kit version.
- * Another version or kit version, or none: 307 to the current one, with its key; of a removed
- * frame, 404. No slot in 5 s, or a draw past 20 s:
- * 503 with `Retry-After: 1`. A frame deleted or a link ended during the draw: 404.
- */
 export const pictureRoute = operation({
   label: "pictures.route",
   input: routeInput,
@@ -886,11 +737,6 @@ export const pictureRoute = operation({
   },
 });
 
-/**
- * `frame.shot`: the address of the frame's current version in the current kit version, with the
- * key the board carries for it. It draws nothing (fact rule 3). `off`: the server has no
- * Chromium; `gone`: no such frame.
- */
 export const shotFrame = operation({
   label: "frame.shot.do",
   input: framesApi["frame.shot"].input,
@@ -909,10 +755,6 @@ export const shotFrame = operation({
   },
 });
 
-/**
- * The readiness check `chromium` (SPEC-ops): with `EASEL_CHROMIUM` unset, pictures are off by
- * choice, and it holds. Set, the Chromium there must start.
- */
 export const chromiumCheck = operation({
   label: "pictures.chromiumCheck",
   depends: { state: pictureState, browser: chromiumBrowser },
@@ -930,11 +772,6 @@ export const chromiumCheck = operation({
   },
 });
 
-/**
- * The server's side of pictures, filled by the cmd. Install it before `framesServer`: the board's
- * keys need the secret. `chromium`: `EASEL_CHROMIUM`, or null; `database`: `EASEL_DB`, beside
- * which the secret is kept.
- */
 export const picturesServer = capsule({
   label: "picturesServer",
   config: { chromium: chromiumPath, database: pictureDatabase },

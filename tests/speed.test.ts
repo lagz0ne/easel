@@ -5,9 +5,6 @@ import { afterEach, expect, test } from "vite-plus/test";
 import { speedFile } from "@/speed/budget";
 import { hotName, hotPathFindings, speedGate, speedStats, speedVerdict } from "@/speed/verdict";
 
-// SPEC-speed.md § The design 3 and 4: the verdict of each step (its value against its budget, then
-// against the base), and the findings of the hot path list. `speed.json` holds the budgets.
-
 const closers: Array<() => unknown> = [];
 
 afterEach(async () => {
@@ -52,12 +49,10 @@ test("a step is in time, over its budget, or slower than the base by more than t
     p95: 1300,
   });
   expect(verdict([2100], [1000])).toMatchObject({ kind: "overBudget" });
-  // 15% over the base, but only 8 ms: under the floor (5% of the budget, 100 ms), so no alert.
   expect(verdict([62], [54])).toMatchObject({ kind: "inTime", value: 62 });
   expect(verdict([1150], [1049])).toMatchObject({ kind: "inTime" });
   expect(verdict([1200], [1050])).toMatchObject({ kind: "slowerThanBase", base: 1050 });
 
-  // The pan's budget is of its longest frame.
   const pan = { ms: 100, of: "max" } as const;
   const panned = app.run(speedVerdict, {
     input: { runs: [16, 17, 120], budget: pan, alert: 0.1, floor: 0.05 },
@@ -73,7 +68,6 @@ test("the gate is red when a step is over its budget or the hot path list has a 
   expect(gate(["inTime", "inTime"])).toEqual({ kind: "green" });
   expect(gate(["inTime", "slowerThanBase"])).toEqual({ kind: "alert" });
   expect(gate(["slowerThanBase", "overBudget"])).toEqual({ kind: "red" });
-  // A finding of the hot path list is red too, also when each step is in time.
   expect(gate(["inTime", "slowerThanBase"], 1)).toEqual({ kind: "red" });
 });
 
@@ -132,7 +126,6 @@ test("speed.json holds the budgets of SPEC-speed and of one move handler of a pa
   });
   expect(read.alert).toBe(0.1);
   expect(read.floor).toBe(0.05);
-  // The list of today (SPD-6): each item with a reason, so the list itself has no finding.
   expect(read.hotPath.map((item) => `${item.kind} ${item.name}`)).toEqual([
     "request /assets/index-*.js",
     "request /assets/index-*.css",

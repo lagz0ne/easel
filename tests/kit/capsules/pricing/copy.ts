@@ -2,9 +2,6 @@ import { resource } from "@tinkered/core";
 
 import { copy, type Texts } from "@/kit/capsules/copy";
 
-// The texts of the pricing frame, in each locale, and its `t`: the View and the PlanCard depend on
-// `text`, so the graph shows that they use these texts.
-
 export const texts = {
   en: {
     "pricing.title": "Plans for each team",

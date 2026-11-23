@@ -7,29 +7,18 @@ import { kitVersion } from "@/kit/contract";
 import { message, request } from "./cells";
 import { delivery } from "./channels";
 
-// The queue's contract (SPEC-queue.md § Contract): the CLI and the page import it. `requestApi`
-// holds the calls of a viewer (or a user): `mayAct` runs first, for the canvas that the call names
-// (fact rule 1). `queueApi` holds the calls of an agent: the `user` guard runs first (fact rule
-// 3). The cells are in `./cells`, on `easel.board`.
-
-/** After this many tries with no outcome, a request needs a person (judged rule 11). */
 export const maxTries = 3;
 
-/** A canvas holds at most this many requests in `open`, `asking` or `person` (judged rule 14). */
 export const maxOpen = 200;
 
-/** The lease of a claim, in seconds: 30 to 3600, 300 when none is given. */
 export const lease = z.number().int().min(30).max(3600);
 export const defaultLease = 300;
 
-/** How long `request.next` waits on the server, in seconds: 0 to 50 (judged rule 12). */
 export const maxWait = 50;
 export const wait = z.number().min(0).max(maxWait);
 
-/** The largest HTML part: 256 KiB of UTF-8. */
 export const maxHtmlBytes = 256 * 1024;
 
-/** The state of a request, from the board and the time of the server (§ Contract, the table). */
 export const state = z.enum([
   "waiting",
   "inWork",
@@ -42,40 +31,28 @@ export const state = z.enum([
 
 export type State = z.infer<typeof state>;
 
-/** A request's text, a reason, a note: 1 to 2000 characters, not only spaces. */
 export const text = z
   .string()
   .max(2000)
   .refine((t) => t.trim().length > 0, "1 to 2000 characters");
 
-/** The client key of `request.add`: 16 to 64 characters (an idempotency key). */
 export const clientKey = z.string().min(16).max(64);
 
-/** An HTML part: a full HTML document of at most 256 KiB of UTF-8. */
 export const htmlPart = z
   .string()
   .refine((html) => new TextEncoder().encode(html).length <= maxHtmlBytes, "at most 256 KiB")
   .refine((html) => /^\s*(<!doctype html|<html[\s>])/i.test(html), "a full HTML document");
 
-/** The options of a question: 2 to 6 of 1 to 200 characters. */
 export const options = z.array(z.string().min(1).max(200)).min(2).max(6);
 
-/** A request's number on its canvas. */
 export const requestN = z.number().int().positive();
 
-/** A claim: the request's id, a dot, and 128 random bits. The server keeps only its digest. */
 export const claimHandle = z
   .string()
   .regex(/^[0-9a-f]{12}\.[0-9a-f]{32}$/, "not a claim: `easel next` prints it");
 
-/** A place on the board: finite numbers. */
 const place = z.number().finite();
 
-/**
- * `request.add`'s input: on a frame (its id and the version the viewer saw), or on the canvas
- * (both `null`), with the kit version that the viewer saw (SPEC-kit K10). With no `kit` (the
- * page has not got the kit yet), the request keeps the current kit version.
- */
 export const addInput = z.union([
   z.strictObject({
     canvas: canvasKey,
@@ -107,19 +84,12 @@ const slow = z.object({ kind: z.literal("slow"), retryIn: z.number() });
 const wrongState = z.object({ kind: z.literal("wrongState"), state });
 const lost = z.object({ kind: z.literal("lost") });
 
-/** A viewer's call that failed: the state now, a removed request, or too fast. */
 const refused = [wrongState, gone, slow] as const;
 
-/** An agent's call on a claim that failed: the state now, a lease that ran out, or no request. */
 const lostOr = [wrongState, lost, gone] as const;
 
-/**
- * What a claim allows (judged rule 15). The `request.next` answer carries it, and the CLI prints
- * it before the request.
- */
 export const claimNote = z.string();
 
-/** The calls of a viewer, or of a user, with their inputs and outputs. */
 export const requestContracts = {
   "request.add": {
     input: addInput,
@@ -156,10 +126,8 @@ export const requestContracts = {
   },
 };
 
-/** The calls of a viewer, or of a user: `mayAct` runs first. */
 export const requestApi = rpc(requestContracts);
 
-/** `request.next`'s input: `n` needs `canvas` (rule 21). */
 export const nextInput = z
   .strictObject({
     canvas: canvasKey.optional(),
@@ -169,7 +137,6 @@ export const nextInput = z
   })
   .refine((call) => call.n === undefined || call.canvas !== undefined, "n needs canvas");
 
-/** The calls of an agent, with their inputs and outputs. The CLI reads its answers by them. */
 export const queueContracts = {
   "request.next": {
     input: nextInput,
@@ -178,14 +145,8 @@ export const queueContracts = {
         kind: z.literal("claimed"),
         request,
         messages: z.array(message),
-        /** The frame now; `null` for a request on the canvas, or a frame that was removed. */
         frame: frame.nullable(),
-        /**
-         * The version and the kit version that the viewer saw, with the document; `null` when it
-         * is not kept.
-         */
         saw: z.object({ version: z.number(), kit: z.number(), doc: z.string() }).nullable(),
-        /** For a request on the canvas: its frames. Else `null`. */
         frames: z.array(frameInfo).nullable(),
         claim: z.string(),
         until: z.number(),
@@ -233,7 +194,6 @@ export const queueContracts = {
       z.object({
         kind: z.literal("listed"),
         deliveries: z.array(delivery),
-        /** How many channels the server has now: with none and no delivery, the CLI says so. */
         channels: z.number(),
       }),
       gone,
@@ -241,7 +201,6 @@ export const queueContracts = {
   },
 };
 
-/** The calls of an agent: the `user` guard runs first. */
 export const queueApi = rpc(queueContracts);
 
 export type QueueAddress = Extract<keyof typeof queueApi.contracts, string>;
@@ -254,7 +213,6 @@ type RequestKind<A extends RequestAddress> = KindOf<
   Awaited<ReturnType<(typeof requestApi)[A]["run"]>>
 >;
 
-/** SPEC.md rule 1: the success kinds of an agent's calls. The CLI's exit code reads them. */
 export const queueSuccessKinds = {
   "request.next": ["claimed", "empty"],
   "request.extend": ["extended"],
@@ -266,7 +224,6 @@ export const queueSuccessKinds = {
   "request.deliveries": ["listed"],
 } as const satisfies { readonly [A in QueueAddress]: readonly QueueKind<A>[] };
 
-/** SPEC.md rule 1: the success kinds of a viewer's calls. */
 export const requestSuccessKinds = {
   "request.add": ["added"],
   "request.edit": ["edited"],
@@ -276,15 +233,8 @@ export const requestSuccessKinds = {
   "request.close": ["closed"],
 } as const satisfies { readonly [A in RequestAddress]: readonly RequestKind<A>[] };
 
-/** The state of a status that the time and the tries do not change. */
 const stillStates = { person: "person", asking: "question", closed: "closed" } as const;
 
-/**
- * The state of a request at `now`, the time of the server (§ Contract, the table). A lease ends
- * by time alone: past `claimedUntil`, an `open` request is waiting, or needs a person at 3 tries
- * (judged rules 7, 11). The page runs it with the clock offset of the board; the server, with its
- * clock.
- */
 export const stateOf = operation({
   label: "queue.stateOf",
   input: z.object({

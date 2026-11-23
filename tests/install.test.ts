@@ -17,11 +17,6 @@ import { afterEach, expect, test } from "vite-plus/test";
 
 import { release } from "@/release";
 
-// `GET /install.sh` and its script (SPEC-cli.md § Get the command line), run by a real shell
-// against a fake release on this machine: no network. A fake `uname` (and `sysctl`) says which
-// system it is. The shells are `sh`, and `dash` and `busybox sh` when the machine has them: a
-// GitHub run on Ubuntu pipes it to dash.
-
 type Cmd = typeof import("../cmds/server");
 
 const root = new URL("..", import.meta.url).pathname;
@@ -32,7 +27,6 @@ afterEach(async () => {
   for (const close of closers.splice(0).reverse()) await close();
 });
 
-/** The binaries of the fake build 412: each one a script that says which it is. */
 const binaries = Object.fromEntries(
   ["darwin-arm64", "linux-x64", "linux-arm64"].map((target) => [
     `easel-${target}`,
@@ -42,7 +36,6 @@ const binaries = Object.fromEntries(
 
 const sumOf = (text: string) => createHash("sha256").update(text).digest("hex");
 
-/** The release `build-412` as GitHub serves it: each asset, and SHA256SUMS. Asked paths are kept. */
 function fakeRelease(sums = binaries) {
   const asked: string[] = [];
   const files: Record<string, string> = {
@@ -66,7 +59,6 @@ function fakeRelease(sums = binaries) {
   return { url: `http://127.0.0.1:${server.port}`, asked, files };
 }
 
-/** The script the release capsule serves, for this easel and this fake release. */
 async function scriptOf(downloads: string, build = 412) {
   const scope = await createScope({
     capsules: [
@@ -83,7 +75,6 @@ async function scriptOf(downloads: string, build = 412) {
 
 const shells = [["sh"], ["dash"], ["busybox", "sh"]].filter(([bin]) => Bun.which(bin ?? ""));
 
-/** A clean home with a fake `uname -s` / `uname -m` (and `sysctl`), first on the PATH. */
 function machine(os: string, arch: string, rosetta = "0") {
   const home = mkdtempSync(join(tmpdir(), "easel-install-"));
   closers.push(() => rmSync(home, { recursive: true, force: true }));
@@ -100,7 +91,6 @@ function machine(os: string, arch: string, rosetta = "0") {
   return { home, path: `${fake}:/usr/local/bin:/usr/bin:/bin` };
 }
 
-/** `curl -fsSL <easel>/install.sh | <shell>`: the script on stdin, as the install line runs it. */
 async function pipe(shell: string[], script: string, at: ReturnType<typeof machine>, env = {}) {
   const child = Bun.spawn(shell, {
     stdin: new Blob([script]),
@@ -138,7 +128,6 @@ test.each(shells)(
 
     const linux = machine("Linux", "x86_64");
     const run = await pipe(shell, text, linux);
-    // stderr holds curl's progress bar, and no `easel install:` line.
     expect(run.code).toBe(0);
     expect(run.err).not.toContain("easel install:");
     expect(run.out).toContain(`easel build 412 (linux-x64) is in ${linux.home}/.local/bin/easel`);
@@ -163,7 +152,6 @@ test.each(shells)(
     expect(readFileSync(join(dir, "easel"), "utf8")).toBe(binaries["easel-darwin-arm64"]);
     expect(existsSync(join(mac.home, ".local"))).toBe(false);
 
-    // A shell under Rosetta says x86_64: the Apple chip still gets darwin-arm64.
     const rosetta = machine("Darwin", "x86_64", "1");
     expect((await pipe(shell, text, rosetta)).code).toBe(0);
     expect(readFileSync(join(rosetta.home, ".local", "bin", "easel"), "utf8")).toBe(

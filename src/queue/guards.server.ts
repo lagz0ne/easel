@@ -5,28 +5,14 @@ import { caller, digestOf, user } from "@/access/guards.server";
 import { endedRefusal, lockedRefusal, passMeta } from "@/frames/share";
 import { passCanvas } from "@/frames/share.server";
 
-// Who calls a viewer's call (SPEC-queue.md fact rules 1, 2). `mayAct` is frames' `mayRead` for
-// the canvas that the call names: a live pass for that canvas, or a live user. It binds the
-// sender, so a call takes the name from the pass or the user, never from the input.
-
-/** A viewer's sender: the name from the pass, and the key its limits count under. */
 export const sender = tag<{ readonly name: string; readonly key: string }>({
   label: "queue.sender",
 });
 
-/** What `mayAct` refuses a pass with no name: the page asks the name, and opens again with it. */
 export const nameRefusal = { name: true } as const;
 
-/** The canvas that a call names, if its input has one. */
 const namedCanvas = z.object({ canvas: z.string() });
 
-/**
- * Every viewer's call (fact rule 1). A call whose meta carries a pass is judged by the pass
- * alone: one that a password set or changed ended is refused `{ locked: true }`; one that is not
- * live for the canvas that the call names is refused `{ ended: true }`; a live one with no name
- * is refused `{ name: true }`. Any other call goes to `user`: no token, or a dead one, is refused
- * `{ signIn: true }`.
- */
 export const mayAct = operation({
   label: "queue.mayAct",
   input: transport.hook.start,
@@ -53,10 +39,6 @@ export const mayAct = operation({
   },
 });
 
-/**
- * Who sends a viewer's call: the pass's viewer, or the user, as `mayAct` bound them. A user's
- * limits count under the name.
- */
 export const whoActs = operation({
   label: "queue.whoActs",
   depends: { pass: sender.optional, me: caller.optional },
