@@ -85,44 +85,45 @@ Prior art:
 
 Tools, one per call. They are named after the call, and their inputs match the CLI flags.
 
-| Tool              | Call               | Annotations             |
-| ----------------- | ------------------ | ----------------------- |
-| `list_canvases`   | `canvas.list`      | readOnly                |
-| `create_canvas`   | `canvas.create`    |                         |
-| `delete_canvas`   | `canvas.delete`    | destructive             |
-| `share_canvas`    | `canvas.share`     | destructive, idempotent |
-| `unshare_canvas`  | `canvas.unshare`   | destructive, idempotent |
-| `list_frames`     | `frame.list`       | readOnly                |
-| `get_frame`       | `frame.get`        | readOnly                |
-| `put_frame`       | `frame.put`        |                         |
-| `move_frame`      | `frame.move`       | idempotent              |
-| `delete_frame`    | `frame.delete`     | destructive             |
-| `shot_frame`      | `frame.shot`       | readOnly                |
-| `kit_guide`       | `kit.guide`        | readOnly                |
-| `kit_capsules`    | `kit.capsules`     | readOnly                |
-| `list_pieces`     | `kit.list`         | readOnly                |
-| `get_piece`       | `kit.get`          | readOnly                |
-| `put_piece`       | `kit.put`          |                         |
-| `check_frame`     | `kit.check`        | readOnly                |
-| `accept_kit`      | `kit.accept`       | idempotent              |
-| `get_look`        | `look.get`         | readOnly                |
-| `set_look`        | `look.set`         |                         |
-| `undo_look`       | `look.undo`        |                         |
-| `next_request`    | `request.next`     |                         |
-| `extend_request`  | `request.extend`   | idempotent              |
-| `release_request` | `request.release`  | idempotent              |
-| `decline_request` | `request.decline`  | idempotent              |
-| `ask_request`     | `request.ask`      |                         |
-| `resolve_request` | `request.resolve`  |                         |
-| `list_requests`   | `request.list`     | readOnly                |
-| `list_users`      | `users.list`       | readOnly (owner)        |
-| `approve_user`    | `users.approve`    | owner                   |
-| `deny_user`       | `users.deny`       | owner                   |
-| `revoke_user`     | `users.revoke`     | destructive (owner)     |
-| `status`          | `ops.status`       | readOnly                |
-| `list_errors`     | `ops.errors`       | readOnly (owner)        |
-| `show_error`      | `ops.error`        | readOnly (owner)        |
-| `resolve_error`   | `ops.resolveError` | idempotent (owner)      |
+| Tool              | Call                 | Annotations             |
+| ----------------- | -------------------- | ----------------------- |
+| `list_canvases`   | `canvas.list`        | readOnly                |
+| `create_canvas`   | `canvas.create`      |                         |
+| `delete_canvas`   | `canvas.delete`      | destructive             |
+| `share_canvas`    | `canvas.share`       | destructive, idempotent |
+| `unshare_canvas`  | `canvas.unshare`     | destructive, idempotent |
+| `list_frames`     | `frame.list`         | readOnly                |
+| `get_frame`       | `frame.get`          | readOnly                |
+| `put_frame`       | `frame.put`          |                         |
+| `move_frame`      | `frame.move`         | idempotent              |
+| `delete_frame`    | `frame.delete`       | destructive             |
+| `shot_frame`      | `frame.shot`         | readOnly                |
+| `kit_guide`       | `kit.guide`          | readOnly                |
+| `kit_capsules`    | `kit.capsules`       | readOnly                |
+| `list_pieces`     | `kit.list`           | readOnly                |
+| `get_piece`       | `kit.get`            | readOnly                |
+| `put_piece`       | `kit.put`            |                         |
+| `check_frame`     | `kit.check`          | readOnly                |
+| `accept_kit`      | `kit.accept`         | idempotent              |
+| `get_look`        | `look.get`           | readOnly                |
+| `set_look`        | `look.set`           |                         |
+| `undo_look`       | `look.undo`          |                         |
+| `next_request`    | `request.next`       |                         |
+| `extend_request`  | `request.extend`     | idempotent              |
+| `release_request` | `request.release`    | idempotent              |
+| `decline_request` | `request.decline`    | idempotent              |
+| `ask_request`     | `request.ask`        |                         |
+| `resolve_request` | `request.resolve`    |                         |
+| `list_requests`   | `request.list`       | readOnly                |
+| `list_deliveries` | `request.deliveries` | readOnly                |
+| `list_users`      | `users.list`         | readOnly (owner)        |
+| `approve_user`    | `users.approve`      | owner                   |
+| `deny_user`       | `users.deny`         | owner                   |
+| `revoke_user`     | `users.revoke`       | destructive (owner)     |
+| `status`          | `ops.status`         | readOnly                |
+| `list_errors`     | `ops.errors`         | readOnly (owner)        |
+| `show_error`      | `ops.error`          | readOnly (owner)        |
+| `resolve_error`   | `ops.resolveError`   | idempotent (owner)      |
 
 The calls with no tool, on purpose, are these. Each is CLI only, or the page's:
 
@@ -164,7 +165,8 @@ The calls with no tool, on purpose, are these. Each is CLI only, or the page's:
 1. Each tool runs exactly one operation, the one its CLI command runs. No tool has logic of its
    own.
 2. The tool table is built from the rpc contract: every contract call is a tool in the table
-   above, or is on the no-tool list above, and none is both.
+   above, or is on the no-tool list above, and none is both. The contract here is easel's own: the
+   demo modules of the starter (`issues`, `todo`), which the smoke uses, get no tool.
 3. Each tool call runs the same `onStart` guards as the socket. `/mcp` runs the `user` guard
    ([access](SPEC-access.md)) once per request, before any tool.
 4. `easel mcp` reads `hosts.json` only through the CLI cmd, and reaches the server only through the
