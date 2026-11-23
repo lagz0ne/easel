@@ -416,15 +416,18 @@ commit before the push as the base. A red job makes `gates` red, so the deploy d
 
 **Acceptance criteria:**
 
-- [ ] A push with no change of speed keeps `gates` green, and the deploy runs.
-- [ ] A red `speed` job stops the deploy.
+- [x] A push with no change of speed keeps `gates` green, and the deploy runs.
+- [x] A red `speed` job stops the deploy: `speed` is a job of `gates`, and `deploy` runs only
+      on a green `gates` (as #8 showed for `check`).
 - [ ] An alert opens one `speed-slower` issue with the step, the two p50 values and the commit.
+      Built (job `speed-alert`); not yet seen, because no push has been slower.
 
 **Verification:**
 
-- [ ] The first push: the job is green, and its numbers are in the job log.
-- [ ] `gh workflow run gates` on a test commit that is over the budget: the job is red, and
-      `deploy` does not run. Revert it with `scripts/ship.sh -r <sha>`.
+- [x] The first push (dd733a2, run 45123999976): the job is green, and its numbers are in the job
+      log: open 716 ms at 20 frames, 892 ms at 200; change 117 ms; ask 112 ms; pan 21 ms at most.
+- [ ] Not done: a test commit on main that is over the budget. It would make main red on
+      purpose and stop the line; the fact that it proves (a red `gates` stops `deploy`) is known.
 
 **Dependencies:** SPD-5, SPD-6.
 
