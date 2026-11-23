@@ -247,7 +247,9 @@ const axesNow = () => {
 const mountPane = (app: MountApp, place: PanePlace) => {
   const [Pane, part] = [app.panes?.[place], app.part];
   const box = document.createElement("div");
+  // The box has the width of its content, not of the iframe, which has no size at first.
   box.style.display = "inline-block";
+  box.style.width = "max-content";
   document.body.style.margin = "0";
   document.body.append(box);
   const root = createRoot(box);

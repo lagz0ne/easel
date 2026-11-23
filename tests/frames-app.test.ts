@@ -347,6 +347,8 @@ const parentPage = (html: string, places: readonly PanePlace[] = []) => `<!docty
     const el = document.createElement("iframe");
     el.sandbox = "allow-scripts";
     el.dataset.place = place;
+    // As in the viewer: no size until the pane posts the size of its content.
+    el.style.cssText = "width:0;height:0;border:0";
     document.body.append(el);
     panes[place] = { el, port: null };
     el.srcdoc = doc;
@@ -369,7 +371,10 @@ const parentPage = (html: string, places: readonly PanePlace[] = []) => `<!docty
       const own = new MessageChannel();
       pane.port = own.port1;
       own.port1.onmessage = (m) => {
-        if (m.data.easel === "size") window.paneSizes[place] = m.data;
+        if (m.data.easel !== "size") return;
+        window.paneSizes[place] = m.data;
+        pane.el.style.width = m.data.w + "px";
+        pane.el.style.height = m.data.h + "px";
       };
       pane.el.contentWindow.postMessage({ easel: "port" }, "*", [own.port2]);
       give(place);
@@ -798,6 +803,13 @@ test(
     // The pane's own state: the field is empty after the call.
     expect(await right.getByRole("textbox", { name: "Name" }).inputValue()).toBe("");
     const sizes = await page.evaluate((): unknown => Reflect.get(window, "paneSizes"));
+    // The pane has the size of its content: the count is on one line, beside the button.
+    const lines = await top.getByText("3 people").evaluate((el) => {
+      const range = document.createRange();
+      range.selectNodeContents(el);
+      return range.getClientRects().length;
+    });
+    expect(lines).toBe(1);
     expect(sizes).toMatchObject({
       top: { w: expect.any(Number), h: expect.any(Number) },
       right: { w: expect.any(Number), h: expect.any(Number) },
