@@ -1,6 +1,6 @@
 # Spec Delta: mcp-auth
 
-Status: approved (2026-11-23)
+Status: approved (2026-11-23). A functional subset is built first; see [Built first](#built-first).
 
 A delta of [SPEC-mcp](SPEC-mcp.md) and [SPEC-access](SPEC-access.md). Module `mcp-auth` of
 [MAP-round-1](MAP-round-1.md). It implements C1 and C2 of
@@ -182,6 +182,24 @@ The model of the password, the sign-in and the tokens is the chart
   and an agent in the Claude mobile app lists the canvases. Then `easel users revoke` stops it.
 - Each rule of the new chart holds, and a test walks each path that the chart draws. `tinker check`
   is OK.
+
+## Built first
+
+The user decided on 2026-11-23: "Dont rush for super safe auth first. Let's make the app
+functional". So a subset is live first, and the rest of this spec is the hardening.
+
+- `easel users add <name> [--owner]` makes a user and prints its token one time. It is an easel
+  token, as from `easel login`, with no expiry. No MCP tool shows it.
+- The 401, the two metadata routes, and `/oauth/authorize` and `/oauth/token` are as above.
+- The sign-in page asks for the easel token, not a one-time password.
+- easel fetches no client document. It sends a code only to Claude's callback
+  (`claude.ai` or `claude.com`) or to a loopback address.
+- A code works one time, for 60 seconds, with PKCE S256. It is kept in memory: a restart loses it.
+- The token endpoint gives the easel token itself as the access token, with no refresh token and
+  no expiry. `easel users revoke` stops it at once, as it stops any token.
+
+Not yet: the one-time password, the 1-hour access token, the refresh rotation of the chart, the
+client document fetch, the rate limit of the page, and the client in `easel users`.
 
 ## Out of Scope (Deferred)
 

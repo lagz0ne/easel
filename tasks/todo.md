@@ -504,6 +504,11 @@ the throttled open (3.0 s on 2026-11-23) comes near 2 s, or when a team works on
 The spec is [SPEC-mcp-auth.md](../SPEC-mcp-auth.md) (approved on 2026-11-23). Each task ships
 with no link from a page: the routes work, but no client finds them until MA-6 changes the 401.
 
+Changed on 2026-11-23 (user: "Dont rush for super safe auth first. Let's make the app
+functional"). Two slices are live: the OAuth routes with the easel token as the password and as
+the access token (23dcc47), and `easel users add` (6a635cf). See "Built first" in the spec. MA-2
+to MA-6 are now the hardening, and wait until the connector works in Claude by hand (MA-7).
+
 ### MA-1: the model and the chart of a connector
 
 **Description:** A TLA+ model of one connector: an owner makes its password, a person signs in
