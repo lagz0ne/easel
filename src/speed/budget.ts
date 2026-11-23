@@ -16,6 +16,7 @@ export const hotItem = z.object({
 export const speedFile = z.object({
   /** A step whose value is more than this part over the base's gives an alert (0.1: 10%). */
   alert: z.number().positive(),
-  budgets: z.object({ open: budget, change: budget, ask: budget, pan: budget }),
+  /** `panHandler`: one move handler of a pan (it moved here from a browser test, SPD-4). */
+  budgets: z.object({ open: budget, change: budget, ask: budget, pan: budget, panHandler: budget }),
   hotPath: z.array(hotItem),
 });

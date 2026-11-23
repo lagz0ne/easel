@@ -301,19 +301,33 @@ throttled run (4× CPU, 40 ms round trip) to the report only.
 
 **Acceptance criteria:**
 
-- [ ] The output has each step at 20 frames, and `open`, `change` and `pan` at 200 frames.
-- [ ] `pan` gives the longest frame in ms, against its budget of 100 ms.
-- [ ] `pan` also gives the p95 time of one move handler, against a budget of 8 ms in
+- [x] The output has each step at 20 frames, and `open`, `change` and `pan` at 200 frames.
+- [x] `pan` gives the longest frame in ms, against its budget of 100 ms.
+- [x] `pan` also gives the p95 time of one move handler, against a budget of 8 ms in
       `speed.json`. It moved from `tests/browser/viewer-canvas.test.tsx`, where an absolute bound
       failed only sometimes on a shared runner.
 
 **Verification:**
 
-- [ ] `offload -- bun run speed`: its output goes in the ship message.
+- [x] `offload -- bun run speed`: its output goes in the ship message.
+
+**Notes (done 2026-11-23):**
+
+- `pan` takes the frame times from an animation frame loop in the page, not from a
+  `PerformanceObserver`: one loop gives each frame and each move's handler of the same pan. A
+  long frame shows as a long gap between two animation frames.
+- `change live`: the tab zooms in to 40%, where 4 frames are live, so `change` also measures a
+  live document.
+- A first `ask` was 1.6 s. The cause was the measure: the click listener did not see the icon
+  Send, so each time counted from the first click. With the fix, `ask` is about 100 ms.
+- `change` at 200 frames had p50 118 ms in one run and 214 ms in the next. SPD-6 must keep such
+  a step from a false alert of 10%.
+- The handler budget is 0.3 ms p95 here, against 8.5 ms in the browser test: the browser test
+  runs in the Vitest page, with 12 live frames.
 
 **Dependencies:** SPD-3.
 
-**Files likely touched:** `scripts/speed.ts`, `scripts/speed-seed.ts`.
+**Files touched:** `scripts/speed.ts`, `speed.json`, `src/speed/budget.ts`.
 
 **Estimated scope:** M.
 

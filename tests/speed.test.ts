@@ -88,7 +88,7 @@ test("the hot path: an item that loads before easel:open and is not on the list 
   ).toEqual([]);
 });
 
-test("speed.json holds the budgets of SPEC-speed, the alert of 10%, and the hot path list", async () => {
+test("speed.json holds the budgets of SPEC-speed and of one move handler of a pan, the alert of 10%, and the hot path list", async () => {
   const read = speedFile.parse(await Bun.file(new URL("../speed.json", import.meta.url)).json());
 
   expect(read.budgets).toEqual({
@@ -96,6 +96,7 @@ test("speed.json holds the budgets of SPEC-speed, the alert of 10%, and the hot 
     change: { ms: 1000, of: "p50" },
     ask: { ms: 1000, of: "p50" },
     pan: { ms: 100, of: "max" },
+    panHandler: { ms: 8, of: "p95" },
   });
   expect(read.alert).toBe(0.1);
   expect(read.hotPath).toEqual([]);

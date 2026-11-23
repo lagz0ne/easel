@@ -1,12 +1,16 @@
 // The speed run (SPEC-speed.md § The design 2): the time of each step of the critical path, on
 // the BUILT binary, in a real Chromium, against the budgets of speed.json.
 //
-// It builds the binary, starts it with a new database, and seeds a canvas of 20 frames through
-// MCP over HTTP, as an agent does. Then it measures, 7 times each:
+// It builds the binary, starts it with a new database, and seeds a canvas of 20 frames and one of
+// 200 through MCP over HTTP, as an agent does. Then it measures, 7 times each:
 //   open    from the start of the share link's load to the page's mark `easel:open` (warm: the
-//           browser has the files; one cold run, with an empty cache, is only reported).
+//           browser has the files). One cold open (an empty cache) and one throttled open (4x
+//           CPU, 40 ms round trip) are only reported.
 //   change  from the answer of an agent's put to the mark `easel:change:<id>:<version>` in an
-//           open tab.
+//           open tab: at Fit, and zoomed in on a live document.
+//   ask     from the click on Send in one tab to the mark `easel:ask:<id>` in another tab.
+//   pan     a 2 s pan at 40% on 200 frames: the time of each frame (its budget is of the longest),
+//           and of each move's handler (`panHandler`, of the p95).
 // One line for each step: p50, p95, the budget and the verdict. The exit is 1 when a step is over
 // its budget. Chromium has the flags of docs/canvas-speed.md "How to measure".
 //
@@ -18,7 +22,7 @@ import { join } from "node:path";
 
 import { createScope } from "@tinkered/core";
 import { chromium } from "playwright";
-import type { Page } from "playwright";
+import type { BrowserContext, Page } from "playwright";
 import { z } from "zod";
 
 import { speedFile } from "@/speed/budget";
@@ -26,7 +30,6 @@ import { speedVerdict } from "@/speed/verdict";
 
 const root = join(import.meta.dir, "..");
 const runs = 7;
-const frames = 20;
 
 const flags = [
   "--enable-unsafe-swiftshader",
@@ -95,62 +98,67 @@ const browser = await chromium.launch({ executablePath: chromiumPath, args: flag
 
 try {
   await up();
-  const token = signIn();
-  const mcp = tools(token);
-  const seeded = await seed(mcp);
-  const warm = await browser.newContext({ viewport });
-
-  // A first open draws each picture and fills the cache; it is not measured.
-  const first = await warm.newPage();
-  await first.goto(seeded.link);
-  await markOf(first, "easel:open", 60_000);
-  await first.close();
-
-  const open: number[] = [];
-  for (let i = 0; i < runs; i++) open.push(await openTime(await warm.newPage(), seeded.link));
-  const cold = await browser.newContext({ viewport });
-  const coldOpen = await openTime(await cold.newPage(), seeded.link);
-  await cold.close();
-
-  const tab = await warm.newPage();
-  await tab.goto(seeded.link);
-  await markOf(tab, "easel:open", 30_000);
-  const shown = await tab.evaluate(() => ({
-    live: document.querySelectorAll("iframe.e-doc").length,
-    zoom: document.querySelector("output[aria-label=Zoom]")?.textContent ?? "",
-  }));
-  const id = await centreFrame(tab);
-  const change: number[] = [];
-  let version = seeded.versions.get(id) ?? 1;
-  for (let i = 0; i < runs; i++) {
-    const put = await mcp("put_frame", {
-      canvas: seeded.canvas,
-      id,
-      base: version,
-      html: doc(id, i + 2),
-    });
-    version = z.object({ version: z.number() }).parse(put.answer).version;
-    const at = await markOf(tab, `easel:change:${id}:${version}`, 10_000);
-    change.push(at - put.at);
-  }
-
-  console.log(
-    `speed: ${frames} frames, ${shown.live} live at Fit (zoom ${shown.zoom}), ${viewport.width}x${viewport.height}, ${chromiumPath}`,
-  );
+  const mcp = tools(signIn());
   const scope = createScope();
-  const steps = [
-    { step: "open", runs: open, budget: budgets.budgets.open },
-    { step: "change", runs: change, budget: budgets.budgets.change },
-  ];
+  const rows: Row[] = [];
+  const notes: string[] = [];
+
+  // 20 frames: open (warm, cold, throttled), change at Fit and on a live document, ask.
+  const small = await seed(mcp, "Speed 20", 20);
+  const warm = await browser.newContext({ viewport });
+  await warmUp(warm, small.link, 60_000);
+  rows.push({ step: "open", frames: 20, runs: await opens(warm, small.link, runs) });
+  const cold = await browser.newContext({ viewport });
+  notes.push(`open   20 frames  cold ${ms((await opens(cold, small.link, 1))[0] ?? 0)}`);
+  await cold.close();
+  const slow = await browser.newContext({ viewport });
+  notes.push(
+    `open   20 frames  4x CPU, 40 ms round trip ${ms(await throttledOpen(slow, small.link))}`,
+  );
+  await slow.close();
+
+  const tab = await opened(warm, small.link);
+  notes.push(await shownAt(tab, "20 frames at Fit"));
+  rows.push({ step: "change", frames: 20, runs: await changes(tab, mcp, small) });
+  await zoomTo(tab, 40);
+  notes.push(await shownAt(tab, "20 frames zoomed in"));
+  rows.push({ step: "change", frames: 20, where: "live", runs: await changes(tab, mcp, small) });
+  await tab.close();
+  rows.push({ step: "ask", frames: 20, runs: await asks(warm, small.link) });
+  await warm.close();
+
+  // 200 frames: open, change at Fit, and the pan.
+  const big = await seed(mcp, "Speed 200", 200);
+  const many = await browser.newContext({ viewport });
+  await warmUp(many, big.link, 300_000);
+  rows.push({ step: "open", frames: 200, runs: await opens(many, big.link, runs) });
+  const wide = await opened(many, big.link);
+  notes.push(await shownAt(wide, "200 frames at Fit"));
+  rows.push({ step: "change", frames: 200, runs: await changes(wide, mcp, big) });
+  await zoomTo(wide, 40);
+  notes.push(await shownAt(wide, "200 frames for the pan"));
+  const panned = await pans(wide);
+  rows.push({ step: "pan", frames: 200, runs: panned.frames });
+  rows.push({ step: "panHandler", frames: 200, runs: panned.handlers });
+  await many.close();
+
+  console.log(`speed: ${viewport.width}x${viewport.height}, ${chromiumPath}`);
+  for (const note of notes.filter((n) => n.includes("live"))) console.log(`speed: ${note}`);
   let over = false;
-  for (const s of steps) {
-    const v = scope.run(speedVerdict, { input: { ...s, alert: budgets.alert } });
+  for (const row of rows) {
+    const budget = budgets.budgets[row.step];
+    const v = scope.run(speedVerdict, { input: { runs: row.runs, budget, alert: budgets.alert } });
     over ||= v.kind === "overBudget";
+
+    const name = `${row.step}${row.where ? ` ${row.where}` : ""}`.padEnd(11);
+    const stat = budget.of === "max" ? `  max ${ms(v.value)}` : "";
     console.log(
-      `speed: ${s.step.padEnd(6)} ${frames} frames  p50 ${ms(v.p50)}  p95 ${ms(v.p95)}  budget ${ms(s.budget.ms)} (${s.budget.of})  ${v.kind}`,
+      `speed: ${name} ${String(row.frames).padStart(3)} frames  p50 ${ms(v.p50)}  p95 ${ms(v.p95)}${stat}  budget ${ms(budget.ms)} (${budget.of})  ${v.kind}`,
     );
   }
-  console.log(`speed: open   ${frames} frames  cold ${ms(coldOpen)}  (report only)`);
+  for (const note of notes.filter((n) => !n.includes("live"))) {
+    console.log(`speed: ${note}  (report only)`);
+  }
   await scope.close();
   process.exitCode = over ? 1 : 0;
 } finally {
@@ -160,8 +168,9 @@ try {
   rmSync(dir, { recursive: true, force: true });
 }
 
+/** A time in ms: one decimal below 10 ms (a move's handler), else whole. */
 function ms(n: number) {
-  return `${Math.round(n)} ms`.padStart(7);
+  return `${n < 10 ? n.toFixed(1) : Math.round(n)} ms`.padStart(7);
 }
 
 /** The server answers /api/health, in 30 s at most (a busy host has taken over 10 s). */
@@ -233,17 +242,27 @@ function doc(id: string, version: number) {
   return `<main style="font:16px system-ui;padding:24px;display:grid;gap:12px"><h1 style="margin:0">Screen ${id}</h1><p>Version ${version}: a list of things to do, with a form to add one.</p><ul>${Array.from({ length: 6 }, (_, i) => `<li>Item ${i + 1}</li>`).join("")}</ul><form style="display:flex;gap:8px"><input placeholder="New item"><button>Add</button></form></main>`;
 }
 
-/** A canvas of `frames` frames, and its share link. */
-async function seed(mcp: ReturnType<typeof tools>) {
-  const made = await mcp("create_canvas", { name: "Speed" });
+type Row = {
+  step: "open" | "change" | "ask" | "pan" | "panHandler";
+  frames: number;
+  where?: string;
+  runs: number[];
+};
+
+type Seeded = Awaited<ReturnType<typeof seed>>;
+
+/** A canvas of `n` frames, put one by one as an agent does, and its share link. */
+async function seed(mcp: ReturnType<typeof tools>, name: string, n: number) {
+  const made = await mcp("create_canvas", { name });
   const canvas = z.object({ key: z.string() }).parse(made.answer).key;
 
   const versions = new Map<string, number>();
-  for (let i = 0; i < frames; i++) {
+  for (let i = 0; i < n; i++) {
     const put = await mcp("put_frame", { canvas, html: doc(`s${i}`, 1), name: `Screen ${i + 1}` });
     const frame = z.object({ id: z.string(), version: z.number() }).parse(put.answer);
     versions.set(frame.id, frame.version);
   }
+
   const shared = await mcp("share_canvas", { canvas });
   const path = z.object({ path: z.string() }).parse(shared.answer).path;
   return { canvas, versions, link: `${base}${path}` };
@@ -261,10 +280,50 @@ async function markOf(page: Page, name: string, timeout: number) {
   );
 }
 
-/** One open of the link in a new page: from the start of its load to `easel:open`. */
-async function openTime(page: Page, link: string) {
+/** A page of the link, once it marked `easel:open`. */
+async function opened(context: BrowserContext, link: string, timeout = 30_000) {
+  const page = await context.newPage();
   await page.goto(link);
-  await markOf(page, "easel:open", 30_000);
+  await markOf(page, "easel:open", timeout);
+  return page;
+}
+
+/** A first open draws each picture on the server and fills the cache; it is not measured. */
+async function warmUp(context: BrowserContext, link: string, timeout: number) {
+  await (await opened(context, link, timeout)).close();
+}
+
+/** `n` opens of the link, each in a new page: from the start of its load to `easel:open`. */
+async function opens(context: BrowserContext, link: string, n: number) {
+  const times: number[] = [];
+  for (let i = 0; i < n; i++) {
+    const page = await opened(context, link);
+    times.push(
+      await page.evaluate(
+        () => performance.getEntriesByName("easel:open", "mark")[0]?.startTime ?? 0,
+      ),
+    );
+    await page.close();
+  }
+  return times;
+}
+
+/** One open with 4x CPU and a 40 ms round trip (Chrome DevTools' throttles), for the report. */
+async function throttledOpen(context: BrowserContext, link: string) {
+  const page = await context.newPage();
+  const cdp = await context.newCDPSession(page);
+
+  await cdp.send("Emulation.setCPUThrottlingRate", { rate: 4 });
+  await cdp.send("Network.enable");
+  await cdp.send("Network.emulateNetworkConditions", {
+    offline: false,
+    latency: 40,
+    downloadThroughput: -1,
+    uploadThroughput: -1,
+  });
+
+  await page.goto(link);
+  await markOf(page, "easel:open", 60_000);
   const time = await page.evaluate(
     () => performance.getEntriesByName("easel:open", "mark")[0]?.startTime ?? 0,
   );
@@ -272,19 +331,179 @@ async function openTime(page: Page, link: string) {
   return time;
 }
 
-/** The id of the frame nearest the centre of the view: it is live at Fit when any frame is. */
+/** What the page shows: how many frames are live, and the zoom. */
+async function shownAt(page: Page, what: string) {
+  const shown = await page.evaluate(() => ({
+    live: document.querySelectorAll("iframe.e-doc").length,
+    zoom: document.querySelector("output[aria-label=Zoom]")?.textContent ?? "",
+  }));
+  return `${what}: ${shown.live} live, zoom ${shown.zoom}`;
+}
+
+/** Zoom in until the zoom is `pct`% or more, then the camera rests and the live frames paint. */
+async function zoomTo(page: Page, pct: number) {
+  const zoom = page.getByRole("status", { name: "Zoom" });
+  for (let i = 0; i < 60; i++) {
+    if (Number.parseFloat((await zoom.textContent()) ?? "0") >= pct) break;
+    await page.getByRole("button", { name: "Zoom in" }).click();
+  }
+  await page.waitForFunction(() => document.querySelector(".e-card[hidden]") !== null, null, {
+    timeout: 10_000,
+  });
+  await page.waitForTimeout(500);
+}
+
+/**
+ * `runs` puts of the frame nearest the centre of the view, each when the last one showed: from
+ * the answer of the put to `easel:change:<id>:<version>` in the page.
+ */
+async function changes(page: Page, mcp: ReturnType<typeof tools>, canvas: Seeded) {
+  const id = await centreFrame(page);
+  const times: number[] = [];
+  for (let i = 0; i < runs; i++) {
+    const version = canvas.versions.get(id) ?? 1;
+    const put = await mcp("put_frame", {
+      canvas: canvas.canvas,
+      id,
+      base: version,
+      html: doc(id, version + 1),
+    });
+    const next = z.object({ version: z.number() }).parse(put.answer).version;
+    canvas.versions.set(id, next);
+    times.push((await markOf(page, `easel:change:${id}:${next}`, 10_000)) - put.at);
+  }
+  return times;
+}
+
+/**
+ * `runs` requests that a viewer sends in one tab, each at a frame of its own, while another tab
+ * of the canvas is open: from the click on Send (the event's time) to `easel:ask:<id>` in the
+ * other tab. A first request gives the name, and is not measured.
+ */
+async function asks(context: BrowserContext, link: string) {
+  const [sender, watcher] = [await opened(context, link), await opened(context, link)];
+  await sender.evaluate(() =>
+    document.addEventListener(
+      "click",
+      (event) => {
+        const button = event.target instanceof Element ? event.target.closest("button") : null;
+        // The composer's Send is an icon with its label; the name's Send is its text.
+        const name = button?.getAttribute("aria-label") ?? button?.textContent?.trim();
+        if (name === "Send") {
+          Reflect.set(window, "easelSentAt", performance.timeOrigin + event.timeStamp);
+        }
+      },
+      true,
+    ),
+  );
+
+  const times: number[] = [];
+  for (let i = 0; i <= runs; i++) {
+    const before = await askMarks(watcher);
+    await sender.getByRole("button", { name: "Request", exact: true }).click();
+    await sender.getByRole("group", { name: `Screen ${i + 1}`, exact: true }).click();
+    await sender.getByRole("textbox", { name: "Request" }).fill(`Make screen ${i + 1} blue.`);
+    await sender.getByRole("button", { name: "Send" }).click();
+    if (i === 0) {
+      await sender.getByRole("textbox", { name: "Your name" }).fill("Speed");
+      await sender.getByRole("button", { name: "Send" }).click();
+    }
+
+    await watcher.waitForFunction(
+      (n) =>
+        performance.getEntriesByType("mark").filter((m) => m.name.startsWith("easel:ask:")).length >
+        n,
+      before,
+      { timeout: 10_000, polling: 10 },
+    );
+    const shown = await watcher.evaluate(
+      () =>
+        performance.timeOrigin +
+        (performance
+          .getEntriesByType("mark")
+          .filter((m) => m.name.startsWith("easel:ask:"))
+          .at(-1)?.startTime ?? 0),
+    );
+    const sent = Number(await sender.evaluate(() => Reflect.get(window, "easelSentAt")));
+    if (i > 0) times.push(shown - sent);
+    await sender.keyboard.press("Escape");
+  }
+
+  await sender.close();
+  await watcher.close();
+  return times;
+}
+
+/** The count of the marks `easel:ask:*` in a page. */
+async function askMarks(page: Page) {
+  return page.evaluate(
+    () =>
+      performance.getEntriesByType("mark").filter((m) => m.name.startsWith("easel:ask:")).length,
+  );
+}
+
+/**
+ * `runs` pans of 2 s across the row, one move each animation frame, as the browser tests pan:
+ * the time of each frame (between two animation frames), and of each move's handler.
+ */
+async function pans(page: Page) {
+  const frames: number[] = [];
+  const handlers: number[] = [];
+  for (let i = 0; i < runs; i++) {
+    const one = await page.evaluate(
+      async ({ dx }) => {
+        const region = document.querySelector('[aria-label="Frames"]');
+        if (!region) return { frames: [], handlers: [] };
+
+        const at = { x: innerWidth / 2, y: innerHeight / 2 };
+        const send = (type: string) =>
+          region.dispatchEvent(
+            new PointerEvent(type, {
+              pointerId: 1,
+              button: 0,
+              clientX: at.x,
+              clientY: at.y,
+              bubbles: true,
+            }),
+          );
+        send("pointerdown");
+
+        const times: { frames: number[]; handlers: number[] } = { frames: [], handlers: [] };
+        const start = performance.now();
+        let last = start;
+        while (performance.now() - start < 2_000) {
+          await new Promise((done) => requestAnimationFrame(done));
+          const now = performance.now();
+          times.frames.push(now - last);
+          last = now;
+
+          at.x += dx;
+          const t0 = performance.now();
+          send("pointermove");
+          times.handlers.push(performance.now() - t0);
+        }
+        send("pointerup");
+
+        return times;
+      },
+      { dx: i % 2 === 0 ? -10 : 10 },
+    );
+    frames.push(...one.frames);
+    handlers.push(...one.handlers);
+    await page.waitForTimeout(500);
+  }
+  return { frames, handlers };
+}
+
+/** The id of the frame nearest the centre of the view: it is live when any frame is. */
 async function centreFrame(page: Page) {
   return page.evaluate(() => {
-    const cx = innerWidth / 2;
-    const cy = innerHeight / 2;
-    const shells = [...document.querySelectorAll<HTMLElement>(".e-shell[data-id]")];
-    const near = shells
+    const [cx, cy] = [innerWidth / 2, innerHeight / 2];
+    const near = [...document.querySelectorAll<HTMLElement>(".e-shell[data-id]")]
       .map((el) => {
         const r = el.getBoundingClientRect();
-        return {
-          id: el.dataset.id ?? "",
-          d: Math.hypot(r.left + r.width / 2 - cx, r.top + r.height / 2 - cy),
-        };
+        const d = Math.hypot(r.left + r.width / 2 - cx, r.top + r.height / 2 - cy);
+        return { id: el.dataset.id ?? "", d };
       })
       .sort((a, b) => a.d - b.d);
     return near[0]?.id ?? "";

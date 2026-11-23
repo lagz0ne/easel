@@ -4,7 +4,8 @@
     "open": { "ms": 2000, "of": "p50" },
     "change": { "ms": 1000, "of": "p50" },
     "ask": { "ms": 1000, "of": "p50" },
-    "pan": { "ms": 100, "of": "max" }
+    "pan": { "ms": 100, "of": "max" },
+    "panHandler": { "ms": 8, "of": "p95" }
   },
   "hotPath": []
 }
