@@ -24,19 +24,21 @@ on:
     paths-ignore: ["**.md"]
   workflow_dispatch:
 
-# One deploy at a time, never cancelled mid-deploy. GitHub keeps only the newest waiting run,
-# so the site converges on the latest commit. The rollback of gates.yml takes the same group.
-concurrency:
-  group: deploy-main
-  cancel-in-progress: false
-
 permissions:
   contents: read
 
 jobs:
+  # One deploy at a time. A newer push cancels the deploy before it: the newer commit has its
+  # change too. The group holds the build, the push and the hook only; the job live waits outside
+  # it. The rollback of gates.yml takes the same group.
   deploy:
     runs-on: ubuntu-latest
     timeout-minutes: 10
+    concurrency:
+      group: deploy-main
+      cancel-in-progress: true
+    outputs:
+      build: ${{ steps.build.outputs.build }}
     permissions:
       contents: read
       packages: write
@@ -114,15 +116,29 @@ jobs:
             exit 0
           fi
           curl -fsS --max-time 30 -X POST "$HOOK" -H 'content-type: application/json' -d '{}'
-      - name: The site serves this commit
+
+  # Green when the site serves this build or a later one (a newer push may be live first).
+  live:
+    needs: deploy
+    runs-on: ubuntu-latest
+    timeout-minutes: 6
+    env:
+      HOOK: ${{ secrets.DOKPLOY_DEPLOY_HOOK }}
+      SITE: https://easel.vibea.dev
+      BUILD: ${{ needs.deploy.outputs.build }}
+    environment:
+      name: production
+      url: https://easel.vibea.dev
+    steps:
+      - name: The site serves this build
         if: env.HOOK != ''
         run: |
-          for _ in $(seq 150); do
-            live=$(curl -fsS --max-time 5 "$SITE/api/version" | jq -r '.commit' || true)
-            if [ "$live" = "$SHA" ]; then echo "live: $live"; exit 0; fi
-            sleep 2
+          for _ in $(seq 300); do
+            live=$(curl -fsS --max-time 5 "$SITE/api/version" | jq -r '.build' || true)
+            if [ -n "$live" ] && [ "$live" -ge "$BUILD" ] 2>/dev/null; then echo "live: build $live"; exit 0; fi
+            sleep 1
           done
-          echo "::error::$SITE/api/version did not name $SHA in 5 minutes (it names ${live:-nothing})"
+          echo "::error::$SITE/api/version did not reach build $BUILD in 5 minutes (it says ${live:-nothing})"
           exit 1
 
   binaries:

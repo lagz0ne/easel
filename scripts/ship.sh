@@ -100,12 +100,16 @@ gate() {  # <tree> <run dir>; sets $stage on failure
     stage=statecharts; bash "$run/tree/scripts/statecharts.sh" --check >"$run/statecharts.log" 2>&1 || return 1
   fi
   stage=install; (cd "$run/tree" && bun install --frozen-lockfile) >"$run/install.log" 2>&1 || return 1
-  stage=check:style; (cd "$run/tree" && bun run check:style) >"$run/style.log" 2>&1 || return 1
-  [[ $docs -eq 0 ]] || { log "docs only: style checked, rest skipped"; return 0; }
-  if [[ $full -eq 0 ]]; then
-    stage=typecheck; (cd "$run/tree" && bun run typecheck) >"$run/typecheck.log" 2>&1 || return 1
+  if [[ $full -eq 0 && $docs -eq 0 ]]; then  # the fast lane: style and typecheck at once
+    local sp tp
+    (cd "$run/tree" && bun run check:style) >"$run/style.log" 2>&1 & sp=$!
+    (cd "$run/tree" && bun run typecheck) >"$run/typecheck.log" 2>&1 & tp=$!
+    stage=check:style; wait "$sp" || { wait "$tp" || true; return 1; }
+    stage=typecheck; wait "$tp" || return 1
     return 0
   fi
+  stage=check:style; (cd "$run/tree" && bun run check:style) >"$run/style.log" 2>&1 || return 1
+  [[ $docs -eq 0 ]] || { log "docs only: style checked, rest skipped"; return 0; }
   stage=check:plain; (cd "$run/tree" && bun run check:plain) >"$run/plain.log" 2>&1 || return 1
   stage=build; (cd "$run/tree" && bun run build) >"$run/build.log" 2>&1 || return 1
   stage=smoke; SMOKE_OUT="$run/smoke" bash "$run/tree/scripts/smoke.sh" "$run/tree" 2>&1 | tee "$run/smoke.log" >&2
