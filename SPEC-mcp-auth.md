@@ -31,8 +31,11 @@ Prior art:
 - Cloudflare's `workers-oauth-provider`, which Sentry's MCP server uses: the app owns the sign-in
   and the consent page; the library keeps only the hash of each token. It runs on Workers KV, so
   easel copies its design, not its code.
-- The sign-in itself stays the device grant with an owner's approval of [access](SPEC-access.md)
-  (RFC 8628, as Tailscale's device approval). easel has no passwords, and this delta adds none.
+- The sign-in uses a password that an owner makes before it, as Tailscale's auth keys (a key that
+  an admin makes, that works one time and runs out) and Jenkins' initial admin password. The user
+  decided this on 2026-11-23: a password first, and the code with an owner's approval later
+  (Deferred). A password has no wait, so the sign-in window of Claude cannot close before the
+  approval.
 
 ## Current Behavior
 
@@ -42,8 +45,19 @@ Prior art:
   cannot start a sign-in.
 - The CLI makes each token and sends only its digest. No answer carries a token
   ([access](SPEC-access.md), judged rule 1). A token has no expiry.
+- A new user comes only from a login code that an owner approves. easel has no passwords.
 
 ## New Behavior
+
+### An owner makes a password for a connector
+
+1. An owner runs `easel users add ann-claude` (or the `add_user` tool of an agent that an owner
+   signed in). With `--owner`, the connector becomes an owner.
+2. easel prints the password one time, for example `KDFX-8QWP-MN4T-RZ7C-HJ2W`, and when it runs
+   out. The owner gives the name and the password to the person, for example in a direct message.
+3. `easel users` lists `ann-claude` as waiting for its sign-in. The name is in use from now on.
+4. The password works one time, and runs out after 24 hours. `easel users revoke ann-claude`
+   ends it before that.
 
 ### A person adds easel to the Claude web app
 
@@ -51,25 +65,21 @@ Prior art:
    keeps the default "Use Claude's published identity".
 2. Claude calls `/mcp` and gets a 401 that names the metadata of easel. Claude reads it and opens
    the sign-in page of easel in a new window.
-3. The page says that Claude (`claude.ai`) asks for the easel tools. It asks a name for this
-   connector, for example `ann-claude`. The person writes it and selects `Continue`.
-4. The page shows a code, for example `KDFX-8QWP`, and when it runs out. It says to ask an owner to
-   approve it, and waits.
-5. An owner approves it, as for each login: `easel users approve KDFX-8QWP`, or the `approve_user`
-   tool of an agent that an owner signed in. The owner can approve it as an owner with `--owner`.
-6. The page goes back to Claude by itself. Claude says that easel is connected.
-7. In each Claude app of the person (web, desktop, mobile), an agent can use the easel tools as
+3. The page says that Claude (`claude.ai`) asks for the easel tools. It asks the name and the
+   password. The person writes them and selects `Sign in`.
+4. The page goes back to Claude at once. Claude says that easel is connected.
+5. In each Claude app of the person (web, desktop, mobile), an agent can use the easel tools as
    the user `ann-claude`.
 
 ### The sign-in fails
 
-- An owner denies the code: the page says "An owner denied this connector." Claude says that the
-  connection failed.
-- No owner approves it in 10 minutes: the page says "The code ran out. Add the connector again."
-- The name is in use: the page says so at once, and asks for a different name.
+- A wrong name or password: the page says "The name or the password is wrong." It does not say
+  which, and the person can try again.
+- A used password, or one that ran out: the page says "This password does not work now. Ask an
+  owner for a new one."
 - A client that easel does not know, or a redirect address that its document does not list: the
   page says "easel does not know this app." It never redirects to that address.
-- Too many sign-ins from one address: the page says when to try again (the limits of `login.start`).
+- Too many tries from one address: the page says when to try again (the limits of `login.setup`).
 
 ### An owner stops a connector
 
@@ -90,6 +100,16 @@ Prior art:
 
 ## Contract
 
+One rpc call is new. It is an owner call, with a CLI command and an MCP tool:
+
+| Call        | Input                     | Kinds                                              | CLI / tool                                      |
+| ----------- | ------------------------- | -------------------------------------------------- | ----------------------------------------------- |
+| `users.add` | `name`, `owner` (boolean) | `added` (`name`, `password`, `expiresAt`), `taken` | `easel users add <name> [--owner]` / `add_user` |
+
+`added` is the one answer of easel that carries a secret. easel makes the password, keeps only its
+digest, and never shows it again. A password is 20 letters from the alphabet of the codes, in 5
+groups of 4 (about 90 bits).
+
 These HTTP routes are new. Each one is an entry in the `routes` table, as `/mcp` is.
 
 | Route                                         | Answers                                                                                 |
@@ -97,13 +117,11 @@ These HTTP routes are new. Each one is an entry in the `routes` table, as `/mcp`
 | `GET /.well-known/oauth-protected-resource`   | RFC 9728: `resource` `https://<server>/mcp`, `authorization_servers` [the server]       |
 | `GET /.well-known/oauth-authorization-server` | RFC 8414: the endpoints below; S256; `none` auth; CIMD supported; `iss` in the response |
 | `GET /oauth/authorize`                        | The sign-in page, or an error page. It never redirects to an address it did not check.  |
+| `POST /oauth/authorize`                       | The form of the page: the name and the password. Then the redirect to the client.       |
 | `POST /oauth/token`                           | A form body: `authorization_code` with the PKCE verifier, or `refresh_token`            |
 
 The 401 of `/mcp` becomes
 `WWW-Authenticate: Bearer realm="easel", resource_metadata="https://<server>/.well-known/oauth-protected-resource"`.
-
-The sign-in page waits for the approval through the same calls as `easel login` (`login.start`,
-`login.wait`), with a `client` field that the CLI does not send.
 
 ## Rules
 
@@ -112,9 +130,10 @@ the code. The chart extends [access-login](docs/statecharts/access-login.md).
 
 ### Fact rules (the code graph decides)
 
-1. The OAuth routes run no guard. They write only the `logins`, `users` and grant cells.
-2. `/mcp` takes a connector token only when the token's resource is the address of `/mcp`.
-3. Only the cmd reads `PUBLIC_ORIGIN`; the routes get the origin from it.
+1. The OAuth routes run no guard. They write only the `users` and grant cells.
+2. `users.add` runs the `user` guard, then the `owner` guard.
+3. `/mcp` takes a connector token only when the token's resource is the address of `/mcp`.
+4. Only the cmd reads `PUBLIC_ORIGIN`; the routes get the origin from it.
 
 ### Judged rules (need reading the code)
 
@@ -128,23 +147,28 @@ the code. The chart extends [access-login](docs/statecharts/access-login.md).
    the request, which works one time and for 10 minutes.
 5. An authorization code works one time, for 60 seconds, with the PKCE verifier of its challenge
    and the `resource` of its request.
-6. A token, a digest, a code, a verifier and a `state` never reach a span attribute, a log record,
+6. A password, a token, a digest, a code, a verifier and a `state` never reach a span attribute, a log record,
    or the text of an error.
-7. A revoke ends the user, its access tokens and its refresh tokens in one write.
-8. The token endpoint answers within 10 seconds, and the sign-in page waits for the approval
-   in the page, not in an HTTP call.
+7. A revoke ends the user, its password, its access tokens and its refresh tokens in one write.
+8. The sign-in compares the password digest in constant time. It uses the password, makes the
+   authorization code and binds the user to the client in one write. A second sign-in with the
+   same password fails.
+9. The token endpoint answers within 10 seconds.
 
 ### Accepted risks
 
-- The page cannot prove who the person is. The owner's approval is the proof, as for each login.
-  An owner approves only a code that a person of their team sent them.
+- The password is the proof of who the person is. A person who gets the password first, in its
+  24 hours, gets the connector. The person who waits for it then sees "This password does not
+  work now", and the owner sees the client and the time of the sign-in in `easel users`. The
+  owner revokes it, and makes a new password.
 
 ## Success Criteria
 
 - A test runs the full sign-in against a server in the same process: discovery from the 401, the
-  page, the approval, the code, the token, a tool call, a refresh, and a revoke (401 and
-  `invalid_grant` after it).
-- A test reaches each failure above: deny, expiry, a name in use, an unknown client, a wrong
+  password made by `users.add`, the page, the code, the token, a tool call, a refresh, and a
+  revoke (401 and `invalid_grant` after it).
+- A test reaches each failure above: a wrong password, a used password, one that ran out, a name
+  in use for `users.add`, an unknown client, a wrong
   redirect address, a wrong PKCE verifier, a used code, a wrong resource, a refresh token used two
   times, and the rate limit.
 - A token of `easel login` still works at `/mcp`, and the MCP client tests of SPEC-mcp stay green.
@@ -160,15 +184,13 @@ the code. The chart extends [access-login](docs/statecharts/access-login.md).
 - Clients other than Claude and Claude Code. Add a client to the list when a team asks for it.
 - Scopes: a connector can do what a member can do. Add scopes when a team asks for a connector
   that only reads.
-- A password or a single sign-on for the page. Add it when the approval of each connector takes an
-  owner too much time.
+- The sign-in with a code that an owner approves, as `easel login` (the next delta, by the
+  user's decision of 2026-11-23). It needs no password to travel from the owner to the person.
+- A password that a person keeps and uses again, and single sign-on. Add them when a person adds
+  connectors often.
 - An expiry for the tokens of `easel login`.
 
 ## Open Questions
 
-1. The time that Claude's sign-in window waits is not in its docs. If it closes before an owner
-   approves, the person adds the connector again, and the approved user stays. My pick: build it
-   as above, and measure it in the check by hand. If the window is too short, the page keeps the
-   approval for the next try of the same name.
-2. Claude's docs do not say if a person can add a connector in the mobile app, or only use it
+1. Claude's docs do not say if a person can add a connector in the mobile app, or only use it
    there. C1 needs only the use: the person adds it on the web one time.
