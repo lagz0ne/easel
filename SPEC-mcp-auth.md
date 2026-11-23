@@ -34,8 +34,7 @@ Prior art:
 - The sign-in uses a password that an owner makes before it, as Tailscale's auth keys (a key that
   an admin makes, that works one time and runs out) and Jenkins' initial admin password. The user
   decided this on 2026-11-23: a password first, and the code with an owner's approval later
-  (Deferred). A password has no wait, so the sign-in window of Claude cannot close before the
-  approval.
+  (Deferred). The sign-in does not wait for a person, so the sign-in window of Claude cannot close first.
 
 ## Current Behavior
 
