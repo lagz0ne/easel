@@ -1,6 +1,6 @@
 # Spec: `pieces`, the design system of the team as code
 
-Status: proposed (2026-11-23, second draft after the brainstorm with the user). It replaces
+Status: approved (user, 2026-11-23: "Yes"), with the new look names of open question 1. It replaces
 SPEC-kit § Add to the kit (E8.3): pieces as HTML templates (`kit.put`, `kit.get`, `kit.list`).
 That section is not built.
 
@@ -130,13 +130,25 @@ board` gives the frame the board value again.
     the `dark` values are the same names with other values (`look.set` takes a patch for each
     theme). The `look` capsule takes the `theme` switch, so each component and each frame on the
     look follows it with no code of its own.
-15. **Fixtures.** A fixture is a named set of data of one shape:
-    `fixtures(request, { empty: [], one: [...], many: [...], error: [...] })`. The shape is a Zod
-    schema, so each fixture is checked against it, and a frame gets typed data. `design/` declares
-    the fixtures that many frames share; a frame can declare its own. The `fixture` switch has the
-    names of the fixtures (`empty`, `one`, `many`, `error`): the board value shows each frame with
-    that fixture, if it has it; a frame with no fixture of that name keeps its own value and says
-    so.
+15. **Fixtures: the shape is code, the values are data** (as the texts; decision 1). The user asked
+    on 2026-11-23 for fixtures to be "a part of the tooling".
+    - The shape is a type in code: `fixtureShape({ label: "requests", of: z.array(request) })` in
+      `design/` (shared by many frames) or in a frame.
+    - The values are data in the kit version: each shape has named fixtures (`empty`, `one`,
+      `many`, `error`). `fixtures.set` writes them with a base, makes a new kit version, and reaches
+      each live frame as a new text does. No frame and no code changes.
+    - A fixture is checked against its shape when it is written, with no code run on the server:
+      easel type-checks the JSON as a value of the type of the shape (`const f: Shape = <json>`).
+      The frame parses it again at its start; a fixture that does not parse shows the refusal of
+      the frame (as `SampleInvalid` now).
+    - A frame gets typed data: `load(requests).set(fixture.of(requestsShape))`.
+    - The `fixture` switch has the names of the fixtures. The board value shows each frame with
+      that fixture, if its shape has it; a frame with no fixture of that name keeps its own value
+      and says so.
+    - The tools: `easel fixtures ls`, `easel fixtures get <shape> [<name>]`,
+      `easel fixtures set <shape> <name> <file.json> [--base <rev>]`; MCP `list_fixtures`,
+      `set_fixtures`. `fixtures.list` gives each shape, its type as text, its fixtures, and the
+      frames that use it.
 16. **Show a component in each state.** `matrix({ of: StateBadge, by: { theme, state } })` makes a
     frame that shows one component in each value of the switches and props that it names, side by
     side, with a label for each (the Chromatic matrix). A page of the design system is a frame of
@@ -180,6 +192,11 @@ type DesignFinding = Finding & { frame?: { canvas: string; id: string } }
               | { kind: "breaks"; findings: DesignFinding[]; more: number }
               | { kind: "tooBig"; maxBytes: number }
 "design.types": { kind: "found"; kit: number; files: Record<string, string> }
+"fixtures.list": { kind: "found"; kit: number; rev: number;
+                   shapes: { label: string; type: string; names: string[]; frames: string[] }[] }
+"fixtures.set":  { kind: "updated" | "unchanged"; rev: number; kit: number }
+               | { kind: "stale"; rev: number; kit: number }
+               | { kind: "invalid"; findings: Finding[] } | { kind: "tooBig"; maxBytes: number }
 ```
 
 - `design.put` takes `{ files: Record<string, string>, base: number }`. `rev` starts at 0 (no
@@ -188,6 +205,8 @@ type DesignFinding = Finding & { frame?: { canvas: string; id: string } }
 - The switches of a board are read from the frames (`kit.capsules` lists the switches that each
   frame takes). A pick is not a call: it changes the address of the page and the axes of the
   documents.
+- `fixtures.set` takes `{ shape, fixtures: Record<name, unknown>, base? }`. The fixtures of a kit
+  version are 256 KiB at most.
 - MCP: `get_design`, `put_design`, `design_types`. CLI: `easel design get -o <dir>`,
   `easel design put <dir> --base <rev>`, `easel design types -o <dir>`.
 
@@ -277,6 +296,8 @@ frame pick, `Use the board`, and a reload. Its rules:
   is not enough.
 - **A catalogue page** made by easel from the graph. Frames of matrices are the catalogue for
   Round 1.
+- **Save a state as a fixture**: a person sets a frame with its controls, then keeps the data of
+  that state as a new fixture. Add it when writing a fixture by hand is slow for a team.
 - **A switch value kept for all viewers** (a board that opens in dark for each person). Add it when
   a team asks for a default state of a board.
 - **The duplicate and arbitrary checks as refusals.** Add them when a team asks for a strict design
