@@ -71,7 +71,7 @@ The user named, on 2026-11-23, what must work on a new easel with no setup:
 | ID  | Requirement                                                     | Fit criterion                                                                                                                                                                                                                             |
 | --- | --------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | Q1  | The critical path is fast.                                      | On the reference laptop (written in `docs/canvas-speed.md`): a share link shows the frames in view within 2 seconds. A change by an agent shows within 1 second (S9). A comment shows to each other person on the canvas within 1 second. |
-| Q2  | The critical path stays fast when the work grows.               | With 200 frames on a canvas, Q1 and S11 are still true. A change of easel that makes a step of Q1 slower than its budget does not reach the teams.                                                                                        |
+| Q2  | The critical path stays fast when the work grows.               | With 200 frames on a canvas, Q1 and S11 are still true. A change of easel that makes a step of Q1 slower than its budget is live for 10 minutes at most; then easel goes back to the last build that met it.                              |
 | Q3  | The critical path does only the work that the person waits for. | The first view of a canvas comes as fast (within 10%) with each part that it does not show turned off. Work that the person does not wait for never makes a step of Q1 slower.                                                            |
 
 ### The business of the round
@@ -130,15 +130,14 @@ Decided:
 
 #### Design changes that Round 1 needs
 
-| Req.               | Gap in the design now                                                                                 | Spec or file               |
-| ------------------ | ----------------------------------------------------------------------------------------------------- | -------------------------- |
-| C1 to C3, W1 to W6 | SPEC-mcp holds the design, but easel has no MCP server.                                               | SPEC-mcp                   |
-| R2                 | The start steps connect an agent with the command line only, not through MCP.                         | docs/start.md              |
-| L1, L3, L5, L12    | Each frame keeps its own texts. Nothing keeps the texts of the team in one place.                     | SPEC-kit                   |
-| X1 to X5           | The controls are built (charts kit-frame-controls, kit-control-link), but no test names these IDs.    | SPEC-kit, tests            |
-| Q1, Q2             | `docs/canvas-speed.md` has measures, but no budget for each step, and no check stops a slower change. | docs/canvas-speed.md, ship |
-| Q3                 | No measure shows which work is on the critical path and which is not.                                 | docs/canvas-speed.md       |
-| R7                 | The terms and the privacy text are drafts. Round 1 needs only the short note.                         | docs/legal                 |
+| Req.               | Gap in the design now                                                                              | Spec or file         |
+| ------------------ | -------------------------------------------------------------------------------------------------- | -------------------- |
+| C1 to C3, W1 to W6 | SPEC-mcp holds the design, but easel has no MCP server.                                            | SPEC-mcp             |
+| R2                 | The start steps connect an agent with the command line only, not through MCP.                      | docs/start.md        |
+| L1, L3, L5, L12    | Each frame keeps its own texts. Nothing keeps the texts of the team in one place.                  | SPEC-kit             |
+| X1 to X5           | The controls are built (charts kit-frame-controls, kit-control-link), but no test names these IDs. | SPEC-kit, tests      |
+| Q3                 | No measure shows which work is on the critical path and which is not.                              | docs/canvas-speed.md |
+| R7                 | The terms and the privacy text are drafts. Round 1 needs only the short note.                      | docs/legal           |
 
 Closed before: R2 (`c79d841`, `6a5a0ec`: the install script and [the start steps](start.md)), R5
 and R8 (`8d452f6`: the design of the backups and the delete).

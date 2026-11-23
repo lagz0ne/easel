@@ -160,3 +160,5 @@ export const speedVerdict = operation({
    Changed (2026-11-23, later): the deploy does not wait for `gates` now (the user asked for a
    ship that is live in less than a minute). A change over its budget is live until the gate is
    red, about 3 to 5 minutes; then the job `rollback` of `gates` puts the last green commit live.
+   Q2 now says this: a slower change is live for 10 minutes at most (the user agreed on
+   2026-11-23).

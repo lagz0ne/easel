@@ -195,7 +195,7 @@ MCP tools makes a reference screen. The CLI help and SPEC-mcp say how to add eas
 - [x] A statechart and conformance review of the release: `mcp` adds no state of its own (each
       request makes and closes its server; the wait of `next_request` is the queue's, charted in
       the queue's model). No new chart.
-- [ ] Review with the user. Then the start steps (R2) and the `mcp-auth` delta spec.
+- [x] Review with the user (2026-11-23): SPD-8 done; SPD-9 deferred, and Q2 changed. Then the start steps (R2) and the `mcp-auth` delta spec.
 
 ## Phase 3: `speed` foundation
 
@@ -440,13 +440,14 @@ before the ship.
 ### Checkpoint D: after SPD-5 to SPD-7
 
 - [x] Each success criterion of SPEC-speed is met. One changed on 2026-11-23: a red `speed` job
-      rolls the site back, it does not stop the deploy (deploy first). Q2 asks for a new text.
+      rolls the site back, it does not stop the deploy (deploy first). Q2 has the new text: a
+      slower change is live for 10 minutes at most.
 - [x] Write SPD-8 and after: one task for each item of the first hot path list that the first
       view does not show. Each moves after `easel:open` in its own ship, with the change of
       `open` in the ship message. The list on 2026-11-23: the JS and the CSS (the view needs
       them), Inter (the labels show it at once, with `swap`), `/api/telemetry` (SPD-8) and
       `/api/pictures/*` (SPD-9).
-- [ ] Review with the user.
+- [x] Review with the user (2026-11-23): SPD-8 done; SPD-9 deferred, and Q2 changed.
 
 ## Phase 5: off the hot path
 
@@ -492,3 +493,8 @@ for the smallest size that fills the frame on the screen at its zoom (canvas-spe
 - [ ] `bun run speed`: the `cold` line, before and after, in the ship message.
 
 **Dependencies:** none. **Estimated scope:** M; split it at the start if it grows.
+
+Deferred (the user agreed on 2026-11-23). A real 1280×800 frame is 18.8 KB at half size and
+7.2 KB at a quarter, so 20 frames at Fit save about 230 KB: tens of ms on a normal link. The
+first render of a picture on the server took 8.5 s, and SPD-9 does not change it. Start it when
+the throttled open (3.0 s on 2026-11-23) comes near 2 s, or when a team works on a slow link.
