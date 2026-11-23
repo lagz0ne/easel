@@ -6,7 +6,9 @@ import { ScopeProvider } from "@tinkered/react";
 import { Profiler } from "react";
 import { createRoot } from "react-dom/client";
 import { expect, onTestFinished, test } from "vite-plus/test";
-import { page } from "vite-plus/test/browser/context";
+// The types of the provider give `cdp()` its `send`.
+import type {} from "vite-plus/test/browser-playwright";
+import { cdp, page } from "vite-plus/test/browser/context";
 import { z } from "zod";
 
 import { frames } from "@/frames";
@@ -512,6 +514,43 @@ test("Zoom in and Zoom out zoom around the centre by 1.25; Ctrl+wheel around the
   expect(box().width).toBeCloseTo(before * 2, 0);
 });
 
+test("in a dark system theme the canvas stays light gray, as in Doop, and its labels stay dark; the dock follows the theme (SPEC-design journey 1)", async () => {
+  const scheme = (value: string) =>
+    cdp().send("Emulation.setEmulatedMedia", {
+      features: [{ name: "prefers-color-scheme", value }],
+    });
+  await scheme("dark");
+  onTestFinished(() => scheme("").then(() => undefined));
+  const server = await boot([frame("a", 0, 0, { w: 400, h: 300 })]);
+  const at = await tab(server);
+  await opened(at, 1);
+  const label = shellOf("a")?.querySelector(".e-label");
+  const dock = page.getByRole("toolbar", { name: "Canvas" }).element();
+
+  expect(getComputedStyle(region()).backgroundColor).toBe("rgb(236, 234, 230)");
+  expect(label && getComputedStyle(label).color).toBe("rgb(102, 98, 91)");
+  expect(getComputedStyle(dock).backgroundColor).toBe("rgb(39, 38, 35)");
+});
+
+test("a trackpad pinch (small Ctrl+wheel steps) zooms 1% for each pixel, as tldraw and Excalidraw; a wheel notch stays ×1.25", async () => {
+  const server = await boot([frame("a", 0, 0, { w: 400, h: 300 })]);
+  const at = await tab(server);
+  await opened(at, 1);
+  const width = () => shellOf("a")?.getBoundingClientRect().width ?? 0;
+  expect(width()).toBeCloseTo(400, 0);
+
+  // A pinch of 20 px, in 10 steps of 2 px: ×e^0.2.
+  for (let step = 0; step < 10; step++) wheel({ deltaY: -2, ctrlKey: true });
+  expect(width()).toBeCloseTo(400 * Math.exp(0.2), 0);
+
+  // One step zooms ×1.25 at most, so a mouse notch of 100 px or of 50 px is ×1.25.
+  const before = width();
+  wheel({ deltaY: -100, ctrlKey: true });
+  expect(width()).toBeCloseTo(before * 1.25, 0);
+  wheel({ deltaY: 50, ctrlKey: true });
+  expect(width()).toBeCloseTo(before, 0);
+});
+
 test("an agent's put shows, goes live at rest under its picture, and a new version puts the picture back until it paints", async () => {
   const server = await boot([frame("a", 0, 0)]);
   const at = await tab(server);
@@ -592,6 +631,8 @@ test("an empty canvas says so; the first put takes it away, and a delete before 
   await expect.poll(() => statusOf(at)).toBe("ready");
   await tick(0);
   expect(emptyText().elements()).toHaveLength(1);
+  // The text is in the light gray space, so the space does not cover it.
+  expect(region().contains(emptyText().element())).toBe(true);
   expect(shells()).toHaveLength(0);
 
   // s5 to s6: the put shows its shell, and the camera has not rested yet.

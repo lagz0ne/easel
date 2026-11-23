@@ -28,7 +28,10 @@ Prior art, as ideas only:
 ## Journeys
 
 1. A person uses the viewer in a light or dark system theme. The page follows
-   `prefers-color-scheme`.
+   `prefers-color-scheme`. The canvas space between the frames stays light gray in both themes,
+   as in Doop: most frames are light, and a black space around them is too strong. All that is in
+   the space takes the light values (`.e-light`): the labels, the pins and the popovers. The dock
+   and the panels follow the theme.
 2. A keyboard user reaches every control with Tab. A visible focus ring shows where they are.
 3. A person who prefers less motion (`prefers-reduced-motion`) gets no animated pans or fades.
 

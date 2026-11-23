@@ -37,6 +37,9 @@ export const restMs = 120;
 export const paintCapMs = 1_500;
 /** A zoom button, or one wheel notch, zooms by this factor. */
 export const zoomFactor = 1.25;
+/** Ctrl+wheel, which a trackpad pinch also sends, zooms e^(this) for each pixel, as tldraw and
+ *  Excalidraw do; one event zooms at most `zoomFactor`, so a mouse notch stays one step. */
+export const pinchRate = 0.01;
 export const minZoom = 0.001;
 export const maxZoom = 4;
 /** Fit leaves this edge around the frames, in screen pixels, and never zooms past 100%. */
@@ -575,7 +578,8 @@ export const stage = resource({
         const unit = event.deltaMode === 1 ? 16 : event.deltaMode === 2 ? view.h : 1;
         if (!event.ctrlKey) return at.pan(-event.deltaX * unit, -event.deltaY * unit);
 
-        const by = zoomFactor ** ((-event.deltaY * unit) / 100);
+        const step = Math.exp(-event.deltaY * unit * pinchRate);
+        const by = Math.min(zoomFactor, Math.max(1 / zoomFactor, step));
         at.zoomAt(event.clientX - view.left, event.clientY - view.top, by);
       },
 

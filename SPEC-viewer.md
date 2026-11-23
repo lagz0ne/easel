@@ -331,6 +331,7 @@ width and height, added on each side of it.
 | Going live, app frame  | under 150 ms p95 with 12 live app frames (measured: 48.6 / 71.9 ms)   |
 | Close wait             | an app frame's `closed`, or 200 ms; then the iframe goes              |
 | Zoom                   | 0.1% to 400%; a button or a wheel notch is ×1.25                      |
+| Pinch rate             | Ctrl+wheel, as a trackpad pinch: ×e^0.01 per px; ×1.25 at most        |
 | Fit                    | a 40 px edge; never past 100%                                         |
 | Zoom status            | rounded down: steps of 10%; under 10% of 1%; under 1% of 0.1%         |
 | Label                  | kept at its screen size; rewritten after a 10% zoom drift and at rest |

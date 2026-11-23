@@ -1,8 +1,8 @@
 /* The design tokens (SPEC-design.md): every colour, space and type size a viewer module uses.
-   `--e-card` is the plain card that stands in for a frame's picture until pictures are built. */
-:root {
-  color-scheme: light dark;
-
+   `--e-card` is the plain card that stands in for a frame's picture until pictures are built.
+   `.e-light` keeps the light values in a dark theme: the canvas space is light gray, as in Doop. */
+:root,
+.e-light {
   --e-bg: #eceae6;
   --e-surface: #ffffff;
   --e-card: #d6d2ca;
@@ -27,6 +27,14 @@
   --e-size-2: 14px;
   --e-size-3: 16px;
   --e-size-4: 20px;
+}
+
+:root {
+  color-scheme: light dark;
+}
+
+.e-light {
+  color-scheme: light;
 }
 
 @media (prefers-color-scheme: dark) {

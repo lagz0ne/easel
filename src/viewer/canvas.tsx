@@ -918,7 +918,7 @@ export function Canvas({ canvas, opening }: { canvas: string; opening: React.Rea
     <main className="e-canvas" data-panel={panel ? "open" : "closed"} data-mode={mode}>
       <section
         ref={at.viewport}
-        className="e-viewport"
+        className="e-viewport e-light"
         aria-label="Frames"
         onClick={(event) => {
           const spot = at.pick(event.nativeEvent);
@@ -949,6 +949,9 @@ export function Canvas({ canvas, opening }: { canvas: string; opening: React.Rea
           pick.run({ input: { canvas, place } });
         }}
       >
+        {list.length === 0 ? (
+          <Empty canvas={canvas} ready={state?.status === "ready"} lost={lost} />
+        ) : null}
         <div ref={at.world} className="e-world">
           {drawn.map((f) => (
             <Shell key={f.id} canvas={canvas} frame={f} at={at} />
@@ -956,9 +959,6 @@ export function Canvas({ canvas, opening }: { canvas: string; opening: React.Rea
           <Requests canvas={canvas} list={list} lost={lost} />
         </div>
       </section>
-      {list.length === 0 ? (
-        <Empty canvas={canvas} ready={state?.status === "ready"} lost={lost} />
-      ) : null}
       <div className="e-top">
         <Status lost={lost} fault={state?.status === "fault"} />
       </div>

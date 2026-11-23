@@ -125,12 +125,14 @@
 }
 
 /* The viewport takes the drag, the wheel and the pinch; the browser does none of its own. */
-/* Over the empty text: a request's popover shows over it. */
+/* It holds the empty text, under the world: a request's popover shows over it. */
+/* It is `.e-light`: the space stays light gray in a dark theme, as in Doop (SPEC-design.md). */
 .e-viewport {
   position: absolute;
   inset: 0;
   z-index: 1;
   overflow: hidden;
+  background-color: var(--e-bg);
   touch-action: none;
   cursor: grab;
   contain: strict;
