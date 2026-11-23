@@ -1,6 +1,6 @@
 # Spec Delta: mcp-auth
 
-Status: proposed (2026-11-23)
+Status: approved (2026-11-23)
 
 A delta of [SPEC-mcp](SPEC-mcp.md) and [SPEC-access](SPEC-access.md). Module `mcp-auth` of
 [MAP-round-1](MAP-round-1.md). It implements C1 and C2 of
@@ -124,8 +124,9 @@ The 401 of `/mcp` becomes
 
 ## Rules
 
-A TLA+ model and its chart (`scripts/statecharts.sh`) of the sign-in and the tokens come before
-the code. The chart extends [access-login](docs/statecharts/access-login.md).
+A TLA+ model and its chart (`scripts/statecharts.sh`) of the password, the sign-in and the tokens
+come before the code. The chart `access-connector` sits next to
+[access-login](docs/statecharts/access-login.md), and uses the same revoke.
 
 ### Fact rules (the code graph decides)
 

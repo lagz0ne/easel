@@ -132,7 +132,7 @@ Decided:
 
 | Req.            | Gap in the design now                                                                                          | Spec or file                                    |
 | --------------- | -------------------------------------------------------------------------------------------------------------- | ----------------------------------------------- |
-| C1, C2          | `/mcp` takes a fixed token only. The Claude web app needs each person to sign in with their own easel account. | [SPEC-mcp-auth](../SPEC-mcp-auth.md) (proposed) |
+| C1, C2          | `/mcp` takes a fixed token only. The Claude web app needs each person to sign in with their own easel account. | [SPEC-mcp-auth](../SPEC-mcp-auth.md) (approved) |
 | L1, L3, L5, L12 | Each frame keeps its own texts. Nothing keeps the texts of the team in one place.                              | SPEC-kit                                        |
 | X1 to X5        | The controls are built (charts kit-frame-controls, kit-control-link), but no test names these IDs.             | SPEC-kit, tests                                 |
 | Q3              | No measure shows which work is on the critical path and which is not.                                          | docs/canvas-speed.md                            |

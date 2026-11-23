@@ -1,4 +1,4 @@
-# Tasks: Round 1, modules `mcp` and `speed`
+# Tasks: Round 1, modules `mcp`, `speed` and `mcp-auth`
 
 The plan is in [plan.md](plan.md). Each task ends green and lands with
 `scripts/ship.sh -m "<type>(<scope>): <msg>" -- <paths>`. Write the failing test first
@@ -498,3 +498,135 @@ Deferred (the user agreed on 2026-11-23). A real 1280×800 frame is 18.8 KB at h
 7.2 KB at a quarter, so 20 frames at Fit save about 230 KB: tens of ms on a normal link. The
 first render of a picture on the server took 8.5 s, and SPD-9 does not change it. Start it when
 the throttled open (3.0 s on 2026-11-23) comes near 2 s, or when a team works on a slow link.
+
+## Phase 6: `mcp-auth`, the model first
+
+The spec is [SPEC-mcp-auth.md](../SPEC-mcp-auth.md) (approved on 2026-11-23). Each task ships
+with no link from a page: the routes work, but no client finds them until MA-6 changes the 401.
+
+### MA-1: the model and the chart of a connector
+
+**Description:** A TLA+ model of one connector: an owner makes its password, a person signs in
+with it, the token endpoint gives and rotates the tokens, and an owner revokes it. A second
+person who has the password, a lost token answer and a refresh token that is used two times are
+steps of the model. The chart `access-connector` sits next to `access-login`.
+
+**Acceptance criteria:**
+
+- [ ] The rules of the spec are rules of the model: the password works one time and runs out;
+      a code works one time; a used refresh token stops the connector; after a revoke, no call
+      and no refresh is answered; a token of `easel login` is not changed.
+- [ ] The model is less than 500 states, and TLC finds each rule true.
+- [ ] A second config breaks one rule on purpose (a refresh token that works two times), so the
+      chart shows why the rule is necessary.
+
+**Verification:**
+
+- [ ] `scripts/statecharts.sh --check access-connector access-connector-reuse` is OK.
+- [ ] The page names each rule, its spec anchor, and what the model leaves out.
+
+**Dependencies:** none. **Files likely touched:** `docs/statecharts/models/access/Connector*.{tla,cfg}`,
+its view, `docs/statecharts/access-connector*.md`, `charts.tsv`. **Estimated scope:** M.
+
+### Checkpoint E: after MA-1
+
+- [ ] Show the chart and the review of each rule to the user, before code.
+
+### MA-2: `users.add` makes a password
+
+**Description:** The owner call `users.add`, the CLI command `easel users add <name> [--owner]`
+and the tool `add_user`. easel keeps the digest of the password and its end time. `easel users`
+lists the user as waiting for its sign-in. A revoke ends the password.
+
+**Acceptance criteria:**
+
+- [ ] `added` gives the name, the password (5 groups of 4 letters of the code alphabet) and
+      `expiresAt`; a name in use gives `taken`.
+- [ ] A member gets the owner refusal. The password is not in a span, a log or an error.
+- [ ] `easel users` shows "waiting for its sign-in" and the end time; a revoke removes it.
+
+**Verification:**
+
+- [ ] A server test reaches each exit of `users.add`. A CLI test of the command and its text.
+- [ ] `bun run check:plain` is OK.
+
+**Dependencies:** MA-1. **Files likely touched:** `src/access/{contract,store.server,users.server}.ts`,
+`src/cli/users.ts`, `src/mcp/tools.ts`. **Estimated scope:** M.
+
+### MA-3: the two metadata routes
+
+**Description:** `GET /.well-known/oauth-protected-resource` and
+`GET /.well-known/oauth-authorization-server`, from `PUBLIC_ORIGIN`. The 401 of `/mcp` does not
+change yet.
+
+**Acceptance criteria:**
+
+- [ ] The two documents have the fields of the Contract, with the origin of the cmd.
+- [ ] Only the cmd reads `PUBLIC_ORIGIN` (fact rule 4).
+
+**Verification:** a server test reads both documents. **Dependencies:** none.
+**Files likely touched:** a new `src/mcp/oauth/` folder, `cmds/server.ts`. **Estimated scope:** S.
+
+### MA-4: the two clients
+
+**Description:** easel knows the two Claude client ids. It fetches only their documents, keeps
+them for 1 hour, and checks a `redirect_uri` against them (the loopback port rule for Claude
+Code).
+
+**Acceptance criteria:**
+
+- [ ] A different `client_id` is unknown. easel does not fetch it.
+- [ ] An exact redirect passes; a different one fails; a loopback redirect passes on any port.
+- [ ] A second ask in the same hour does not fetch again.
+
+**Verification:** a test with a fake fetch and the test clock. **Dependencies:** none.
+**Estimated scope:** S.
+
+### MA-5: the sign-in page
+
+**Description:** `GET /oauth/authorize` shows the page or the error page. `POST /oauth/authorize`
+checks the name and the password, uses the password, makes the code and binds the client in one
+write, then redirects with `code`, `state` and `iss`.
+
+**Acceptance criteria:**
+
+- [ ] Each text of "The sign-in fails" in the spec, on the page.
+- [ ] No redirect to an address that MA-4 did not pass. `frame-ancestors 'none'`.
+- [ ] A second sign-in with the same password fails. The rate limit of `login.setup` applies.
+
+**Verification:** a server test of each failure and of the redirect; a look with
+`agent-browser`, screenshot in `~/work/tmp`. **Dependencies:** MA-2, MA-4.
+**Estimated scope:** M.
+
+### MA-6: the tokens, and `/mcp` takes them
+
+**Description:** `POST /oauth/token` for `authorization_code` (PKCE S256, `resource`) and
+`refresh_token` (rotation, reuse stops the connector). `/mcp` takes an access token for its
+resource. The 401 names `resource_metadata`. After this task, the Claude web app can sign in.
+
+**Acceptance criteria:**
+
+- [ ] Each token failure of the spec: a wrong verifier, a used code, a code older than 60 s, a
+      wrong resource, a refresh token used two times.
+- [ ] A revoke makes the next call 401 and the refresh `invalid_grant`.
+- [ ] A token of `easel login` still works at `/mcp`, and the MCP tests stay green.
+
+**Verification:** the full in-process test of the spec, from the 401 to the revoke;
+`ship.sh --full`. **Dependencies:** MA-2 to MA-5. **Estimated scope:** M.
+
+### MA-7: the check in Claude, and the docs
+
+**Description:** A person adds `https://easel.vibea.dev/mcp` in the Claude web app, signs in,
+and the mobile app lists the canvases. Then a revoke stops it. `docs/start.md` tells how.
+
+**Acceptance criteria:**
+
+- [ ] The check by hand passes, with a screenshot of each step in `~/work/tmp`.
+- [ ] `docs/start.md` replaces "Not built" with the steps. `docs/epics.md` closes C1 and C2.
+
+**Dependencies:** MA-6. **Estimated scope:** S.
+
+### Checkpoint F: after MA-7
+
+- [ ] Each success criterion of SPEC-mcp-auth is met.
+- [ ] Review with the user, with the chart and the test of each rule.
