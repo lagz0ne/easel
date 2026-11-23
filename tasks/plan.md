@@ -88,3 +88,21 @@ See [todo.md](todo.md). Phases:
 ## Open questions
 
 None now. SPD-8 and after are written at checkpoint D, from the first hot path list.
+
+## Module `copy` (added 2026-11-23)
+
+The spec is [SPEC-copy.md](../SPEC-copy.md) (approved on 2026-11-23). The texts of the team go in
+the kit version, as the look: one more column, one more field of the kit cell and of the kit
+message. So the live path of K7 and the pictures carry them with no new message. The status of a
+frame is one more column of the frame. The check of app frames gets three rules.
+
+Order: the model (CP-1), the texts on the server with their calls (CP-2), the texts live in the
+frames (CP-3), the status and the settle rules (CP-4), then the mark, the agent check and the
+docs (CP-5). Each task ends green and ships alone.
+
+Risks:
+
+- The kit cell is on the board that a share link opens, so the texts are on the critical path.
+  The texts are 64 KiB at most. CP-3 runs `bun run speed` before and after.
+- An exploring put keeps a color off the look. The made CSS must have its class, or the frame does
+  not show it. CP-4 tests a frame with `bg-[#f00]`.

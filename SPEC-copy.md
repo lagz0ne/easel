@@ -1,6 +1,6 @@
 # Spec delta: `copy`, the texts of the team by text key
 
-Status: proposed (2026-11-23). After it ships, it goes into [SPEC-kit.md](SPEC-kit.md) as
+Status: approved (user, 2026-11-23: "Yes"). After it ships, it goes into [SPEC-kit.md](SPEC-kit.md) as
 § The texts, and into [SPEC-frames.md](SPEC-frames.md) as § Exploring and ready. Then this file
 gets `Status: implemented`.
 
@@ -138,7 +138,7 @@ type Status = "exploring" | "ready"
 ## Model
 
 The status of a frame is new state. So a TLA+ model and its chart come first, before code
-(AGENTS.md), as `docs/statecharts/frame-status.md`. The model has two frames, two text keys, a
+(AGENTS.md), as [copy-status](docs/statecharts/copy-status.md). The model has two frames, two text keys, a
 put that settles or not, `frame.ready`, `frame.explore`, `texts.set` and `look.set`. Its rules:
 
 - A ready frame has a current version with no finding of the settle rules (rule 15).
@@ -189,7 +189,7 @@ put that settles or not, `frame.ready`, `frame.explore`, `texts.set` and `look.s
 - A browser test (`tests/browser/viewer-kit.test.tsx`) for L5 and L12: the same iframe, the new
   text within 1 second, a new picture for a frame that is not live. The `Ready` mark.
 - An MCP test for L3, over HTTP: two users, `set_texts`, then `list_texts` and `put_frame`.
-- `scripts/statecharts.sh --check frame-status frame-status-broken`.
+- `scripts/statecharts.sh --check copy-status copy-status-remove`.
 - `offload -- bun run speed`, before and after. The numbers go in the ship message.
 
 ## Boundaries

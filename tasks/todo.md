@@ -630,6 +630,8 @@ and the mobile app lists the canvases. Then a revoke stops it. `docs/start.md` t
 **Acceptance criteria:**
 
 - [ ] The check by hand passes, with a screenshot of each step in `~/work/tmp`.
+      Waits: the user has no Claude web app now (2026-11-23: "I have no claude web now", "Only
+      paseo"). The agents of the user run through Paseo, as Claude Code.
 - [x] A script ran each step of the sign-in on the live easel (2026-11-23,
       `~/work/tmp/2026-11-23-ma7-oauth-live/flow.ts`), as the user `ma7-check`: the 401 and its
       metadata; the page for the claude.ai callback; a refusal of another callback and of a wrong
@@ -646,3 +648,41 @@ and the mobile app lists the canvases. Then a revoke stops it. `docs/start.md` t
 
 - [ ] Each success criterion of SPEC-mcp-auth is met.
 - [ ] Review with the user, with the chart and the test of each rule.
+
+## Phase 7: `copy`, the texts of the team
+
+The spec is [SPEC-copy.md](../SPEC-copy.md). The plan is in [plan.md](plan.md#module-copy-added-2026-11-23).
+
+### CP-1: the model and the chart of the status
+
+- [x] `copy-status` holds on 154 states; `copy-status-remove` breaks `AReadyFrameIsSettled` in 3
+      steps (a text key removed under a ready frame).
+- [x] `scripts/statecharts.sh --check copy-status copy-status-remove` is OK.
+
+### CP-2: the texts of the team on the server
+
+- [ ] `kit_versions` gets `texts` and `texts_rev`. Kit version 1 holds `ui.empty` and `ui.close`.
+- [ ] `texts.list` and `texts.set` with each kind; `texts.set` makes a new kit version.
+- [ ] The tools `list_texts` and `set_texts`; `easel texts ls` and `easel texts set`.
+- [ ] A test reaches each exit; the 4 fact rules of the texts.
+
+### CP-3: the texts live in the frames
+
+- [ ] The kit cell and the kit message carry the texts. `say` gives the text of the team first.
+- [ ] A picture is composed with the texts of its kit version.
+- [ ] A browser test: L5 (the same iframe, the new text within 1 s) and L12 (`vi`).
+- [ ] `offload -- bun run speed`, before and after, in the ship message.
+
+### CP-4: exploring and ready
+
+- [ ] A frame has a status; a frame made before is `exploring`.
+- [ ] The check finds `copy/text`, `copy/own` and `copy/key`. An exploring put keeps the frame as
+      written and lists the findings. A put on a ready frame applies the fixes, or is `unsettled`.
+- [ ] `frame.ready`, `frame.explore`, `put` with `ready`; their tools and commands.
+- [ ] A test for each finding, each kind, and fact rule 5.
+
+### CP-5: the mark, the agent check, the docs
+
+- [ ] The label row of a ready frame says `Ready`.
+- [ ] L3 over MCP: two users, `set_texts`, `list_texts`, `put_frame` with `ready`.
+- [ ] SPEC-kit § The texts and SPEC-frames § Exploring and ready; SPEC-copy `implemented`.
