@@ -1,5 +1,5 @@
 import { Database } from "bun:sqlite";
-import { mkdtempSync, rmSync } from "node:fs";
+import { existsSync, mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 
@@ -187,7 +187,10 @@ test(
   "two agents never get the same request: a double of the store write runs a second next to its end before the write of the first one lands, and the two get different requests (ARequestIsHeldByAtMostOneAgent)",
   { timeout: 30_000 },
   async () => {
-    const dir = mkdtempSync(join(tmpdir(), "easel-queue-"));
+    // The race needs a database file for its second connection. Put it in memory where the
+    // system has a memory file system: on vibea's disks, each commit waits about 170 ms for its
+    // sync, and the test ran out of time under load (lagz0ne/easel#13).
+    const dir = mkdtempSync(join(existsSync("/dev/shm") ? "/dev/shm" : tmpdir(), "easel-queue-"));
     closers.push(() => rmSync(dir, { recursive: true, force: true }));
     const file = join(dir, "easel.db");
     const other = new Database(file, { create: true });
