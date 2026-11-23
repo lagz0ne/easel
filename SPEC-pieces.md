@@ -118,7 +118,8 @@ that change them for that story only; the matrix of Chromatic (one story in each
 11. **The board value.** The dock of the viewer shows each switch that a frame on the board takes,
     one control for each. A pick gives the value to each frame that takes the switch, and each
     live document draws again in a new scope, as a pick of the locale does now. A frame that does
-    not take the switch does not change. The locale pick of the dock becomes the `locale` switch.
+    not take the switch does not change. A frame with its own value (rule 12) keeps it, and does
+    not draw again. The locale pick of the dock becomes the `locale` switch.
 12. **The frame value.** The controls of a frame (E10) show each switch that it takes. A pick there
     is for that frame only, and the control says that the frame has its own value. `Use the
 board` gives the frame the board value again.
@@ -163,10 +164,12 @@ board` gives the frame the board value again.
       exploring.
     - An exploring frame with a type error does not stop the put. The answer lists it as
       `exploringBroken`, and the frame shows its last good version until a put fixes it.
+    - The write is for the frames that the check read. If one of them changed after the check (a
+      new version, or a mark of ready), the put checks again before it writes.
 18. After the put, each live document of a frame that depends on a changed capsule gets a new
     document, as for a new frame version (the page keeps the old iframe until the new one draws).
-    A frame that depends on no changed capsule keeps its document. Each picture of such a frame is
-    made again for the new kit version.
+    A frame that depends on no changed capsule keeps its document. Each picture of a frame that
+    depends on a changed capsule is made again for the new kit version.
 19. A request keeps the kit version that its viewer saw, so its picture shows the design system as
     it was.
 
@@ -219,7 +222,8 @@ not, a `design.put` that breaks or not, a frame put at the same time, and the ol
 new one draws. Its rules:
 
 - No ready frame has a type error against the current kit version.
-- Each live frame that depends on a changed capsule shows the new kit version in the end.
+- Each live frame that depends on a changed capsule shows the new kit version in the end. The
+  exception is an exploring frame with a type error (rule 17): it shows its last good version.
 - A frame that depends on no changed capsule keeps its document.
 
 A second model, `board-switch`: two frames that take a switch, one that does not, a board pick, a

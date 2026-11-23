@@ -65,12 +65,14 @@ Prior art:
 9. Find (S15) finds a frame on each page. A pick shows its page, then the frame.
 10. The Requests panel lists the requests of each page, with the name of the page. A pick of a
     request on another page shows that page, then the frame.
-11. A switch of the board (SPEC-pieces § Switches) is for the canvas: a pick stays when the person
+11. If an agent moves a marked frame (picked or found) to another page, the tab stays on its page,
+    and the mark ends.
+12. A switch of the board (SPEC-pieces § Switches) is for the canvas: a pick stays when the person
     goes to another page.
 
 ### Speed
 
-12. The open of a share link loads the frames of one page only. The list of pages is names and
+13. The open of a share link loads the frames of one page only. The list of pages is names and
     counts. So Q1 holds for each page: a page of 200 frames opens in the budget of 200 frames, and
     the other pages cost nothing.
 
