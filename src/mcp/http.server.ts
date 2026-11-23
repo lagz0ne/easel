@@ -4,9 +4,15 @@ import { z } from "zod";
 
 import { userApi } from "@/access/contract";
 
+import {
+  authorizationServer,
+  authorize,
+  origin,
+  ownOrigin,
+  protectedResource,
+  token,
+} from "./oauth.server";
 import { mcpServer } from "./server";
-
-const origin = tag<string | null>({ label: "mcp.origin", default: null });
 
 const mcpScope = tag<Promise<Scope.Handle>>({ label: "mcp.scope" });
 
@@ -19,10 +25,13 @@ const bearerHeader = z
 
 const signIn = operation({
   label: "mcp.signIn",
-  run: () =>
+  depends: { own: ownOrigin },
+  run: ({ own }) =>
     new Response("sign in: send Authorization: Bearer <token> from `easel login`", {
       status: 401,
-      headers: { "WWW-Authenticate": 'Bearer realm="easel"' },
+      headers: {
+        "WWW-Authenticate": `Bearer realm="easel", resource_metadata="${own.run()}/.well-known/oauth-protected-resource"`,
+      },
     }),
 });
 
@@ -37,10 +46,10 @@ export const mcpMeta = operation({
 const answerSignedIn = operation({
   label: "mcp.answerSignedIn",
   input: z.custom<Request>((value) => value instanceof Request),
-  depends: { me: userApi["users.me"], mcpServer, signIn },
-  run: async ({ me, mcpServer, signIn }, { input: request }) => {
+  depends: { me: userApi["users.me"], mcpServer },
+  run: async ({ me, mcpServer }, { input: request }) => {
     const who = await me.settle({ input: null });
-    if (who.status !== "success") return signIn.run();
+    if (who.status !== "success") return null;
 
     const server = await mcpServer.run();
     const { WebStandardStreamableHTTPServerTransport } =
@@ -78,12 +87,18 @@ export const mcpRoute = operation({
     }
     if (!bearerHeader.safeParse(request.headers.get("authorization")).success) return signIn.run();
 
-    return (await scope).run(mcpAnswer, { input: request });
+    return (await (await scope).run(mcpAnswer, { input: request })) ?? signIn.run();
   },
 });
 
 export const mcpHttp = capsule({
   label: "mcp.http",
   config: { origin, scope: mcpScope.required },
-  exports: { route: mcpRoute },
+  exports: {
+    route: mcpRoute,
+    resource: protectedResource,
+    issuer: authorizationServer,
+    authorize,
+    token,
+  },
 });

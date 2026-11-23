@@ -143,6 +143,12 @@ export default defineMain(async ({ env, args, signal, stdout, stderr, exit }) =>
       "POST /mcp": mcpHttp.route,
       "GET /mcp": mcpHttp.route,
       "DELETE /mcp": mcpHttp.route,
+      "GET /.well-known/oauth-protected-resource": mcpHttp.resource,
+      "GET /.well-known/oauth-protected-resource/mcp": mcpHttp.resource,
+      "GET /.well-known/oauth-authorization-server": mcpHttp.issuer,
+      "GET /oauth/authorize": mcpHttp.authorize,
+      "POST /oauth/authorize": mcpHttp.authorize,
+      "POST /oauth/token": mcpHttp.token,
     },
   });
   const app = createScope({
@@ -153,7 +159,7 @@ export default defineMain(async ({ env, args, signal, stdout, stderr, exit }) =>
         pages,
         websocket: door,
         handlers: [table],
-        paths: ["/install.sh", "/mcp"],
+        paths: ["/install.sh", "/mcp", "/.well-known/*", "/oauth/*"],
         development: env.NODE_ENV !== "production",
         stdout,
       }),
