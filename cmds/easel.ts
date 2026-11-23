@@ -46,11 +46,19 @@ const help = `easel: the canvas CLI. Every command takes --json (one JSON value 
   easel errors tick                                stamp the fixer's tick (owner)
   easel canvas new <name>                          make a canvas; prints its key
   easel canvas ls                                  the canvases: key, name, when made, shared
-  easel put <canvas> <file|dir|-> [--name N] [--size WxH]  make a frame from a file, a folder, or stdin with -
+  easel put <canvas> <file|dir|-> [--name N] [--size WxH] [--page P] [--at x,y]
+                                                   make a frame from a file, a folder, or stdin with -; it goes on page P
+                                                   (else the first page) at x,y (else right of the frames of the page, at y 0)
   easel put <canvas> <file|dir|-> --id <id> --base <v>     write a frame again on the version you got
                                                    a .tsx file is an app frame; a folder is one of its .ts and .tsx files, from index.tsx
                                                    --ready marks the app frame ready: it uses only the texts of the team and the look
-  easel ls <canvas>                                the frames: id, name, box, version, status (exploring or ready)
+  easel ls <canvas>                                the frames: id, name, page, box, version, status (exploring or ready)
+  easel move <canvas> <id> --at <x>,<y> [--page P] move a frame to x,y, and to page P; it makes no version
+  easel pages <canvas>                             the pages in their order: key, name, count of frames
+  easel page new <canvas> <name>                   add a page at the end; prints its key
+  easel page rename <canvas> <page> <name>         give a page a new name; its key stays
+  easel page rm <canvas> <page>                    remove a page with no frames; a canvas keeps one page at least
+  easel page order <canvas> <page>...              put these pages first, in this order; the others stay after them
   easel get <canvas> <id> [-o <file|dir>]          the document; -o writes it (a folder frame: each file) and prints the version
   easel rm <canvas> <id>                           delete a frame
   easel ready <canvas> <id>                        mark an app frame ready; it must use only the texts of the team and the look
@@ -131,6 +139,7 @@ const options = {
   trigger: { type: "string" },
   "token-file": { type: "string" },
   at: { type: "string" },
+  page: { type: "string" },
   file: { type: "string", short: "f" },
   locale: { type: "string" },
   help: { type: "boolean", short: "h" },
@@ -246,6 +255,8 @@ const framesInvocations = [
         id: z.string().optional(),
         base: z.string().optional(),
         ready: z.boolean().optional(),
+        page: z.string().optional(),
+        at: z.string().optional(),
       }),
     })
     .transform(({ positionals: [, canvas, file], values }): unknown => ({
@@ -261,8 +272,76 @@ const framesInvocations = [
           id: values.id,
           base: values.base,
           ready: values.ready,
+          page: values.page,
+          at: values.at,
         },
       },
+    })),
+  z
+    .object({
+      positionals: z.tuple([z.literal("move"), z.string(), z.string()]),
+      values: z.strictObject({ ...common, at: z.string(), page: z.string().optional() }),
+    })
+    .transform(({ positionals: [, canvas, id], values }): unknown => ({
+      at: values.server,
+      command: {
+        kind: "pages",
+        act: { kind: "move", canvas, id, at: values.at, page: values.page },
+      },
+    })),
+  z
+    .object({
+      positionals: z.tuple([z.literal("pages"), z.string()]),
+      values: z.strictObject(common),
+    })
+    .transform(({ positionals: [, canvas], values }): unknown => ({
+      at: values.server,
+      command: { kind: "pages", act: { kind: "pages", canvas } },
+    })),
+  z
+    .object({
+      positionals: z.tuple([z.literal("page"), z.literal("new"), z.string(), z.string()]),
+      values: z.strictObject(common),
+    })
+    .transform(({ positionals: [, , canvas, name], values }): unknown => ({
+      at: values.server,
+      command: { kind: "pages", act: { kind: "page new", canvas, name } },
+    })),
+  z
+    .object({
+      positionals: z.tuple([
+        z.literal("page"),
+        z.literal("rename"),
+        z.string(),
+        z.string(),
+        z.string(),
+      ]),
+      values: z.strictObject(common),
+    })
+    .transform(({ positionals: [, , canvas, page, name], values }): unknown => ({
+      at: values.server,
+      command: { kind: "pages", act: { kind: "page rename", canvas, page, name } },
+    })),
+  z
+    .object({
+      positionals: z.tuple([z.literal("page"), z.literal("rm"), z.string(), z.string()]),
+      values: z.strictObject(common),
+    })
+    .transform(({ positionals: [, , canvas, page], values }): unknown => ({
+      at: values.server,
+      command: { kind: "pages", act: { kind: "page rm", canvas, page } },
+    })),
+  z
+    .object({
+      positionals: z.tuple(
+        [z.literal("page"), z.literal("order"), z.string(), z.string()],
+        z.string(),
+      ),
+      values: z.strictObject(common),
+    })
+    .transform(({ positionals: [, , canvas, ...pages], values }): unknown => ({
+      at: values.server,
+      command: { kind: "pages", act: { kind: "page order", canvas, pages } },
     })),
   z
     .object({

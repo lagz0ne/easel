@@ -217,7 +217,7 @@ test("canvas ls and ls print one line per canvas or frame without --json", async
   await a.run({ kind: "put", canvas: "flow", file: a.file("x.html", "<p/>"), name: "home" });
   a.out.splice(0);
   expect(await a.run({ kind: "ls", canvas: "flow" })).toBe(0);
-  expect(a.out.join("")).toMatch(/^[0-9a-f]{12}\thome\t0,0 1440x900\tv1\texploring\n$/);
+  expect(a.out.join("")).toMatch(/^[0-9a-f]{12}\thome\tpage-1\t0,0 1440x900\tv1\texploring\n$/);
 });
 
 test("put makes a frame and exits 0; a put with --id at its version exits 0, updated or unchanged", async () => {

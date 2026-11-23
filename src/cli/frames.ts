@@ -16,8 +16,10 @@ import {
   maxDocBytes,
   maxMadeCssBytes,
   maxSentDocBytes,
+  pageKey,
   pictureRegion,
   pictureScale,
+  placeAt,
   putOutput,
   size,
   version,
@@ -47,6 +49,8 @@ export const framesCommand = z.discriminatedUnion("kind", [
     id: z.string().optional(),
     base: z.string().optional(),
     ready: z.boolean().optional(),
+    page: pageKey.optional(),
+    at: z.string().optional(),
   }),
   z.object({ kind: z.literal("ls"), canvas: canvasKey }),
   z.object({ kind: z.literal("get"), canvas: canvasKey, id: frameId, out: z.string().optional() }),
@@ -86,10 +90,21 @@ const sizeFlag = z
 
 const baseFlag = z.string().regex(/^\d+$/).transform(Number).pipe(version);
 
+export const atFlag = z
+  .string()
+  .regex(/^\d+,\d+$/)
+  .transform((typed) => typed.split(",").map(Number))
+  .transform(([x = 0, y = 0]) => ({ x, y }))
+  .pipe(z.object({ x: placeAt, y: placeAt }));
+
+export const badAt =
+  "--at takes x,y in CSS pixels, each a whole number from 0 to 100000, as 0,1200";
+
 const badFlag = {
   size: "--size takes WxH in CSS pixels, each 1 to 16000, as 390x844",
   id: "--id takes a frame's id, 12 of 0-9 and a-f: `easel ls <canvas>` prints them",
   base: "--base takes the version you got, 1 or more: `easel get` prints it",
+  at: badAt,
 } as const;
 
 const address = z.enum([
@@ -104,9 +119,15 @@ const address = z.enum([
   "frame.shot",
   "frame.ready",
   "frame.explore",
+  "frame.move",
+  "page.list",
+  "page.create",
+  "page.rename",
+  "page.order",
+  "page.delete",
 ] satisfies FramesAddress[]);
 
-const framesDeadline = operation({
+export const framesDeadline = operation({
   label: "cli.framesDeadline",
   input: address,
   run: (_, { input, clock, signal }) => {
@@ -132,7 +153,7 @@ export const framesExitOf = operation({
   },
 });
 
-const framesFault = operation({
+export const framesFault = operation({
   label: "cli.framesFault",
   input: z.unknown(),
   depends: { faultExit },
@@ -151,7 +172,7 @@ const framesFault = operation({
   },
 });
 
-const usage = operation({
+export const usage = operation({
   label: "cli.framesUsage",
   input: z.string(),
   depends: { say },
@@ -283,16 +304,18 @@ const typedFlags = z.object({
   size: sizeFlag.optional(),
   id: frameId.optional(),
   base: baseFlag.optional(),
+  at: atFlag.optional(),
 });
 
 const putFlags = operation({
   label: "cli.putFlags",
   input: framesCommand.options[2],
   run: (_, { input }) => {
-    const read = typedFlags.safeParse({ size: input.size, id: input.id, base: input.base });
+    const { size, id, base, at } = input;
+    const read = typedFlags.safeParse({ size, id, base, at });
     if (read.success) return { bad: null, ...read.data };
 
-    const flag = z.enum(["size", "id", "base"]).parse(read.error.issues[0]?.path[0]);
+    const flag = z.enum(["size", "id", "base", "at"]).parse(read.error.issues[0]?.path[0]);
     return { bad: badFlag[flag] };
   },
 });
@@ -305,9 +328,9 @@ const putUsage = operation({
       return "--id needs --base, the version you got: `easel get` prints it";
     }
 
-    const boxed = input.name !== undefined || input.size !== undefined;
+    const boxed = [input.name, input.size, input.page, input.at].some((flag) => flag !== undefined);
     return input.id !== undefined && boxed
-      ? "--name and --size do not go with --id: a put with --id writes the document only"
+      ? "--name, --size, --page and --at do not go with --id: a put with --id writes the document only; `easel move` moves a frame"
       : null;
   },
 });
@@ -325,11 +348,12 @@ const tooBigText = operation({
 
 const goneText = operation({
   label: "cli.goneText",
-  input: z.object({ canvas: z.string(), id: z.string().optional() }),
-  run: (_, { input: { canvas, id } }) =>
-    id === undefined
-      ? `no canvas ${canvas}: make it with \`easel canvas new\``
-      : `no frame ${id} on ${canvas}: a put with --id never makes a frame`,
+  input: z.object({ canvas: z.string(), id: z.string().optional(), page: z.string().optional() }),
+  run: (_, { input: { canvas, id, page } }) => {
+    if (id !== undefined) return `no frame ${id} on ${canvas}: a put with --id never makes a frame`;
+    if (page === undefined) return `no canvas ${canvas}: make it with \`easel canvas new\``;
+    return `no canvas ${canvas}, or no page ${page} on it: \`easel pages ${canvas}\` lists the pages`;
+  },
 });
 
 const offKitText = operation({
@@ -375,11 +399,12 @@ const putText = operation({
   input: z.object({
     canvas: z.string(),
     id: z.string().optional(),
+    page: z.string().optional(),
     answer: putOutput,
     app: z.boolean(),
   }),
   depends: { tooBigText, foundText, goneText },
-  run: ({ tooBigText, foundText, goneText }, { input: { canvas, id, answer, app } }) => {
+  run: ({ tooBigText, foundText, goneText }, { input: { canvas, id, page, answer, app } }) => {
     if ("findings" in answer) return foundText.run({ input: answer });
 
     switch (answer.kind) {
@@ -389,7 +414,7 @@ const putText = operation({
           error: true,
         };
       case "gone":
-        return { text: goneText.run({ input: { canvas, id } }), error: true };
+        return { text: goneText.run({ input: { canvas, id, page } }), error: true };
       case "tooBig":
         return { text: tooBigText.run({ input: { maxBytes: answer.maxBytes, app } }), error: true };
     }
@@ -472,6 +497,9 @@ const sendPut = operation({
       size: size.optional(),
       id: frameId.optional(),
       base: version.optional(),
+      page: pageKey.optional(),
+      x: placeAt.optional(),
+      y: placeAt.optional(),
     }),
     doc: putDoc,
   }),
@@ -483,11 +511,11 @@ const sendPut = operation({
       return { answered: true as const, answer: { kind: "tooBig" as const, maxBytes } };
     }
 
-    const { canvas, id, base, name, size } = command;
+    const { canvas, id, base, name, size, page, x, y } = command;
     const sent =
       id !== undefined && base !== undefined
         ? { canvas, ...doc, id, base }
-        : { canvas, ...doc, name, size };
+        : { canvas, ...doc, name, size, page, x, y };
     const stop = deadline.run({ input: "frame.put" });
     const reply = await putCall.settle({ input: sent, signal: stop.signal });
     stop.abort();
@@ -529,13 +557,15 @@ export const put = operation({
     if (loaded.bad !== null) return usage.run({ input: loaded.bad });
 
     const { size, id, base } = flags;
-    const command = { canvas: input.canvas, name: input.name, size, id, base };
+    const place = { page: input.page, x: flags.at?.x, y: flags.at?.y };
+    const command = { canvas: input.canvas, name: input.name, size, id, base, ...place };
     const { folder, app, doc } = loaded;
     const sent = await sendPut.run({ input: { command, doc } });
     if (!sent.answered) return sent.exit;
 
     const { answer } = sent;
-    const told = putText.run({ input: { canvas: input.canvas, id: input.id, answer, app } });
+    const { canvas, page } = input;
+    const told = putText.run({ input: { canvas, id: input.id, page, answer, app } });
     say.run({ input: { json: answer, ...told } });
     putFindings.run({ input: { file: input.file, folder, answer } });
     return exitOf.run({ input: { address: "frame.put", kind: answer.kind } });
@@ -569,7 +599,7 @@ export const ls = operation({
               ? answer.frames
                   .map(
                     (f) =>
-                      `${f.id}\t${f.name}\t${f.x},${f.y} ${f.w}x${f.h}\tv${f.version}\t${f.status}`,
+                      `${f.id}\t${f.name}\t${f.page}\t${f.x},${f.y} ${f.w}x${f.h}\tv${f.version}\t${f.status}`,
                   )
                   .join("\n")
               : `no frame on ${input.canvas} yet: \`easel put ${input.canvas} <file>\``,

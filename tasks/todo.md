@@ -731,9 +731,9 @@ Decisions of 2026-11-23 (the coordinator, for the spec):
 
 ### P8-2: the CLI
 
-- [ ] `easel put --page --at x,y`, `easel move`, `easel pages`, `easel page new|rename|rm|order`,
+- [x] `easel put --page --at x,y`, `easel move`, `easel pages`, `easel page new|rename|rm|order`,
       each with its `--help` line.
-- [ ] A test of each command and each answer.
+- [x] A test of each command and each answer.
 
 **Dependencies:** P8-1. **Estimated scope:** S.
 
