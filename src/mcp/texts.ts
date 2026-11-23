@@ -3,6 +3,7 @@ import { z } from "zod";
 
 import { pair } from "@/kit/compose";
 import { findingShape } from "@/kit/schema";
+import { textFinding } from "@/kit/texts";
 
 export const kindTexts: Readonly<Record<string, string>> = {
   taken: "taken: a canvas with that key is there. Pick another name, or use that canvas.",
@@ -16,6 +17,8 @@ export const kindTexts: Readonly<Record<string, string>> = {
   unreadable:
     "unreadable: each pair of colors below is hard to read, so nothing was written. Change those values, then set the look again.",
   none: "none: the look has no change to undo.",
+  invalid:
+    "invalid: a text below is wrong, so nothing was written. Fix each one, then set the texts again.",
   wrongState: "wrongState: the request is {state} now, so nothing was written.",
   closed: "wrongState: a viewer closed the request, so nothing was written. Stop the work on it.",
   lost: "lost: the claim is not yours now (its lease ended), so nothing was written. Stop this work, and call next_request.",
@@ -28,7 +31,7 @@ export const kindTexts: Readonly<Record<string, string>> = {
 };
 
 const listed = z.object({
-  findings: z.array(findingShape).optional(),
+  findings: z.array(z.union([findingShape, textFinding])).optional(),
   fails: z.array(pair).optional(),
   more: z.number().optional(),
 });
@@ -54,8 +57,10 @@ export const answerText = operation({
     const { findings = [], fails = [], more = 0 } = listed.safeParse(input.value).data ?? {};
     const lines = [
       headText.run({ input }),
-      ...findings.map(
-        (f) => `${f.file ?? "frame"}:${f.line}:${f.col} ${f.rule} ${f.what}. Fix: ${f.fix}`,
+      ...findings.map((f) =>
+        "key" in f
+          ? `${f.key}: ${f.what}. Fix: ${f.fix}`
+          : `${f.file ?? "frame"}:${f.line}:${f.col} ${f.rule} ${f.what}. Fix: ${f.fix}`,
       ),
       ...fails.map((p) => `${p.text} on ${p.on}: ${p.ratio}:1, needs ${p.min}:1 (${p.where})`),
       ...(more > 0 ? [`and ${more} more`] : []),

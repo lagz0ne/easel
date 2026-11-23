@@ -111,6 +111,31 @@ test("an answer's text lists its findings and its pairs in the CLI's form, and f
   expect(empty).toMatchObject({ isError: false, content: [{ text: kindTexts.empty }] });
 });
 
+test("set_texts: an invalid answer lists each text key, what is wrong and its fix; list_texts is a result", async () => {
+  const app = await scope();
+  const finding = {
+    key: "trial.start",
+    what: "a new text key has no en text",
+    fix: 'give its en text: easel texts set trial.start "<text>"',
+  };
+  const invalid = app.run(answerResult, {
+    rawInput: { address: "texts.set", value: { kind: "invalid", findings: [finding] } },
+  });
+  expect(invalid).toMatchObject({
+    isError: true,
+    content: [
+      {
+        type: "text",
+        text: `${kindTexts.invalid}\ntrial.start: a new text key has no en text. Fix: give its en text: easel texts set trial.start "<text>"`,
+      },
+    ],
+  });
+
+  const value = { kind: "found", kit: 1, rev: 1, texts: {}, noVi: [] };
+  const found = app.run(answerResult, { rawInput: { address: "texts.list", value } });
+  expect(found).toMatchObject({ isError: false, structuredContent: value });
+});
+
 test("each of the seven faults is one line on what to do next; an error that is no fault is thrown on", async () => {
   const app = await scope();
   const text = (

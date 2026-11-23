@@ -11,7 +11,16 @@ import { kitApi } from "./contract";
 import { lookValues, mergeLook, rootBlock } from "./look.server";
 import { runtimeNamesOf } from "./runtime.server";
 import { maxAppBytes, utf8Bytes } from "./schema";
-import { acceptRuntime, frameKit, readKit, readKitAt, saveLook, undoLook } from "./store.server";
+import {
+  acceptRuntime,
+  frameKit,
+  readKit,
+  readKitAt,
+  saveLook,
+  saveTexts,
+  undoLook,
+} from "./store.server";
+import { maxTextsBytes, mergeTexts, textsJson } from "./texts";
 
 const currentKit = operation({
   label: "kit.currentKit",
@@ -112,6 +121,59 @@ export const kitAccept = operation({
   run: async ({ acceptRuntime }) => acceptRuntime.run(),
 });
 
+export const textsList = operation({
+  label: "texts.list.do",
+  input: kitApi["texts.list"].input,
+  depends: { currentKit },
+  run: async ({ currentKit }) => {
+    const now = await currentKit.run();
+    const noVi = Object.entries(now.texts).flatMap(([key, text]) =>
+      text.vi === undefined ? [key] : [],
+    );
+    return { kind: "found" as const, kit: now.version, rev: now.textsRev, texts: now.texts, noVi };
+  },
+});
+
+const textsTries = 3;
+
+const textsChange = operation({
+  label: "texts.change",
+  input: kitApi["texts.set"].input,
+  depends: { currentKit, mergeTexts, textsJson },
+  run: async ({ currentKit, mergeTexts, textsJson }, { input }) => {
+    const now = await currentKit.run();
+    if (input.base !== undefined && now.textsRev !== input.base) {
+      return { kind: "stale" as const, rev: now.textsRev, kit: now.version };
+    }
+
+    const merged = mergeTexts.run({ input: { now: now.texts, patch: input.texts } });
+    if (merged.kind === "invalid") return merged;
+
+    const json = textsJson.run({ input: merged.texts });
+    if (utf8Bytes.parse(json) > maxTextsBytes) {
+      return { kind: "tooBig" as const, maxBytes: maxTextsBytes };
+    }
+
+    return { kind: "merged" as const, texts: merged.texts, base: now.textsRev };
+  },
+});
+
+export const textsSet = operation({
+  label: "texts.set.do",
+  input: kitApi["texts.set"].input,
+  depends: { textsChange, saveTexts },
+  run: async ({ textsChange, saveTexts }, { input }) => {
+    for (let tries = 1; ; tries++) {
+      const change = await textsChange.run({ input });
+      if (change.kind !== "merged") return change;
+
+      const saved = await saveTexts.run({ input: { texts: change.texts, base: change.base } });
+      const raced = saved.kind === "stale" && input.base === undefined && tries < textsTries;
+      if (!raced) return saved;
+    }
+  },
+});
+
 export const kitOps = {
   "kit.accept": kitAccept,
   "kit.capsules": listCapsules,
@@ -119,4 +181,6 @@ export const kitOps = {
   "look.get": lookGet,
   "look.set": lookSet,
   "look.undo": lookUndo,
+  "texts.list": textsList,
+  "texts.set": textsSet,
 };

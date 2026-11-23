@@ -661,10 +661,10 @@ The spec is [SPEC-copy.md](../SPEC-copy.md). The plan is in [plan.md](plan.md#mo
 
 ### CP-2: the texts of the team on the server
 
-- [ ] `kit_versions` gets `texts` and `texts_rev`. Kit version 1 holds `ui.empty` and `ui.close`.
-- [ ] `texts.list` and `texts.set` with each kind; `texts.set` makes a new kit version.
-- [ ] The tools `list_texts` and `set_texts`; `easel texts ls` and `easel texts set`.
-- [ ] A test reaches each exit; the 4 fact rules of the texts.
+- [x] `kit_versions` gets `texts` and `texts_rev`. Kit version 1 holds `ui.empty` and `ui.close`.
+- [x] `texts.list` and `texts.set` with each kind; `texts.set` makes a new kit version.
+- [x] The tools `list_texts` and `set_texts`; `easel texts ls` and `easel texts set`.
+- [x] A test reaches each exit; the 4 fact rules of the texts.
 
 ### CP-3: the texts live in the frames
 

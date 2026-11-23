@@ -31,7 +31,7 @@ export const lookCommand = z.discriminatedUnion("kind", [
 
 export type LookCommand = z.infer<typeof lookCommand>;
 
-const numberFlag = z.string().regex(/^\d+$/).transform(Number).pipe(kitVersion);
+export const numberFlag = z.string().regex(/^\d+$/).transform(Number).pipe(kitVersion);
 
 const address = z.enum([
   "look.get",
@@ -40,9 +40,11 @@ const address = z.enum([
   "kit.check",
   "kit.capsules",
   "kit.accept",
+  "texts.list",
+  "texts.set",
 ] satisfies KitAddress[]);
 
-const lookDeadline = operation({
+export const lookDeadline = operation({
   label: "cli.lookDeadline",
   input: address,
   run: (_, { input, clock, signal }) => {
@@ -57,7 +59,7 @@ const lookDeadline = operation({
   },
 });
 
-const lookExitOf = operation({
+export const lookExitOf = operation({
   label: "cli.lookExitOf",
   input: z.object({ address, kind: z.string() }),
   run: (_, { input }) => {
@@ -66,7 +68,7 @@ const lookExitOf = operation({
   },
 });
 
-const lookFault = operation({
+export const lookFault = operation({
   label: "cli.lookFault",
   input: z.unknown(),
   depends: { faultExit },
@@ -85,7 +87,7 @@ const lookFault = operation({
   },
 });
 
-const lookUsage = operation({
+export const lookUsage = operation({
   label: "cli.lookUsage",
   input: z.string(),
   depends: { say },
@@ -155,7 +157,7 @@ export const lookGet = operation({
   },
 });
 
-const readPatch = operation({
+export const readPatch = operation({
   label: "cli.readPatch",
   input: z.string(),
   depends: { stdin: stdinText },
@@ -169,7 +171,7 @@ const readPatch = operation({
   },
 });
 
-const jsonOf = z.string().transform((text, ctx): unknown => {
+export const jsonOf = z.string().transform((text, ctx): unknown => {
   try {
     return JSON.parse(text);
   } catch {

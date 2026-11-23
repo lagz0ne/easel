@@ -140,7 +140,7 @@ const setKit = operation({
   input: z.union([z.literal(1), z.literal(2), z.literal(3)]),
   depends: { cells: kitCells.atScope.controller },
   run: async ({ cells }, { input }) =>
-    cells.set({ canvas, kit: input, look: looks[input].look, css: "", pieces: [] }),
+    cells.set({ canvas, kit: input, look: looks[input].look, css: "", pieces: [], texts: {} }),
 });
 
 async function boot(

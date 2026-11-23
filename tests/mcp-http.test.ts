@@ -176,7 +176,7 @@ test("a client with a live token lists the tools over HTTP, and a call runs as i
   const { ann } = await team(srv);
   const mcp = await client(srv, ann);
 
-  expect((await mcp.listTools()).tools).toHaveLength(31);
+  expect((await mcp.listTools()).tools).toHaveLength(33);
   const answer = await mcp.callTool({ name: "list_canvases", arguments: {} });
   expect(answer).toMatchObject({ isError: false, structuredContent: { canvases: [] } });
   const made = await mcp.callTool({ name: "create_canvas", arguments: { name: "Flow" } });

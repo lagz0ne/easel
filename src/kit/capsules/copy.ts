@@ -1,6 +1,8 @@
 import { capsule, operation, resource, tag } from "@tinkered/core";
 import { z } from "zod";
 
+import { paramsOf, type Text, textShape } from "@/kit/texts";
+
 import { aboutShape } from "./about";
 
 export const locales = ["en", "vi"] as const;
@@ -8,10 +10,6 @@ export const locales = ["en", "vi"] as const;
 const localeShape = z.enum(locales);
 
 export type Locale = z.infer<typeof localeShape>;
-
-const textShape = z.union([z.string(), z.object({ one: z.string(), other: z.string() })]);
-
-export type Text = z.infer<typeof textShape>;
 
 export type Texts<K extends string = string> = {
   readonly [L in Locale]: Readonly<Record<K, Text>>;
@@ -32,16 +30,6 @@ const locale = tag<Locale>({ label: "copy.locale", default: "en", parse: localeS
 const about = tag({ label: "copy.about", parse: aboutShape });
 
 const texts = tag<Texts>({ label: "copy.texts", parse: textsShape });
-
-const paramsOf = operation({
-  label: "copy.paramsOf",
-  input: textShape,
-  run: (_, { input }) => {
-    const all = typeof input === "string" ? input : `${input.one} ${input.other}`;
-    const names = new Set([...all.matchAll(/\{(\w+)\}/g)].map((m) => m[1] ?? ""));
-    return [...names].sort((a, b) => a.localeCompare(b)).join(" ");
-  },
-});
 
 export const textGaps = operation({
   label: "copy.textGaps",

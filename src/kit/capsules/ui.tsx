@@ -5,27 +5,17 @@ import type { ReactNode } from "react";
 import { contrast } from "@/kit/compose";
 
 import { aboutShape } from "./about";
-import { copy, type Texts } from "./copy";
+import { copy } from "./copy";
 import { look } from "./look";
+import { uiTexts } from "./ui-texts";
 
 const about = tag({ label: "ui.about", parse: aboutShape });
 
-const texts = {
-  en: {
-    "ui.empty": "Nothing here yet",
-    "ui.close": "Close",
-  },
-  vi: {
-    "ui.empty": "Chưa có gì",
-    "ui.close": "Đóng",
-  },
-} satisfies Texts;
-
 const text = resource({
   label: "ui.text",
-  tags: [copy.texts(texts)],
+  tags: [copy.texts(uiTexts)],
   depends: { say: copy.say },
-  factory: ({ say }) => say(texts),
+  factory: ({ say }) => say(uiTexts),
 });
 
 const tones = {

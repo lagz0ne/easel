@@ -158,6 +158,8 @@ export const mcpCall = operation({
     "look.get": kitApi["look.get"],
     "look.set": kitApi["look.set"],
     "look.undo": kitApi["look.undo"],
+    "texts.list": kitApi["texts.list"],
+    "texts.set": kitApi["texts.set"],
     "request.next": queueApi["request.next"],
     "request.extend": queueApi["request.extend"],
     "request.release": queueApi["request.release"],

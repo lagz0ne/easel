@@ -5,6 +5,7 @@ import { capsuleRow, startRow } from "./capsules/row";
 import { pair } from "./compose";
 import { findingShape } from "./schema";
 import { lookPatch } from "./shape";
+import { teamTexts, textFinding, textKey, textsPatch } from "./texts";
 
 export const kitVersion = z.number().int().positive();
 
@@ -21,6 +22,22 @@ export const lookSetOutput = z.discriminatedUnion("kind", [
   z.object({ kind: z.enum(["updated", "unchanged"]), ...revAndKit }),
   z.object({ kind: z.literal("stale"), ...revAndKit }),
   z.object({ kind: z.literal("unreadable"), fails: z.array(pair) }),
+]);
+
+export const textsListOutput = z.discriminatedUnion("kind", [
+  z.object({
+    kind: z.literal("found"),
+    ...revAndKit,
+    texts: teamTexts,
+    noVi: z.array(textKey),
+  }),
+]);
+
+export const textsSetOutput = z.discriminatedUnion("kind", [
+  z.object({ kind: z.enum(["updated", "unchanged"]), ...revAndKit }),
+  z.object({ kind: z.literal("stale"), ...revAndKit }),
+  z.object({ kind: z.literal("invalid"), findings: z.array(textFinding) }),
+  z.object({ kind: z.literal("tooBig"), maxBytes: z.number() }),
 ]);
 
 export const kitCheckInput = z.union([
@@ -79,6 +96,14 @@ export const kitContracts = {
       z.object({ kind: z.literal("none") }),
     ]),
   },
+  "texts.list": {
+    input: z.object({}),
+    output: textsListOutput,
+  },
+  "texts.set": {
+    input: z.object({ texts: textsPatch, base: kitVersion.optional() }),
+    output: textsSetOutput,
+  },
 };
 
 export const kitApi = rpc(kitContracts);
@@ -99,4 +124,6 @@ export const kitSuccessKinds = {
   "look.get": ["found"],
   "look.set": ["updated", "unchanged"],
   "look.undo": ["updated"],
+  "texts.list": ["found"],
+  "texts.set": ["updated", "unchanged"],
 } as const satisfies { readonly [A in KitAddress]: readonly KindOf<A>[] };

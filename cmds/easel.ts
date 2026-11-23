@@ -64,6 +64,10 @@ const help = `easel: the canvas CLI. Every command takes --json (one JSON value 
   easel look get [-o <file>] [--at <kit>]         the look as DTCG JSON, its revision and its kit version
   easel look set <file|-> --base <rev>             change values of the look (a JSON Merge Patch); every tab shows it
   easel look undo --base <rev>                     the look before the last change, as a new kit version
+  easel texts ls                                   the texts of the team by text key, and the text keys with no vi text
+  easel texts set <text key> "<text>" [--locale vi] [--base <rev>]
+                                                   write one text; a new text key needs its en text first
+  easel texts set -f <file.json> [--base <rev>]    write texts from a file: {"<text key>": {"en": "...", "vi": "..."}}
   easel next [--canvas <k>] [--n <n>] [--wait <s>] [--lease <s>]
                                                    claim the oldest waiting request; prints it and its claim
   easel extend <claim> [--lease <s>]               start the lease again (30 to 3600 s, 300 when none)
@@ -123,6 +127,8 @@ const options = {
   trigger: { type: "string" },
   "token-file": { type: "string" },
   at: { type: "string" },
+  file: { type: "string", short: "f" },
+  locale: { type: "string" },
   help: { type: "boolean", short: "h" },
 } as const;
 
@@ -491,6 +497,43 @@ const lookInvocations = [
     })),
 ] as const;
 
+const textsInvocations = [
+  z
+    .object({
+      positionals: z.tuple([z.literal("texts"), z.literal("ls")]),
+      values: z.strictObject(common),
+    })
+    .transform(({ values }): unknown => ({
+      at: values.server,
+      command: { kind: "texts", act: { kind: "ls" } },
+    })),
+  z
+    .object({
+      positionals: z.tuple([z.literal("texts"), z.literal("set"), z.string(), z.string()]),
+      values: z.strictObject({
+        ...common,
+        locale: z.string().optional(),
+        base: z.string().optional(),
+      }),
+    })
+    .transform(({ positionals: [, , key, text], values }): unknown => ({
+      at: values.server,
+      command: {
+        kind: "texts",
+        act: { kind: "set", key, text, locale: values.locale, base: values.base },
+      },
+    })),
+  z
+    .object({
+      positionals: z.tuple([z.literal("texts"), z.literal("set")]),
+      values: z.strictObject({ ...common, file: z.string(), base: z.string().optional() }),
+    })
+    .transform(({ values }): unknown => ({
+      at: values.server,
+      command: { kind: "texts", act: { kind: "setFile", file: values.file, base: values.base } },
+    })),
+] as const;
+
 const channelInvocations = [
   z
     .object({
@@ -642,6 +685,7 @@ const invocation = z.union([
   ...queueInvocations,
   ...channelInvocations,
   ...lookInvocations,
+  ...textsInvocations,
 ]);
 
 const argv = z

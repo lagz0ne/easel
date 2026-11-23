@@ -386,6 +386,7 @@ test("the board's cell kit is set at scope: a second session sees it, for a canv
       look: now?.root,
       css: now?.css,
       pieces: [],
+      texts: now?.texts,
     });
   }
 });

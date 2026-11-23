@@ -123,6 +123,18 @@ export const tools = {
     description:
       "Make the look before its last change the current look, on the revision `base`. It makes a new kit version.",
   },
+  list_texts: {
+    address: "texts.list",
+    annotations: readOnly,
+    description:
+      "List the texts of the team: each text key with its en text, and its vi text if it has one. `noVi` names the text keys with no vi text, and `rev` is the revision to give as `base`.",
+  },
+  set_texts: {
+    address: "texts.set",
+    annotations: write,
+    description:
+      'Write texts of the team by text key, as { "trial.start": { "en": "Start", "vi": "Bắt đầu" } }: a new text key needs `en`, and each change makes a new kit version. With `base`, a change on an older revision answers `stale`, and no call removes a text key.',
+  },
   next_request: {
     address: "request.next",
     annotations: write,
