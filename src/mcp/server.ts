@@ -152,6 +152,8 @@ export const mcpCall = operation({
     "frame.get": framesApi["frame.get"],
     "frame.delete": framesApi["frame.delete"],
     "frame.shot": framesApi["frame.shot"],
+    "frame.ready": framesApi["frame.ready"],
+    "frame.explore": framesApi["frame.explore"],
     "kit.capsules": kitApi["kit.capsules"],
     "kit.check": kitApi["kit.check"],
     "kit.accept": kitApi["kit.accept"],

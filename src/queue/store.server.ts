@@ -2,6 +2,8 @@ import { bunSqlite } from "@tinkered/bun/sqlite";
 import { capsule, operation, resource, tag } from "@tinkered/core";
 import { z } from "zod";
 
+import { frameStatus } from "@/frames/contract";
+
 import { message, messages, request, requests } from "./cells";
 import { maxOpen, maxTries, stateOf } from "./contract";
 
@@ -653,12 +655,12 @@ export const readClaimed = operation({
     }
 
     const frame = box
-      .extend({ html: z.string() })
+      .extend({ html: z.string(), status: frameStatus })
       .nullable()
       .parse(
         db
           .query(
-            "SELECT id, name, x, y, w, h, version, html FROM frames_frames WHERE canvas = $canvas AND id = $id",
+            "SELECT id, name, x, y, w, h, version, status, html FROM frames_frames WHERE canvas = $canvas AND id = $id",
           )
           .get({ $canvas: row.canvas, $id: row.frameId }),
       );

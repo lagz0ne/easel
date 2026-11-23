@@ -4,8 +4,9 @@ import { z } from "zod";
 
 import { appBundle, checkApp } from "./app.server";
 import { check } from "./check.server";
-import { kitShape } from "./schema";
+import { type Finding, kitShape } from "./schema";
 import { sources } from "./source.server";
+import type { TeamTexts } from "./texts";
 
 export const make = operation({
   label: "kit.make",
@@ -36,31 +37,42 @@ export const makeApp = operation({
     files: z.record(z.string(), z.string()),
     kit: kitShape,
     names: z.array(z.string()).optional(),
+    texts: z.custom<TeamTexts>().optional(),
+    exploring: z.boolean().optional(),
   }),
   depends: { checkApp, make, sources, appBundle },
-  run: async ({ checkApp, make, sources, appBundle }, { input: { files, kit, names } }) => {
+  run: async ({ checkApp, make, sources, appBundle }, { input }) => {
+    const { files, kit, names, texts, exploring } = input;
     const paths = Object.keys(files).sort();
     const named = paths.length > 1;
     const checked = [];
     for (const path of paths) {
       const tsx = files[path] ?? "";
-      const one = await checkApp.run({ input: { tsx, kit, names, path, paths } });
+      const one = await checkApp.run({ input: { tsx, kit, names, path, paths, texts } });
       checked.push({
         path,
         ...one,
         findings: one.findings.map((f) => (named ? { ...f, file: path } : f)),
+        unfixed: (one.kind === "checked" ? one.unfixed : []).map((f): Finding =>
+          named ? { ...f, file: path } : f,
+        ),
       });
     }
 
     const findings = checked.flatMap((one) => one.findings);
+    const unfixed = checked.flatMap((one) => one.unfixed);
     const parsed = checked.flatMap((one) => (one.kind === "checked" ? [one] : []));
     if (parsed.length < checked.length) return { kind: "unparsed" as const, findings };
 
     const { frame } = sources.run({ input: kit });
-    const classNames = [...new Set(parsed.flatMap((one) => one.classes))].sort();
+    const classNames = [
+      ...new Set(parsed.flatMap((one) => (exploring ? one.written : one.classes))),
+    ].sort();
     const css = await make.run({ input: { source: frame, classNames } });
-    const fixed = Object.fromEntries(parsed.map((one) => [one.path, one.fixed]));
+    const fixed = exploring
+      ? Object.fromEntries(parsed.map((one) => [one.path, files[one.path] ?? ""]))
+      : Object.fromEntries(parsed.map((one) => [one.path, one.fixed]));
     const js = await appBundle.run({ input: fixed });
-    return { kind: "made" as const, css, js, findings, fixed };
+    return { kind: "made" as const, css, js, findings, unfixed, fixed };
   },
 });

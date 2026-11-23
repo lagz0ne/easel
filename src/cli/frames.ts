@@ -24,7 +24,7 @@ import {
 } from "@/frames/contract";
 import type { FramesAddress } from "@/frames/contract";
 import { sharePassword } from "@/frames/share";
-import { entryFile, type FrameFiles, frameFiles, maxAppBytes } from "@/kit/schema";
+import { entryFile, type FrameFiles, findingShape, frameFiles, maxAppBytes } from "@/kit/schema";
 
 import { callDeadline, exits, faultExit } from "./exit";
 import { server } from "./hosts";
@@ -46,6 +46,7 @@ export const framesCommand = z.discriminatedUnion("kind", [
     size: z.string().optional(),
     id: z.string().optional(),
     base: z.string().optional(),
+    ready: z.boolean().optional(),
   }),
   z.object({ kind: z.literal("ls"), canvas: canvasKey }),
   z.object({ kind: z.literal("get"), canvas: canvasKey, id: frameId, out: z.string().optional() }),
@@ -58,6 +59,8 @@ export const framesCommand = z.discriminatedUnion("kind", [
     scale: z.string().optional(),
     region: z.string().optional(),
   }),
+  z.object({ kind: z.literal("ready"), canvas: canvasKey, id: frameId }),
+  z.object({ kind: z.literal("explore"), canvas: canvasKey, id: frameId }),
 ]);
 
 export type FramesCommand = z.infer<typeof framesCommand>;
@@ -99,6 +102,8 @@ const address = z.enum([
   "canvas.share",
   "canvas.unshare",
   "frame.shot",
+  "frame.ready",
+  "frame.explore",
 ] satisfies FramesAddress[]);
 
 const framesDeadline = operation({
@@ -336,6 +341,35 @@ const offKitText = operation({
   },
 });
 
+const unsettledText = operation({
+  label: "cli.unsettledText",
+  input: z.object({ findings: z.array(z.unknown()), more: z.number() }),
+  run: (_, { input: { findings, more } }) => {
+    const count = findings.length + more;
+    return `unsettled: nothing changed; the frame has ${count} ${count === 1 ? "finding" : "findings"} to settle first (below). A ready frame uses only the texts of the team and the look`;
+  },
+});
+
+type PutAnswer = z.infer<typeof putOutput>;
+
+const foundText = operation({
+  label: "cli.foundText",
+  input: z.custom<Extract<PutAnswer, { findings: unknown }>>(),
+  depends: { offKitText, unsettledText },
+  run: ({ offKitText, unsettledText }, { input: answer }) => {
+    switch (answer.kind) {
+      case "created":
+      case "updated":
+      case "unchanged":
+        return { text: `${answer.kind} ${answer.id} v${answer.version}`, error: false };
+      case "offKit":
+        return { text: offKitText.run({ input: answer }), error: true };
+      case "unsettled":
+        return { text: unsettledText.run({ input: answer }), error: true };
+    }
+  },
+});
+
 const putText = operation({
   label: "cli.putText",
   input: z.object({
@@ -344,13 +378,11 @@ const putText = operation({
     answer: putOutput,
     app: z.boolean(),
   }),
-  depends: { tooBigText, offKitText, goneText },
-  run: ({ tooBigText, offKitText, goneText }, { input: { canvas, id, answer, app } }) => {
+  depends: { tooBigText, foundText, goneText },
+  run: ({ tooBigText, foundText, goneText }, { input: { canvas, id, answer, app } }) => {
+    if ("findings" in answer) return foundText.run({ input: answer });
+
     switch (answer.kind) {
-      case "created":
-      case "updated":
-      case "unchanged":
-        return { text: `${answer.kind} ${answer.id} v${answer.version}`, error: false };
       case "stale":
         return {
           text: `stale: ${answer.id} is at v${answer.version}, nothing was written. Get it again (\`easel get ${canvas} ${answer.id} -o <file>\`), make your change on it, and put with --base ${answer.version}`,
@@ -360,8 +392,6 @@ const putText = operation({
         return { text: goneText.run({ input: { canvas, id } }), error: true };
       case "tooBig":
         return { text: tooBigText.run({ input: { maxBytes: answer.maxBytes, app } }), error: true };
-      case "offKit":
-        return { text: offKitText.run({ input: answer }), error: true };
     }
   },
 });
@@ -383,8 +413,8 @@ const putFindings = operation({
 
 const putDoc = z.union([
   z.object({ html: z.string() }),
-  z.object({ tsx: z.string() }),
-  z.object({ files: z.custom<FrameFiles>() }),
+  z.object({ tsx: z.string(), ready: z.boolean().optional() }),
+  z.object({ files: z.custom<FrameFiles>(), ready: z.boolean().optional() }),
 ]);
 
 const docOf = operation({
@@ -395,10 +425,30 @@ const docOf = operation({
       z.object({ kind: z.literal("files"), files: z.custom<FrameFiles>() }),
     ]),
     app: z.boolean(),
+    ready: z.boolean().optional(),
   }),
-  run: (_, { input: { read, app } }): z.infer<typeof putDoc> => {
-    if (read.kind === "files") return { files: read.files };
-    return app ? { tsx: read.text } : { html: read.text };
+  run: (_, { input: { read, app, ready } }): z.infer<typeof putDoc> => {
+    if (read.kind === "files") return { files: read.files, ready };
+    return app ? { tsx: read.text, ready } : { html: read.text };
+  },
+});
+
+const loadDoc = operation({
+  label: "cli.loadDoc",
+  input: z.object({ file: z.string(), ready: z.boolean().optional() }),
+  depends: { readDocument, docOf },
+  run: async ({ readDocument, docOf }, { input: { file, ready } }) => {
+    const read = await readDocument.run({ input: file });
+    if (!read) {
+      return { bad: file === "-" ? "stdin cannot be read" : `cannot read ${file}` } as const;
+    }
+    if (read.kind === "bad") return { bad: read.bad } as const;
+
+    const folder = read.kind === "files";
+    const app = folder || file.endsWith(".tsx");
+    const notApp = "--ready is for an app frame: a .tsx file or a folder";
+    if (ready && !app) return { bad: notApp } as const;
+    return { bad: null, folder, app, doc: docOf.run({ input: { read, app, ready } }) } as const;
   },
 });
 
@@ -460,15 +510,14 @@ export const put = operation({
     usage,
     putUsage,
     putFlags,
-    readDocument,
-    docOf,
+    loadDoc,
     sendPut,
     putText,
     putFindings,
     exitOf: framesExitOf,
   },
   run: async (units, { input }) => {
-    const { say, usage, putUsage, putFlags, readDocument, docOf, sendPut } = units;
+    const { say, usage, putUsage, putFlags, loadDoc, sendPut } = units;
     const { putText, putFindings, exitOf } = units;
     const bad = putUsage.run({ input });
     if (bad !== null) return usage.run({ input: bad });
@@ -476,18 +525,12 @@ export const put = operation({
     const flags = putFlags.run({ input });
     if (flags.bad !== null) return usage.run({ input: flags.bad });
 
-    const read = await readDocument.run({ input: input.file });
-    if (!read) {
-      const text = input.file === "-" ? "stdin cannot be read" : `cannot read ${input.file}`;
-      return usage.run({ input: text });
-    }
-    if (read.kind === "bad") return usage.run({ input: read.bad });
+    const loaded = await loadDoc.run({ input: { file: input.file, ready: input.ready } });
+    if (loaded.bad !== null) return usage.run({ input: loaded.bad });
 
     const { size, id, base } = flags;
     const command = { canvas: input.canvas, name: input.name, size, id, base };
-    const folder = read.kind === "files";
-    const app = folder || input.file.endsWith(".tsx");
-    const doc = docOf.run({ input: { read, app } });
+    const { folder, app, doc } = loaded;
     const sent = await sendPut.run({ input: { command, doc } });
     if (!sent.answered) return sent.exit;
 
@@ -524,7 +567,10 @@ export const ls = operation({
             json: answer,
             text: answer.frames.length
               ? answer.frames
-                  .map((f) => `${f.id}\t${f.name}\t${f.x},${f.y} ${f.w}x${f.h}\tv${f.version}`)
+                  .map(
+                    (f) =>
+                      `${f.id}\t${f.name}\t${f.x},${f.y} ${f.w}x${f.h}\tv${f.version}\t${f.status}`,
+                  )
                   .join("\n")
               : `no frame on ${input.canvas} yet: \`easel put ${input.canvas} <file>\``,
           },
@@ -665,6 +711,111 @@ export const rm = operation({
     }
 
     return exitOf.run({ input: { address: "frame.delete", kind: answer.kind } });
+  },
+});
+
+const unsettledLines = operation({
+  label: "cli.unsettledLines",
+  input: z.object({ findings: z.array(findingShape), more: z.number() }),
+  depends: { stderr: stderr.required, asJson: json },
+  run: ({ stderr, asJson }, { input: { findings, more } }) => {
+    if (asJson) return;
+
+    for (const f of findings) {
+      stderr.write(
+        `${f.file ?? entryFile}:${f.line}:${f.col} ${f.rule} ${f.what}. Fix: ${f.fix}\n`,
+      );
+    }
+    if (more > 0) stderr.write(`and ${more} more\n`);
+  },
+});
+
+export const ready = operation({
+  label: "cli.ready",
+  input: framesCommand.options[7],
+  depends: {
+    say,
+    exitOf: framesExitOf,
+    framesFault,
+    unsettledText,
+    unsettledLines,
+    deadline: framesDeadline,
+    mark: frames.api["frame.ready"],
+  },
+  run: async (units, { input }) => {
+    const { say, exitOf, framesFault, unsettledText, unsettledLines, deadline, mark } = units;
+    const stop = deadline.run({ input: "frame.ready" });
+    const reply = await mark.settle({
+      input: { canvas: input.canvas, id: input.id },
+      signal: stop.signal,
+    });
+    stop.abort();
+    if (reply.status === "cancelled") return framesFault.run({ input: reply.reason });
+    if (reply.status === "failed") return framesFault.run({ input: reply.error });
+
+    const answer = reply.value;
+    switch (answer.kind) {
+      case "ready":
+        say.run({ input: { json: answer, text: `ready ${input.id} v${answer.version}` } });
+        break;
+      case "unchanged":
+        say.run({
+          input: { json: answer, text: `unchanged ${input.id} v${answer.version}: it is ready` },
+        });
+        break;
+      case "unsettled":
+        say.run({
+          input: { json: answer, text: unsettledText.run({ input: answer }), error: true },
+        });
+        unsettledLines.run({ input: answer });
+        break;
+      case "gone":
+        say.run({
+          input: { json: answer, text: `no frame ${input.id} on ${input.canvas}`, error: true },
+        });
+        break;
+    }
+
+    return exitOf.run({ input: { address: "frame.ready", kind: answer.kind } });
+  },
+});
+
+export const explore = operation({
+  label: "cli.explore",
+  input: framesCommand.options[8],
+  depends: {
+    say,
+    exitOf: framesExitOf,
+    framesFault,
+    deadline: framesDeadline,
+    mark: frames.api["frame.explore"],
+  },
+  run: async ({ say, exitOf, framesFault, deadline, mark }, { input }) => {
+    const stop = deadline.run({ input: "frame.explore" });
+    const reply = await mark.settle({
+      input: { canvas: input.canvas, id: input.id },
+      signal: stop.signal,
+    });
+    stop.abort();
+    if (reply.status === "cancelled") return framesFault.run({ input: reply.reason });
+    if (reply.status === "failed") return framesFault.run({ input: reply.error });
+
+    const answer = reply.value;
+    switch (answer.kind) {
+      case "exploring":
+        say.run({ input: { json: answer, text: `exploring ${input.id}` } });
+        break;
+      case "unchanged":
+        say.run({ input: { json: answer, text: `unchanged ${input.id}: it is exploring` } });
+        break;
+      case "gone":
+        say.run({
+          input: { json: answer, text: `no frame ${input.id} on ${input.canvas}`, error: true },
+        });
+        break;
+    }
+
+    return exitOf.run({ input: { address: "frame.explore", kind: answer.kind } });
   },
 });
 
@@ -941,6 +1092,8 @@ const frameCommand = z.discriminatedUnion("kind", [
   framesCommand.options[4],
   framesCommand.options[5],
   framesCommand.options[6],
+  framesCommand.options[7],
+  framesCommand.options[8],
 ]);
 
 const canvasRun = operation({
@@ -960,7 +1113,7 @@ const canvasRun = operation({
 const frameRun = operation({
   label: "cli.frameCommand",
   input: frameCommand,
-  depends: { put, ls, get, rm, shot },
+  depends: { put, ls, get, rm, shot, ready, explore },
   run: (ops, { input }) => {
     switch (input.kind) {
       case "put":
@@ -973,6 +1126,10 @@ const frameRun = operation({
         return ops.rm.run({ input });
       case "shot":
         return ops.shot.run({ input });
+      case "ready":
+        return ops.ready.run({ input });
+      case "explore":
+        return ops.explore.run({ input });
     }
   },
 });

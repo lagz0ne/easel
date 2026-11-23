@@ -583,6 +583,18 @@ test(
       code: 64,
       out: "--size takes WxH in CSS pixels, each 1 to 16000, as 390x844\n",
     });
+    expect(await main(["put", "flow", file, "--ready"], env)).toEqual({
+      code: 64,
+      out: "--ready is for an app frame: a .tsx file or a folder\n",
+    });
+    expect(await main(["ready", "flow", id, "--json"], env)).toEqual({
+      code: 1,
+      out: `${JSON.stringify({ kind: "gone" })}\n`,
+    });
+    expect(await main(["explore", "flow", id, "--json"], env)).toEqual({
+      code: 1,
+      out: `${JSON.stringify({ kind: "gone" })}\n`,
+    });
   },
 );
 

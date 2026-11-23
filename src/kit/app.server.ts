@@ -7,7 +7,9 @@ import { judgeClass } from "./judge.server";
 import { oxc, placesOf } from "./oxc.server";
 import type { Text } from "./places";
 import { type Prepared, prepare } from "./prepare.server";
+import { textFindings } from "./say.server";
 import { entryFile, kitShape } from "./schema";
+import type { TeamTexts } from "./texts";
 
 type Edit = { at: number; end: number; text: string };
 
@@ -269,11 +271,13 @@ export const appClasses = operation({
     );
 
     const classes = new Set<string>();
+    const written = new Set<string>();
     const found: Found[] = [];
     for (const { name, start, verdict } of names) {
       if (verdict.kind === "make") classes.add(name);
       if (verdict.kind !== "finding") continue;
 
+      written.add(name);
       found.push({ at: start, rule: verdict.rule, what: verdict.what, fix: verdict.fix });
       if (verdict.to) classes.add(verdict.to);
     }
@@ -286,7 +290,12 @@ export const appClasses = operation({
       const after = before ? 0 : (/^\s+/.exec(text.slice(index + name.length))?.[0].length ?? 0);
       return [{ at: start - before, end: start + name.length + after, text: "" }];
     });
-    return { found, edits, classes: [...classes].sort() };
+    return {
+      found,
+      edits,
+      classes: [...classes].sort(),
+      written: [...new Set([...classes, ...written])].sort(),
+    };
   },
 });
 
@@ -310,9 +319,11 @@ export const checkApp = operation({
     names: z.array(z.string()).optional(),
     path: z.string().optional(),
     paths: z.array(z.string()).optional(),
+    texts: z.custom<TeamTexts>().optional(),
   }),
   depends: {
     parseApp,
+    textFindings,
     moduleFindings,
     placesOf,
     prepare,
@@ -353,10 +364,23 @@ export const checkApp = operation({
         what: `code writes the class with ${text}: the make step does not see that class, so it gets no CSS`,
         fix: scriptFix,
       })),
+      ...(input.texts
+        ? units.textFindings.run({ input: { source: input.tsx, program, texts: input.texts } })
+        : []),
     ];
 
     const findings = units.placeFindings.run({ input: { html: input.tsx, found } });
     const fixed = units.applyEdits.run({ input: { text: input.tsx, edits: classes.edits } });
-    return { kind: "checked" as const, findings, classes: classes.classes, fixed };
+    const unfixed = units.placeFindings.run({
+      input: { html: input.tsx, found: found.filter((one) => !classes.found.includes(one)) },
+    });
+    return {
+      kind: "checked" as const,
+      findings,
+      unfixed,
+      classes: classes.classes,
+      written: classes.written,
+      fixed,
+    };
   },
 });

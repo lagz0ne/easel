@@ -88,7 +88,7 @@ export const checkKit = operation({
     const names = await runtimeNamesOf.run({ input: kit.version });
     const checked =
       "tsx" in input
-        ? await checkApp.run({ input: { tsx: input.tsx, kit, names } })
+        ? await checkApp.run({ input: { tsx: input.tsx, kit, names, texts: kit.texts } })
         : await check.run({ input: { html: input.html, kit } });
     const all = checked.kind === "off" ? [] : checked.findings;
     const findings = all.slice(0, maxFindings);

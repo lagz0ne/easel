@@ -129,18 +129,26 @@ function agentOn(scope: Scope.Handle, pass: string) {
 const at = (findings: Array<{ line: number; col: number; rule: string }>) =>
   findings.map((f) => `${f.line}:${f.col} ${f.rule}`);
 
-test("a put of a TSX frame checks it, fixes it, and keeps its TSX, JS and CSS with the frame version", async () => {
+test("a ready put of a TSX frame checks it, fixes it, and keeps the fixed TSX, its JS and CSS with the frame version", async () => {
   const srv = await boot();
   const ann = await annOn(srv);
   const tsx = (await pricing()).replace('"btn w-full"', '"btn w-full text-red-500"');
+  const fixed = tsx.replace('"btn w-full text-red-500"', '"btn w-full text-destructive"');
 
-  const made = await ann.put({ canvas: "flow", tsx, name: "Pricing" });
+  const made = await ann.put({ canvas: "flow", tsx, name: "Pricing", ready: true });
   if (made.kind !== "created") throw new Error(`not created: ${made.kind}`);
   expect(made.version).toBe(1);
   expect(made.findings.map((f) => f.rule)).toContain("look/color");
 
   const got = await ann.get(made.id);
-  expect(got).toMatchObject({ kind: "found", frame: { id: made.id, name: "Pricing", tsx } });
+  expect(got).toMatchObject({
+    kind: "found",
+    frame: { id: made.id, name: "Pricing", status: "ready", tsx: fixed },
+  });
+  expect(await ann.put({ canvas: "flow", tsx, id: made.id, base: 1 })).toMatchObject({
+    kind: "unchanged",
+    version: 1,
+  });
 
   const [doc] = await srv.server.run(loadDocs, { input: { canvas: "flow", id: made.id } });
   if (!doc?.app) throw new Error("no app");
@@ -433,7 +441,7 @@ test("a folder frame: frame.put takes its files, keeps them as written, and fram
   const files = await people();
   const made = await ann.put({ canvas: "flow", files });
   if (made.kind !== "created") throw new Error(`not created: ${made.kind}`);
-  expect(made.findings).toEqual([]);
+  expect(new Set(made.findings.map((f) => f.rule))).toEqual(new Set(["copy/text", "copy/own"]));
 
   const got = await ann.get(made.id);
   expect(got).toMatchObject({ kind: "found", frame: { version: 1, files } });
@@ -445,7 +453,8 @@ test("a folder frame: frame.put takes its files, keeps them as written, and fram
 
   const bad = { ...files, "view.tsx": `${files["view.tsx"] ?? ""}\nimport "./none";\n` };
   const refused = await ann.put({ canvas: "flow", files: bad, id: made.id, base: 1 });
-  expect(refused.kind === "offKit" && refused.findings.map((f) => f.file)).toEqual(["view.tsx"]);
+  const imports = refused.kind === "offKit" ? refused.findings : [];
+  expect(imports.filter((f) => f.rule === "kit/import").map((f) => f.file)).toEqual(["view.tsx"]);
 
   const shapes: Array<Record<string, string>> = [
     { "copy.ts": "export {};" },

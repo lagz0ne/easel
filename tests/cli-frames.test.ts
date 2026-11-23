@@ -217,7 +217,7 @@ test("canvas ls and ls print one line per canvas or frame without --json", async
   await a.run({ kind: "put", canvas: "flow", file: a.file("x.html", "<p/>"), name: "home" });
   a.out.splice(0);
   expect(await a.run({ kind: "ls", canvas: "flow" })).toBe(0);
-  expect(a.out.join("")).toMatch(/^[0-9a-f]{12}\thome\t0,0 1440x900\tv1\n$/);
+  expect(a.out.join("")).toMatch(/^[0-9a-f]{12}\thome\t0,0 1440x900\tv1\texploring\n$/);
 });
 
 test("put makes a frame and exits 0; a put with --id at its version exits 0, updated or unchanged", async () => {
@@ -458,7 +458,9 @@ test("put of a folder sends a folder frame: each .ts and .tsx file by its path; 
     `${readFileSync(join(dir, "view.tsx"), "utf8")}import "./none";\n`,
   );
   expect(await a.run({ kind: "put", canvas: "flow", file: dir, id, base: "1" })).toBe(1);
-  expect(a.err.splice(0)[1]).toMatch(new RegExp(`^${join(dir, "view.tsx")}:\\d+:8 kit/import `));
+  expect(a.err.splice(0).join("")).toMatch(
+    new RegExp(`^${join(dir, "view.tsx")}:\\d+:8 kit/import `, "m"),
+  );
   const empty = join(a.dir, "empty");
   mkdirSync(empty);
   expect(await a.run({ kind: "put", canvas: "flow", file: empty })).toBe(64);
@@ -482,7 +484,12 @@ test("ls exits 0 with the frames, and 1 for a canvas that is not there", async (
 
   expect(await a.run({ kind: "ls", canvas: "flow" })).toBe(0);
   expect(a.lines()).toEqual([
-    { kind: "found", frames: [{ id, name: "untitled", x: 0, y: 0, w: 1440, h: 900, version: 1 }] },
+    {
+      kind: "found",
+      frames: [
+        { id, name: "untitled", x: 0, y: 0, w: 1440, h: 900, version: 1, status: "exploring" },
+      ],
+    },
   ]);
   expect(await a.run({ kind: "ls", canvas: "nowhere" })).toBe(1);
   expect(a.lines()).toEqual([{ kind: "gone" }]);
@@ -497,7 +504,7 @@ test("get -o writes the document to the file and prints the version; without -o 
   expect(a.lines()).toEqual([
     {
       kind: "found",
-      frame: { id, name: "untitled", x: 0, y: 0, w: 1440, h: 900, version: 1 },
+      frame: { id, name: "untitled", x: 0, y: 0, w: 1440, h: 900, version: 1, status: "exploring" },
       file: out,
     },
   ]);
@@ -518,6 +525,85 @@ test("rm exits 0, deleted; a second rm exits 1, gone", async () => {
   expect(a.lines()).toEqual([{ kind: "deleted" }, { kind: "gone" }]);
 });
 
+test("ready and explore: each kind of frame.ready and frame.explore, and put --ready; an unsettled frame exits 1 with each finding on stderr", async () => {
+  const srv = await boot();
+  const a = await easel(srv, { json: false });
+  expect(await a.login()).toBe(0);
+  await a.run({ kind: "canvas new", name: "Flow" });
+  a.out.splice(0);
+  a.err.splice(0);
+  const own = [
+    'import { copy } from "@easel/kit";',
+    'import { resource } from "@tinkered/core";',
+    'const texts = { en: { "trial.start": "Start" } };',
+    'const text = resource({ label: "t", depends: { say: copy.say }, factory: ({ say }) => say(texts) });',
+    "export function View() {",
+    '  return <p className="bg-[#f00]">x</p>;',
+    "}",
+  ].join("\n");
+  const file = a.file("own.tsx", own);
+  expect(await a.run({ kind: "put", canvas: "flow", file })).toBe(0);
+  const id = /^created (\S+) v1$/.exec(a.out.splice(0).join("").trim())?.[1] ?? "";
+  a.err.splice(0);
+
+  expect(await a.run({ kind: "ready", canvas: "flow", id })).toBe(1);
+  expect(a.err.splice(0).join("")).toBe(
+    [
+      "unsettled: nothing changed; the frame has 3 findings to settle first (below). A ready frame uses only the texts of the team and the look",
+      `index.tsx:3:23 copy/text the text key "trial.start" of the part is not in the texts of the team. Fix: give the team its text: easel texts set trial.start "Start"; then remove the text from the part`,
+      `index.tsx:3:23 copy/own the part has its own en text for "trial.start". Fix: remove the text from the part, and use the text of the team; to keep this text, easel texts set trial.start "Start"`,
+      `index.tsx:6:24 look/color "bg-[#f00]" is a color that is not in the look. Fix: use bg-destructive`,
+      "",
+    ].join("\n"),
+  );
+
+  expect(await a.run({ kind: "put", canvas: "flow", file, id, base: "1", ready: true })).toBe(1);
+  expect(a.err.splice(0)[0]).toMatch(/^unsettled: nothing changed; the frame has 2 findings/);
+
+  const settled = own
+    .replace("say(texts)", 'say(["ui.close"])')
+    .replace('const texts = { en: { "trial.start": "Start" } };', "");
+  const fine = a.file("fine.tsx", settled);
+  expect(await a.run({ kind: "put", canvas: "flow", file: fine, id, base: "1" })).toBe(0);
+  expect(a.out.splice(0).join("")).toBe(`updated ${id} v2\n`);
+  a.err.splice(0);
+  expect(await a.run({ kind: "ready", canvas: "flow", id })).toBe(1);
+  a.err.splice(0);
+  expect(await a.run({ kind: "put", canvas: "flow", file: fine, id, base: "2", ready: true })).toBe(
+    0,
+  );
+  expect(a.out.splice(0).join("")).toBe(`updated ${id} v3\n`);
+  a.err.splice(0);
+  expect(await a.run({ kind: "ready", canvas: "flow", id })).toBe(0);
+  expect(a.out.splice(0).join("")).toBe(`unchanged ${id} v3: it is ready\n`);
+  expect(await a.run({ kind: "ls", canvas: "flow" })).toBe(0);
+  expect(a.out.splice(0).join("")).toMatch(/\tv3\tready\n$/);
+
+  expect(await a.run({ kind: "explore", canvas: "flow", id })).toBe(0);
+  expect(a.out.splice(0).join("")).toBe(`exploring ${id}\n`);
+  expect(await a.run({ kind: "explore", canvas: "flow", id })).toBe(0);
+  expect(a.out.splice(0).join("")).toBe(`unchanged ${id}: it is exploring\n`);
+  expect(await a.run({ kind: "ready", canvas: "flow", id })).toBe(0);
+  expect(a.out.splice(0).join("")).toBe(`ready ${id} v3\n`);
+
+  for (const kind of ["ready", "explore"] as const) {
+    expect(await a.run({ kind, canvas: "flow", id: "0123456789ab" })).toBe(1);
+    expect(a.err.splice(0).join("")).toBe("no frame 0123456789ab on flow\n");
+  }
+
+  const html = a.file("x.html", "<p/>");
+  expect(await a.run({ kind: "put", canvas: "flow", file: html, ready: true })).toBe(64);
+  expect(a.err.splice(0).join("")).toContain("--ready is for an app frame");
+
+  const json = await easel(srv, { path: join(a.dir, "hosts.json") });
+  expect(await json.run({ kind: "explore", canvas: "flow", id })).toBe(0);
+  expect(await json.run({ kind: "put", canvas: "flow", file, id, base: "3" })).toBe(0);
+  json.lines();
+  expect(await json.run({ kind: "ready", canvas: "flow", id })).toBe(1);
+  expect(json.lines()).toMatchObject([{ kind: "unsettled", more: 0 }]);
+  expect(json.err).toEqual([]);
+}, 60_000);
+
 test("each frames command without a sign-in exits 2, refused", async () => {
   const srv = await boot();
   await ann(srv);
@@ -530,6 +616,8 @@ test("each frames command without a sign-in exits 2, refused", async () => {
     { kind: "ls", canvas: "flow" },
     { kind: "get", canvas: "flow", id: "0123456789ab" },
     { kind: "rm", canvas: "flow", id: "0123456789ab" },
+    { kind: "ready", canvas: "flow", id: "0123456789ab" },
+    { kind: "explore", canvas: "flow", id: "0123456789ab" },
   ];
   for (const command of commands) expect(await guest.run(command)).toBe(2);
 
@@ -547,6 +635,8 @@ test("each frames command whose server is gone exits 69: cannot reach the server
     { kind: "ls", canvas: "flow" },
     { kind: "get", canvas: "flow", id: "0123456789ab" },
     { kind: "rm", canvas: "flow", id: "0123456789ab" },
+    { kind: "ready", canvas: "flow", id: "0123456789ab" },
+    { kind: "explore", canvas: "flow", id: "0123456789ab" },
   ];
   await srv.server.close();
   for (const command of commands) expect(await a.run(command)).toBe(69);
@@ -589,6 +679,8 @@ test("each frames command on a server without frames exits 76, missing, and name
     [{ kind: "ls", canvas: "flow" }, "frame.list"],
     [{ kind: "get", canvas: "flow", id: "0123456789ab" }, "frame.get"],
     [{ kind: "rm", canvas: "flow", id: "0123456789ab" }, "frame.delete"],
+    [{ kind: "ready", canvas: "flow", id: "0123456789ab" }, "frame.ready"],
+    [{ kind: "explore", canvas: "flow", id: "0123456789ab" }, "frame.explore"],
   ];
   for (const [command] of commands) expect(await a.run(command)).toBe(76);
 

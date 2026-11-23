@@ -220,6 +220,7 @@ test("an agent puts a new frame: version 1, the first at 0,0, each next right of
         w: 390,
         h: 844,
         version: 1,
+        status: "exploring",
       },
       {
         id: second.kind === "created" ? second.id : "",
@@ -229,6 +230,7 @@ test("an agent puts a new frame: version 1, the first at 0,0, each next right of
         w: 1440,
         h: 900,
         version: 1,
+        status: "exploring",
       },
       {
         id: third.kind === "created" ? third.id : "",
@@ -238,6 +240,7 @@ test("an agent puts a new frame: version 1, the first at 0,0, each next right of
         w: 100,
         h: 100,
         version: 1,
+        status: "exploring",
       },
     ],
   });
@@ -270,7 +273,17 @@ test("a put on the current version saves a new document, and raises the version 
   });
   expect(await a.get("flow", id)).toEqual({
     kind: "found",
-    frame: { id, name: "untitled", x: 0, y: 0, w: 1440, h: 900, version: 3, html: "<p>3</p>" },
+    frame: {
+      id,
+      name: "untitled",
+      x: 0,
+      y: 0,
+      w: 1440,
+      h: 900,
+      version: 3,
+      status: "exploring",
+      html: "<p>3</p>",
+    },
   });
 });
 

@@ -343,6 +343,7 @@ export const frameKit = operation({
       look: now.values,
       css: now.source,
       pieces: now.pieces.map((p) => p.name),
+      texts: now.texts,
     };
   },
 });

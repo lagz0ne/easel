@@ -49,9 +49,12 @@ const help = `easel: the canvas CLI. Every command takes --json (one JSON value 
   easel put <canvas> <file|dir|-> [--name N] [--size WxH]  make a frame from a file, a folder, or stdin with -
   easel put <canvas> <file|dir|-> --id <id> --base <v>     write a frame again on the version you got
                                                    a .tsx file is an app frame; a folder is one of its .ts and .tsx files, from index.tsx
-  easel ls <canvas>                                the frames: id, name, box, version
+                                                   --ready marks the app frame ready: it uses only the texts of the team and the look
+  easel ls <canvas>                                the frames: id, name, box, version, status (exploring or ready)
   easel get <canvas> <id> [-o <file|dir>]          the document; -o writes it (a folder frame: each file) and prints the version
   easel rm <canvas> <id>                           delete a frame
+  easel ready <canvas> <id>                        mark an app frame ready; it must use only the texts of the team and the look
+  easel explore <canvas> <id>                      mark a ready frame exploring again: it may have its own texts and colors
   easel share <canvas>                             a link anyone who has it can open; prints it
   easel share <canvas> --password <pw>             the link asks a password (8 or more characters)
   easel share <canvas> --no-password               the link asks none; open tabs stay open
@@ -109,6 +112,7 @@ const options = {
   size: { type: "string" },
   id: { type: "string" },
   base: { type: "string" },
+  ready: { type: "boolean" },
   out: { type: "string", short: "o" },
   password: { type: "string" },
   "no-password": { type: "boolean" },
@@ -241,6 +245,7 @@ const framesInvocations = [
         size: z.string().optional(),
         id: z.string().optional(),
         base: z.string().optional(),
+        ready: z.boolean().optional(),
       }),
     })
     .transform(({ positionals: [, canvas, file], values }): unknown => ({
@@ -255,6 +260,7 @@ const framesInvocations = [
           size: values.size,
           id: values.id,
           base: values.base,
+          ready: values.ready,
         },
       },
     })),
@@ -284,6 +290,15 @@ const framesInvocations = [
     .transform(({ positionals: [, canvas, id], values }): unknown => ({
       at: values.server,
       command: { kind: "frames", act: { kind: "rm", canvas, id } },
+    })),
+  z
+    .object({
+      positionals: z.tuple([z.enum(["ready", "explore"]), z.string(), z.string()]),
+      values: z.strictObject(common),
+    })
+    .transform(({ positionals: [kind, canvas, id], values }): unknown => ({
+      at: values.server,
+      command: { kind: "frames", act: { kind, canvas, id } },
     })),
   z
     .object({

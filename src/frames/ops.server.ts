@@ -2,15 +2,18 @@ import { operation, transport } from "@tinkered/core";
 import { z } from "zod";
 
 import { user } from "@/access/guards.server";
+import { checkApp } from "@/kit/app.server";
 import { makeApp, makeFrame } from "@/kit/make.server";
 import { runtimeAddress, runtimeOf } from "@/kit/runtime.server";
 import {
   entryFile,
+  type Finding,
   folderOf,
   folderText,
   type FrameFiles,
   maxAppBytes,
   refusingRules,
+  settleRules,
   utf8Bytes,
 } from "@/kit/schema";
 import { frameKit } from "@/kit/store.server";
@@ -30,7 +33,16 @@ import {
 import { shotFrame } from "./pictures.server";
 import { endedRefusal, lockedRefusal, passMeta } from "./share";
 import { passCanvas, shareCanvas, unshareCanvas } from "./share.server";
-import { canvases, dropFrame, readDoc, saveCanvas, saveFrame } from "./store.server";
+import {
+  canvases,
+  dropFrame,
+  markFrame,
+  readDoc,
+  readStatus,
+  readStatuses,
+  saveCanvas,
+  saveFrame,
+} from "./store.server";
 
 export const mayRead = operation({
   label: "frames.mayRead",
@@ -128,22 +140,27 @@ const makeDoc = operation({
 
 const makeAppDoc = operation({
   label: "frames.makeAppDoc",
-  input: z.custom<FrameFiles>(),
+  input: z.object({ files: z.custom<FrameFiles>(), ready: z.boolean() }),
   depends: { frameKit, runtimeOf, makeApp },
-  run: async ({ frameKit, runtimeOf, makeApp }, { input: files }) => {
+  run: async ({ frameKit, runtimeOf, makeApp }, { input: { files, ready } }) => {
     const kit = await frameKit.run();
     const runtime = await runtimeOf.run({ input: kit.version });
     if (runtime === null) throw new Error("frames: the current kit version is not stored");
 
     const names = Object.keys(runtime.imports);
-    const made = await makeApp.run({ input: { files, kit, names } });
-    if (made.kind === "unparsed" || made.findings.some((f) => refusingRules.has(f.rule))) {
-      return { kind: "offKit" as const, findings: made.findings };
+    const { texts } = kit;
+    const made = await makeApp.run({ input: { files, kit, names, texts, exploring: !ready } });
+    const refusing = made.findings.filter((f) => refusingRules.has(f.rule));
+    if (made.kind === "unparsed" || refusing.length > 0) {
+      const notes = made.findings.filter((f) => !refusingRules.has(f.rule));
+      return { kind: "offKit" as const, findings: [...refusing, ...notes] };
     }
+    const unsettled = made.unfixed.filter((f) => settleRules.has(f.rule));
+    if (ready && unsettled.length > 0) return { kind: "unsettled" as const, findings: unsettled };
     if (utf8Bytes.parse(made.css) > maxMadeCssBytes) return { kind: "tooBig" as const };
 
-    const { css, js, findings } = made;
-    return { kind: "made" as const, css, kit: kit.version, js, findings };
+    const { css, js, findings, fixed } = made;
+    return { kind: "made" as const, css, kit: kit.version, js, findings, fixed };
   },
 });
 
@@ -167,13 +184,14 @@ const writeOf = operation({
   label: "frames.writeOf",
   input: z.object({
     put: putInput,
+    html: z.string(),
     css: z.string().nullable(),
     kit: z.number().nullable(),
     js: z.string().nullable(),
+    mode: z.enum(["ready", "exploring", "html"]),
   }),
   depends: { newFrameId },
-  run: ({ newFrameId }, { input: { put, css, kit, js } }) => {
-    const html = textOf.parse(put);
+  run: ({ newFrameId }, { input: { put, html, css, kit, js, mode } }) => {
     if ("id" in put) {
       return {
         kind: "on" as const,
@@ -184,6 +202,7 @@ const writeOf = operation({
         css,
         kit,
         js,
+        mode,
       };
     }
 
@@ -199,24 +218,65 @@ const writeOf = operation({
       css,
       kit,
       js,
+      mode,
     };
+  },
+});
+
+const storedText = z
+  .object({
+    put: z.custom<PutInput>(),
+    fixed: z.record(z.string(), z.string()),
+    ready: z.boolean(),
+  })
+  .transform(({ put, fixed, ready }) => {
+    if (!ready) return textOf.parse(put);
+    return "files" in put ? folderText.parse(fixed) : (fixed[entryFile] ?? textOf.parse(put));
+  });
+
+const modeOf = z
+  .boolean()
+  .transform((ready) => (ready ? ("ready" as const) : ("exploring" as const)));
+
+const readyOf = operation({
+  label: "frames.readyOf",
+  input: putInput,
+  depends: { readStatus },
+  run: async ({ readStatus }, { input }) => {
+    if ("ready" in input && input.ready) return true;
+    if (!("id" in input)) return false;
+    return (await readStatus.run({ input: { canvas: input.canvas, id: input.id } })) === "ready";
+  },
+});
+
+const madeAppOf = operation({
+  label: "frames.madeAppOf",
+  input: z.object({ put: putInput, files: z.custom<FrameFiles>() }),
+  depends: { makeAppDoc, readyOf },
+  run: async ({ makeAppDoc, readyOf }, { input: { put, files } }) => {
+    const ready = await readyOf.run({ input: put });
+    const made = await makeAppDoc.run({ input: { files, ready } });
+    if (made.kind === "tooBig") return { kind: "tooBig" as const, maxBytes: maxMadeCssBytes };
+    if (made.kind !== "made") return made;
+
+    const html = storedText.parse({ put, fixed: made.fixed, ready });
+    return { ...made, html, mode: modeOf.parse(ready) };
   },
 });
 
 const madeOf = operation({
   label: "frames.madeOf",
   input: putInput,
-  depends: { makeDoc, makeAppDoc },
-  run: async ({ makeDoc, makeAppDoc }, { input }) => {
+  depends: { makeDoc, madeAppOf },
+  run: async ({ makeDoc, madeAppOf }, { input }) => {
     const files = filesOf.parse(input);
     const maxBytes = files === null ? maxDocBytes : maxAppBytes;
     if (bytesOf.parse(input) > maxBytes) return { kind: "tooBig" as const, maxBytes };
+    if (files !== null) return madeAppOf.run({ input: { put: input, files } });
 
-    const made =
-      files === null
-        ? await makeDoc.run({ input: textOf.parse(input) })
-        : await makeAppDoc.run({ input: files });
-    return made.kind === "tooBig" ? { kind: "tooBig" as const, maxBytes: maxMadeCssBytes } : made;
+    const made = await makeDoc.run({ input: textOf.parse(input) });
+    if (made.kind === "tooBig") return { kind: "tooBig" as const, maxBytes: maxMadeCssBytes };
+    return { ...made, html: textOf.parse(input), mode: "html" as const };
   },
 });
 
@@ -227,12 +287,13 @@ export const putFrame = operation({
   run: async ({ saveFrame, madeOf, writeOf, invalidate }, { input }) => {
     const made = await madeOf.run({ input });
     if (made.kind === "tooBig") return made;
-    if (made.kind === "offKit") {
+    if (made.kind === "offKit" || made.kind === "unsettled") {
       const findings = made.findings.slice(0, maxFindings);
-      return { kind: "offKit" as const, findings, more: made.findings.length - findings.length };
+      return { kind: made.kind, findings, more: made.findings.length - findings.length };
     }
 
-    const write = writeOf.run({ input: { put: input, css: made.css, kit: made.kit, js: made.js } });
+    const { html, css, kit, js, mode } = made;
+    const write = writeOf.run({ input: { put: input, html, css, kit, js, mode } });
     const answer = await saveFrame.run({ input: write });
     if (answer.kind === "stale" || answer.kind === "gone") return answer;
     if (answer.kind !== "unchanged") {
@@ -246,14 +307,28 @@ export const putFrame = operation({
 export const listFrames = operation({
   label: "frame.list.do",
   input: framesApi["frame.list"].input,
-  depends: { all: canvases.atScope.controller, cells: frames.atScope.controller },
-  run: ({ all, cells }, { input }) => {
+  depends: {
+    all: canvases.atScope.controller,
+    cells: frames.atScope.controller,
+    readStatuses,
+  },
+  run: async ({ all, cells, readStatuses }, { input }) => {
     if (!all.of({ key: input.canvas }).get()) return { kind: "gone" as const };
 
     const list = cells.where({ canvas: input.canvas }).get();
+    const statuses = await readStatuses.run({ input });
     return {
       kind: "found" as const,
-      frames: list.map(({ id, name, x, y, w, h, version }) => ({ id, name, x, y, w, h, version })),
+      frames: list.map(({ id, name, x, y, w, h, version }) => ({
+        id,
+        name,
+        x,
+        y,
+        w,
+        h,
+        version,
+        status: statuses.get(id) ?? "exploring",
+      })),
     };
   },
 });
@@ -271,6 +346,91 @@ export const getFrame = operation({
     const frame =
       js === null ? { ...info, html } : files ? { ...info, files } : { ...info, tsx: html };
     return { kind: "found" as const, frame };
+  },
+});
+
+const htmlNotReady: Finding = {
+  line: 1,
+  col: 1,
+  rule: "kit/shape",
+  what: "only an app frame can be ready: this frame is HTML",
+  fix: "put the frame again as TSX (a .tsx file or a folder), then mark it ready",
+};
+
+const settleCheck = operation({
+  label: "frames.settleCheck",
+  input: z.string(),
+  depends: { frameKit, checkApp },
+  run: async ({ frameKit, checkApp }, { input: html }) => {
+    const kit = await frameKit.run();
+    const files = folderOf.parse(html) ?? { [entryFile]: html };
+    const paths = Object.keys(files).sort();
+
+    const found: Finding[] = [];
+    for (const path of paths) {
+      const tsx = files[path] ?? "";
+      const one = await checkApp.run({ input: { tsx, kit, path, paths, texts: kit.texts } });
+      const named = paths.length > 1 ? { file: path } : {};
+      found.push(...one.findings.map((f) => ({ ...f, ...named })));
+    }
+    return found.filter((f) => settleRules.has(f.rule));
+  },
+});
+
+export const markReady = operation({
+  label: "frames.markReady",
+  input: z.object({ canvas: z.string(), id: z.string(), version: z.number() }),
+  depends: { markFrame },
+  run: async ({ markFrame }, { input }) => {
+    const marked = await markFrame.run({ input: { ...input, status: "ready" } });
+    switch (marked.kind) {
+      case "marked":
+        return { kind: "ready" as const, version: marked.version };
+      case "unchanged":
+        return { kind: "unchanged" as const, version: marked.version };
+      case "gone":
+        return marked;
+      case "moved":
+        throw new Error(`frames: ${input.id} changed while it was checked; mark it again`);
+    }
+  },
+});
+
+export const readyFrame = operation({
+  label: "frame.ready.do",
+  input: framesApi["frame.ready"].input,
+  depends: { readDoc, settleCheck, markReady },
+  run: async ({ readDoc, settleCheck, markReady }, { input }) => {
+    const row = await readDoc.run({ input });
+    if (!row) return { kind: "gone" as const };
+    if (row.js === null) return { kind: "unsettled" as const, findings: [htmlNotReady], more: 0 };
+    if (row.status === "ready") return { kind: "unchanged" as const, version: row.version };
+
+    const all = await settleCheck.run({ input: row.html });
+    const findings = all.slice(0, maxFindings);
+    if (all.length > 0) {
+      return { kind: "unsettled" as const, findings, more: all.length - findings.length };
+    }
+    return markReady.run({ input: { ...input, version: row.version } });
+  },
+});
+
+export const exploreFrame = operation({
+  label: "frame.explore.do",
+  input: framesApi["frame.explore"].input,
+  depends: { markFrame },
+  run: async ({ markFrame }, { input }) => {
+    const marked = await markFrame.run({ input: { ...input, status: "exploring" } });
+    switch (marked.kind) {
+      case "marked":
+        return { kind: "exploring" as const };
+      case "unchanged":
+        return { kind: "unchanged" as const };
+      case "gone":
+        return marked;
+      case "moved":
+        throw new Error("frames: a mark with no version never moves");
+    }
   },
 });
 
@@ -294,6 +454,8 @@ export const framesOps = {
   "frame.list": listFrames,
   "frame.get": getFrame,
   "frame.delete": deleteFrame,
+  "frame.ready": readyFrame,
+  "frame.explore": exploreFrame,
   "frame.shot": shotFrame,
 } as const;
 

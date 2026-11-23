@@ -58,6 +58,10 @@ export const canvasInfo = z.object({
 
 export type CanvasInfo = z.infer<typeof canvasInfo>;
 
+export const frameStatus = z.enum(["exploring", "ready"]);
+
+export type FrameStatus = z.infer<typeof frameStatus>;
+
 export const frameInfo = z.object({
   id: z.string(),
   name: z.string(),
@@ -70,10 +74,14 @@ export const frameInfo = z.object({
 
 export type FrameInfo = z.infer<typeof frameInfo>;
 
+export const listedFrame = frameInfo.extend({ status: frameStatus });
+
+export type ListedFrame = z.infer<typeof listedFrame>;
+
 export const frame = z.union([
-  frameInfo.extend({ html: z.string() }),
-  frameInfo.extend({ tsx: z.string() }),
-  frameInfo.extend({ files: frameFiles }),
+  listedFrame.extend({ html: z.string() }),
+  listedFrame.extend({ tsx: z.string() }),
+  listedFrame.extend({ files: frameFiles }),
 ]);
 
 export type Frame = z.infer<typeof frame>;
@@ -163,6 +171,12 @@ const written = z.object({
   more: z.number(),
 });
 
+const unsettled = z.object({
+  kind: z.literal("unsettled"),
+  findings: z.array(findingShape),
+  more: z.number(),
+});
+
 export const putInput = z.union([
   z.strictObject({
     canvas: canvasKey,
@@ -176,15 +190,29 @@ export const putInput = z.union([
     tsx: z.string(),
     name: frameName.optional(),
     size: size.optional(),
+    ready: z.boolean().optional(),
   }),
-  z.strictObject({ canvas: canvasKey, tsx: z.string(), id: frameId, base: version }),
+  z.strictObject({
+    canvas: canvasKey,
+    tsx: z.string(),
+    id: frameId,
+    base: version,
+    ready: z.boolean().optional(),
+  }),
   z.strictObject({
     canvas: canvasKey,
     files: frameFiles,
     name: frameName.optional(),
     size: size.optional(),
+    ready: z.boolean().optional(),
   }),
-  z.strictObject({ canvas: canvasKey, files: frameFiles, id: frameId, base: version }),
+  z.strictObject({
+    canvas: canvasKey,
+    files: frameFiles,
+    id: frameId,
+    base: version,
+    ready: z.boolean().optional(),
+  }),
 ]);
 
 export type PutInput = z.infer<typeof putInput>;
@@ -195,6 +223,7 @@ export const putOutput = z.union([
   gone,
   z.object({ kind: z.literal("tooBig"), maxBytes: z.number() }),
   z.object({ kind: z.literal("offKit"), findings: z.array(findingShape), more: z.number() }),
+  unsettled,
 ]);
 
 const one = z.object({ canvas: canvasKey, id: frameId });
@@ -250,7 +279,7 @@ export const framesContracts = {
   "frame.list": {
     input: z.object({ canvas: canvasKey }),
     output: z.discriminatedUnion("kind", [
-      z.object({ kind: z.literal("found"), frames: z.array(frameInfo) }),
+      z.object({ kind: z.literal("found"), frames: z.array(listedFrame) }),
       gone,
     ]),
   },
@@ -261,6 +290,21 @@ export const framesContracts = {
   "frame.delete": {
     input: one,
     output: z.discriminatedUnion("kind", [z.object({ kind: z.literal("deleted") }), gone]),
+  },
+  "frame.ready": {
+    input: one,
+    output: z.discriminatedUnion("kind", [
+      z.object({ kind: z.enum(["ready", "unchanged"]), version: z.number() }),
+      unsettled,
+      gone,
+    ]),
+  },
+  "frame.explore": {
+    input: one,
+    output: z.discriminatedUnion("kind", [
+      z.object({ kind: z.enum(["exploring", "unchanged"]) }),
+      gone,
+    ]),
   },
   "frame.shot": {
     input: z.strictObject({
@@ -302,6 +346,8 @@ export const framesSuccessKinds = {
   "frame.list": ["found"],
   "frame.get": ["found"],
   "frame.delete": ["deleted"],
+  "frame.ready": ["ready", "unchanged"],
+  "frame.explore": ["exploring", "unchanged"],
   "frame.shot": ["ready"],
 } as const satisfies {
   readonly [A in FramesAddress]: KindOf<A> extends never ? "always" : readonly KindOf<A>[];

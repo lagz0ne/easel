@@ -64,7 +64,7 @@ export const tools = {
     address: "frame.list",
     annotations: readOnly,
     description:
-      "List the frames of a canvas: id, name, box and version. Use an id and its version in `get_frame` and `put_frame`.",
+      "List the frames of a canvas: id, name, box, version and status (exploring or ready). Use an id and its version in `get_frame` and `put_frame`.",
   },
   get_frame: {
     address: "frame.get",
@@ -75,7 +75,19 @@ export const tools = {
   put_frame: {
     address: "frame.put",
     annotations: write,
-    description: `Make a frame on a canvas, or change one with \`id\` and \`base\`, the version that you got (an older one answers \`stale\`). ${kitFirst}`,
+    description: `Make a frame, or change one with \`id\` and \`base\` (an older version answers \`stale\`); an app frame is exploring until \`ready\`, which needs the texts of the team and fixes colors to the look. ${kitFirst}`,
+  },
+  ready_frame: {
+    address: "frame.ready",
+    annotations: idempotent,
+    description:
+      'Mark an app frame ready: its current version must use only the texts of the team, as `say(["trial.start"])`, and the look. Else `unsettled` lists each finding and its fix, and nothing changes.',
+  },
+  explore_frame: {
+    address: "frame.explore",
+    annotations: idempotent,
+    description:
+      "Mark a ready frame exploring again: its next puts keep their own texts and colors.",
   },
   delete_frame: {
     address: "frame.delete",

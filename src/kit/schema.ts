@@ -12,6 +12,9 @@ export const ruleShape = z.enum([
   "kit/import",
   "kit/react-state",
   "kit/shape",
+  "copy/text",
+  "copy/own",
+  "copy/key",
 ]);
 
 export const refusingRules: ReadonlySet<Rule> = new Set<Rule>([
@@ -22,6 +25,14 @@ export const refusingRules: ReadonlySet<Rule> = new Set<Rule>([
 ]);
 
 export type Rule = z.infer<typeof ruleShape>;
+
+export const settleRules: ReadonlySet<Rule> = new Set<Rule>([
+  "copy/text",
+  "copy/own",
+  "copy/key",
+  "look/color",
+  "look/size",
+]);
 
 export const maxAppBytes = 256 * 1024;
 

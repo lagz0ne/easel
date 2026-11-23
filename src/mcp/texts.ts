@@ -13,6 +13,8 @@ export const kindTexts: Readonly<Record<string, string>> = {
   tooBig: "tooBig: it is over {maxBytes} bytes, so nothing was written. Make it smaller.",
   offKit:
     "offKit: the kit check refused the app frame, so nothing was written. Fix each finding below, then put it again.",
+  unsettled:
+    "unsettled: a ready frame uses only the texts of the team and the look, so nothing changed. Fix each finding below, or call explore_frame and put it as an exploring frame.",
   off: "off: this easel cannot draw pictures. Read the document with get_frame.",
   unreadable:
     "unreadable: each pair of colors below is hard to read, so nothing was written. Change those values, then set the look again.",

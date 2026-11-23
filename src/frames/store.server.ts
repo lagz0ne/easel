@@ -1,3 +1,5 @@
+import type { Database } from "bun:sqlite";
+
 import { bunSqlite } from "@tinkered/bun/sqlite";
 import { capsule, data, operation, tag } from "@tinkered/core";
 import { z } from "zod";
@@ -5,7 +7,7 @@ import { z } from "zod";
 import { kitRuntime } from "@/kit/runtime.server";
 import { kitStart, showKit } from "@/kit/store.server";
 
-import { canvasInfo, frames, kept, removed } from "./contract";
+import { canvasInfo, frameStatus, frames, kept, removed } from "./contract";
 import { boardKey } from "./keys.server";
 
 export const canvases = data({
@@ -35,6 +37,7 @@ CREATE TABLE IF NOT EXISTS frames_frames (
   css TEXT,
   kit INTEGER,
   js TEXT,
+  status TEXT NOT NULL DEFAULT 'exploring',
   PRIMARY KEY (canvas, id)
 );
 CREATE TABLE IF NOT EXISTS frames_keygen (
@@ -74,6 +77,7 @@ const addedColumns = [
   ["frames_kept", "kit", "INTEGER"],
   ["frames_frames", "js", "TEXT"],
   ["frames_kept", "js", "TEXT"],
+  ["frames_frames", "status", "TEXT NOT NULL DEFAULT 'exploring'"],
 ] as const;
 
 const genOf = "COALESCE((SELECT gen FROM frames_keygen WHERE canvas = ?), 0)";
@@ -92,6 +96,7 @@ const frameRow = z.object({
   w: z.number(),
   h: z.number(),
   version: z.number(),
+  status: frameStatus,
 });
 
 const canvasRow = z.object({ key: z.string(), name: z.string(), created: z.number() });
@@ -102,7 +107,7 @@ const boardFrame = operation({
   label: "frames.boardFrame",
   input: keyedRow,
   depends: { boardKey },
-  run: ({ boardKey }, { input: { gen, ...row } }) => ({
+  run: ({ boardKey }, { input: { gen, status: _status, ...row } }) => ({
     ...row,
     k: boardKey.run({ input: { canvas: row.canvas, id: row.id, version: row.version, gen } }),
   }),
@@ -165,6 +170,8 @@ export const saveCanvas = operation({
   },
 });
 
+const writeMode = z.enum(["ready", "exploring", "html"]);
+
 const frameWrite = z.discriminatedUnion("kind", [
   z.object({
     kind: z.literal("new"),
@@ -177,6 +184,7 @@ const frameWrite = z.discriminatedUnion("kind", [
     css: z.string().nullable(),
     kit: z.number().nullable(),
     js: z.string().nullable(),
+    mode: writeMode,
   }),
   z.object({
     kind: z.literal("on"),
@@ -187,8 +195,47 @@ const frameWrite = z.discriminatedUnion("kind", [
     css: z.string().nullable(),
     kit: z.number().nullable(),
     js: z.string().nullable(),
+    mode: writeMode,
   }),
 ]);
+
+const statusOf = writeMode.transform((mode) => (mode === "ready" ? "ready" : "exploring"));
+
+const keptWrite = operation({
+  label: "frames.keptWrite",
+  input: z.object({
+    canvas: z.string(),
+    id: z.string(),
+    base: z.number(),
+    html: z.string(),
+    kit: z.number().nullable(),
+    app: z.number(),
+    mode: writeMode,
+    db: z.custom<Database>(),
+  }),
+  run: (_, { input }) => {
+    const { db } = input;
+    const now = db
+      .query(
+        `SELECT version, html IS ? AND (js IS NOT NULL) = ? AND (js IS NULL OR ${sameRuntime}) AS same
+         FROM frames_frames WHERE canvas = ? AND id = ?`,
+      )
+      .get(input.html, input.app, input.kit, input.canvas, input.id);
+    if (now === null) return { kind: "gone" as const };
+    const { version, same } = z.object({ version: z.number(), same: z.number() }).parse(now);
+    if (version !== input.base || !same) return { kind: "stale" as const, id: input.id, version };
+
+    const marked = db
+      .query(
+        `UPDATE frames_frames SET status = 'ready'
+         WHERE canvas = ? AND id = ? AND ? = 'ready' AND status = 'exploring'
+         RETURNING canvas, id, name, x, y, w, h, version, status, ${genOf} AS gen`,
+      )
+      .get(input.canvas, input.id, input.mode, input.canvas);
+    if (marked !== null) return { kind: "marked" as const, row: keyedRow.parse(marked) };
+    return { kind: "unchanged" as const, id: input.id, version };
+  },
+});
 
 export const saveFrame = operation({
   label: "frames.saveFrame",
@@ -199,8 +246,10 @@ export const saveFrame = operation({
     keptCells: kept.atScope.controller,
     boardFrame,
     boardKept,
+    keptWrite,
   },
-  run: async ({ connection, cells, keptCells, boardFrame, boardKept }, { input, clock }) => {
+  run: async (units, { input, clock }) => {
+    const { connection, cells, keptCells, boardFrame, boardKept, keptWrite } = units;
     const db = connection.db.$client;
     const answer = db.transaction(() => {
       if (input.kind === "new") {
@@ -217,9 +266,9 @@ export const saveFrame = operation({
         const row = keyedRow.parse(
           db
             .query(
-              `INSERT INTO frames_frames (canvas, id, name, x, y, w, h, version, html, made, css, kit, js)
-               VALUES (?, ?, ?, ?, 0, ?, ?, 1, ?, ?, ?, ?, ?)
-               RETURNING canvas, id, name, x, y, w, h, version, ${genOf} AS gen`,
+              `INSERT INTO frames_frames (canvas, id, name, x, y, w, h, version, html, made, css, kit, js, status)
+               VALUES (?, ?, ?, ?, 0, ?, ?, 1, ?, ?, ?, ?, ?, ?)
+               RETURNING canvas, id, name, x, y, w, h, version, status, ${genOf} AS gen`,
             )
             .get(
               input.canvas,
@@ -233,6 +282,7 @@ export const saveFrame = operation({
               input.css,
               input.kit,
               input.js,
+              statusOf.parse(input.mode),
               input.canvas,
             ),
         );
@@ -240,21 +290,25 @@ export const saveFrame = operation({
       }
 
       const app = Number(input.js !== null);
+      const { mode } = input;
       const saved = db
         .query(
-          `UPDATE frames_frames SET html = ?, css = ?, kit = ?, js = ?, version = version + 1
-           WHERE canvas = ? AND id = ? AND version = ?
+          `UPDATE frames_frames SET html = ?, css = ?, kit = ?, js = ?, version = version + 1,
+             status = CASE ? WHEN 'ready' THEN 'ready' WHEN 'html' THEN 'exploring' ELSE status END
+           WHERE canvas = ? AND id = ? AND version = ? AND (? <> 'exploring' OR status = 'exploring')
              AND (html IS NOT ? OR (js IS NOT NULL) <> ? OR (js IS NOT NULL AND ${sameRuntime} = 0))
-           RETURNING canvas, id, name, x, y, w, h, version, ${genOf} AS gen`,
+           RETURNING canvas, id, name, x, y, w, h, version, status, ${genOf} AS gen`,
         )
         .get(
           input.html,
           input.css,
           input.kit,
           input.js,
+          mode,
           input.canvas,
           input.id,
           input.base,
+          mode,
           input.html,
           app,
           input.kit,
@@ -265,18 +319,7 @@ export const saveFrame = operation({
         return { kind: "updated" as const, row: keyedRow.parse(saved), keptBase };
       }
 
-      const now = db
-        .query(
-          `SELECT version, html IS ? AND (js IS NOT NULL) = ? AND (js IS NULL OR ${sameRuntime}) AS same
-           FROM frames_frames WHERE canvas = ? AND id = ?`,
-        )
-        .get(input.html, app, input.kit, input.canvas, input.id);
-      if (now === null) return { kind: "gone" as const };
-      const { version, same } = z.object({ version: z.number(), same: z.number() }).parse(now);
-      if (version === input.base && same) {
-        return { kind: "unchanged" as const, id: input.id, version };
-      }
-      return { kind: "stale" as const, id: input.id, version };
+      return keptWrite.run({ input: { ...input, app, db } });
     })();
 
     switch (answer.kind) {
@@ -292,12 +335,93 @@ export const saveFrame = operation({
         }
         return { kind: answer.kind, id: row.id, version: row.version };
       }
+      case "marked": {
+        const { row } = answer;
+        cells.set(boardFrame.run({ input: row }));
+        return { kind: "unchanged" as const, id: row.id, version: row.version };
+      }
       case "unchanged":
       case "stale":
       case "gone":
         return answer;
     }
   },
+});
+
+const markedRow = z.object({ version: z.number(), status: frameStatus });
+
+export const markFrame = operation({
+  label: "frames.markFrame",
+  input: z.object({
+    canvas: z.string(),
+    id: z.string(),
+    status: frameStatus,
+    version: z.number().optional(),
+  }),
+  depends: { connection: bunSqlite.connection, cells: frames.atScope.controller, boardFrame },
+  run: async ({ connection, cells, boardFrame }, { input }) => {
+    const db = connection.db.$client;
+    const answer = db.transaction(() => {
+      const marked = db
+        .query(
+          `UPDATE frames_frames SET status = ?
+           WHERE canvas = ? AND id = ? AND status IS NOT ? AND (? IS NULL OR version = ?)
+           RETURNING canvas, id, name, x, y, w, h, version, status, ${genOf} AS gen`,
+        )
+        .get(
+          input.status,
+          input.canvas,
+          input.id,
+          input.status,
+          input.version ?? null,
+          input.version ?? null,
+          input.canvas,
+        );
+      if (marked !== null) return { kind: "marked" as const, row: keyedRow.parse(marked) };
+
+      const now = db
+        .query("SELECT version, status FROM frames_frames WHERE canvas = ? AND id = ?")
+        .get(input.canvas, input.id);
+      if (now === null) return { kind: "gone" as const };
+      const row = markedRow.parse(now);
+      if (row.status === input.status) return { kind: "unchanged" as const, version: row.version };
+      return { kind: "moved" as const, version: row.version };
+    })();
+
+    if (answer.kind !== "marked") return answer;
+    cells.set(boardFrame.run({ input: answer.row }));
+    return { kind: "marked" as const, version: answer.row.version };
+  },
+});
+
+export const readStatuses = operation({
+  label: "frames.readStatuses",
+  input: z.object({ canvas: z.string() }),
+  depends: { connection: bunSqlite.connection },
+  run: async ({ connection }, { input }) =>
+    new Map(
+      connection.db.$client
+        .query("SELECT id, status FROM frames_frames WHERE canvas = ?")
+        .all(input.canvas)
+        .flatMap((row) => {
+          const one = z.object({ id: z.string(), status: frameStatus }).safeParse(row).data;
+          return one ? [[one.id, one.status] as const] : [];
+        }),
+    ),
+});
+
+export const readStatus = operation({
+  label: "frames.readStatus",
+  input: z.object({ canvas: z.string(), id: z.string() }),
+  depends: { connection: bunSqlite.connection },
+  run: async ({ connection }, { input }) =>
+    z
+      .object({ status: frameStatus })
+      .safeParse(
+        connection.db.$client
+          .query("SELECT status FROM frames_frames WHERE canvas = ? AND id = ?")
+          .get(input.canvas, input.id),
+      ).data?.status ?? null,
 });
 
 export const dropFrame = operation({
@@ -315,7 +439,7 @@ export const dropFrame = operation({
     const answer = db.transaction(() => {
       const found = db
         .query(
-          `SELECT canvas, id, name, x, y, w, h, version, ${genOf} AS gen
+          `SELECT canvas, id, name, x, y, w, h, version, status, ${genOf} AS gen
            FROM frames_frames WHERE canvas = ? AND id = ?`,
         )
         .get(input.canvas, input.canvas, input.id);
@@ -370,7 +494,7 @@ export const bumpKeys = operation({
       return {
         rows: db
           .query(
-            `SELECT canvas, id, name, x, y, w, h, version, ${genOf} AS gen FROM frames_frames WHERE canvas = ?`,
+            `SELECT canvas, id, name, x, y, w, h, version, status, ${genOf} AS gen FROM frames_frames WHERE canvas = ?`,
           )
           .all(input.canvas, input.canvas)
           .map((row) => keyedRow.parse(row)),
@@ -468,7 +592,7 @@ export const readDoc = operation({
       .safeParse(
         connection.db.$client
           .query(
-            "SELECT canvas, id, name, x, y, w, h, version, html, css, js, kit FROM frames_frames WHERE canvas = ? AND id = ?",
+            "SELECT canvas, id, name, x, y, w, h, version, status, html, css, js, kit FROM frames_frames WHERE canvas = ? AND id = ?",
           )
           .get(input.canvas, input.id),
       ).data,
@@ -540,7 +664,7 @@ const load = operation({
     const canvasRows = db.query("SELECT key, name, created FROM frames_canvases").all();
     const frameRows = db
       .query(
-        `SELECT f.canvas, f.id, f.name, f.x, f.y, f.w, f.h, f.version, COALESCE(g.gen, 0) AS gen
+        `SELECT f.canvas, f.id, f.name, f.x, f.y, f.w, f.h, f.version, f.status, COALESCE(g.gen, 0) AS gen
          FROM frames_frames f LEFT JOIN frames_keygen g ON g.canvas = f.canvas
          ORDER BY f.made, f.rowid`,
       )
