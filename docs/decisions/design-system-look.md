@@ -105,8 +105,8 @@ Components) are now the level pages of `easel · Design system`; see
 - `src/design/tokens.css` has the values of
   the library canvas, and
   `tests/design-tokens.test.ts` checks the
-  contrast table (2026-11-23). The page does
-  not load Inter yet.
+  contrast table (2026-11-23). The binary holds
+  Inter 5.3.0, and the page loads it.
 - Focus, changed the same day after a look: a
   solid ink ring was too harsh. `--e-focus` is
   now a mid grey (`#858582` light, `#7a7a77`

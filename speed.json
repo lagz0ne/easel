@@ -43,6 +43,11 @@
       "kind": "request",
       "name": "/api/telemetry",
       "reason": "The tab's spans and errors. The first view does not need them: a task of Checkpoint D moves them after easel:open."
+    },
+    {
+      "kind": "request",
+      "name": "/api/fonts/inter-*",
+      "reason": "Inter, the font of the design system (SPEC-design.md). The text shows at once in the system font (font-display: swap), so it holds back no frame. One file of 48 KB for Latin letters, kept a year."
     }
   ]
 }

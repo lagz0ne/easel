@@ -6,10 +6,16 @@ import { z } from "zod";
 
 import geist from "./fonts/Geist-Variable.woff2" with { type: "file" };
 import geistMono from "./fonts/GeistMono-Variable.woff2" with { type: "file" };
+import interLatinExt from "./fonts/inter-latin-ext-wght-normal.woff2" with { type: "file" };
+import interLatin from "./fonts/inter-latin-wght-normal.woff2" with { type: "file" };
+import interVietnamese from "./fonts/inter-vietnamese-wght-normal.woff2" with { type: "file" };
 
 // The fonts that the binary holds (SPEC-kit.md § The seed): Geist and Geist Mono 1.9.2 by Vercel
-// (OFL-1.1, `fonts/OFL.txt`), the fonts of ui.shadcn.com. A look that names one gets its
-// `@font-face` in `easel-look`. The version is in the address, so a file never changes there.
+// (OFL-1.1, `fonts/OFL.txt`), the fonts of ui.shadcn.com; and Inter 5.3.0 by the Inter Project
+// (OFL-1.1, `fonts/OFL-Inter.txt`), the font of the viewer (SPEC-design.md). A look that names one
+// gets its `@font-face` in `easel-look`. The version is in the address, so a file never changes
+// there. Inter comes in three files by `unicode-range`, as Google Fonts and Fontsource give it:
+// a browser loads a file only for the letters that the page shows.
 
 /** Where the font files are: `/api/fonts/<dir>/<file>`. */
 export const fontPrefix = "/api/fonts/";
@@ -25,10 +31,66 @@ const geistMonoPath = existsSync(geistMono)
   ? geistMono
   : fileURLToPath(new URL("./fonts/GeistMono-Variable.woff2", import.meta.url));
 
-/** Each held font: its family, its address under `fontPrefix`, and the path of its file. */
-export const heldFonts: ReadonlyArray<{ family: string; file: string; path: string }> = [
-  { family: "Geist", file: "geist-1.9.2/Geist-Variable.woff2", path: geistPath },
-  { family: "Geist Mono", file: "geist-1.9.2/GeistMono-Variable.woff2", path: geistMonoPath },
+const interVietnamesePath = existsSync(interVietnamese)
+  ? interVietnamese
+  : fileURLToPath(new URL("./fonts/inter-vietnamese-wght-normal.woff2", import.meta.url));
+
+const interLatinExtPath = existsSync(interLatinExt)
+  ? interLatinExt
+  : fileURLToPath(new URL("./fonts/inter-latin-ext-wght-normal.woff2", import.meta.url));
+
+const interLatinPath = existsSync(interLatin)
+  ? interLatin
+  : fileURLToPath(new URL("./fonts/inter-latin-wght-normal.woff2", import.meta.url));
+
+/** The `unicode-range` of each Inter file, from `@fontsource-variable/inter` 5.3.0. */
+const interRange = {
+  latin:
+    "U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308, U+0329, U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD",
+  latinExt:
+    "U+0100-02BA, U+02BD-02C5, U+02C7-02CC, U+02CE-02D7, U+02DD-02FF, U+0304, U+0308, U+0329, U+1D00-1DBF, U+1E00-1E9F, U+1EF2-1EFF, U+2020, U+20A0-20AB, U+20AD-20C0, U+2113, U+2C60-2C7F, U+A720-A7FF",
+  vietnamese:
+    "U+0102-0103, U+0110-0111, U+0128-0129, U+0168-0169, U+01A0-01A1, U+01AF-01B0, U+0300-0301, U+0303-0304, U+0308-0309, U+0323, U+0329, U+1EA0-1EF9, U+20AB",
+};
+
+/**
+ * Each held font: its family, its address under `fontPrefix`, the path of its file, and the
+ * letters it has (`range`), when it is one file of several.
+ */
+export const heldFonts: ReadonlyArray<{
+  family: string;
+  file: string;
+  path: string;
+  range?: string;
+}> = [
+  {
+    family: "Geist",
+    file: "geist-1.9.2/Geist-Variable.woff2",
+    path: geistPath,
+  },
+  {
+    family: "Geist Mono",
+    file: "geist-1.9.2/GeistMono-Variable.woff2",
+    path: geistMonoPath,
+  },
+  {
+    family: "Inter",
+    file: "inter-5.3.0/inter-vietnamese-wght-normal.woff2",
+    path: interVietnamesePath,
+    range: interRange.vietnamese,
+  },
+  {
+    family: "Inter",
+    file: "inter-5.3.0/inter-latin-ext-wght-normal.woff2",
+    path: interLatinExtPath,
+    range: interRange.latinExt,
+  },
+  {
+    family: "Inter",
+    file: "inter-5.3.0/inter-latin-wght-normal.woff2",
+    path: interLatinPath,
+    range: interRange.latin,
+  },
 ];
 
 /**
@@ -49,7 +111,7 @@ export const fontFaces = operation({
       .filter((font) => named.has(font.family))
       .map(
         (font) =>
-          `@font-face {\n  font-family: "${font.family}";\n  src: url("${fontPrefix}${font.file}") format("woff2");\n  font-weight: 100 900;\n  font-style: normal;\n  font-display: swap;\n}\n`,
+          `@font-face {\n  font-family: "${font.family}";\n  src: url("${fontPrefix}${font.file}") format("woff2");\n  font-weight: 100 900;\n  font-style: normal;\n  font-display: swap;\n${font.range ? `  unicode-range: ${font.range};\n` : ""}}\n`,
       )
       .join("");
   },

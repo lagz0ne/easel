@@ -66,6 +66,17 @@ is.
 - Source: <https://github.com/vercel/geist-font>; the npm package
   `geist@1.9.2`.
 
+## Inter 5.3.0
+
+- What: the font of the viewer (SPEC-design.md). The binary holds the
+  variable WOFF2 files for Latin, Latin Extended and Vietnamese
+  (`src/kit/fonts/inter-*-wght-normal.woff2`), and serves them at
+  `/api/fonts/inter-5.3.0/`. easel does not change them.
+- Licence: SIL Open Font License 1.1. Copyright 2016 The Inter Project
+  Authors. The full licence is in `src/kit/fonts/OFL-Inter.txt`.
+- Source: <https://github.com/rsms/inter>; the npm package
+  `@fontsource-variable/inter@5.3.0`.
+
 ## The runtime of app frames
 
 The binary holds the runtime bundle of app frames (`src/kit/runtime.server.ts`;

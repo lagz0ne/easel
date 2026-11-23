@@ -17,8 +17,8 @@ The source of the system is the Doop library canvas `easel · Design system` (`z
 tokens and its components. The screens are on `easel · Product design` (`xFJSTXA-v5`). See
 [docs/design-canvas.md](docs/design-canvas.md).
 `src/design` follows it. Status: `src/design/tokens.css` has the values of the library canvas,
-light and dark, and `tests/design-tokens.test.ts` checks the contrast table (2026-11-23). The page
-does not load Inter yet: until it does, the font is Inter only where it is installed.
+light and dark, and `tests/design-tokens.test.ts` checks the contrast table (2026-11-23). The binary
+holds Inter 5.3.0 and the page loads it (`@font-face` in `tokens.css`, `font-display: swap`).
 
 Prior art, as ideas only:
 

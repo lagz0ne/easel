@@ -338,7 +338,9 @@ The binary holds the seed. The first start writes it as kit version 1, with look
   "Maia" style: pill buttons, fields, badges and tabs, and round cards (`src/kit/seed.server.ts`).
   A field keeps an edge of `input` (3.45:1), as K8 asks; the Maia field of the site has none.
 - The binary holds the two font files (`src/kit/fonts/`). `GET /api/fonts/geist-1.9.2/<file>`
-  serves each one, immutable, to any origin, as a frame's origin is `null`. The look's CSS
+  serves each one, immutable, to any origin, as a frame's origin is `null`. It also holds Inter
+  5.3.0, the font of the viewer, in three files by `unicode-range` (`/api/fonts/inter-5.3.0/`); a
+  look that names Inter gets its three faces. The look's CSS
   (`easel-look`) starts with an `@font-face` for each held font that a `--font-*` value names. A
   picture gets each font as a `data:` URL, as it is drawn with no route to the easel.
 - An easel that has a kit keeps it (K11). A new seed reaches only a new easel.

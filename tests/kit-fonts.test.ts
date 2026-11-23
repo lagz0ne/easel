@@ -1,3 +1,6 @@
+import { readFileSync } from "node:fs";
+import { join } from "node:path";
+
 import { exits } from "@tinkered/cli/test";
 import { createScope } from "@tinkered/core";
 import { afterEach, expect, test } from "vite-plus/test";
@@ -35,7 +38,7 @@ test("a look that names a held font gets its face; a look with no held font gets
   );
   // A color named Geist is no font: only `--font-*` values count.
   const none = await s.run(fontFaces, {
-    input: { "--font-sans": "Inter, sans-serif", "--primary": "Geist" },
+    input: { "--font-sans": "Roboto, sans-serif", "--primary": "Geist" },
   });
   expect(none).toBe("");
 });
@@ -72,4 +75,22 @@ test("a picture's look holds each named font as a data: URL; a look with no held
   expect(inline).toContain('src: url("data:font/woff2;base64,d09GMg');
 
   expect(await s.run(inlineFonts, { input: ":root {}\n" })).toBe(":root {}\n");
+});
+
+test("Inter, the font of the viewer, is held in three files by range, as Google Fonts does; tokens.css has the same faces", async () => {
+  const s = await scope();
+  const faces = await s.run(fontFaces, { input: { "--e-font": '"Inter", sans-serif' } });
+  const inter = await s.run(fontFaces, { input: { "--font-sans": '"Inter", sans-serif' } });
+
+  // Only `--font-*` names a font of a look; the viewer's own faces are in tokens.css.
+  expect(faces).toBe("");
+  expect(inter.match(/font-family: "Inter";/g)).toHaveLength(3);
+  expect(inter.match(/unicode-range: U\+/g)).toHaveLength(3);
+  expect(inter).toContain('url("/api/fonts/inter-5.3.0/inter-latin-wght-normal.woff2")');
+  expect(inter).toContain('url("/api/fonts/inter-5.3.0/inter-vietnamese-wght-normal.woff2")');
+
+  const css = readFileSync(join(import.meta.dirname, "../src/design/tokens.css"), "utf8");
+  const flat = (text: string) => text.replace(/\s+/g, " ").trim();
+  const inCss = [...css.matchAll(/@font-face \{[^}]*\}/g)].map((m) => m[0]).join("\n");
+  expect(flat(inCss)).toBe(flat(inter));
 });
