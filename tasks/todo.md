@@ -697,3 +697,76 @@ Done in `b15c263` (CP-3) and `6b4efcd` (CP-4). CP-4 has 6 deviations from SPEC-c
 - [x] The label row of a ready frame says `Ready`.
 - [x] L3 over MCP: two users, `set_texts`, `list_texts`, `put_frame` with `ready`.
 - [x] SPEC-kit § The texts and SPEC-frames § Exploring and ready; SPEC-copy `implemented`.
+
+## Phase 8: pages
+
+The spec is [SPEC-pages.md](../SPEC-pages.md). The model is
+[viewer-pages](../docs/statecharts/viewer-pages.md). Criterion 1 (the move of the Doop canvas) is
+not in this phase: it comes after it.
+
+Decisions of 2026-11-23 (the coordinator, for the spec):
+
+- `page.rename` changes the name only. The key stays as it was at create. `taken` on rename: another
+  page of the canvas has the same name (case-insensitive). `taken` on create: the slug of the name
+  is the key of another page, or another page has the name.
+- `page.order` takes `{ canvas, pages: key[] }`. The named pages go first, in that order. The
+  others keep their order after them. A key that the canvas does not have is `gone`.
+- A request with no frame keeps the page of the tab where the person made it. Its pin shows on that
+  page only. An old request with no frame is on the first page.
+- A marked frame that an agent moves to another page: the tab stays on its page, and the mark ends
+  (as the model).
+
+### P8-1: pages and places on the server
+
+- [ ] `frames_pages`; a new canvas has `Page 1`. A migration puts each old frame and each removed
+      frame on the first page, and keeps each frame.
+- [ ] `page.list`, `page.create`, `page.rename`, `page.order`, `page.delete`, `frame.move` with
+      each kind of the Contract. `frame.put` takes `page`, `x` and `y`.
+- [ ] The board: the cell `frames` has the page in its key; a new cell `pages` has the names and
+      the counts.
+- [ ] The tools `move_frame`, `list_pages` and `create_page`; `put_frame` takes the place.
+- [ ] A test reaches each exit, the 3 fact rules, and the restart test of the migration.
+
+**Estimated scope:** M.
+
+### P8-2: the CLI
+
+- [ ] `easel put --page --at x,y`, `easel move`, `easel pages`, `easel page new|rename|rm|order`,
+      each with its `--help` line.
+- [ ] A test of each command and each answer.
+
+**Dependencies:** P8-1. **Estimated scope:** S.
+
+### P8-3: the page of a request with no frame
+
+- [ ] `request.add` takes the page of the tab for a request with no frame. The row keeps it. A
+      migration puts each old request with no frame on the first page.
+
+**Dependencies:** P8-1. **Estimated scope:** S.
+
+### P8-4: the viewer shows one page
+
+- [ ] The board read of a tab is the list of pages and the frames of one page.
+- [ ] The list of pages in the dock: each name and its count. A pick shows that page at Fit.
+- [ ] `?page=<key>` in the address. A link with no page opens the first page. A reload keeps it.
+- [ ] A move in the page moves the shell; a move to another page takes the frame off, and the mark
+      ends. Each open tab shows it within 1 s (criterion 2).
+- [ ] Find finds a frame on each page. The Requests panel lists the requests of each page with the
+      name of the page. A pick asks the server for the page of the frame, then shows the page and
+      the frame (criterion 3).
+- [ ] The pick of a locale stays from page to page.
+- [ ] Browser tests for each rule of the model; `ship.sh --full`.
+
+**Dependencies:** P8-1, P8-3. **Estimated scope:** L.
+
+### P8-5: speed
+
+- [ ] `bun run speed` opens a page of 20 frames on a canvas of 5 pages of 20 frames. Its `open` is
+      in the budget of 20 frames (criterion 5).
+
+**Dependencies:** P8-4. **Estimated scope:** S.
+
+### Checkpoint G: after P8-5
+
+- [ ] Criteria 2 to 6 of SPEC-pages hold, each with its proof.
+- [ ] A look at the viewer with `agent-browser` on a local server.
