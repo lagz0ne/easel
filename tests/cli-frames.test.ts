@@ -453,7 +453,7 @@ test("put of a folder sends a folder frame: each .ts and .tsx file by its path; 
   await a.run({ kind: "canvas new", name: "Flow" });
   const source = new URL("kit/frames/people/", import.meta.url);
   const dir = join(a.dir, "people");
-  const paths = ["index.tsx", "entities.ts", "copy.ts", "view.tsx"];
+  const paths = ["index.tsx", "entities.ts", "copy.ts", "view.tsx", "panes.tsx"];
   mkdirSync(join(dir, ".cache"), { recursive: true });
   for (const path of paths) writeFileSync(join(dir, path), readFileSync(new URL(path, source)));
   // Not a file of the frame: another type of file, and a folder whose name starts with ".".
@@ -468,7 +468,7 @@ test("put of a folder sends a folder frame: each .ts and .tsx file by its path; 
 
   const out = join(a.dir, "got");
   expect(await a.run({ kind: "get", canvas: "flow", id, out })).toBe(0);
-  expect(a.out.splice(0).join("")).toBe(`${id} v1 written to ${out}/ (4 files)\n`);
+  expect(a.out.splice(0).join("")).toBe(`${id} v1 written to ${out}/ (5 files)\n`);
   for (const path of paths) {
     expect(readFileSync(join(out, path), "utf8")).toBe(readFileSync(new URL(path, source), "utf8"));
   }

@@ -4,6 +4,7 @@ import {
   type Data,
   type Operation,
   type Resource,
+  type transport,
 } from "@tinkered/core";
 import { ScopeProvider } from "@tinkered/react";
 import { type ClassValue, clsx } from "clsx";
@@ -16,7 +17,15 @@ import { z } from "zod";
 import { copy, locales } from "./capsules/copy";
 import { look } from "./capsules/look";
 import { ui } from "./capsules/ui";
-import { type ControlPlace, controlPost, controlShown } from "./controls";
+import {
+  type ControlPlace,
+  controlPost,
+  controlShown,
+  type PanePlace,
+  panePlace,
+  linkPost,
+} from "./controls";
+import { portClient, portServer } from "./port-link";
 
 // `@easel/frame`: easel's helper for an app frame (SPEC-kit.md § App frames; frame-apps decision
 // 10). It is in the runtime of each kit version (`runtime.server.ts`), and runs only in a frame's
@@ -65,6 +74,36 @@ export const frameControls = <const C extends Readonly<Record<string, FrameContr
   controls: C,
 ): C => controls;
 
+/** The link of a pane's scope: rpc (`remote: link`) and remoteData (`read: link`) reach the frame. */
+export type FrameLink = typeof portClient;
+
+/**
+ * The part of a capsule frame that its panes reach (SPEC-kit.md § The capsules, "A control in its
+ * own scope"; the chart kit-control-link): its cells as `remoteData` and its operations as `rpc`,
+ * in the way of Tinker for two scopes. `serve` installs them in the frame's scope
+ * (`board({ serve: true })`, `api({ implement })`), `reach` in a pane's scope
+ * (`board({ read: link })`, `api({ remote: link })`), and `services` names them for the link. A
+ * pane reads the frame with `useData(board.cell)`, and changes it only with a call of `api`.
+ */
+export type FramePart = {
+  readonly services: readonly transport.Service[];
+  readonly serve: () => readonly Capsule.Installable[];
+  readonly reach: (link: FrameLink) => readonly Capsule.Installable[];
+};
+
+/** The part of the frame that its panes reach. The entry file exports it as `part`. */
+export const framePart = <const S extends FramePart>(part: S): S => part;
+
+/**
+ * The panes of a capsule frame, by place: React components (View resources, as the frame's View)
+ * that the viewer draws in the frame's label row (`top`) or in a column at its left or right
+ * edge, each in an iframe and a scope of its own. The entry file exports them as `panes`.
+ */
+export type FramePanes = Partial<Record<PanePlace, Resource.Handle<ComponentType>>>;
+
+/** The panes of the frame, by place. */
+export const framePanes = <const D extends FramePanes>(panes: D): D => panes;
+
 /** The locale and the config of a capsule frame's own capsule (its data state): its axes. */
 const axesShape = z.object({
   locale: z.enum(locales).default("en"),
@@ -84,8 +123,13 @@ type FrameCapsule = Capsule.Installable &
  * capsule frame are in the document (`easel-axes`, from `composeApp`).
  */
 export type MountApp = (
-  | { View: ComponentType; frame?: undefined }
-  | { View: Resource.Handle<ComponentType>; frame?: FrameCapsule }
+  | { View: ComponentType; frame?: undefined; part?: undefined; panes?: undefined }
+  | {
+      View: Resource.Handle<ComponentType>;
+      frame?: FrameCapsule;
+      part?: FramePart;
+      panes?: FramePanes;
+    }
 ) & { controls?: Readonly<Record<string, FrameControl>> };
 
 type Root = ReturnType<typeof createScope>;
@@ -165,6 +209,129 @@ const controlsOf = (controls: Readonly<Record<string, FrameControl>>) =>
     return shown.success ? [shown.data] : [];
   });
 
+/** The look values of the document's `easel-look` sheet, so a scope has the look that it shows. */
+const values = () => {
+  const style = document.getElementById("easel-look");
+  const sheet = style instanceof HTMLStyleElement ? style.sheet : null;
+  const found: Record<string, string> = {};
+  for (const rule of sheet ? Array.from(sheet.cssRules) : []) {
+    if (!(rule instanceof CSSStyleRule) || rule.selectorText !== ":root") continue;
+    for (const name of Array.from(rule.style).filter((one) => one.startsWith("--"))) {
+      found[name] = rule.style.getPropertyValue(name).trim();
+    }
+  }
+  return found;
+};
+
+/** The place of the pane that this document draws (`easel-pane`), or null in the frame's own. */
+const paneShape = z
+  .string()
+  .transform((text) => JSON.parse(text))
+  .pipe(z.object({ place: panePlace }));
+
+/** The axes of this document (`easel-axes`), and the kit's CSS (`easel-kit`). */
+const axesNow = () => {
+  const told = document.getElementById("easel-axes")?.textContent;
+  const axes = axesShape.parse(JSON.parse(told || "{}"));
+  return { ...axes, css: document.getElementById("easel-kit")?.textContent ?? "" };
+};
+
+/**
+ * Mounts a pane of a capsule frame (SPEC-kit.md § The capsules, "A control in its own scope"; the
+ * chart kit-control-link): the frame's own document, with the place of one pane. It draws only
+ * that pane, in a new scope of the kit's capsules and the part of the frame that the pane reaches
+ * (`part.reach`), on each link that the page gives it. The scope before it closes. It says hello
+ * to its parent each 50 ms until it has a port, and posts the size of its content on the port
+ * after each change. A kit message gives it the new look.
+ */
+const mountPane = (app: MountApp, place: PanePlace) => {
+  const [Pane, part] = [app.panes?.[place], app.part];
+  const box = document.createElement("div");
+  box.style.display = "inline-block";
+  document.body.style.margin = "0";
+  document.body.append(box);
+  const root = createRoot(box);
+  let port: MessagePort | null = null;
+  let link: MessagePort | null = null;
+  let scope: Root = createScope();
+  let steps = Promise.resolve();
+
+  // The pane in a new scope on the newest link: the pane, or the refusal of its start.
+  const draw = async () => {
+    const on = link;
+    if (!Pane || !part || !on) return;
+
+    const made: { scope: Root | null } = { scope: null };
+    const shown = await Promise.resolve()
+      .then(async () => {
+        const { locale, css } = axesNow();
+        const next = createScope({
+          capsules: [
+            look({ values: values(), css }),
+            copy({ locale }),
+            ui(),
+            portClient({ port: Promise.resolve(on) }),
+            ...part.reach(portClient),
+          ],
+        });
+        made.scope = next;
+
+        const live = await next.ready;
+        const children = createElement(live.resolve(Pane));
+        return createElement(ScopeProvider, { scope: next, children });
+      })
+      .catch(refused);
+    const before = scope;
+    scope = made.scope ?? createScope();
+    flushSync(() => root.render(shown));
+    await before.close();
+  };
+
+  // The page sees the size of the pane's content, and gives its iframe that size.
+  const size = () => {
+    const box$ = box.getBoundingClientRect();
+    port?.postMessage({ easel: "size", w: Math.ceil(box$.width), h: Math.ceil(box$.height) });
+  };
+  new ResizeObserver(size).observe(box);
+
+  // A message from the page: the kit's look (K7), or a link of the frame's scope on screen.
+  const take = (data: unknown, ends: readonly MessagePort[]) => {
+    const field = (key: string): unknown =>
+      typeof data === "object" && data !== null ? Reflect.get(data, key) : undefined;
+    const [easel, look, css] = [field("easel"), field("look"), field("css")];
+    if (easel === "kit" && typeof look === "string" && typeof css === "string") {
+      const styles = [document.getElementById("easel-look"), document.getElementById("easel-kit")];
+      if (styles[0]) styles[0].textContent = look;
+      if (styles[1]) styles[1].textContent = css;
+      steps = steps.then(draw);
+    }
+    const end = ends[0];
+    if (!linkPost.safeParse(data).success || !end) return;
+
+    link = end;
+    steps = steps.then(draw);
+  };
+
+  addEventListener("message", (event) => {
+    const given = event.ports[0];
+    if (event.source !== parent || !given) return;
+
+    port?.close();
+    port = given;
+    port.addEventListener("message", (on) => take(on.data, on.ports));
+    port.start();
+    size();
+    take(event.data, []);
+  });
+
+  const hello = () => {
+    if (port) return;
+    parent.postMessage({ easel: "hello" }, "*");
+    setTimeout(hello, 50);
+  };
+  hello();
+};
+
 /**
  * Mounts the app of a frame (SPEC-kit.md § App frames, "The runtime", "The hello and the port",
  * "Close before the iframe goes"; § The capsules, "A capsule frame"). It renders into
@@ -179,6 +346,9 @@ const controlsOf = (controls: Readonly<Record<string, FrameControl>>) =>
  * A `control` message runs its operation in the scope on screen, after the draws before it.
  */
 export const mount = (app: MountApp) => {
+  const pane = paneShape.safeParse(document.getElementById("easel-pane")?.textContent);
+  if (pane.success) return mountPane(app, pane.data.place);
+
   let port: MessagePort | null = null;
   let closing = false;
   const root = createRoot(document.body);
@@ -191,6 +361,10 @@ export const mount = (app: MountApp) => {
   // refused start leaves a scope with no cells.
   let watching: Array<() => void> = [];
   let started = false;
+  // The places of the frame's panes, and the stop of the link that the scope on screen serves for
+  // each one (chart kit-control-link).
+  const places = app.part ? panePlace.options.filter((one) => app.panes?.[one]) : [];
+  const links = new Map<PanePlace, AbortController>();
 
   const closed = () => {
     if (port) port.postMessage({ easel: "closed" });
@@ -217,6 +391,28 @@ export const mount = (app: MountApp) => {
     if (live && shownControls.length) told();
   };
 
+  // A new link of the scope on screen for the pane at a place: the scope serves one end until the
+  // next link of that place or its own end, and the page gets the other end.
+  const link = (place: PanePlace) => {
+    if (!started || !port || closing || !places.includes(place)) return;
+
+    links.get(place)?.abort();
+    const stop = new AbortController();
+    const channel = new MessageChannel();
+    links.set(place, stop);
+    const input = { port: channel.port1, stop: stop.signal };
+    void scope.ready
+      .then((live) => (live ? live.run(portServer.accept, { input }) : undefined))
+      .catch(() => undefined);
+    port.postMessage({ easel: "link", place }, [channel.port2]);
+  };
+
+  // The links of the scope on screen end: the pane at the other end of each one gets `gone`.
+  const unlink = () => {
+    for (const stop of links.values()) stop.abort();
+    links.clear();
+  };
+
   // A control's operation runs in the scope on screen; a refused run tells the page its kind.
   const runControl = async (posted: unknown) => {
     const asked = controlPost.safeParse(posted);
@@ -235,20 +431,6 @@ export const mount = (app: MountApp) => {
     told();
   };
 
-  // The look values of the frame's `easel-look` sheet, so the scope has the look that it shows.
-  const values = () => {
-    const style = document.getElementById("easel-look");
-    const sheet = style instanceof HTMLStyleElement ? style.sheet : null;
-    const found: Record<string, string> = {};
-    for (const rule of sheet ? Array.from(sheet.cssRules) : []) {
-      if (!(rule instanceof CSSStyleRule) || rule.selectorText !== ":root") continue;
-      for (const name of Array.from(rule.style).filter((one) => one.startsWith("--"))) {
-        found[name] = rule.style.getPropertyValue(name).trim();
-      }
-    }
-    return found;
-  };
-
   // A capsule frame in a new scope of its install list: the View, or the refusal of its start.
   const draw = async () => {
     const View = app.View;
@@ -258,13 +440,20 @@ export const mount = (app: MountApp) => {
     // A refusal draws outside the provider: the provider of a scope that did not start throws.
     const shown = await Promise.resolve()
       .then(async () => {
-        const told = document.getElementById("easel-axes")?.textContent;
-        const axes = axesShape.parse(JSON.parse(told || "{}"));
-        const css = document.getElementById("easel-kit")?.textContent ?? "";
+        const { css, ...axes } = axesNow();
         const own = app.frame ? [app.frame(axes.config)] : [];
+        const served = app.part
+          ? [...app.part.serve(), portServer({ services: app.part.services })]
+          : [];
 
         const next = createScope({
-          capsules: [look({ values: values(), css }), copy({ locale: axes.locale }), ui(), ...own],
+          capsules: [
+            look({ values: values(), css }),
+            copy({ locale: axes.locale }),
+            ui(),
+            ...own,
+            ...served,
+          ],
         });
         made.scope = next;
 
@@ -284,6 +473,9 @@ export const mount = (app: MountApp) => {
     scope = next;
     flushSync(() => root.render(shown));
     watch(made.live);
+    // The panes get links of the new scope; the links of the scope before it end.
+    unlink();
+    for (const place of places) link(place);
     await before.close();
   };
 
@@ -304,6 +496,7 @@ export const mount = (app: MountApp) => {
     steps = steps
       .then(() => {
         watch(false);
+        unlink();
         root.unmount();
         return scope.close();
       })
@@ -321,14 +514,22 @@ export const mount = (app: MountApp) => {
         take(on.data);
         // A control comes only on the port, and runs after the steps before it.
         steps = steps.then(() => runControl(on.data));
+        // A pane with no pane link of the scope on screen asks for one.
+        const ask = linkPost.safeParse(on.data);
+        if (ask.success) steps = steps.then(() => link(ask.data.place));
       });
       port.start();
 
       // A capsule frame tells the page what it can show, on each new port (chart kit-frame-axes).
       if (typeof app.View !== "function") port.postMessage(offerOf(app.frame));
       // A frame with controls tells the page what they are (chart kit-frame-controls).
-      if (shownControls.length) port.postMessage({ easel: "controls", controls: shownControls });
-      if (shownControls.length) told();
+      if (shownControls.length) {
+        port.postMessage({ easel: "controls", controls: shownControls });
+        told();
+      }
+      // A frame with panes tells the page their places, and gives each one a pane link.
+      if (places.length) port.postMessage({ easel: "panes", places });
+      for (const place of places) link(place);
     }
     take(event.data);
   });

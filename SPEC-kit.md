@@ -610,7 +610,8 @@ guessed. The two-order test of the make step holds for this path too.
 
 **The put** (build order item 4). A frame version of an app frame keeps the TSX as the agent wrote
 it, its JS (`appBundle`, from the fixed files), its made CSS, and its kit version. A finding of
-`kit/parse`, `kit/import`, `kit/react-state` or `kit/shape` (no `View`, or another export)
+`kit/parse`, `kit/import`, `kit/react-state` or `kit/shape` (no `View`, or an export other than
+`View`, `logic`, `frame`, `controls`, `part` and `panes`)
 refuses the put with `offKit`; the other findings do not stop it. An app frame always has
 the kit: `<meta name="easel-kit" content="off">` is for HTML frames only. The first app frame of a
 kit version gives that kit version its runtime (§ "The runtime"), so the check and the import map
@@ -838,11 +839,42 @@ main thread only by `postMessage`, and Comlink, an RPC over a `MessagePort`.
 - The faults are those of any backend: `missing` for an address that no one serves, `refused`,
   `failed`, `invalid`, `encode` and `decode` as the protocol gives them, and `link` for each call
   and watch on the way when the server posts `gone`. Values go as text with the JSON codec.
-- Next steps, not built: a frame declares the part of its capsule that other scopes can reach,
-  and exports its controls as React components by place (`top`, `left`, `right`); the page draws
-  each one in a sandboxed control iframe, with its own scope, and links it to the frame's scope
-  with one `MessageChannel`. A page-wide control (a locale, a theme, a data set) is a control
-  iframe linked to each frame of the canvas.
+
+**A control in its own scope** (built on 2026-11-23; the chart kit-control-link). A capsule frame
+can have panes: React components, with their own state and icons, that the viewer draws beside
+the frame, each in a sandboxed iframe and a scope of its own. A pane reaches the frame only through
+the part of its capsule that the frame names, in the controlled way of Tinker: it reads the
+frame's cells as read views, and it changes the frame only with a call that the frame runs.
+Prior art: the Figma plugin UI (an iframe that talks to the main thread only with messages), and
+Storybook's toolbar addons (a control beside the story, in another frame).
+
+- **The entry file.** It exports `part = framePart({ services, serve, reach })` and
+  `panes = framePanes({ top, left, right })` (`kit/shape` lets them through). `part` names the
+  frame's cells as `remoteData` and its calls as `rpc`: `serve` installs them in the frame's scope
+  (`board({ serve: true })`, `api({ implement })`), `reach` in each pane's scope
+  (`board({ read: link })`, `api({ remote: link })`). Each pane is a View resource, as the View is.
+- **The mirror.** In a pane's scope, `board.<cell>` is the cell of `remoteData`, which the pane
+  link fills: `useData`, `scope.resolve` and a `depends` slot read the frame's value. A write in the
+  frame (its own button, or a call) reaches each pane at once. The cells of the frame's own files
+  are other cells in the pane's scope, so a pane cannot write the frame's state by them.
+- **The state of a pane** is a cell of the pane's scope (`kit/react-state` holds for a pane too).
+  A pane's own operation can call the frame: it depends on `api["<key>"]`.
+- **The pane link** (chart kit-control-link). After each start of its scope, and on each new port, the
+  frame posts `panes` (the places), then one `link` for each place: a pane link, one end of a new
+  `MessageChannel`. The frame serves the other end in that scope (`portServer.accept`), until the
+  next pane link of that place or the end of the scope. The page keeps the newest end of each place
+  until the pane has a port, then gives it on that port; it reads nothing on it. A pane with no
+  pane link asks: the page posts `link` with no end to the frame, and the frame posts a new one.
+- **A pane on each pane link.** The pane's document is the frame's own, with `easel-pane` (its place).
+  The mount draws only that pane, in a new scope on each pane link; the scope before it closes. A new
+  look draws the frame in a new scope, so the pane links of the scope before it end (`gone`), and
+  the panes get new ones. The pane posts the size of its content; its iframe takes it, up to 480 by
+  720 px.
+- **The places.** `top` is in the frame's label row, after its controls; `left` and `right` are in
+  the column at that edge, under its controls, at screen size. A frame's panes show only while it
+  has a live document.
+- Not built: a page-wide pane (a locale, a theme, a data set) that is linked to each frame of the
+  canvas.
 
 **Why the list comes from the graph.** The list is the same graph that a frame of the kit version
 gets. So it cannot be older than the kit, and an agent learns each part before it writes code:

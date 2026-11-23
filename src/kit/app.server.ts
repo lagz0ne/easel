@@ -64,7 +64,7 @@ const stateFix =
   "keep each state in a Tinker cell of logic: data() and operation() in logic, useData() and useRun() in View; a text field that keeps each key uses defaultValue";
 
 const shapeFix =
-  "export function View() with export const logic = frameLogic({ cells, ops }), or a capsule frame: export const View = resource({ ... }) and, if the frame has its own capsule, export const frame = capsule({ ... }); for the viewer's panel, export const controls = frameControls({ ... }); export no other name from the entry, and keep the other names in the file or in other files of the frame";
+  "export function View() with export const logic = frameLogic({ cells, ops }), or a capsule frame: export const View = resource({ ... }) and, if the frame has its own capsule, export const frame = capsule({ ... }); for the viewer's panel, export const controls = frameControls({ ... }); for the panes of a capsule frame, export const part = framePart({ ... }) and export const panes = framePanes({ ... }); export no other name from the entry, and keep the other names in the file or in other files of the frame";
 
 const moduleShape = z.custom<EcmaScriptModule>();
 
@@ -94,8 +94,8 @@ export const localPath = operation({
 /**
  * The JS of an app frame (SPEC-kit.md § App frames, "The JS"): one ES module, from its fixed
  * files, made by `Bun.build` in memory. Its entry is easel's own: it imports the entry file and
- * calls `mount` of `@easel/frame` with its `View`, `frame` and `controls`, so a bundler that renames a name
- * cannot break the mount. Each import of a name stays an import, for the runtime's import map;
+ * calls `mount` of `@easel/frame` with its `View`, `frame`, `controls`, `part` and `panes`, so a
+ * bundler that renames a name cannot break the mount. Each import of a name stays an import, for the runtime's import map;
  * an import of a file of the frame is resolved in `files`. The white space is minified, so the
  * JS has no comment that holds a path of the host. A build that fails throws: the check found
  * each import that it cannot resolve.
@@ -107,7 +107,7 @@ export const appBundle = operation({
   run: async ({ localPath }, { input: files }) => {
     const entry =
       `import * as app from "./${entryFile}";\nimport { mount } from "@easel/frame";\n` +
-      "mount({ View: app.View, frame: app.frame, controls: app.controls });\n";
+      "mount({ View: app.View, frame: app.frame, controls: app.controls, part: app.part, panes: app.panes });\n";
 
     const paths = Object.keys(files);
     const inMemory = Object.fromEntries([
@@ -237,8 +237,10 @@ const exportTold = operation({
 });
 
 /**
- * `kit/shape`: each export other than `View`, `logic`, `frame` and `controls`, and `View` when it is
- * missing. `controls` are the controls of the viewer's panel (§ The capsules, "The controls").
+ * `kit/shape`: each export other than `View`, `logic`, `frame`, `controls`, `part` and `panes`,
+ * and `View` when it is missing. `controls` are the controls of the viewer's panel (§ The
+ * capsules, "The controls"); `part` and `panes` are the panes of a capsule frame and the part of
+ * it that they reach (§ The capsules, "A control in its own scope").
  * A frame of the first form exports `View` and `logic`; a capsule frame exports `View` (a
  * resource) and, if it has one, its own capsule `frame` (SPEC-kit.md § The capsules). A name can
  * come from another file of the frame (`export { View } from "./view"`): the entry of the JS
@@ -255,14 +257,14 @@ export const shapeFindings = operation({
       const name = entry.exportName.name ?? "";
       const shown =
         !entry.isType &&
-        ["logic", "View", "frame", "controls"].includes(name) &&
+        ["logic", "View", "frame", "controls", "part", "panes"].includes(name) &&
         !exported.has(name);
       if (shown) {
         exported.add(name);
         continue;
       }
 
-      const what = `the frame exports ${exportTold.run({ input: entry })}: an app frame exports View, and logic or frame, and controls, and no other name`;
+      const what = `the frame exports ${exportTold.run({ input: entry })}: an app frame exports View, and logic or frame, and controls, part and panes, and no other name`;
       found.push({ at: entry.start, rule: "kit/shape", what, fix: shapeFix });
     }
 

@@ -21,6 +21,7 @@ import { type PutInput, socketMaxPayload } from "@/frames/contract";
 import { framesLoads, framesOps, loadDocs, mayRead, putFrame } from "@/frames/ops.server";
 import { framesServer } from "@/frames/store.server";
 import { composeApp } from "@/kit/compose";
+import { type PanePlace, paneScript } from "@/kit/controls";
 import { fontRoute } from "@/kit/fonts.server";
 import { runtimeNames } from "@/kit/runtime";
 import { type BuiltRuntime, runtimeNamesOf, runtimeRoute } from "@/kit/runtime.server";
@@ -45,7 +46,7 @@ const pricing = () => Bun.file(new URL("kit/frames/pricing.tsx", import.meta.url
 /** The folder frame `people`: each file, by its path in the folder. */
 const people = async () => {
   const dir = new URL("kit/frames/people/", import.meta.url);
-  const paths = ["index.tsx", "entities.ts", "copy.ts", "view.tsx"];
+  const paths = ["index.tsx", "entities.ts", "copy.ts", "view.tsx", "panes.tsx"];
   const texts = await Promise.all(paths.map((path) => Bun.file(new URL(path, dir)).text()));
   return Object.fromEntries(paths.map((path, i) => [path, texts[i] ?? ""]));
 };
@@ -321,20 +322,58 @@ test("speed: a put of a usual TSX frame spends less than 50 ms in the check and 
  * the composed document as its srcdoc. It answers the frame's hello with a port, as the viewer
  * does, and keeps each message of the frame in `window.told`.
  */
-const parentPage = (html: string) => `<!doctype html>
+/** The document of each pane: the frame's own, with the place of the pane (`paneScript`). */
+const paneDocs = (html: string, places: readonly PanePlace[]) =>
+  Object.fromEntries(places.map((place) => [place, html + paneScript.replace("__PLACE__", place)]));
+
+const parentPage = (html: string, places: readonly PanePlace[] = []) => `<!doctype html>
 <iframe sandbox="allow-scripts" style="width:1200px;height:900px"></iframe>
 <script>
   window.told = [];
   const frame = document.querySelector("iframe");
   const channel = new MessageChannel();
+  // The page as the viewer's stage acts for the panes (chart kit-control-link): a port for each
+  // pane, and each link end of the frame goes on to the pane of its place, unread.
+  const panes = {};
+  const held = {};
+  window.paneSizes = {};
+  const give = (place) => {
+    const pane = panes[place];
+    if (!pane || !pane.port || !held[place]) return;
+    pane.port.postMessage({ easel: "link", place }, [held[place]]);
+    delete held[place];
+  };
+  for (const [place, doc] of Object.entries(${JSON.stringify(paneDocs(html, places)).replaceAll("<", "\\u003c")})) {
+    const el = document.createElement("iframe");
+    el.sandbox = "allow-scripts";
+    el.dataset.place = place;
+    document.body.append(el);
+    panes[place] = { el, port: null };
+    el.srcdoc = doc;
+  }
   channel.port1.onmessage = (event) => {
     window.told.push(event.data.easel);
     if (event.data.easel === "axes") window.offer = event.data;
     if (event.data.easel === "controls") window.controls = event.data.controls;
     if (event.data.easel === "values") window.values = event.data.values;
     if (event.data.easel === "ran") window.ran = event.data;
+    if (event.data.easel === "panes") window.panes = event.data.places;
+    if (event.data.easel === "link" && event.ports[0]) {
+      held[event.data.place] = event.ports[0];
+      give(event.data.place);
+    }
   };
   addEventListener("message", (event) => {
+    for (const [place, pane] of Object.entries(panes)) {
+      if (event.source !== pane.el.contentWindow || event.data.easel !== "hello" || pane.port) continue;
+      const own = new MessageChannel();
+      pane.port = own.port1;
+      own.port1.onmessage = (m) => {
+        if (m.data.easel === "size") window.paneSizes[place] = m.data;
+      };
+      pane.el.contentWindow.postMessage({ easel: "port" }, "*", [own.port2]);
+      give(place);
+    }
     if (event.source !== frame.contentWindow) return;
     window.told.push(event.data.easel);
     if (event.data.easel === "hello" && !window.port) {
@@ -629,9 +668,9 @@ test(
     await expect
       .poll(() => read("controls"))
       .toEqual([
-        { key: "add", label: "Add a person", place: "right", kind: "action" },
+        { key: "add", label: "Add a person", place: "panel", kind: "action" },
         { key: "clear", label: "Remove all", place: "panel", kind: "action" },
-        { key: "capitals", label: "Names in capitals", place: "top", kind: "switch" },
+        { key: "capitals", label: "Names in capitals", place: "panel", kind: "switch" },
       ]);
     await expect.poll(() => read("values")).toEqual({ capitals: false });
     const control = (key: string, value?: unknown) =>
@@ -678,6 +717,103 @@ test(
       .poll(() => frame.getByText("Nothing here yet").count(), { timeout: 20_000 })
       .toBe(1);
     expect(await frame.getByText("0 people").count()).toBe(1);
+    expect(errors).toEqual([]);
+  },
+);
+
+test(
+  "kit-control-link: each pane of a capsule frame draws in its own scope; it reads the frame's cells live, and changes the frame only with its calls; a new scope of the frame gives each pane a new link",
+  { timeout: 90_000 },
+  async () => {
+    const executablePath = localChromium();
+    if (executablePath === null) {
+      throw new Error("no local Chromium: run `bunx playwright install chromium`");
+    }
+
+    const srv = await boot({ runtime: null });
+    const ann = await annOn(srv);
+    const made = await ann.put({ canvas: "flow", files: await people() });
+    if (made.kind !== "created") throw new Error(`not created: ${JSON.stringify(made)}`);
+    const [doc] = await srv.server.run(loadDocs, { input: { canvas: "flow", id: made.id } });
+    if (!doc?.app) throw new Error("no app");
+    const now = await srv.server.run(readKit);
+    if (now === null) throw new Error("no kit");
+    const html = srv.server.run(composeApp, {
+      input: {
+        js: doc.app.js,
+        css: doc.css ?? "",
+        kit: { look: now.root, css: now.css },
+        runtime: doc.app.runtime,
+      },
+    });
+
+    const web = Bun.serve({
+      port: 0,
+      hostname: "127.0.0.1",
+      routes: {
+        "/api/runtime/:kit/:sha/:file": (request) =>
+          srv.server.run(runtimeRoute, { input: request.params }),
+        "/api/fonts/:dir/:file": (request) => srv.server.run(fontRoute, { input: request.params }),
+      },
+      fetch: () =>
+        new Response(parentPage(html, ["top", "right"]), {
+          headers: { "Content-Type": "text/html; charset=utf-8" },
+        }),
+    });
+    closers.push(() => web.stop(true));
+    const browser = await chromium.launch({ executablePath });
+    closers.push(() => browser.close());
+    const page = await browser.newPage();
+    const errors: string[] = [];
+    page.on("pageerror", (error) => errors.push(error.message));
+    page.on("console", (message) => {
+      if (message.type() === "error") errors.push(message.text());
+    });
+    const frame = page.frameLocator("iframe:not([data-place])");
+    const top = page.frameLocator('iframe[data-place="top"]');
+    const right = page.frameLocator('iframe[data-place="right"]');
+    const count = (at: typeof frame, text: string) => () => at.getByText(text).count();
+
+    // The frame posts the places of its panes; each pane reads the frame's list over its link.
+    await page.goto(`http://127.0.0.1:${web.port}/`);
+    await expect.poll(count(frame, "3 people"), { timeout: 20_000 }).toBe(1);
+    await expect.poll(count(top, "3 people"), { timeout: 20_000 }).toBe(1);
+    expect(await page.evaluate((): unknown => Reflect.get(window, "panes"))).toEqual([
+      "top",
+      "right",
+    ]);
+
+    // A change in the frame's own scope reaches the pane's mirror.
+    await frame.getByRole("button", { name: "Remove" }).first().click();
+    await expect.poll(count(top, "2 people")).toBe(1);
+
+    // A pane changes the frame only with a call: the frame runs it, and each mirror follows.
+    await top.getByRole("button", { name: "Capitals" }).click();
+    await expect.poll(count(frame, "BINH")).toBe(1);
+    await right.getByRole("textbox", { name: "Name" }).fill("Dana");
+    await right.getByRole("button", { name: "Add" }).click();
+    await expect.poll(count(frame, "DANA")).toBe(1);
+    await expect.poll(count(top, "3 people")).toBe(1);
+    await expect.poll(count(right, "Last: Dana")).toBe(1);
+    // The pane's own state: the field is empty after the call.
+    expect(await right.getByRole("textbox", { name: "Name" }).inputValue()).toBe("");
+    const sizes = await page.evaluate((): unknown => Reflect.get(window, "paneSizes"));
+    expect(sizes).toMatchObject({
+      top: { w: expect.any(Number), h: expect.any(Number) },
+      right: { w: expect.any(Number), h: expect.any(Number) },
+    });
+
+    // A kit message: the frame draws in a new scope, and each pane gets a link of it.
+    await page.evaluate(({ look, css }) => Reflect.get(window, "sendKit")(look, css), {
+      look: now.root,
+      css: now.css,
+    });
+    await expect.poll(count(frame, "Ann")).toBe(1);
+    await expect.poll(count(top, "3 people")).toBe(1);
+    await right.getByRole("textbox", { name: "Name" }).fill("Eve");
+    await right.getByRole("button", { name: "Add" }).click();
+    await expect.poll(count(frame, "Eve")).toBe(1);
+    await expect.poll(count(top, "4 people")).toBe(1);
     expect(errors).toEqual([]);
   },
 );

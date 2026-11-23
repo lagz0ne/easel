@@ -1,5 +1,5 @@
 // The entity of the frame, its data states, its cells and its operations.
-import { data, operation, tag } from "@tinkered/core";
+import { data, operation, remoteData, rpc, tag } from "@tinkered/core";
 import { z } from "zod";
 
 export const person = z.object({ id: z.string(), name: z.string().min(1) });
@@ -58,4 +58,40 @@ export const setCapitals = operation({
   input: z.boolean(),
   depends: { capitals: capitals.controller },
   run: ({ capitals }, { input }) => capitals.set(input),
+});
+
+/** A call of a pane: a new person with the name given, at the end of the list. */
+export const addNamed = operation({
+  label: "people.addNamed",
+  input: z.string().trim().min(1),
+  depends: { people: people.controller },
+  run: ({ people }, { input }) => {
+    const list = people.get();
+    let n = list.length + 1;
+    while (list.some((one) => one.id === `p${n}`)) n += 1;
+
+    const one = { id: `p${n}`, name: input };
+    people.set([...list, one]);
+    return one;
+  },
+});
+
+/** A call of a pane: the names show in capitals, or not. It gives the new value. */
+export const capitalsTo = operation({
+  label: "people.capitalsTo",
+  input: z.boolean(),
+  depends: { capitals: capitals.controller },
+  run: ({ capitals }, { input }) => {
+    capitals.set(input);
+    return input;
+  },
+});
+
+/** The cells that the panes read, live: the frame serves them, and each pane has a mirror. */
+export const board = remoteData({ people, capitals });
+
+/** The calls that the panes make: the only way that a pane changes the frame. */
+export const api = rpc({
+  "people.call.add": { input: addNamed.input, output: person },
+  "people.call.capitals": { input: capitalsTo.input, output: z.boolean() },
 });

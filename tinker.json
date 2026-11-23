@@ -39,7 +39,14 @@
         "controlsOf": "A step of mount: it lists the controls that the panel can draw, in the frame's iframe, outside easel's graph.",
         "told": "A step of mount: it posts the values of the controls on the port, in the frame's iframe, outside easel's graph.",
         "watch": "A step of mount: it watches the value cells of the scope on screen, in the frame's iframe, outside easel's graph.",
-        "runControl": "A step of mount: it runs a control's operation in the scope on screen, in the frame's iframe, outside easel's graph."
+        "runControl": "A step of mount: it runs a control's operation in the scope on screen, in the frame's iframe, outside easel's graph.",
+        "framePart": "@easel/frame's API for frame code (SPEC-kit \u00a7 The capsules, \"A control in its own scope\"): a frame calls it as a plain function at module level; no easel graph runs it.",
+        "framePanes": "@easel/frame's API for frame code (SPEC-kit \u00a7 The capsules, \"A control in its own scope\"): a frame calls it as a plain function at module level; no easel graph runs it.",
+        "axesNow": "A step of mount: it reads the axes and the kit CSS of the document in the frame's iframe, outside easel's graph.",
+        "mountPane": "A step of mount: it mounts a pane in its own iframe, before any scope exists; no easel graph runs it.",
+        "link": "A step of mount: it gives a pane a new pane link of the scope on screen, in the frame's iframe, outside easel's graph.",
+        "unlink": "A step of mount: it ends the pane links of the scope on screen, in the frame's iframe, outside easel's graph.",
+        "size": "A step of mountPane: it posts the size of the pane's content from a ResizeObserver callback, outside easel's graph."
       },
       "src/kit/port-link.ts": {
         "reply": "A step of the port's message listener (a MessagePort callback, outside any run): it gives a reply to the call that waits for it.",

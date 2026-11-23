@@ -86,18 +86,29 @@ const placedControls = [
 const controlsJs = (id: string, placed: boolean) =>
   `let port=null;const s={on:false,size:"s",count:0};const hello=()=>{if(port)return;parent.postMessage({easel:"hello"},"*");setTimeout(hello,50)};const values=()=>port.postMessage({easel:"values",values:{on:s.on,size:s.size,count:s.count}});addEventListener("message",(e)=>{if(e.source!==parent)return;if(e.ports[0]&&!port){port=e.ports[0];port.onmessage=(m)=>{const d=m.data;if(!d||d.easel!=="control")return;parent.postMessage({seen:"control",id:${JSON.stringify(id)},key:d.key,value:d.value},"*");if(d.key==="bad"){port.postMessage({easel:"ran",key:"bad",failed:"Nope"});return}if(d.key==="add")s.count+=1;else s[d.key]=d.value;values()};port.postMessage({easel:"controls",controls:${JSON.stringify(placed ? placedControls : plainControls)}});values()}});hello();`;
 
-/** The JS of a put's app frame: a frame with controls, a closer, a capsule frame, or the probe. */
+/**
+ * A frame with two panes, as `@easel/frame` acts on the ports (chart kit-control-link). The
+ * frame's document posts the places of its panes, then a link for each one, and one more when the
+ * page asks; it answers each ping on a link with its own number. A pane's document (it has
+ * `easel-pane`) posts its size, pings on each link that it gets, and tells the test the answer.
+ */
+const paneedJs = (id: string) =>
+  `const me=Math.random();let port=null;const hello=()=>{if(port)return;parent.postMessage({easel:"hello"},"*");setTimeout(hello,50)};const pane=document.getElementById("easel-pane");if(pane){const place=JSON.parse(pane.textContent).place;addEventListener("message",(e)=>{if(e.source!==parent||!e.ports[0]||port)return;port=e.ports[0];port.postMessage({easel:"size",w:90,h:30});port.onmessage=(m)=>{if(!m.data||m.data.easel!=="link"||!m.ports[0])return;const link=m.ports[0];link.onmessage=(r)=>parent.postMessage({seen:"pane",id:${JSON.stringify(id)},place,me:r.data.me},"*");link.postMessage({ping:place})}})}else{const link=(place)=>{const c=new MessageChannel();c.port1.onmessage=()=>c.port1.postMessage({me});port.postMessage({easel:"link",place},[c.port2])};addEventListener("message",(e)=>{if(e.source!==parent||!e.ports[0]||port)return;port=e.ports[0];port.onmessage=(m)=>{if(m.data&&m.data.easel==="link")link(m.data.place)};port.postMessage({easel:"panes",places:["top","right"]});link("top");link("right")})}hello();`;
+
+/** The JS of a put's app frame: panes, controls, a closer, a capsule frame, or the probe. */
 const appJs = (
   id: string,
-  kind: { capsule?: boolean; closer?: boolean; controls?: true | "placed" },
+  kind: { capsule?: boolean; closer?: boolean; controls?: true | "placed"; panes?: boolean },
 ) =>
-  kind.controls
-    ? controlsJs(id, kind.controls === "placed")
-    : kind.closer
-      ? closerJs(id)
-      : kind.capsule
-        ? capsuleJs(id)
-        : probeJs(id);
+  kind.panes
+    ? paneedJs(id)
+    : kind.controls
+      ? controlsJs(id, kind.controls === "placed")
+      : kind.closer
+        ? closerJs(id)
+        : kind.capsule
+          ? capsuleJs(id)
+          : probeJs(id);
 
 /** The runtime of an app frame that imports nothing. */
 const noRuntime = { address: "/api/runtime/1/none/", imports: {} };
@@ -134,16 +145,17 @@ const put = operation({
     capsule: z.boolean().optional(),
     closer: z.boolean().optional(),
     controls: z.union([z.literal(true), z.literal("placed")]).optional(),
+    panes: z.boolean().optional(),
     version: z.number().optional(),
   }),
   depends: { cells: frameCells.controller, invalidate: framesBoard.invalidate },
   run: async (
     { cells, invalidate },
-    { input: { app, capsule, closer, controls, version = 1, ...input } },
+    { input: { app, capsule, closer, controls, panes, version = 1, ...input } },
   ) => {
-    const js = appJs(input.id, { capsule, closer, controls });
+    const js = appJs(input.id, { capsule, closer, controls, panes });
     const served: ServedDoc =
-      app || capsule || closer || controls
+      app || capsule || closer || controls || panes
         ? { version, html: "", app: { js, kit: 1, runtime: noRuntime } }
         : { version, html: probeDoc(input.id) };
     htmls.set(input.id, served);
@@ -183,6 +195,7 @@ async function boot(
     capsule?: boolean;
     closer?: boolean;
     controls?: true | "placed";
+    panes?: boolean;
   }>,
 ) {
   htmls.clear();
@@ -236,8 +249,12 @@ const rafs = (n: number) =>
   });
 
 const region = () => page.getByRole("region", { name: "Frames" }).element();
+
 /** The live documents that show; an app document that is closing (hidden) is not one. */
-const docs = () => [...region().querySelectorAll<HTMLIFrameElement>("iframe:not([data-closing])")];
+const docs = () => [
+  ...region().querySelectorAll<HTMLIFrameElement>("iframe.e-doc:not([data-closing])"),
+];
+
 /** The app documents that are closing: hidden, until their app posts `closed`. */
 const closingDocs = () => [...region().querySelectorAll<HTMLIFrameElement>("iframe[data-closing]")];
 const docOf = (id: string) => docs().find((d) => d.dataset.id === id);
@@ -648,6 +665,49 @@ test("kit-frame-controls places: the frame places each control in its label row,
       { key: "size", value: "m" },
       { key: "bad" },
     ]);
+});
+
+/** What each pane told the test: its place, and the number of the frame's document that answered. */
+function panesSeen() {
+  const seen: Array<{ place: string; me: number }> = [];
+  const told = z.object({ seen: z.literal("pane"), place: z.string(), me: z.number() });
+
+  const listen = (event: MessageEvent) => {
+    const read = told.safeParse(event.data);
+    if (read.success) seen.push({ place: read.data.place, me: read.data.me });
+  };
+  addEventListener("message", listen);
+  onTestFinished(() => removeEventListener("message", listen));
+  return seen;
+}
+
+test("kit-control-link: the page draws an iframe for each pane of a frame's current document, at its place and the size of its content, and gives each link of the frame to its pane, unread; a new document gives new links", async () => {
+  const seen = panesSeen();
+  const server = await boot([{ id: "a", x: 0, y: 0, panes: true }]);
+  const at = await tab(server);
+  await rested(at, 1);
+
+  const paneOf = (place: string) =>
+    region().querySelector<HTMLIFrameElement>(`iframe.e-pane[data-id="a"][data-place="${place}"]`);
+  await expect.poll(() => Boolean(paneOf("top") && paneOf("right"))).toBe(true);
+  expect(paneOf("top")?.closest(".e-label")).not.toBeNull();
+  expect(paneOf("right")?.closest(".e-ctl-right")).not.toBeNull();
+  await expect.poll(() => paneOf("top")?.style.width).toBe("90px");
+  expect(paneOf("top")?.style.height).toBe("30px");
+  await expect.poll(() => paneOf("right")?.style.width).toBe("90px");
+
+  // Each pane pings on its link, and the frame's document answers: the page only passed the end.
+  const placesOf = (me?: number) =>
+    [
+      ...new Set(seen.filter((one) => me === undefined || one.me !== me).map((one) => one.place)),
+    ].sort();
+  await expect.poll(() => placesOf()).toEqual(["right", "top"]);
+  const first = seen[0]?.me;
+
+  // A new version: a new document, with new panes, and links of its own scope.
+  await server.run(put, { input: { id: "a", x: 0, y: 0, panes: true, version: 2 } });
+  await expect.poll(() => placesOf(first)).toEqual(["right", "top"]);
+  await expect.poll(() => region().querySelectorAll("iframe.e-pane").length).toBe(2);
 });
 
 test("two hellos in flight: the page answers each with a new port and closes the one before; the document takes the newest port, so a later kit message reaches it", async () => {

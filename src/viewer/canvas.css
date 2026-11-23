@@ -377,7 +377,7 @@
 /* The controls that a frame docked to its left or right edge: a column outside the frame, 8 px
    from it, that keeps its screen size (`--e-unzoom`, as the pins). Its shell stacks over the
    frames beside it. */
-.e-shell[data-docked] {
+.e-shell:has(> .e-ctl-dock) {
   z-index: 1;
 }
 
@@ -408,6 +408,25 @@
 .e-ctl-dock .e-ctl-list {
   gap: var(--e-2);
   padding: var(--e-3);
+}
+
+/* A pane of a frame (chart kit-control-link): an iframe with the size of its content, which the
+   pane posts. It has no size until then, so it shows nothing. A column with a pane has its width. */
+.e-pane {
+  display: block;
+  width: 0;
+  height: 0;
+  border: 0;
+}
+
+.e-ctl-top .e-pane {
+  display: inline-block;
+  vertical-align: bottom;
+}
+
+.e-ctl-dock:has(> .e-pane) {
+  width: max-content;
+  overflow: hidden;
 }
 
 /* An app document that is closing: it stays until its app posts `closed`, but shows nothing. */

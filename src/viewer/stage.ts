@@ -1,8 +1,16 @@
 import { data, operation, resource } from "@tinkered/core";
 import { z } from "zod";
 
-import { controlsPost, ranPost, valuesPost } from "@/kit/controls";
-import type { ControlShown } from "@/kit/controls";
+import {
+  controlsPost,
+  panePlace,
+  panesPost,
+  linkPost,
+  ranPost,
+  sizePost,
+  valuesPost,
+} from "@/kit/controls";
+import type { ControlShown, PanePlace } from "@/kit/controls";
 
 // The canvas's stage (SPEC-viewer.md § Pan and zoom, § Numbers; the viewer-canvas chart): the
 // camera, the shells' cull, the live set and the paint signal. It owns the DOM: React draws the
@@ -115,6 +123,19 @@ export const shownControls = data<
     >
   >
 >({ label: "viewer.shownControls", initial: {} });
+
+/**
+ * The places of the panes of each frame's current document, by frame id (SPEC-kit.md § The
+ * capsules, "A control in its own scope"; chart kit-control-link). A new document, or none, clears
+ * them. Only the stage writes it.
+ */
+export const shownPanes = data<Readonly<Record<string, readonly PanePlace[]>>>({
+  label: "viewer.shownPanes",
+  initial: {},
+});
+
+/** The largest size of a pane's iframe, in CSS pixels: a pane cannot cover the canvas. */
+const paneMax = { w: 480, h: 720 };
 
 /** How long the page waits for the `closed` of an app frame before it removes the iframe. */
 export const closeWaitMs = 200;
@@ -240,9 +261,10 @@ export const stage = resource({
     part: partBox.controller,
     offered: offeredAxes.controller,
     shown: shownControls.controller,
+    panes: shownPanes.controller,
     popPlace,
   },
-  factory: ({ live, hold, done, paints, zoom, part, offered, shown, popPlace }, ctx) => {
+  factory: ({ live, hold, done, paints, zoom, part, offered, shown, panes, popPlace }, ctx) => {
     let cam = { x: 0, y: 0, z: 1 };
     let view = { w: 0, h: 0, left: 0, top: 0 };
     let vp: HTMLElement | null = null;
@@ -260,6 +282,11 @@ export const stage = resource({
     const docs = new Map<string, HTMLIFrameElement>();
     /** The port that the page gave each live document, by its iframe; only the page holds port1. */
     const ports = new Map<HTMLIFrameElement, MessagePort>();
+    /** The iframe of each pane, with its frame and place, and the port that the page gave it. */
+    const paneDocs = new Map<HTMLIFrameElement, { id: string; place: PanePlace }>();
+    const panePorts = new Map<HTMLIFrameElement, MessagePort>();
+    /** The newest link end of each pane (`<frame id> <place>`) that its pane has not got yet. */
+    const links = new Map<string, MessagePort>();
     /** The iframes of app frames that the page asked to close, each with the end of its wait. */
     const closing = new Map<HTMLIFrameElement, () => void>();
     /** The canvas's kit as the board gave it last: a hello gets it at once. */
@@ -595,6 +622,7 @@ export const stage = resource({
       sendKit: (next: KitMessage) => {
         kitNow = next;
         for (const port of ports.values()) port.postMessage(next);
+        for (const port of panePorts.values()) port.postMessage(next);
       },
 
       /**
@@ -612,19 +640,105 @@ export const stage = resource({
           ports.get(frame)?.close();
           const channel = new MessageChannel();
           ports.set(frame, channel.port1);
-          channel.port1.addEventListener("message", (message) => at.onPort(frame, message.data));
+          channel.port1.addEventListener("message", (message) =>
+            at.onPort(frame, message.data, message.ports),
+          );
           channel.port1.start();
           win.postMessage(kitNow, "*", [channel.port2]);
         }
+        at.onPaneHello(event);
       },
 
-      /** A post on a document's port: its axes, its controls and values, or its `closed`. */
-      onPort: (frame: HTMLIFrameElement, posted: unknown) => {
+      /** A post on a document's port: its axes, its controls, values and panes, or its `closed`. */
+      onPort: (frame: HTMLIFrameElement, posted: unknown, ends: readonly MessagePort[] = []) => {
         if (closedPost.safeParse(posted).success) return closing.get(frame)?.();
         const id = frame.dataset.id;
-        // Only the current document counts (chart kit-frame-controls).
+        // Only the current document counts (chart kit-frame-controls, kit-control-link).
         if (id !== undefined && docs.get(id) === frame) at.onControls(id, posted);
+        if (id !== undefined && docs.get(id) === frame) at.onPanes(id, posted, ends);
         at.onAxes(frame, posted);
+      },
+
+      /**
+       * The panes of a frame's current document, or a link of its scope on screen for one of
+       * them (chart kit-control-link): the page keeps the newest end of each pane until the pane
+       * has a port, then gives it on that port. It reads nothing on the link.
+       */
+      onPanes: (id: string, posted: unknown, ends: readonly MessagePort[]) => {
+        const [told, link, end] = [
+          panesPost.safeParse(posted),
+          linkPost.safeParse(posted),
+          ends[0],
+        ];
+        if (told.success) panes.set({ ...panes.get(), [id]: told.data.places });
+        if (!link.success || !end) return;
+
+        const key = `${id} ${link.data.place}`;
+        links.get(key)?.close();
+        links.set(key, end);
+        for (const [el, pane] of paneDocs) {
+          if (`${pane.id} ${pane.place}` === key) at.giveLink(el);
+        }
+      },
+
+      /**
+       * A pane gets the newest link of its place, on its port. With none, the page asks the
+       * frame's current document for one.
+       */
+      giveLink: (el: HTMLIFrameElement) => {
+        const [pane, port] = [paneDocs.get(el), panePorts.get(el)];
+        if (!pane || !port) return;
+
+        const key = `${pane.id} ${pane.place}`;
+        const end = links.get(key);
+        const frame = docs.get(pane.id);
+        if (end) {
+          links.delete(key);
+          port.postMessage({ easel: "link", place: pane.place }, [end]);
+        } else if (frame) ports.get(frame)?.postMessage({ easel: "link", place: pane.place });
+      },
+
+      /**
+       * A hello from a pane's window: it gets a new port and the current kit, then a link. A port
+       * that it had before (its document loaded again) is closed.
+       */
+      onPaneHello: (event: MessageEvent) => {
+        if (!kitNow) return;
+        for (const [el] of paneDocs) {
+          const win = el.contentWindow;
+          if (!win || win !== event.source) continue;
+
+          panePorts.get(el)?.close();
+          const channel = new MessageChannel();
+          panePorts.set(el, channel.port1);
+          channel.port1.addEventListener("message", (message) => at.onPanePort(el, message.data));
+          channel.port1.start();
+          win.postMessage(kitNow, "*", [channel.port2]);
+          at.giveLink(el);
+        }
+      },
+
+      /** A pane posts the size of its content: its iframe takes it, up to `paneMax`. */
+      onPanePort: (el: HTMLIFrameElement, posted: unknown) => {
+        const size = sizePost.safeParse(posted);
+        if (!size.success || !paneDocs.has(el)) return;
+
+        el.style.width = `${Math.min(size.data.w, paneMax.w)}px`;
+        el.style.height = `${Math.min(size.data.h, paneMax.h)}px`;
+      },
+
+      /** A pane's iframe (`data-id`, `data-place`): its port closes when it goes. */
+      pane: (el: HTMLIFrameElement | null) => {
+        const [id, place] = [el?.dataset.id, el?.dataset.place];
+        const read = panePlace.safeParse(place);
+        if (!el || id === undefined || !read.success) return;
+
+        paneDocs.set(el, { id, place: read.data });
+        return () => {
+          paneDocs.delete(el);
+          panePorts.get(el)?.close();
+          panePorts.delete(el);
+        };
       },
 
       /** The controls of a frame's current document, its values, or a refused run of one. */
@@ -650,8 +764,21 @@ export const stage = resource({
 
       /** A frame's document is no longer the current one: its controls go. */
       dropControls: (id: string) => {
+        at.dropPanes(id);
         if (closed || !(id in shown.get())) return;
         shown.set(Object.fromEntries(Object.entries(shown.get()).filter(([key]) => key !== id)));
+      },
+
+      /** A frame's document is no longer the current one: its panes go, and each link end of it. */
+      dropPanes: (id: string) => {
+        for (const [key, end] of links) {
+          if (!key.startsWith(`${id} `)) continue;
+          end.close();
+          links.delete(key);
+        }
+        if (closed || !(id in panes.get())) return;
+
+        panes.set(Object.fromEntries(Object.entries(panes.get()).filter(([key]) => key !== id)));
       },
 
       /**

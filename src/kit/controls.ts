@@ -50,3 +50,32 @@ export const controlPost = z.object({
   key: z.string(),
   value: z.unknown().optional(),
 });
+
+// The panes of an app frame (SPEC-kit.md § The capsules, "A control in its own scope"; the chart
+// kit-control-link): each is a React component of the frame that the viewer draws at one place,
+// in an iframe and a scope of its own. The frame serves a part of its capsule on a link (a
+// `MessageChannel`), and the page gives the other end to the pane; the page reads nothing on it.
+
+/** The places of a pane: the frame's label row, or a column at its left or right edge. */
+export const panePlace = z.enum(["top", "left", "right"]);
+
+export type PanePlace = z.infer<typeof panePlace>;
+
+/** The frame's panes, on each new port: the page draws an iframe for each place. */
+export const panesPost = z.object({ easel: z.literal("panes"), places: z.array(panePlace) });
+
+/**
+ * A link of the frame's scope on screen for the pane at a place: the frame posts it with the end
+ * of the channel, and the page posts it to the pane. The page posts it with no end to ask the
+ * frame for a new link.
+ */
+export const linkPost = z.object({ easel: z.literal("link"), place: panePlace });
+
+/** The size of a pane's content, in CSS pixels: the page gives its iframe this size. */
+export const sizePost = z.object({ easel: z.literal("size"), w: z.number(), h: z.number() });
+
+/**
+ * The script that makes a frame's document the document of its pane at a place: the page puts the
+ * place in place of `__PLACE__`, as the paint script takes its version.
+ */
+export const paneScript = `<script type="application/json" id="easel-pane">{"place":"__PLACE__"}</script>\n`;

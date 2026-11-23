@@ -1,13 +1,14 @@
 import { data, operation, resource, tag } from "@tinkered/core";
 import { useData, useResource, useRun } from "@tinkered/react";
-import { memo } from "react";
+import { Fragment, memo } from "react";
 import { z } from "zod";
 
 import { frames } from "@/frames";
 import { boardDoc } from "@/frames/contract";
 import type { FrameInfo } from "@/frames/contract";
 import { compose, composeApp, composeKit, frameAxes } from "@/kit/compose";
-import type { ControlShown } from "@/kit/controls";
+import { paneScript } from "@/kit/controls";
+import type { ControlShown, PanePlace } from "@/kit/controls";
 
 import "./canvas.css";
 import { aimFromLink, openFromLink } from "./act";
@@ -26,6 +27,7 @@ import {
   painted,
   paintScript,
   shownControls,
+  shownPanes,
   stage,
   zoomShown,
 } from "./stage";
@@ -360,14 +362,11 @@ const Shell = memo(function Shell({
   const held = useData(holding, (ids) => ids.includes(frame.id));
   const shown = useData(painted, (p) => p[frame.id]);
   const kitNow = useData(frames.board.kit.of({ canvas }))?.kit ?? null;
-  const docked = useData(shownControls, (all) =>
-    Boolean(all[frame.id]?.controls.some((c) => c.place === "left" || c.place === "right")),
-  );
+  const pane = { canvas, frame, at, live };
 
   return (
     <div
       className="e-shell"
-      data-docked={docked || undefined}
       {...(frame.gone
         ? { hidden: true }
         : { ref: at.shell, role: "group", "aria-label": frame.name })}
@@ -381,11 +380,11 @@ const Shell = memo(function Shell({
       <div className="e-label" data-label>
         <span className="e-label-name">{frame.name}</span>
         <FrameAxes frame={frame} />
-        <DockedControls frame={frame} place="top" />
+        <DockedControls {...pane} place="top" />
         <ControlsButton frame={frame} />
       </div>
-      <DockedControls frame={frame} place="left" />
-      <DockedControls frame={frame} place="right" />
+      <DockedControls {...pane} place="left" />
+      <DockedControls {...pane} place="right" />
       {live || held ? <LiveDoc canvas={canvas} frame={frame} at={at} /> : null}
       <div className="e-card" hidden={live && shown === frame.version}>
         <FramePicture
@@ -601,42 +600,85 @@ function ControlRow({ id, control, values, failed }: RowProps) {
 
 const placeWords = { top: "Top", left: "Left", right: "Right" } as const;
 
+/** The controls that a frame's current document placed at `place`; in a column, each in a row. */
+function PlacedRows({ frame, place }: { frame: FrameInfo; place: PanePlace }) {
+  const now = useData(shownControls, (all) => all[frame.id]);
+  if (!now) return null;
+
+  const rows = now.controls
+    .filter((c) => c.place === place)
+    .map((control) => {
+      const row = (
+        <ControlRow id={frame.id} control={control} values={now.values} failed={now.failed} />
+      );
+      if (place === "top") return <Fragment key={control.key}>{row}</Fragment>;
+      return (
+        <li key={control.key} className="e-ctl-row">
+          {row}
+        </li>
+      );
+    });
+  return <>{rows}</>;
+}
+
+type Placed = { canvas: string; frame: FrameInfo; at: Stage; live: boolean; place: PanePlace };
+
+/**
+ * The pane of a frame's current document at a place (SPEC-kit.md § The capsules, "A control in
+ * its own scope"; chart kit-control-link): the frame's own document with the place of the pane, in
+ * an iframe sandboxed as the frame's. It has the size of its content, which the pane posts.
+ */
+function PaneFrame({ canvas, frame, at, place }: Placed) {
+  const doc = useData(liveDoc({ canvas, id: frame.id })).current;
+  if (!doc?.app) return null;
+
+  return (
+    <iframe
+      key={doc.serial}
+      className="e-pane"
+      sandbox="allow-scripts"
+      data-id={frame.id}
+      data-place={place}
+      title={`${placeWords[place]} pane of ${frame.name}`}
+      ref={at.pane}
+      srcDoc={doc.html + paneScript.replace("__PLACE__", place)}
+    />
+  );
+}
+
 /**
  * The controls of a frame's current document that it placed at `top` (in its label row, after
- * its name) or docked to its `left` or `right` edge (a column outside the frame, at screen size).
- * They read the same values as the panel. While the frame has no live document, they are not shown.
+ * its name) or docked to its `left` or `right` edge (a column outside the frame, at screen size),
+ * and its pane at that place. The controls read the same values as the panel. While the frame has
+ * no live document, they are not shown.
  */
-function DockedControls({ frame, place }: { frame: FrameInfo; place: keyof typeof placeWords }) {
-  const now = useData(shownControls, (all) => all[frame.id]);
-  const mine = now?.controls.filter((c) => c.place === place) ?? [];
-  if (!now || mine.length === 0) return null;
+function DockedControls(props: Placed) {
+  const { frame, place, live } = props;
+  const count = useData(
+    shownControls,
+    (all) => all[frame.id]?.controls.filter((c) => c.place === place).length ?? 0,
+  );
+  const hasPane = useData(shownPanes, (all) => Boolean(all[frame.id]?.includes(place)));
+  const pane = hasPane && live ? <PaneFrame {...props} /> : null;
+  if (count === 0 && !pane) return null;
 
   const label = `${placeWords[place]} controls of ${frame.name}`;
-  const rows = mine.map((control) => (
-    <ControlRow
-      key={control.key}
-      id={frame.id}
-      control={control}
-      values={now.values}
-      failed={now.failed}
-    />
-  ));
   if (place === "top") {
     return (
       <span className="e-ctl-top" role="group" aria-label={label} data-own-pointer>
-        {rows}
+        <PlacedRows frame={frame} place={place} />
+        {pane}
       </span>
     );
   }
   return (
     <div className={`e-ctl-dock e-ctl-${place}`} role="group" aria-label={label} data-own-pointer>
-      <ul className="e-ctl-list">
-        {rows.map((row) => (
-          <li key={row.key} className="e-ctl-row">
-            {row}
-          </li>
-        ))}
-      </ul>
+      {count ? (
+        <ul className="e-ctl-list">
+          <PlacedRows frame={frame} place={place} />
+        </ul>
+      ) : null}
+      {pane}
     </div>
   );
 }
