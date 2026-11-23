@@ -101,13 +101,20 @@ one checkout.
   stash it. Agree on a shared file (such as
   `package.json`) with its owner first
   (`ListAgents`, `SendMessage`).
-- The gate: `check:style`, `check:plain`, `build`,
-  then `bun run smoke`. A docs-only ship
-  (`*.md`) runs `check:style` only; a ship
-  touching `SPEC*.md` or `docs/statecharts/`
-  also runs `scripts/statecharts.sh --check`.
-- After the push, CI `gates` runs. A red main
-  opens a `trunk-red` issue. The line stops: only
+- Deploy first (the user chose it on
+  2026-11-23): a push is live in about 1 minute.
+  The ship gate is fast: `check:style` and
+  `typecheck`. A docs-only ship (`*.md`) runs
+  `check:style` only, and does not deploy.
+- Before the push, run the tests of your change
+  yourself. Use `ship.sh --full` for a risky
+  change: it adds `check:plain`, `build`,
+  `bun run smoke` and, for `SPEC*.md` or
+  `docs/statecharts/`, `scripts/statecharts.sh --check`.
+- After the push, CI `gates` runs all of these
+  and the speed gate. A red main puts the live
+  site back on the last green commit and opens a
+  `trunk-red` issue. The line stops: only
   `ship.sh --fix` (fix forward) or
   `ship.sh -r <sha>` (revert) ship until it
   closes. Fix or revert within 10 minutes.

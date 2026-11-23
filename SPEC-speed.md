@@ -154,3 +154,6 @@ export const speedVerdict = operation({
 2. Decided (2026-11-23): the gate is a job of CI `gates`, not a step of `scripts/ship.sh`. Q2 asks
    that a slower change "does not reach the teams", and a change reaches them at the deploy, which
    waits for `gates`. So no ship takes more time, and a noisy run blocks no agent.
+   Changed (2026-11-23, later): the deploy does not wait for `gates` now (the user asked for a
+   ship that is live in less than a minute). A change over its budget is live until the gate is
+   red, about 3 to 5 minutes; then the job `rollback` of `gates` puts the last green commit live.

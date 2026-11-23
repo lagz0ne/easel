@@ -2,6 +2,7 @@
 # ship.sh: the one way onto main. Trunk-based: no branches, no PRs. Small commits, many a day.
 #
 #   scripts/ship.sh -m "feat(todo): msg" -- <paths...>    gate exactly these paths on HEAD, commit, push
+#   scripts/ship.sh --full -m "..." -- <paths...>           the full gate before the push (see below)
 #   scripts/ship.sh -r <sha> [-m msg]                       a gated revert of <sha>
 #   scripts/ship.sh --fix -m "fix: ..." -- <paths...>       ship while main is red (the fix forward)
 #   scripts/ship.sh -p <patch> -m "..." [-- <paths...>]     also ship a patch (repeat -p): for a shared
@@ -10,12 +11,14 @@
 #
 # Several agents share this checkout, so ship takes only the paths you name, as they are when you run
 # it (git objects: later edits don't leak in), on top of HEAD, and never anyone else's WIP.
-# The gate runs on that exact tree, in a clean copy under .ship/:
-#   install, check:style, check:plain (types, rules, tests), build, scripts/smoke.sh (browser)
-#   docs only (*.md): check:style only.
-#   a change under docs/statecharts/ or vendor/statechart/, to a SPEC*.md, or to
-#   scripts/statecharts.sh or scripts/tlc.sh: also scripts/statecharts.sh --check (easel's own
-#   generator in vendor/statechart; Java and TLC from scripts/tlc.sh, cached in ~/.cache/easel/tlc).
+# The gate runs on that exact tree, in a clean copy under .ship/. Deploy first (the user's
+# choice, 2026-11-23: live in less than a minute): the push deploys at once (deploy.yml), and CI
+# gates run after it; a red gate puts the live site back on the last green commit.
+#   fast (default): install, check:style, typecheck. Docs only (*.md): check:style only.
+#   --full: install, check:style, check:plain (types, rules, tests), build, scripts/smoke.sh
+#     (browser); and for a change under docs/statecharts/ or vendor/statechart/, to a SPEC*.md,
+#     or to scripts/statecharts.sh or scripts/tlc.sh, scripts/statecharts.sh --check first.
+#     Use it for a risky change: CI runs all of it too, but after the deploy.
 # Green: one commit, pushed. Red: nothing committed; the logs stay in ~/.cache/ship/<repo>/<run>/.
 # Stop the line: while a `trunk-red` issue is open (CI's trunk-status workflow files it), only --fix
 # and -r ship. One ship at a time on this machine (flock on .ship/lock); others wait their turn.
@@ -25,12 +28,13 @@ die() { echo "ship: $*" >&2; exit 1; }
 log() { echo "ship: $*" >&2; }
 export PATH="$HOME/.bun/bin:$HOME/.npm-global/bin:$PATH"
 
-msg="" revert="" fix=0 patches=()
+msg="" revert="" fix=0 full=0 patches=()
 while [[ $# -gt 0 ]]; do
   case "$1" in
     -m) msg="$2"; shift 2 ;;
     -r) revert="$2"; shift 2 ;;
     --fix) fix=1; shift ;;
+    --full) full=1; shift ;;
     -p) patches+=("$(realpath -- "$2")"); shift 2 ;;
     --) shift; break ;;
     *) die "unknown arg '$1' (paths go after --)" ;;
@@ -92,12 +96,16 @@ gate() {  # <tree> <run dir>; sets $stage on failure
   done
   mkdir -p "$run/tree"
   git archive "$tree" | tar -x -C "$run/tree"
-  if [[ $charts -eq 1 ]]; then  # the charts are the oracle: a spec or chart ships only as its models say
+  if [[ $full -eq 1 && $charts -eq 1 ]]; then  # the charts are the oracle: a spec or chart ships only as its models say
     stage=statecharts; bash "$run/tree/scripts/statecharts.sh" --check >"$run/statecharts.log" 2>&1 || return 1
   fi
   stage=install; (cd "$run/tree" && bun install --frozen-lockfile) >"$run/install.log" 2>&1 || return 1
   stage=check:style; (cd "$run/tree" && bun run check:style) >"$run/style.log" 2>&1 || return 1
   [[ $docs -eq 0 ]] || { log "docs only: style checked, rest skipped"; return 0; }
+  if [[ $full -eq 0 ]]; then
+    stage=typecheck; (cd "$run/tree" && bun run typecheck) >"$run/typecheck.log" 2>&1 || return 1
+    return 0
+  fi
   stage=check:plain; (cd "$run/tree" && bun run check:plain) >"$run/plain.log" 2>&1 || return 1
   stage=build; (cd "$run/tree" && bun run build) >"$run/build.log" 2>&1 || return 1
   stage=smoke; SMOKE_OUT="$run/smoke" bash "$run/tree/scripts/smoke.sh" "$run/tree" 2>&1 | tee "$run/smoke.log" >&2
@@ -139,7 +147,7 @@ for attempt in 1 2 3; do
     [[ ${#paths[@]} -eq 0 ]] || git reset -q -- "${paths[@]}"   # your patches' files: the index stays theirs
   fi
   if SHIP_GATED=1 git push -q origin main 2>/dev/null; then
-    log "shipped ${commit:0:7} to origin/main (gate $((SECONDS - t0)) s). CI gates run next; a red one opens a trunk-red issue."
+    log "shipped ${commit:0:7} to origin/main (gate $((SECONDS - t0)) s). It deploys now (deploy.yml, ~45 s); CI gates run after it, and a red one rolls the site back and opens a trunk-red issue."
     find "$(dirname "$run")" -maxdepth 1 -name '2*' -mtime +3 -exec rm -rf {} + 2>/dev/null || true
     exit 0
   fi

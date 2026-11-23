@@ -117,7 +117,7 @@ These actors run on a clock or on an event. They use no model.
 | server | `easel serve`                | Send each change to open tabs. Record errors. Copy the data off the host each 30 min. |
 | tick   | a paseo schedule, each 5 min | Record that it ran. Start fixers. Close finished issues.                              |
 | probe  | GitHub Actions, each 10 min  | Read `/api/ready`. Open or close a `prod-down` issue.                                 |
-| CI     | GitHub Actions, on each push | Run the gates. Deploy a green `main`. Open `trunk-red` on a red `main`.               |
+| CI     | GitHub Actions, on each push | Deploy `main`. Run the gates. On a red `main`: roll back and open `trunk-red`.        |
 
 ## Permissions
 
