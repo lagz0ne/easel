@@ -12,7 +12,8 @@ person of the company did them on a clean machine, in 30 minutes or less.
 
 - The address of the easel of your team, for example `https://acme.easel.example`.
 - A setup code, for example `QRTX-7MNP`. It works one time.
-- The terms and the privacy text. Accept them before you get the code (R7).
+- [The short note](legal/note.md) on your work and your data. Accept it before you get the code
+  (R7).
 
 ## 1. Get the command line
 

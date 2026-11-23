@@ -21,7 +21,7 @@ Tasks that are not modules:
   `tests/browser/viewer-kit.test.tsx` name them, with a check for X4 (a refusal changes nothing) and
   X5 (the same size at each zoom).
 - Add MCP to the start steps (R2), after `mcp`.
-- Write the short note on data (R7).
+- Write the short note on data (R7). Done: [docs/legal/note.md](docs/legal/note.md).
 
 Why OAuth is in Round 1: in the Claude web app, a fixed token goes in "Request headers", which is in
 beta for some organizations only. On a Team plan, the Owner adds the connector one time, so each

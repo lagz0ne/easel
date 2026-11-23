@@ -135,7 +135,6 @@ Decided:
 | C1, C2          | `/mcp` takes a fixed token only. The Claude web app needs each person to sign in with their own easel account. | [SPEC-mcp-auth](../SPEC-mcp-auth.md) (approved) |
 | L1, L3, L5, L12 | Each frame keeps its own texts. Nothing keeps the texts of the team in one place.                              | SPEC-kit                                        |
 | Q3              | No measure shows which work is on the critical path and which is not.                                          | docs/canvas-speed.md                            |
-| R7              | The terms and the privacy text are drafts. Round 1 needs only the short note.                                  | docs/legal                                      |
 
 Closed before: R2 (`c79d841`, `6a5a0ec`: the install script and [the start steps](start.md); MCP in them on 2026-11-23), C3 and W1 to W6 (SPEC-mcp, built), R5
 and R8 (`8d452f6`: the design of the backups and the delete).
