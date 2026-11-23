@@ -95,6 +95,11 @@ Decided:
 - On 2026-11-23, the user gave Round 1 its outcome: "use the canvas to show off the design, making
   comment, use MCP to drive the design". Each slice of easel has one outcome, and its decisions
   and deferred items are matched against it.
+- On 2026-11-23, the user gave the end goal of Round 1: "The end goal of the first round surely is
+  we can move the design from doop over to easel and be able to use easel to further develop it.
+  We don't need every features of doop, we need way less and we offer way more practical
+  features tho". So the check of the round is a real move: the canvases `easel · Design system`
+  and `easel · Product design` move from Doop to easel, and the work on them goes on in easel.
 - On 2026-11-23, the user chose the customer: the team of the company and invited teams, at no
   cost. So Pay (R3), a copy off the host (R5) and terms that a lawyer checked (R7) are not
   necessary for the outcome.
