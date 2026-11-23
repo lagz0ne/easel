@@ -1,0 +1,9 @@
+{
+  "mcpServers": {
+    "easel": {
+      "command": "easel",
+      "args": ["mcp"],
+      "env": { "XDG_CONFIG_HOME": "${HOME}/.config/easel-agent" }
+    }
+  }
+}

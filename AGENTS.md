@@ -139,6 +139,18 @@ session and close it after:
 Read `agent-browser skills get core` first. Put
 screenshots in `~/work/tmp/`, never in the repo.
 
+## The easel tools (MCP)
+
+`.mcp.json` gives each agent here the tools of the
+live easel: `easel mcp`, as the member
+`vibea-claude` (its login is in
+`~/.config/easel-agent`). Owner tools are refused.
+An owner revokes it with
+`easel users revoke vibea-claude`. After a
+deploy, run the install script again
+(`curl -fsSL https://easel.vibea.dev/install.sh | sh`)
+to get the new `easel`.
+
 ## agent-skills
 
 Addy Osmani's agent-skills (MIT) is vendored
