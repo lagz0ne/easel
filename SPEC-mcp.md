@@ -1,5 +1,8 @@
 # Spec: mcp — V1
 
+Status: built (2026-11-23), except the tools marked "later" in § Contract. Live at
+`https://easel.vibea.dev/mcp`; local with `easel mcp`.
+
 Module `mcp` of [SPEC.md](SPEC.md). Depends on [access](SPEC-access.md), [frames](SPEC-frames.md),
 [queue](SPEC-queue.md), [ops](SPEC-ops.md) and [kit](SPEC-kit.md).
 

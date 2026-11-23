@@ -169,6 +169,8 @@ test("usage is 64, --help is 0, a hosts file that is not one is 78, no server is
     code: 0,
     out: expect.stringContaining("easel login <server>"),
   });
+  expect((await main(["--help"], env)).out).toContain("claude mcp add easel -- easel mcp");
+  expect((await main(["mcp", "--owner"], env)).code).toBe(64);
   expect((await main(["login", "--name"], env)).code).toBe(64);
   expect((await main(["whoami", "--owner"], env)).code).toBe(64);
   expect((await main(["users", "approve"], env)).code).toBe(64);

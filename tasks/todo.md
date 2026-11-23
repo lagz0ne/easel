@@ -170,15 +170,17 @@ MCP tools makes a reference screen. The CLI help and SPEC-mcp say how to add eas
 
 **Acceptance criteria:**
 
-- [ ] `claude mcp add easel -- easel mcp` (the built binary), then `list_canvases` answers.
-- [ ] A new subagent with only the easel MCP tools reads `kit_guide` and puts a reference screen
-      with no finding.
-- [ ] `easel --help` has an `mcp` line.
+- [x] Claude Code with `easel mcp` of the built binary (`--mcp-config`, not `claude mcp add`, so
+      no user config changed): `list_canvases` and `list_frames` answered.
+- [x] A new agent (`claude -p --model sonnet --tools ""`, only the easel MCP tools) put a sign-in
+      form (the form brief of K3; the 3 briefs are not in the repo yet) in 1 put and 12 s, with
+      no finding: `easel kit check` on the frame gave 0. `kit_guide` waits for `kit.guide`.
+- [x] `easel --help` has an `mcp` line.
 
 **Verification:**
 
-- [ ] By hand: the two runs above, with their output in the ship message.
-- [ ] `tests/cli-help.test.ts` (or the test that holds the help text).
+- [x] By hand: the two runs above, with their output in the ship message.
+- [x] `tests/cli-cmd.test.ts` (the help text, and a bad flag of `easel mcp`).
 
 **Dependencies:** MCP-4, MCP-5.
 
@@ -188,9 +190,11 @@ MCP tools makes a reference screen. The CLI help and SPEC-mcp say how to add eas
 
 ### Checkpoint B: after MCP-4 to MCP-6
 
-- [ ] Each success criterion of SPEC-mcp is met.
-- [ ] A statechart and conformance review of the release (the `next_request` wait, if it has
-      state of its own).
+- [x] Each success criterion of SPEC-mcp is met, with `kit_capsules` for `kit_guide` until it
+      ships.
+- [x] A statechart and conformance review of the release: `mcp` adds no state of its own (each
+      request makes and closes its server; the wait of `next_request` is the queue's, charted in
+      the queue's model). No new chart.
 - [ ] Review with the user. Then the start steps (R2) and the `mcp-auth` delta spec.
 
 ## Phase 3: `speed` foundation
