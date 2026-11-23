@@ -40,6 +40,19 @@
         "told": "A step of mount: it posts the values of the controls on the port, in the frame's iframe, outside easel's graph.",
         "watch": "A step of mount: it watches the value cells of the scope on screen, in the frame's iframe, outside easel's graph.",
         "runControl": "A step of mount: it runs a control's operation in the scope on screen, in the frame's iframe, outside easel's graph."
+      },
+      "src/kit/port-link.ts": {
+        "reply": "A step of the port's message listener (a MessagePort callback, outside any run): it gives a reply to the call that waits for it.",
+        "push": "A step of the port's message listener (a MessagePort callback, outside any run): it gives a push to its watch.",
+        "end": "A step of the port's message listener (a MessagePort callback, outside any run): it ends a watch.",
+        "answer": "A step of the server capsule's run hook, as in Tinker's memory backend: the protocol must get the hook's own run, which no operation has.",
+        "stream": "A step of the server capsule's run hook, as in Tinker's memory backend: the protocol must get the hook's own run, which no operation has.",
+        "listen": "A step of the server capsule's run hook: it serves a MessagePort, whose listener runs outside any run; each message opens its own session of the accept.",
+        "session": "A step of the server capsule's run hook: it serves a MessagePort, whose listener runs outside any run; each message opens its own session of the accept.",
+        "onCall": "A step of the server capsule's run hook: it serves a MessagePort, whose listener runs outside any run; each message opens its own session of the accept.",
+        "onOpen": "A step of the server capsule's run hook: it serves a MessagePort, whose listener runs outside any run; each message opens its own session of the accept.",
+        "take": "The port's message listener (a MessagePort callback, outside any run), on the client and on the server: it routes each message by its type.",
+        "gone": "A step of the port's message listener (a MessagePort callback, outside any run), and of the client's close: it ends each call and watch on the way as a link fault."
       }
     }
   },

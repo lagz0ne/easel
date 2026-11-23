@@ -820,6 +820,30 @@ Another input (an object, a union) has no control: the panel leaves it out.
   that has a runtime from before keeps it: its frames post no controls until the team accepts the
   runtime of this easel (`easel kit accept`, § App frames) and puts each frame again.
 
+**A capsule across scopes** (step 1 built on 2026-11-23: the link). A frame's capsule runs in
+the frame's own scope, in its iframe. A control that is a React component, with its own state and
+icons, must run in a scope of its own too, as the page runs no frame code. So a part of the
+frame's capsule (its cells and its operations) must be read and called from another scope, in
+another realm. Tinker gives this already: `remoteData` and `rpc` are served in one scope and read
+in another, over a backend (`ws`, `memory`). easel adds the backend for two realms, over a
+`MessagePort` (`src/kit/port-link.ts`). Prior art: Figma plugins, whose UI iframe talks to the
+main thread only by `postMessage`, and Comlink, an RPC over a `MessagePort`.
+
+- `portServer({ services })` serves its services on each port that `portServer.accept` gets, until
+  its `stop` aborts. Each call and each watch runs in its own session, with `transport.request`, as
+  over `ws`. When it stops, it posts `gone`.
+- `portClient({ port })` takes a promise of the port, as an iframe gets its port after its scope
+  starts. rpc (`remote: portClient`) and remoteData (`read: portClient`) reach the services at the
+  other end. A write in the serving scope reaches each reader at once.
+- The faults are those of any backend: `missing` for an address that no one serves, `refused`,
+  `failed`, `invalid`, `encode` and `decode` as the protocol gives them, and `link` for each call
+  and watch on the way when the server posts `gone`. Values go as text with the JSON codec.
+- Next steps, not built: a frame declares the part of its capsule that other scopes can reach,
+  and exports its controls as React components by place (`top`, `left`, `right`); the page draws
+  each one in a sandboxed control iframe, with its own scope, and links it to the frame's scope
+  with one `MessageChannel`. A page-wide control (a locale, a theme, a data set) is a control
+  iframe linked to each frame of the canvas.
+
 **Why the list comes from the graph.** The list is the same graph that a frame of the kit version
 gets. So it cannot be older than the kit, and an agent learns each part before it writes code:
 what exists, how to install it, a line that uses it, what it depends on, and the texts that it can
