@@ -278,6 +278,9 @@ throttled run (4× CPU, 40 ms round trip) to the report only.
 
 - [ ] The output has each step at 20 frames, and `open`, `change` and `pan` at 200 frames.
 - [ ] `pan` gives the longest frame in ms, against its budget of 100 ms.
+- [ ] `pan` also gives the p95 time of one move handler, against a budget of 8 ms in
+      `speed.json`. It moved from `tests/browser/viewer-canvas.test.tsx`, where an absolute bound
+      failed only sometimes on a shared runner.
 
 **Verification:**
 
