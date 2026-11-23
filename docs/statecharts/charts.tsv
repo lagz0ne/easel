@@ -43,3 +43,5 @@ access-connector	models/access/Connector.tla	models/access/Connector.cfg	models/
 access-connector-strict	models/access/Connector.tla	models/access/ConnectorStrict.cfg	models/access/Connector.view.mjs	breaks
 copy-status	models/copy/Status.tla	models/copy/Status.cfg	models/copy/Status.view.mjs	holds
 copy-status-remove	models/copy/Status.tla	models/copy/StatusRemove.cfg	models/copy/Status.view.mjs	breaks
+viewer-pages	models/pages/ViewerPages.tla	models/pages/ViewerPages.cfg	models/pages/ViewerPages.view.mjs	holds
+viewer-pages-old-page	models/pages/ViewerPages.tla	models/pages/ViewerPagesOldPage.cfg	models/pages/ViewerPages.view.mjs	breaks

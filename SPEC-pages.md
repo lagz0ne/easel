@@ -103,6 +103,11 @@ request on the other page, and a reload. Its rules:
 - A pick of a request or of a found frame shows its page and the frame, also after a move.
 - A reload shows the same page.
 
+The chart is [viewer-pages](docs/statecharts/viewer-pages.md) (66 states, each rule holds).
+[viewer-pages-old-page](docs/statecharts/viewer-pages-old-page.md) breaks on purpose: a pick of a
+request that opens the page that the request names shows a page with no frame after a move. So the
+pick asks for the frame, and the answer gives its page now.
+
 ## Fact rules
 
 1. Each frame is on exactly one page of its canvas.

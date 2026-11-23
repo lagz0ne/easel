@@ -56,6 +56,8 @@ Each chart's page has the chart, its rules in plain words, and what the model le
 | [viewer-find](viewer-find.md)                       | viewer | Find a frame by its name, from the dock: the list, the take, the mark                          |
 | [viewer-hover](viewer-hover.md)                     | viewer | The outline of the part under the pointer, in the request mode                                 |
 | [viewer-version](viewer-version.md)                 | viewer | A new version of the page: the bar, Reload, and no text lost                                   |
+| [viewer-pages](viewer-pages.md)                     | viewer | The pages of a canvas in a tab: a pick of a page, of a request, of Find, a move, a reload      |
+| [viewer-pages-old-page](viewer-pages-old-page.md)   | viewer | Why the pick of a request asks for its frame: the page of the request is old after a move      |
 | [kit-piece](kit-piece.md)                           | kit    | Two agents change one piece: the first change on a revision wins, the other gets `stale`       |
 | [kit-look](kit-look.md)                             | kit    | The look: a change, a refused unreadable look, one step back, and what a viewer saw            |
 | [kit-look-unbound](kit-look-unbound.md)             | kit    | Why a request keeps its kit version: with the frame version only, its Before is wrong          |
@@ -71,10 +73,10 @@ Each chart's page has the chart, its rules in plain words, and what the model le
 | [kit-runtime-same-text](kit-runtime-same-text.md)   | kit    | Why the same TSX on another runtime is a new version: else a put after an accept is lost       |
 
 `queue-two-step`, `frames-writes-two-step`, `fixer-claim-unsafe`, `kit-look-unbound`,
-`kit-look-hello-once`, `kit-app-frame-no-close` and `kit-runtime-same-text` break on purpose. Each shows the bug that a
+`kit-look-hello-once`, `kit-app-frame-no-close`, `kit-runtime-same-text` and `viewer-pages-old-page` break on purpose. Each shows the bug that a
 design prevents: one write for a claim or a save, the fixer's two guards (the process-group stop
 and the check again before the push), a request that keeps its kit version, a piece script that
-says hello until it gets a port, a page that posts `close` before it removes an app frame, and a put that compares the runtime too. Its row in `charts.tsv` says `breaks`.
+says hello until it gets a port, a page that posts `close` before it removes an app frame, a put that compares the runtime too, and a pick of a request that asks for the frame, not for an old page. Its row in `charts.tsv` says `breaks`.
 
 ## Files
 
