@@ -12,7 +12,7 @@ import { json, say } from "./output";
 
 export const relinkAfter = [1_000, 2_000, 4_000, 8_000, 16_000] as const;
 
-const newToken = operation({
+export const newToken = operation({
   label: "cli.newToken",
   run: () => {
     const token = randomBytes(32).toString("base64url");

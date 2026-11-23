@@ -156,7 +156,7 @@ async function team(srv: Srv) {
   expect(await ann.scope.run(cli.run, { input: approve })).toBe(0);
   expect(await bob.scope.run(cli.run, { input: { kind: "resume" } })).toBe(0);
 
-  return { ann: ann.token(), bob: bob.token() };
+  return { ann: ann.token(), bob: bob.token(), owner: ann };
 }
 
 async function client(srv: Srv, token: string) {
@@ -351,4 +351,33 @@ test("the sign-in refuses a wrong token, an unknown redirect, a wrong verifier a
     400,
     { error: "unsupported_grant_type" },
   ]);
+});
+
+test("an owner makes a user for Claude with `easel users add`; its token signs Claude in until a revoke", async () => {
+  const srv = await boot();
+  const { owner } = await team(srv);
+  const add = { kind: "users", act: { kind: "add", name: "ann-claude", owner: false } } as const;
+
+  expect(await owner.scope.run(cli.run, { input: add })).toBe(0);
+  const given = /"token":\s*"([^"]+)"/.exec(owner.out.join(""))?.[1] ?? "";
+  expect(owner.out.join("")).toContain('"kind":"added"');
+  expect(await owner.scope.run(cli.run, { input: add })).toBe(1);
+  expect(owner.out.join("")).toContain('"kind":"taken"');
+
+  const mcp = await client(srv, given);
+  expect(await mcp.callTool({ name: "list_canvases", arguments: {} })).toMatchObject({
+    isError: false,
+  });
+  const revoke = { kind: "users", act: { kind: "revoke", name: "ann-claude" } } as const;
+  expect(await owner.scope.run(cli.run, { input: revoke })).toBe(0);
+  const after = await srv.fetch(`${origin}/mcp`, {
+    method: "POST",
+    body: JSON.stringify({ jsonrpc: "2.0", id: 1, method: "tools/list" }),
+    headers: {
+      authorization: `Bearer ${given}`,
+      "content-type": "application/json",
+      accept: "application/json, text/event-stream",
+    },
+  });
+  expect(after.status).toBe(401);
 });

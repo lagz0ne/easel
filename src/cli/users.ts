@@ -6,6 +6,7 @@ import { code, name } from "@/access/contract";
 
 import { deadline, exitOf, exits, faultExit } from "./exit";
 import { entryOf, envToken, saveEntry, server } from "./hosts";
+import { newToken } from "./login";
 import { say } from "./output";
 
 export const whoami = operation({
@@ -169,6 +170,41 @@ export const denyUser = operation({
     }
 
     return exitOf.run({ input: { address: "users.deny", kind: answer.kind } });
+  },
+});
+
+export const addUser = operation({
+  label: "cli.addUser",
+  input: z.object({ name, owner: z.boolean() }),
+  depends: { say, exitOf, faultExit, deadline, newToken, add: access.owner["users.add"] },
+  run: async ({ say, exitOf, faultExit, deadline, newToken, add }, { input }) => {
+    const { token, digest } = newToken.run();
+    const stop = deadline.run({ input: "users.add" });
+    const reply = await add.settle({ input: { ...input, digest }, signal: stop.signal });
+    stop.abort();
+    if (reply.status === "cancelled") return faultExit.run({ input: reply.reason });
+    if (reply.status === "failed") return faultExit.run({ input: reply.error });
+
+    const answer = reply.value;
+    switch (answer.kind) {
+      case "added": {
+        const { name, role } = answer.user;
+        const text = `added ${name} (${role}). Its token, shown one time; give it to the person in a private message:\n${token}`;
+        say.run({ input: { json: { ...answer, token }, text } });
+        break;
+      }
+      case "taken":
+        say.run({
+          input: {
+            json: answer,
+            text: `the name ${input.name} is in use: choose another`,
+            error: true,
+          },
+        });
+        break;
+    }
+
+    return exitOf.run({ input: { address: "users.add", kind: answer.kind } });
   },
 });
 

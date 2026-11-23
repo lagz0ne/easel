@@ -33,6 +33,7 @@ const help = `easel: the canvas CLI. Every command takes --json (one JSON value 
   easel mcp                                        serve each command as an MCP tool on stdio, with this
                                                    user's token: \`claude mcp add easel -- easel mcp\`
   easel users                                      the users, and the codes that wait (owner)
+  easel users add <name> [--owner]                 make a user and print its token one time, for an app such as Claude (owner)
   easel users approve <code> [--owner]             approve a code; --owner makes an owner (owner)
   easel users deny <code>                          deny a code (owner)
   easel users revoke <name>                        end a user and its token (owner)
@@ -614,6 +615,15 @@ const invocation = z.union([
     .transform(({ positionals: [, , code], values }): unknown => ({
       at: values.server,
       command: { kind: "users", act: { kind: "approve", code, owner: !!values.owner } },
+    })),
+  z
+    .object({
+      positionals: z.tuple([z.literal("users"), z.literal("add"), z.string()]),
+      values: z.strictObject({ ...common, owner: z.boolean().optional() }),
+    })
+    .transform(({ positionals: [, , name], values }): unknown => ({
+      at: values.server,
+      command: { kind: "users", act: { kind: "add", name, owner: !!values.owner } },
     })),
   z
     .object({

@@ -90,6 +90,10 @@ export const userApi = rpc({
 });
 
 export const ownerContracts = {
+  "users.add": {
+    input: z.object({ name, digest, owner: z.boolean().optional() }),
+    output: z.discriminatedUnion("kind", [z.object({ kind: z.literal("added"), user }), taken]),
+  },
   "users.list": {
     input: z.null(),
     output: z.object({ users: z.array(user), requests: z.array(pendingRequest) }),
@@ -118,7 +122,7 @@ type Api = typeof loginApi & typeof userApi & typeof ownerApi;
 
 type Address = "login.start" | "login.setup" | "login.wait" | "users.me" | "login.end";
 
-type OwnerAddress = "users.list" | "users.approve" | "users.deny" | "users.revoke";
+type OwnerAddress = "users.add" | "users.list" | "users.approve" | "users.deny" | "users.revoke";
 
 type KindOf<A extends Address | OwnerAddress> =
   Awaited<ReturnType<Api[A]["run"]>> extends infer O
@@ -133,6 +137,7 @@ export const successKinds = {
   "login.wait": ["granted", "pending"],
   "users.me": ["me"],
   "login.end": ["ended"],
+  "users.add": ["added"],
   "users.list": "always",
   "users.approve": ["approved"],
   "users.deny": ["denied"],

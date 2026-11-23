@@ -24,6 +24,7 @@ const address = z.enum([
   "login.wait",
   "users.me",
   "login.end",
+  "users.add",
   "users.list",
   "users.approve",
   "users.deny",

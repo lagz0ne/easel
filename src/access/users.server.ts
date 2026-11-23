@@ -3,6 +3,7 @@ import { z } from "zod";
 
 import { ownerApi, userApi } from "./contract";
 import { caller } from "./guards.server";
+import { inUse } from "./login.server";
 import { logins, store, users } from "./store.server";
 
 export const me = operation({
@@ -10,6 +11,20 @@ export const me = operation({
   input: userApi["users.me"].input,
   depends: { me: caller.required },
   run: ({ me }) => ({ kind: "me" as const, name: me.name, owner: me.role === "owner" }),
+});
+
+export const add = operation({
+  label: "users.add.do",
+  input: ownerApi["users.add"].input,
+  depends: { inUse, store },
+  run: async ({ inUse, store }, { input, clock }) => {
+    if (inUse.run({ input })) return { kind: "taken" as const };
+
+    const role = input.owner ? ("owner" as const) : ("member" as const);
+    const user = { name: input.name, role, since: clock.currentTimeMillis() };
+    store.write({ users: [{ ...user, digest: input.digest }] });
+    return { kind: "added" as const, user };
+  },
 });
 
 export const list = operation({
@@ -122,6 +137,7 @@ export const endLogin = operation({
 export const userOps = { "users.me": me, "login.end": endLogin } as const;
 
 export const ownerOps = {
+  "users.add": add,
   "users.list": list,
   "users.approve": approve,
   "users.deny": deny,

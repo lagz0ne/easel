@@ -22,10 +22,11 @@ import {
 } from "./ops";
 import { json, stderr, stdout } from "./output";
 import { queueCommand, queueRun } from "./queue";
-import { approveUser, denyUser, listUsers, logout, revokeUser, whoami } from "./users";
+import { addUser, approveUser, denyUser, listUsers, logout, revokeUser, whoami } from "./users";
 
 const usersCommand = z.discriminatedUnion("kind", [
   z.object({ kind: z.literal("ls") }),
+  z.object({ kind: z.literal("add"), name, owner: z.boolean() }),
   z.object({ kind: z.literal("approve"), code, owner: z.boolean() }),
   z.object({ kind: z.literal("deny"), code }),
   z.object({ kind: z.literal("revoke"), name }),
@@ -70,11 +71,13 @@ export type Command = z.infer<typeof command>;
 const users = operation({
   label: "cli.usersCommand",
   input: usersCommand,
-  depends: { listUsers, approveUser, denyUser, revokeUser },
+  depends: { listUsers, addUser, approveUser, denyUser, revokeUser },
   run: (ops, { input }) => {
     switch (input.kind) {
       case "ls":
         return ops.listUsers.run();
+      case "add":
+        return ops.addUser.run({ input });
       case "approve":
         return ops.approveUser.run({ input });
       case "deny":

@@ -88,7 +88,7 @@ const admit = operation({
   },
 });
 
-const inUse = operation({
+export const inUse = operation({
   label: "access.inUse",
   input: z.object({ name: z.string(), digest: z.string() }),
   depends: { users: users.atScope.controller, logins: logins.atScope.controller },

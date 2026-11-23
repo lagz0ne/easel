@@ -220,6 +220,7 @@ export const noTool = {
   "login.wait": "a token comes from `easel login`",
   "users.me": "the CLI's session: `easel whoami`",
   "login.end": "the CLI's session: `easel logout`",
+  "users.add": "its token is a secret, shown one time to an owner: `easel users add`",
   "request.add": "a viewer's call, from the page",
   "request.answer": "a viewer's call, from the page",
   "request.accept": "a viewer's call, from the page",
