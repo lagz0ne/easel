@@ -319,8 +319,10 @@ export const stage = resource({
         const r = vp?.getBoundingClientRect();
         if (!r) return null;
 
+        const card = vp?.parentElement?.querySelector(".e-requests")?.getBoundingClientRect();
+        const right = Math.min(r.right, card?.left ?? r.right) - popGap;
         const bottom = r.bottom - dockBand;
-        return { left: r.left + popGap, top: r.top + popGap, right: r.right - popGap, bottom };
+        return { left: r.left + popGap, top: r.top + popGap, right, bottom };
       },
 
       placePop: (el: HTMLElement) => {

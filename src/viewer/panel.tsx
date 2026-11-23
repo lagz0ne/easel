@@ -3,7 +3,7 @@ import { useData, useRun } from "@tinkered/react";
 import { frames } from "@/frames";
 import type { FrameInfo } from "@/frames/contract";
 
-import { openedRequest } from "./draft";
+import { openedRequest, toggleCard } from "./draft";
 import {
   doneStates,
   forAViewer,
@@ -14,7 +14,6 @@ import {
   requestViews,
   serverTime,
   toggleListMenu,
-  togglePanel,
 } from "./follow";
 import type { Outdated, RequestView, Shown } from "./follow";
 
@@ -92,15 +91,16 @@ export function RequestsButton({ canvas }: { canvas: string }) {
   const waiting = useData(requestViews({ canvas })).filter((v) =>
     forAViewer.includes(v.shown),
   ).length;
-  const open = useData(panelOpen);
-  const toggle = useRun(togglePanel);
+  const list = useData(panelOpen);
+  const opened = useData(openedRequest, (o) => o?.canvas === canvas);
+  const toggle = useRun(toggleCard);
 
   return (
     <button
       type="button"
       className="e-dock-btn"
       aria-label={waiting ? `Requests, ${waiting} wait for you` : "Requests"}
-      aria-pressed={open}
+      aria-pressed={list || opened}
       title="Requests on this canvas"
       onClick={() => toggle.run()}
     >
@@ -299,7 +299,7 @@ export function Panel({
   const done = views.filter((v) => doneStates.includes(v.shown)).length;
 
   return (
-    <aside className="e-panel" aria-label="Requests">
+    <>
       <header className="e-panel-head">
         <h2>Requests</h2>
         {waits ? <Count n={waits} /> : null}
@@ -308,6 +308,6 @@ export function Panel({
       <div className="e-panel-body">
         <Lists views={views} canvas={canvas} list={list} onOpen={onOpen} />
       </div>
-    </aside>
+    </>
   );
 }

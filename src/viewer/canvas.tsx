@@ -12,11 +12,20 @@ import type { ControlShown, PanePlace } from "@/kit/controls";
 
 import "./canvas.css";
 import { aimFromLink, openFromLink } from "./act";
-import { escapeKey, openRequest, pickPlace, requestMode, resendOnBack } from "./draft";
-import { clockTicker, controlsFor, panelOpen, requestPlaces } from "./follow";
+import {
+  closeCard,
+  escapeKey,
+  openedRequest,
+  openRequest,
+  pickPlace,
+  requestMode,
+  resendOnBack,
+} from "./draft";
+import { clockTicker, controlsFor, panelOpen, requestPlaces, requestViews } from "./follow";
 import type { RequestView } from "./follow";
 import { Panel, RequestsButton } from "./panel";
 import { FramePicture } from "./picture";
+import { Opened } from "./popover";
 import { RequestButton, Requests } from "./request";
 import {
   axesPost,
@@ -363,9 +372,9 @@ function FrameAxes({ frame }: { frame: FrameInfo }) {
 const toggleControls = operation({
   label: "viewer.toggleControls",
   input: z.string(),
-  depends: { ctl: controlsFor.controller, requests: panelOpen.controller },
-  run: ({ ctl, requests }, { input }) => {
-    requests.set(false);
+  depends: { ctl: controlsFor.controller, closeCard },
+  run: ({ ctl, closeCard }, { input }) => {
+    closeCard.run();
     ctl.set(ctl.get() === input ? null : input);
   },
 });
@@ -707,11 +716,13 @@ function Dock({ at, canvas }: { at: Stage; canvas: string }) {
   );
 }
 
-function PanelAt({ at, canvas, list }: { at: Stage; canvas: string; list: readonly FrameInfo[] }) {
-  const open = useData(panelOpen);
+function CardAt({ at, canvas, list }: { at: Stage; canvas: string; list: readonly FrameInfo[] }) {
+  const listed = useData(panelOpen);
+  const n = useData(openedRequest, (o) => (o?.canvas === canvas ? o.n : null));
+  const shown = useData(requestViews({ canvas })).find((v) => v.r.n === n);
   const places = useData(requestPlaces({ canvas }));
   const opening = useRun(openRequest);
-  if (!open) return null;
+  if (!listed && n === null) return null;
 
   const onOpen = ({ r }: RequestView) => {
     const place = places.get(r.n);
@@ -719,7 +730,15 @@ function PanelAt({ at, canvas, list }: { at: Stage; canvas: string; list: readon
     opening.run({ input: { canvas, n: r.n } });
   };
 
-  return <Panel canvas={canvas} list={list} onOpen={onOpen} />;
+  return (
+    <aside className="e-requests" aria-label="Requests">
+      {shown ? (
+        <Opened v={shown} list={list} />
+      ) : (
+        <Panel canvas={canvas} list={list} onOpen={onOpen} />
+      )}
+    </aside>
+  );
 }
 
 function Status({ lost, fault }: { lost: boolean; fault: boolean }) {
@@ -772,7 +791,6 @@ export function Canvas({ canvas, opening }: { canvas: string; opening: React.Rea
   const pick = useRun(pickPlace);
   const asking = useData(requestMode);
   const mode = useData(requestMode, (on) => (on ? "request" : "view"));
-  const panel = useData(panelOpen);
   useData(clockTicker({ canvas }));
   const kitNow = useData(kitFeed({ canvas }));
   useData(openFromLink({ canvas }));
@@ -780,7 +798,7 @@ export function Canvas({ canvas, opening }: { canvas: string; opening: React.Rea
   if (state?.status === "fault" && ended.safeParse(state.fault.payload).success) return opening;
 
   return (
-    <main className="e-canvas" data-panel={panel ? "open" : "closed"} data-mode={mode}>
+    <main className="e-canvas" data-mode={mode}>
       <section
         ref={at.viewport}
         className="e-viewport e-light"
@@ -828,7 +846,7 @@ export function Canvas({ canvas, opening }: { canvas: string; opening: React.Rea
         <Status lost={lost} fault={state?.status === "fault"} />
       </div>
       <Dock at={at} canvas={canvas} />
-      <PanelAt at={at} canvas={canvas} list={list} />
+      <CardAt at={at} canvas={canvas} list={list} />
       <ControlsPanel list={list} />
     </main>
   );

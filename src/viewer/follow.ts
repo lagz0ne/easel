@@ -667,16 +667,6 @@ export const panelList = data<"open" | "done">({ label: "viewer.panelList", init
 
 export const listMenu = data({ label: "viewer.listMenu", initial: false });
 
-export const togglePanel = operation({
-  label: "viewer.togglePanel",
-  depends: { open: panelOpen.controller, menu: listMenu.controller, ctl: controlsFor.controller },
-  run: ({ open, menu, ctl }) => {
-    menu.set(false);
-    ctl.set(null);
-    open.set(!open.get());
-  },
-});
-
 export const toggleListMenu = operation({
   label: "viewer.toggleListMenu",
   depends: { menu: listMenu.controller },

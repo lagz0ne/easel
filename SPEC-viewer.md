@@ -25,8 +25,8 @@ this spec wins, and the screen gets a fix.
    "Ask for a change"), the button `Requests` (tooltip "Requests on this canvas"), then `Zoom out`,
    the zoom `status`, `Zoom in` and `Fit`. The buttons show icons, and their names are their
    accessible names. A button shows pressed while its mode or its card is on.
-3. The card `Requests` floats over the canvas at its right edge, 12 px from the edges, under the
-   toolbar and above the band of the dock. The canvas and the dock keep the full width. Nothing
+3. The card `Requests` floats over the canvas at its right edge, 12 px from the top, right and
+   bottom edges. The canvas and the dock keep the full width. Nothing
    on the canvas moves when the card opens, changes or closes, as the comments of Figma and
    Linear. Decided on 2026-11-23 (E4.4, requests #4 and #11).
 
@@ -229,16 +229,18 @@ outdated: the frame was removed`, or `May be outdated: a long wait`. Only a wait
    it. The board's cell `removed` gives the name and the last box of the frame. The area goes
    when the request leaves the card.
 10. An open request shows in the card in the place of the list (a `region` named
-    `Request #<n>`). Its pin shows pressed. The head has the button `Back` (an arrow) to go to the
-    list. `Back` or Escape goes back to the list, and Escape on the list closes the card. The
+    `Request #<n>`). Its pin shows pressed, with an accent ring. Above its head, the button
+    `All requests` (a left chevron, as Miro and Linear) goes back to the list. Escape also goes
+    back to the list, and Escape on the list closes the card. The
     button `Close` (×) closes the card. A press on another pin or row opens that request in its
     place. None of these changes the request. The textbox of a new request (§ Ask for a change)
     stays a popover next to its pin. It opens below its pin; with no room below, it goes above
     the pin, then to its right, then to its left, as Floating UI's `flip`. It moves along that
     side to stay in the canvas, as Floating UI's `shift`. It keeps 8 px from the edges of the
     canvas, out of the band of the dock (64 px at the bottom), and out of the card. It never
-    covers its pin. The chart is [viewer-card](docs/statecharts/viewer-card.md).
-11. The head of an open request shows `Back`, the state mark, `#<n>` and the place, then the button `More`
+    covers its pin. The thread scrolls in the card, and the controls of the request stay at its
+    bottom. The chart is [viewer-card](docs/statecharts/viewer-card.md).
+11. The head of an open request shows the state mark, `#<n>` and the place, then the button `More`
     and the button `Close` (×). `More` opens a menu: `Correct the request` (off while an agent works,
     with the hint "Agent works"), `Copy link`, and `Take back` (danger). `Take back` shows while
     the request is waiting, in work, a question, or needs a person. Then a viewer who is not the

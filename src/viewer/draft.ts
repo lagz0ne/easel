@@ -5,6 +5,7 @@ import { frames } from "@/frames";
 import { queue } from "@/queue";
 
 import type { Shown } from "./follow";
+import { controlsFor, listMenu, panelOpen } from "./follow";
 import { keepName, keptName } from "./gate";
 
 const place = z.object({
@@ -80,19 +81,49 @@ const closeRequest = operation({
 
 export const toggleRequest = operation({
   label: "viewer.toggleRequest",
-  depends: {
-    drafts: drafts.controller,
-    mode: requestMode.controller,
-    closeRequest,
-  },
-  run: ({ drafts, mode, closeRequest }) => {
+  depends: { drafts: drafts.controller, mode: requestMode.controller },
+  run: ({ drafts, mode }) => {
     if (heldDraft.safeParse(drafts.get()).success) return;
     if (mode.get()) {
       drafts.set(null);
       return mode.set(false);
     }
-    closeRequest.run();
     mode.set(true);
+  },
+});
+
+export const backToList = operation({
+  label: "viewer.backToList",
+  depends: { panel: panelOpen.controller, closeRequest },
+  run: ({ panel, closeRequest }) => {
+    closeRequest.run();
+    panel.set(true);
+  },
+});
+
+export const closeCard = operation({
+  label: "viewer.closeCard",
+  depends: { panel: panelOpen.controller, menu: listMenu.controller, closeRequest },
+  run: ({ panel, menu, closeRequest }) => {
+    closeRequest.run();
+    menu.set(false);
+    panel.set(false);
+  },
+});
+
+export const toggleCard = operation({
+  label: "viewer.toggleCard",
+  depends: {
+    panel: panelOpen.controller,
+    opened: openedRequest.controller,
+    ctl: controlsFor.controller,
+    closeCard,
+  },
+  run: ({ panel, opened, ctl, closeCard }) => {
+    ctl.set(null);
+    if (panel.get() || opened.get()) return closeCard.run();
+
+    panel.set(true);
   },
 });
 
@@ -102,12 +133,20 @@ export const escape = operation({
     drafts: drafts.controller,
     mode: requestMode.controller,
     opened: openedRequest.controller,
-    closeRequest,
+    panel: panelOpen.controller,
+    backToList,
   },
-  run: ({ drafts, mode, opened, closeRequest }) => {
-    if (opened.get()) return closeRequest.run();
-    if (heldDraft.safeParse(drafts.get()).success) return;
-    drafts.set(null);
+  run: ({ drafts, mode, opened, panel, backToList }) => {
+    const draft = drafts.get();
+    if (heldDraft.safeParse(draft).success) return;
+    if (draft) {
+      drafts.set(null);
+      return mode.set(false);
+    }
+
+    if (opened.get()) return backToList.run();
+    if (panel.get()) return panel.set(false);
+
     mode.set(false);
   },
 });
@@ -115,9 +154,8 @@ export const escape = operation({
 export const pickPlace = operation({
   label: "viewer.pickPlace",
   input: z.object({ canvas: z.string(), place }),
-  depends: { drafts: drafts.controller, mode: requestMode, closeRequest },
-  run: ({ drafts, mode, closeRequest }, { input, random }) => {
-    closeRequest.run();
+  depends: { drafts: drafts.controller, mode: requestMode },
+  run: ({ drafts, mode }, { input, random }) => {
     const now = drafts.get();
     if (!mode || heldDraft.safeParse(now).success) return;
 
@@ -149,8 +187,9 @@ export const typeText = operation({
 export const openRequest = operation({
   label: "viewer.openRequest",
   input: z.object({ canvas: z.string(), n: z.number() }),
-  depends: { opened: openedRequest.controller, closeRequest },
-  run: ({ opened, closeRequest }, { input }) => {
+  depends: { opened: openedRequest.controller, ctl: controlsFor.controller, closeRequest },
+  run: ({ opened, ctl, closeRequest }, { input }) => {
+    ctl.set(null);
     const now = opened.get();
     if (now?.canvas === input.canvas && now.n === input.n) return;
 

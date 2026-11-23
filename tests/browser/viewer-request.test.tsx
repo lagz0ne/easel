@@ -421,7 +421,7 @@ test("the first Send asks the name; share.name names the pass, the browser keeps
   expect(sent?.key.length).toBeGreaterThanOrEqual(16);
   expect(store.requests.map((r) => r.author)).toEqual(["Mai"]);
 
-  const shown = page.getByRole("dialog", { name: "Request #1" });
+  const shown = page.getByRole("region", { name: "Request #1" });
   await expect.element(shown.getByRole("img", { name: "Waiting for an agent" })).toBeVisible();
   expect(shown.getByText("Add a short FAQ here.").elements()).toHaveLength(1);
   expect(shown.getByText("#1 · On Home").elements()).toHaveLength(1);
@@ -515,7 +515,7 @@ test("a click out of all frames asks about the whole canvas: frameId and version
   await expect.element(pin(1)).toBeVisible();
   expect(store.adds[0]).toMatchObject({ frameId: null, version: null });
   await expect
-    .element(page.getByRole("dialog", { name: "Request #1" }).getByText("#1 · On the whole canvas"))
+    .element(page.getByRole("region", { name: "Request #1" }).getByText("#1 · On the whole canvas"))
     .toBeVisible();
 });
 
@@ -773,10 +773,10 @@ test("a press on a pin opens its request; a pin goes with its removed frame; a r
 
   await userEvent.keyboard("{Escape}");
   await expect
-    .poll(() => page.getByRole("dialog", { name: "Request #2" }).elements().length)
+    .poll(() => page.getByRole("region", { name: "Request #2" }).elements().length)
     .toBe(0);
   await pin(1).click();
-  const first = page.getByRole("dialog", { name: "Request #1" });
+  const first = page.getByRole("region", { name: "Request #1" });
   await expect.element(first.getByText("Add a short FAQ here.")).toBeVisible();
   expect(pin(1).element()).toHaveAttribute("aria-pressed", "true");
 
@@ -810,7 +810,7 @@ test("the popover of a saved request names its state with the words of § Follow
     await pin(i + 1).click();
     await expect
       .element(
-        page.getByRole("dialog", { name: `Request #${i + 1}` }).getByRole("img", { name: word }),
+        page.getByRole("region", { name: `Request #${i + 1}` }).getByRole("img", { name: word }),
       )
       .toBeVisible();
   }

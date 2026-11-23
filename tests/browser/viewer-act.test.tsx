@@ -426,7 +426,7 @@ async function tab(first: Scope.Handle) {
 }
 
 const pin = (n: number) => page.getByRole("button", { name: `Request #${n}`, exact: true });
-const dialog = (n: number) => page.getByRole("dialog", { name: `Request #${n}` });
+const dialog = (n: number) => page.getByRole("region", { name: `Request #${n}` });
 const alertIn = (n: number) => dialog(n).getByRole("alert");
 const mark = (n: number) => dialog(n).element().querySelector(".e-sb")?.getAttribute("aria-label");
 

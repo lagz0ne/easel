@@ -73,6 +73,8 @@ const E4: ReadonlyArray<{ id: string; kind: Kind }> = [
   { id: "AhuGpdJlUf", kind: "screen" },
   { id: "5TBFxBzFCB", kind: "screen" },
   { id: "Q84YFf2dBZ", kind: "screen" },
+  { id: "CNPmZmpFht", kind: "screen" },
+  { id: "fZryd9EGNx", kind: "screen" },
 ];
 
 const E3: ReadonlyArray<{ id: string; kind: Kind }> = [
@@ -105,6 +107,8 @@ const E3: ReadonlyArray<{ id: string; kind: Kind }> = [
   { id: "mCNt_6ka2d", kind: "screen" },
   { id: "j-WeeGzI9M", kind: "screen" },
   { id: "pz6YsbPa7n", kind: "screen" },
+  { id: "Nwm_CGisSj", kind: "screen" },
+  { id: "46csKF-KM-", kind: "screen" },
 ];
 
 const EPICS: ReadonlyArray<{ epic: string; frames: ReadonlyArray<{ id: string; kind: Kind }> }> = [

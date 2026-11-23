@@ -762,12 +762,76 @@
   border: 1px solid var(--e-muted);
 }
 
-.e-canvas[data-panel="open"] .e-viewport {
-  right: 340px;
+.e-requests {
+  position: absolute;
+  top: var(--e-3);
+  right: var(--e-3);
+  bottom: var(--e-3);
+  z-index: 3;
+  display: flex;
+  flex-direction: column;
+  box-sizing: border-box;
+  width: 340px;
+  max-width: calc(100% - var(--e-3) * 2);
+  overflow: hidden;
+  font-family: var(--e-font);
+  color: var(--e-text);
+  background-color: var(--e-surface);
+  border: 1px solid var(--e-line);
+  border-radius: var(--e-radius-l);
+  box-shadow: var(--e-shadow);
 }
 
-.e-canvas[data-panel="open"] .e-dock {
-  left: calc((100% - 340px) / 2);
+.e-requests .e-pop {
+  position: static;
+  flex: 1;
+  min-height: 0;
+  width: auto;
+  max-height: none;
+  border: 0;
+  border-radius: 0;
+  box-shadow: none;
+}
+
+.e-requests .e-head {
+  margin-top: 0;
+  border-top: 1px solid var(--e-line);
+  border-radius: 0;
+}
+
+.e-requests .e-req .e-thread {
+  flex: 1;
+}
+
+.e-back {
+  display: flex;
+  flex: none;
+  gap: var(--e-1);
+  align-items: center;
+  align-self: flex-start;
+  height: 28px;
+  padding: 0 var(--e-2) 0 var(--e-1);
+  margin: calc(var(--e-1) * -1) 0 0 calc(var(--e-2) * -1);
+  font: inherit;
+  font-size: var(--e-size-1);
+  color: var(--e-muted);
+  background: none;
+  border: 0;
+  border-radius: var(--e-radius);
+  cursor: pointer;
+}
+
+@media (hover: hover) and (pointer: fine) {
+  .e-back:hover {
+    color: var(--e-text);
+    background-color: var(--e-hover);
+  }
+}
+
+.e-pin[aria-pressed="true"] {
+  box-shadow:
+    0 0 0 2px var(--e-accent),
+    var(--e-shadow);
 }
 
 .e-panel {

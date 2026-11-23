@@ -385,21 +385,28 @@ test("a canvas with no requests says so in the list Open, and how to ask for one
   ).toHaveLength(1);
 });
 
-test("the panel opens at the right edge, 340 px wide over the full height; the canvas and the dock use the rest of the width (The page 3)", async () => {
+test("the card Requests floats over the canvas at its right edge, 12 px from the edges, 340 px wide; the canvas and the dock keep the full width, and no frame moves when it opens (The page 3, OnlyARowOrAPanMovesTheCanvas)", async () => {
   const server = await boot(everyState);
   await tab(server);
+  const before = pin(1).element().getBoundingClientRect();
+
   await requestsButton().click();
   await expect.element(panel()).toBeVisible();
 
   const box = panel().element().getBoundingClientRect();
-  expect(box.right).toBe(1200);
+  expect(box.right).toBe(1200 - 12);
+  expect(box.top).toBe(12);
+  expect(box.bottom).toBe(800 - 12);
   expect(box.width).toBe(340);
-  expect(box.top).toBe(0);
-  expect(box.height).toBe(800);
+  const look = getComputedStyle(panel().element());
+  expect(look.borderTopWidth).toBe("1px");
+  expect(look.borderTopLeftRadius).toBe("12px");
+  expect(look.boxShadow).not.toBe("none");
   const frames = page.getByRole("region", { name: "Frames" }).element().getBoundingClientRect();
-  expect(frames.right).toBe(860);
+  expect(frames.right).toBe(1200);
   const dock = page.getByRole("toolbar", { name: "Canvas" }).element().getBoundingClientRect();
-  expect(Math.abs(dock.left + dock.width / 2 - 430)).toBeLessThan(2);
+  expect(Math.abs(dock.left + dock.width / 2 - 600)).toBeLessThan(2);
+  expect(pin(1).element().getBoundingClientRect()).toEqual(before);
 });
 
 test("each change of a request shows in every tab within 1 s, with no reload: the row moves group, the mark and the count change (PanelShowsLatest, s1 to s16, s15 to s23, s22 to s3)", async () => {
@@ -502,7 +509,7 @@ test("a request changed since the last visit shows the mark Changed since your l
   await expect.element(requestsButton()).toHaveAccessibleName("Requests");
 
   await row(1).click();
-  await expect.element(page.getByRole("dialog", { name: "Request #1" })).toBeVisible();
+  await expect.element(page.getByRole("region", { name: "Request #1" })).toBeVisible();
   await expect.poll(() => changedMark(1).elements().length).toBe(0);
   expect(JSON.parse(localStorage.getItem(openedKey + "home") ?? "{}")).toMatchObject({
     r1: serverNow - minute,
@@ -512,14 +519,18 @@ test("a request changed since the last visit shows the mark Changed since your l
   server.run(write, {
     input: { n: 3, patch: {}, message: { kind: "edit", from: "Tom", text: "Our blue." } },
   });
-  await expect.element(changedMark(3)).toBeVisible();
-  expect(changedMark(1).elements()).toHaveLength(0);
+  await expect.element(page.getByRole("region", { name: "Request #1" })).toBeVisible();
+  await tick(100);
   await userEvent.keyboard("{Escape}");
+  await expect.element(changedMark(3)).toBeVisible();
   expect(changedMark(1).elements()).toHaveLength(0);
   expect(row(3).element().textContent).toContain("Our blue.");
 });
 
-test("a press on a row moves the canvas to the place of the request and opens it, and the list stays open; a press on a pin opens its request (Follow the requests 9, 10)", async () => {
+const opened = (n: number) => panel().getByRole("region", { name: `Request #${n}` });
+const allRequests = () => panel().getByRole("button", { name: "All requests" });
+
+test("a press on a row opens the request in the card and moves the canvas to its place; All requests goes back to the list; a press on a pin opens its request in the card, and the canvas stays (Follow the requests 9, 10; PressRow, Back, PressPin)", async () => {
   const server = await boot(() => {
     store.far = true;
     stored(1, "Make the logo bigger.", { frameId: far, x: 20, y: 30 });
@@ -529,21 +540,56 @@ test("a press on a row moves the canvas to the place of the request and opens it
   await requestsButton().click();
 
   await row(1).click();
-  const dialog = page.getByRole("dialog", { name: "Request #1" });
-  await expect.element(dialog).toBeVisible();
-  expect(row(1).element()).toHaveAttribute("aria-current", "true");
-  expect(panel().elements()).toHaveLength(1);
+  await expect.element(opened(1)).toBeVisible();
+  expect(row(1).elements()).toHaveLength(0);
+  expect(pin(1).element()).toHaveAttribute("aria-pressed", "true");
   const view = page.getByRole("region", { name: "Frames" }).element().getBoundingClientRect();
   const at = pin(1).element().getBoundingClientRect();
   expect(Math.abs(at.left - (view.left + view.width * 0.4))).toBeLessThan(3);
   expect(Math.abs(at.bottom - (view.top + view.height * 0.4))).toBeLessThan(3);
 
-  await userEvent.keyboard("{Escape}");
-  await expect.poll(() => dialog.elements().length).toBe(0);
-  await row(2).click();
-  await expect.element(page.getByRole("dialog", { name: "Request #2" })).toBeVisible();
+  await allRequests().click();
+  await expect.element(row(2)).toBeVisible();
+  expect(opened(1).elements()).toHaveLength(0);
+  expect(pin(1).element()).toHaveAttribute("aria-pressed", "false");
+
+  const still = pin(1).element().getBoundingClientRect();
   await pin(1).click();
-  await expect.element(dialog).toBeVisible();
+  await expect.element(opened(1)).toBeVisible();
+  expect(pin(1).element().getBoundingClientRect()).toEqual(still);
+});
+
+test("Escape goes back from a request to the list, then closes the card; a press on another pin opens that request in its place; Close closes the card from a request; Requests closes an open card (Escape, PressPin, Close, Toggle)", async () => {
+  const server = await boot(() => {
+    stored(1, "Make the logo bigger.");
+    stored(2, "Add a short FAQ here.");
+  });
+  await tab(server);
+
+  await pin(1).click();
+  await expect.element(opened(1)).toBeVisible();
+  expect(requestsButton().element()).toHaveAttribute("aria-pressed", "true");
+  await userEvent.keyboard("{Escape}");
+  await expect.element(row(1)).toBeVisible();
+  await userEvent.keyboard("{Escape}");
+  await expect.poll(() => panel().elements().length).toBe(0);
+  expect(requestsButton().element()).toHaveAttribute("aria-pressed", "false");
+
+  await pin(1).click();
+  await expect.element(opened(1)).toBeVisible();
+  await pin(2).click();
+  await expect.element(opened(2)).toBeVisible();
+  expect(opened(1).elements()).toHaveLength(0);
+  expect(pin(1).element()).toHaveAttribute("aria-pressed", "false");
+  await opened(2).getByRole("button", { name: "Close", exact: true }).click();
+  await expect.poll(() => panel().elements().length).toBe(0);
+
+  await pin(1).click();
+  await expect.element(opened(1)).toBeVisible();
+  await requestsButton().click();
+  await expect.poll(() => panel().elements().length).toBe(0);
+  await requestsButton().click();
+  await expect.element(row(1)).toBeVisible();
 });
 
 const day = 24 * 60 * minute;
@@ -630,7 +676,7 @@ test("a waiting request may be outdated: its frame has a newer version, the fram
   expect(JSON.stringify(board.get())).toBe(before);
 });
 
-test("a press on the row of a request of a removed frame moves the canvas to where the frame was: a dashed area that says it was removed, with the pin in it, and the popover (Follow the requests 9)", async () => {
+test("a press on the row of a request of a removed frame moves the canvas to where the frame was: a dashed area that says it was removed, with the pin in it, and the request in the card (Follow the requests 9)", async () => {
   const server = await boot(() => {
     store.farGone = true;
     stored(1, "Shorter banner.", { frameId: far, x: 20, y: 30 });
@@ -639,7 +685,7 @@ test("a press on the row of a request of a removed frame moves the canvas to whe
   await requestsButton().click();
 
   await row(1).click();
-  await expect.element(page.getByRole("dialog", { name: "Request #1" })).toBeVisible();
+  await expect.element(page.getByRole("region", { name: "Request #1" })).toBeVisible();
   const area = page.getByRole("group", { name: "Far was removed" });
   await expect.element(area).toBeVisible();
   expect(area.element().textContent).toContain("Far was removed");
@@ -663,43 +709,43 @@ function longThread(n: number, x: number, y: number) {
   }
 }
 
-test("the popover opens below its pin; with no room below it flips above, and with no room above or below it goes beside; it stays in the view, over the dock, and never covers its pin (Follow the requests 10)", async () => {
-  const server = await boot(() => {
-    longThread(1, 40, 10);
-    longThread(2, 40, 290);
-    longThread(3, 200, 150);
-  });
+test("the textbox of a new request opens below its pin, or above it with no room below; it stays out of the card and over the dock (Follow the requests 10)", async () => {
+  const server = await boot();
   await tab(server);
-  const view = page.getByRole("region", { name: "Frames" }).element().getBoundingClientRect();
+  await requestsButton().click();
+  await expect.element(panel()).toBeVisible();
+  const card = panel().element().getBoundingClientRect();
   const dock = page.getByRole("toolbar", { name: "Canvas" }).element().getBoundingClientRect();
+  const textbox = page.getByRole("textbox", { name: "Request" });
 
   const sides: string[] = [];
-  for (const n of [1, 2, 3]) {
-    await pin(n).click();
-    const dialog = page.getByRole("dialog", { name: `Request #${n}` });
-    await expect.element(dialog).toBeVisible();
+  for (const spot of [
+    { x: 820, y: 40 },
+    { x: 100, y: 700 },
+  ]) {
+    await page.getByRole("button", { name: "Request", exact: true }).click();
+    await page.getByRole("region", { name: "Frames" }).click({ position: spot });
+    await expect.element(textbox).toBeVisible();
     await tick(50);
-    const pop = dialog.element().getBoundingClientRect();
-    const at = pin(n).element().getBoundingClientRect();
-    sides.push(dialog.element().getAttribute("data-side") ?? "");
+    const pop = textbox.element().closest(".e-pop");
+    if (!pop) throw new Error("no popover");
+    const at = pop.getBoundingClientRect();
+    sides.push(pop.getAttribute("data-side") ?? "");
 
-    expect(pop.left).toBeGreaterThanOrEqual(view.left);
-    expect(pop.right).toBeLessThanOrEqual(view.right);
-    expect(pop.top).toBeGreaterThanOrEqual(view.top);
-    expect(pop.bottom).toBeLessThanOrEqual(dock.top);
-    const overPin =
-      pop.left < at.right && pop.right > at.left && pop.top < at.bottom && pop.bottom > at.top;
-    expect(overPin).toBe(false);
+    expect(at.right).toBeLessThanOrEqual(card.left);
+    expect(at.top).toBeGreaterThanOrEqual(0);
+    expect(at.bottom).toBeLessThanOrEqual(dock.top);
     await userEvent.keyboard("{Escape}");
   }
-  expect(sides).toEqual(["below", "above", "right"]);
+  expect(sides).toEqual(["below", "above"]);
+  await expect.element(panel()).toBeVisible();
 });
 
-test("a wheel over the thread of a popover scrolls the thread, not the canvas: the canvas does not move (Follow the requests 10)", async () => {
+test("a wheel over the thread of a request in the card scrolls the thread, not the canvas: the canvas does not move (Follow the requests 10)", async () => {
   const server = await boot(() => longThread(1, 40, 10));
   await tab(server);
   await pin(1).click();
-  const dialog = page.getByRole("dialog", { name: "Request #1" });
+  const dialog = page.getByRole("region", { name: "Request #1" });
   await expect.element(dialog).toBeVisible();
   const thread = dialog.element().querySelector(".e-thread");
   if (!thread) throw new Error("no thread");
@@ -720,14 +766,14 @@ test("a wheel over the thread of a popover scrolls the thread, not the canvas: t
   expect(getComputedStyle(thread).overscrollBehaviorY).toBe("contain");
 });
 
-test("the popover has the look of the design system: a 40 px head with a line under it, filled while a question waits; 13/20 text; a name of weight 600; a round 24 px avatar, square for an agent; icons for More and Close (Popover, ThreadHead, Message)", async () => {
+test("a request in the card has the look of the design system: a 40 px head with a line under it, filled while a question waits; 13/20 text; a name of weight 600; a round 24 px avatar, square for an agent; icons for More and Close; All requests with a chevron (Sidebar card, Popover card, ThreadHead, Message)", async () => {
   const server = await boot(() => {
     const r = stored(1, "Make the logo bigger.", { status: "asking", claimedBy: "claude-1" });
     store.messages.push(said(r, "question", "claude-1", "Which logo?", r.created + 1));
   });
   await tab(server);
   await pin(1).click();
-  const dialog = page.getByRole("dialog", { name: "Request #1" });
+  const dialog = page.getByRole("region", { name: "Request #1" });
   await expect.element(dialog.getByText("Which logo?")).toBeVisible();
   const pop = dialog.element();
   const all = (selector: string) =>
@@ -738,12 +784,14 @@ test("the popover has the look of the design system: a 40 px head with a line un
     return first;
   };
 
-  const box = getComputedStyle(pop);
+  const box = getComputedStyle(panel().element());
   expect([box.width, box.borderTopWidth, box.borderTopLeftRadius]).toEqual([
     "340px",
     "1px",
     "12px",
   ]);
+  const back = dialog.getByRole("button", { name: "All requests" }).element();
+  expect(back.querySelector("svg")).not.toBeNull();
   const head = one("header");
   expect([head.height, head.borderBottomWidth]).toEqual(["40px", "1px"]);
   expect(head.backgroundColor).toBe("rgb(238, 244, 252)");

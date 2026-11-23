@@ -1,4 +1,4 @@
-import { useData, useResource, useRun } from "@tinkered/react";
+import { useData, useRun } from "@tinkered/react";
 
 import type { FrameInfo } from "@/frames/contract";
 
@@ -18,12 +18,11 @@ import {
 } from "./act";
 import type { Act } from "./act";
 import { Compare } from "./compare";
-import { acting, escape, moreMenu } from "./draft";
+import { acting, backToList, closeCard, moreMenu } from "./draft";
 import type { ActBox as Box, Acting as Acts } from "./draft";
 import { seenWhileOpen } from "./follow";
 import type { Line, RequestView, Shown } from "./follow";
 import { Age, Initial, OutdatedMark, Place, StateMark } from "./panel";
-import { stage } from "./stage";
 
 const boxTexts = {
   correct: { name: "Request", hint: "" },
@@ -450,9 +449,9 @@ function More({ v }: { v: RequestView }) {
 }
 
 export function Opened({ v, list }: { v: RequestView; list: readonly FrameInfo[] }) {
-  const close = useRun(escape);
+  const close = useRun(closeCard);
+  const back = useRun(backToList);
   const acts = useData(acting);
-  const at = useResource(stage);
   const { r } = v;
   const mine = acts !== null && acts.canvas === r.canvas && acts.n === r.n;
   const blank: Acts = {
@@ -468,7 +467,20 @@ export function Opened({ v, list }: { v: RequestView; list: readonly FrameInfo[]
   useData(seenWhileOpen({ canvas: r.canvas, id: r.id, updated: r.updated }));
 
   return (
-    <section ref={at.pop} className="e-pop e-req" role="dialog" aria-label={`Request #${r.n}`}>
+    <section className="e-pop e-req" aria-label={`Request #${r.n}`}>
+      <button type="button" className="e-back" onClick={() => back.run()}>
+        <svg width="14" height="14" viewBox="0 0 14 14" aria-hidden="true">
+          <path
+            d="M8.5 3.5 5 7l3.5 3.5"
+            fill="none"
+            stroke="currentColor"
+            strokeWidth="1.5"
+            strokeLinecap="round"
+            strokeLinejoin="round"
+          />
+        </svg>
+        All requests
+      </button>
       <header className="e-head" data-tone={headTone[v.shown]}>
         <StateMark shown={v.shown} agent={r.claimedBy} />
         {v.outdated ? <OutdatedMark cause={v.outdated.cause} /> : null}

@@ -1,6 +1,6 @@
 # viewer: the card of the Requests, docked at the right edge of the view
 
-The chart follows the card of the Requests in one tab (SPEC-viewer.md § Follow the requests; docs/epics.md E4.4, decided on 2026-11-23). The card is docked at the right edge of the view, over the canvas. It shows the list of the requests, or one request with its thread. It does not move when the canvas pans, and the canvas does not move when the card opens or changes. A press on a pin opens its request in the card. A press on a row opens its request and moves the canvas to its place. Back goes to the list, Close closes the card, and Escape closes the top: the thread goes back to the list, and the list goes. A new request is typed in a draft by its pin, not in the card: Send saves it and opens it in the card. The model is [models/viewer/ViewerCard.tla](models/viewer/ViewerCard.tla) with [ViewerCard.cfg](models/viewer/ViewerCard.cfg).
+The chart follows the card of the Requests in one tab (SPEC-viewer.md § Follow the requests; docs/epics.md E4.4, decided on 2026-11-23). The card is docked at the right edge of the view, over the canvas. It shows the list of the requests, or one request with its thread. It does not move when the canvas pans, and the canvas does not move when the card opens or changes. A press on a pin opens its request in the card. A press on a row opens its request and moves the canvas to its place. All requests goes back to the list, Close closes the card, and Escape closes the top: the thread goes back to the list, and the list goes. A new request is typed in a draft by its pin, not in the card: Send saves it and opens it in the card. The model is [models/viewer/ViewerCard.tla](models/viewer/ViewerCard.tla) with [ViewerCard.cfg](models/viewer/ViewerCard.cfg).
 
 ```mermaid
 ---
@@ -35,10 +35,9 @@ stateDiagram-v2
   s2 --> s3: the viewer presses a pin: its request opens in the card, and the canvas stays or the viewer presses a row: its request opens, and the canvas moves to its place
   s2 --> s5: the viewer presses Request: request mode
   s3 --> s0: the viewer presses Close: the card closes or the viewer presses Requests: the card closes
-  s3 --> s2: the viewer presses Back: the list again or Escape: the thread goes back to the list
+  s3 --> s2: the viewer presses All requests: the list again or Escape: the thread goes back to the list
   s3 --> s6: the viewer presses Request: request mode
-  s4 --> s0: the viewer presses Request again: view mode
-  s4 --> s1: Escape in the draft: nothing is sent
+  s4 --> s0: Escape in the draft: nothing is sent, and the request mode ends or the viewer presses Request again: view mode
   s4 --> s7: the viewer presses Requests: the card opens
   s4 --> s3: Send: the request is saved, and it opens in the card
   s5 --> s1: the viewer presses Close: the card closes or Escape: the card closes or the viewer presses Requests: the card closes
@@ -47,17 +46,15 @@ stateDiagram-v2
   s5 --> s6: the viewer presses a row: its request opens, and the canvas moves to its place
   s6 --> s1: the viewer presses Close: the card closes or the viewer presses Requests: the card closes
   s6 --> s3: the viewer presses Request again: view mode
-  s6 --> s5: the viewer presses Back: the list again or Escape: the thread goes back to the list
+  s6 --> s5: the viewer presses All requests: the list again or Escape: the thread goes back to the list
   s6 --> s8: a click on a place: a draft by its pin
-  s7 --> s2: the viewer presses Request again: view mode
+  s7 --> s2: Escape in the draft: nothing is sent, and the request mode ends or the viewer presses Request again: view mode
   s7 --> s4: the viewer presses Close: the card closes or the viewer presses Requests: the card closes
-  s7 --> s5: Escape in the draft: nothing is sent
   s7 --> s3: Send: the request is saved, and it opens in the card
   s7 --> s8: the viewer presses a row: its request opens, and the canvas moves to its place
-  s8 --> s3: the viewer presses Request again: view mode or Send: the request is saved, and it opens in the card
+  s8 --> s3: Escape in the draft: nothing is sent, and the request mode ends or the viewer presses Request again: view mode or Send: the request is saved, and it opens in the card
   s8 --> s4: the viewer presses Close: the card closes or the viewer presses Requests: the card closes
-  s8 --> s6: Escape in the draft: nothing is sent
-  s8 --> s7: the viewer presses Back: the list again
+  s8 --> s7: the viewer presses All requests: the list again
   class s0 tan
   class s1 tan
   class s2 teal
@@ -74,7 +71,7 @@ stateDiagram-v2
 - **AThreadHasItsRequest**: the card shows a thread only with its request, and that request is saved.
 - **ADraftIsInRequestMode**: a new request is typed only in the request mode.
 - **APanLeavesTheCard**: a pan or a zoom moves only the canvas: the card and its request stay.
-- **OnlyARowOrAPanMovesTheCanvas**: the canvas moves only for a pan or a press on a row. A press on a pin, Requests, Back, Close, Escape and Send never move it.
+- **OnlyARowOrAPanMovesTheCanvas**: the canvas moves only for a pan or a press on a row. A press on a pin, Requests, All requests, Close, Escape and Send never move it.
 
 ## What the model leaves out
 

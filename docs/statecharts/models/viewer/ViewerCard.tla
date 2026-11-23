@@ -100,11 +100,11 @@ Place ==
   /\ draft' = "typing"
   /\ UNCHANGED <<card, open, view, saved, mode, budget>>
 
-\* Escape in a draft: the draft goes, and nothing is sent.
+\* Escape in a draft: the draft goes, nothing is sent, and the request mode ends.
 Cancel ==
   /\ draft = "typing"
-  /\ draft' = "none"
-  /\ UNCHANGED <<card, open, view, saved, mode, budget>>
+  /\ draft' = "none" /\ mode' = "view"
+  /\ UNCHANGED <<card, open, view, saved, budget>>
 
 \* Send saves the new request: its pin shows, the request mode ends, and the card opens on it.
 Send ==

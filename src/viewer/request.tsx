@@ -20,7 +20,6 @@ import type { Draft, Place as DraftPlace } from "./draft";
 import { doneStates, requestViews } from "./follow";
 import type { RequestView, Shown } from "./follow";
 import { Initial } from "./panel";
-import { Opened } from "./popover";
 import { partBox, stage } from "./stage";
 
 export function RequestButton() {
@@ -203,9 +202,7 @@ export function Requests({
     <div className="e-pins">
       <Pins canvas={canvas} list={list} />
       {here ? <DraftAt d={here} lost={lost} /> : null}
-      {opened?.canvas === canvas && !here ? (
-        <OpenedAt canvas={canvas} n={opened.n} list={list} />
-      ) : null}
+      {opened?.canvas === canvas ? <OpenedAt canvas={canvas} n={opened.n} list={list} /> : null}
     </div>
   );
 }
@@ -296,19 +293,12 @@ function Outline({ place, at }: { place: DraftPlace; at: { x: number; y: number 
 
 function OpenedAt({ canvas, n, list }: { canvas: string; n: number; list: readonly FrameInfo[] }) {
   const v = useData(requestViews({ canvas })).find((one) => one.r.n === n);
-  if (!v) return null;
-  if (v.r.frameId !== null && !list.some((f) => f.id === v.r.frameId)) {
-    return <GoneAt v={v} id={v.r.frameId} list={list} />;
-  }
+  if (!v || v.r.frameId === null || list.some((f) => f.id === v.r.frameId)) return null;
 
-  return (
-    <AtRequest r={v.r} list={list}>
-      <Opened v={v} list={list} />
-    </AtRequest>
-  );
+  return <GoneAt v={v} id={v.r.frameId} />;
 }
 
-function GoneAt({ v, id, list }: { v: RequestView; id: string; list: readonly FrameInfo[] }) {
+function GoneAt({ v, id }: { v: RequestView; id: string }) {
   const gone = useData(frames.board.removed.of({ canvas: v.r.canvas, id }));
   if (!gone) return null;
   const said = `${gone.name} was removed`;
@@ -333,7 +323,6 @@ function GoneAt({ v, id, list }: { v: RequestView; id: string; list: readonly Fr
         >
           <Initial name={v.r.author} />
         </button>
-        <Opened v={v} list={list} />
       </At>
     </>
   );

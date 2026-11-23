@@ -26,7 +26,7 @@ const steps = {
       : "the viewer presses Requests: the card closes",
   PressPin: () => "the viewer presses a pin: its request opens in the card, and the canvas stays",
   PressRow: () => "the viewer presses a row: its request opens, and the canvas moves to its place",
-  Back: () => "the viewer presses Back: the list again",
+  Back: () => "the viewer presses All requests: the list again",
   Close: () => "the viewer presses Close: the card closes",
   Escape: (from) =>
     from.card === "thread" ? "Escape: the thread goes back to the list" : "Escape: the card closes",
@@ -36,7 +36,7 @@ const steps = {
       ? "the viewer presses Request: request mode"
       : "the viewer presses Request again: view mode",
   Place: () => "a click on a place: a draft by its pin",
-  Cancel: () => "Escape in the draft: nothing is sent",
+  Cancel: () => "Escape in the draft: nothing is sent, and the request mode ends",
   Send: () => "Send: the request is saved, and it opens in the card",
 };
 
