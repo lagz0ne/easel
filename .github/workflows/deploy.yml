@@ -98,9 +98,11 @@ jobs:
         run: |
           mkdir -p "$RUNNER_TEMP/layer/app"
           install -m 755 dist/server "$RUNNER_TEMP/layer/app/server"
-          tar --owner=0 --group=0 --numeric-owner -C "$RUNNER_TEMP/layer" -cf "$RUNNER_TEMP/layer.tar" app/server
-          crane append -b "$BASE" -f "$RUNNER_TEMP/layer.tar" -t "$IMAGE:$SHA"
-          crane mutate "$IMAGE:$SHA" \
+          # gzip -1 in parallel (pigz): crane's own gzip of the 144 MB binary takes ~20 s.
+          tar --owner=0 --group=0 --numeric-owner -C "$RUNNER_TEMP/layer" -c app/server \
+            | pigz -1 > "$RUNNER_TEMP/layer.tar.gz"
+          # One push: the base, the layer, the env and the labels.
+          crane mutate "$BASE" --append "$RUNNER_TEMP/layer.tar.gz" -t "$IMAGE:$SHA" \
             --env "GIT_SHA=$SHA" --env "BUILD=$BUILD" \
             --label "org.opencontainers.image.source=https://github.com/${{ github.repository }}" \
             --label "org.opencontainers.image.revision=$SHA"
