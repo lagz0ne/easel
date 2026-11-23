@@ -69,6 +69,9 @@ const linkLost = transport.lost({ ok: false, kind: "link", sent: true });
 /** The port of the client: it can come after the scope starts (an iframe gets it on its hello). */
 export const linkPort = tag<Promise<MessagePort>>({ label: "portLink.port" });
 
+/** The meta of each call and watch, as `ws.client`'s: a bearer token, read on each one. */
+const linkMeta = tag<transport.MetaOp>({ label: "portLink.meta" });
+
 /** How a watch ends: stopped or ended by the server, no one serves it, or a value JSON cannot write. */
 type Opened =
   | { ok: true }
@@ -214,12 +217,13 @@ const clientSide = data<{ protocol: transport.Protocol; side: transport.ClientSi
  */
 export const portClient = capsule({
   label: "portLink.client",
-  config: { port: linkPort.required },
+  config: { port: linkPort.required, meta: linkMeta.optional },
   exports: { call: clientCall, watch: clientWatch },
   hooks: {
-    async start({ load, next }) {
+    async start({ config, load, next }) {
       const protocol = await load(transport.protocol, transport.kept);
-      load(clientSide, transport.kept).set({ protocol, side: { send, open } });
+      const meta = config.meta.present ? config.meta.value : undefined;
+      load(clientSide, transport.kept).set({ protocol, side: { send, open, meta } });
       return next();
     },
     run(event) {

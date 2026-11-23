@@ -26,7 +26,9 @@ import { issueOps, membersOnly, signedIn } from "@/issues/ops.server";
 import { kit } from "@/kit";
 import { fontRoute } from "@/kit/fonts.server";
 import { kitOps } from "@/kit/ops.server";
+import { portClient, portServer } from "@/kit/port-link";
 import { runtimeRoute } from "@/kit/runtime.server";
+import { mcpHttp, mcpMeta } from "@/mcp/http.server";
 import { ops } from "@/ops";
 import { opsOwnerOps, opsServer, opsUserOps, ready } from "@/ops/ops.server";
 import { observePanics } from "@/ops/panic.server";
@@ -129,6 +131,25 @@ export default defineMain(async ({ env, args, signal, stdout, stderr, exit }) =>
   // The socket's door: it notes each peer's address, and on an `open` server lets in only this
   // machine (SPEC-access judged rule 12; `serve` cannot bind 127.0.0.1 alone).
   const door = accessDoor({ inner: socket, loopbackOnly: auth.mode === "open" });
+  // MCP over HTTP (SPEC-mcp.md): its own scope reaches the user's calls on a port of this
+  // process, as a socket does, with each request's token as the calls' meta. So each guard runs.
+  const mcpServices = [
+    access.user,
+    access.owner,
+    ops.user,
+    ops.owner,
+    frames.api,
+    kit.api,
+    queue.api,
+  ];
+  const mcpChannel = new MessageChannel();
+  const mcpScope = createScope({
+    signal,
+    capsules: [
+      portClient({ port: Promise.resolve(mcpChannel.port2), meta: mcpMeta }),
+      ...mcpServices.map((api) => api({ remote: portClient })),
+    ],
+  });
   const table = routes({
     stop: signal,
     table: {
@@ -145,6 +166,10 @@ export default defineMain(async ({ env, args, signal, stdout, stderr, exit }) =>
       "GET /api/runtime/{kit}/{sha}/{file}": runtimeRoute,
       // The fonts that easel holds (SPEC-kit § The seed): the same files for each team.
       "GET /api/fonts/{dir}/{file}": fontRoute,
+      // MCP: only POST serves; GET and DELETE answer 405, as a server with no session does.
+      "POST /mcp": mcpHttp.route,
+      "GET /mcp": mcpHttp.route,
+      "DELETE /mcp": mcpHttp.route,
     },
   });
   const app = createScope({
@@ -156,7 +181,7 @@ export default defineMain(async ({ env, args, signal, stdout, stderr, exit }) =>
         websocket: door,
         handlers: [table],
         // Bun routes only /api/* and /rpc to the handlers; the install script is at the root.
-        paths: ["/install.sh"],
+        paths: ["/install.sh", "/mcp"],
         development: env.NODE_ENV !== "production",
         stdout,
       }),
@@ -213,11 +238,26 @@ export default defineMain(async ({ env, args, signal, stdout, stderr, exit }) =>
       // The door wraps the socket, so it starts first and reads the socket once it has started.
       door,
       socket,
+      portServer({ services: mcpServices }),
+      mcpHttp({
+        origin: auth.origin,
+        scope: mcpScope.ready,
+      }),
       table,
     ],
   });
 
   const live = await app.ready;
+  // The scope of MCP reaches this one on its port until the server stops.
+  const mcpStop = new AbortController();
+  const mcpPort = live.run(portServer.accept, {
+    input: { port: mcpChannel.port1, stop: AbortSignal.any([signal, mcpStop.signal]) },
+  });
+  live.onClose(async () => {
+    mcpStop.abort();
+    await mcpPort;
+    await (await mcpScope.ready).close();
+  });
   // A panic: stderr, then the store, then exit 1 (SPEC-ops.md fact rule 5).
   const to = { scope: live, exit, closed: app.closed, stderr };
   live.onClose(live.run(observePanics, { input: to }));

@@ -77,17 +77,19 @@ socket, in a session with the token, so each `onStart` guard runs.
 
 **Acceptance criteria:**
 
-- [ ] A missing, wrong or revoked token answers 401, with the header
+- [x] A missing, wrong or revoked token answers 401, with the header
       `WWW-Authenticate: Bearer realm="easel"`. A foreign `Origin` answers 403.
-- [ ] An owner tool (`list_users`) with a user token is refused over HTTP and over stdio
-      (fact rule 3).
-- [ ] Two requests in a row share no server and no transport (judged rule 2).
+- [x] An owner tool (`list_users`) with a user token is refused over HTTP and over stdio
+      (fact rule 3). Done over HTTP; over stdio, `easel mcp` uses the CLI's own rpc client, whose
+      refusals the CLI tests cover.
+- [x] Two requests in a row share no server and no transport (judged rule 2): each request
+      makes its own, and closes them (read in `src/mcp/http.server.ts`).
 
 **Verification:**
 
-- [ ] `tests/mcp-http.test.ts`: the SDK client with `StreamableHTTPClientTransport` against the
+- [x] `tests/mcp-http.test.ts`: the SDK client with `StreamableHTTPClientTransport` against the
       server in the same process.
-- [ ] `bun run build`, then `bun run smoke` is green.
+- [x] `bun run build`, then `bun run smoke` is green.
 
 **Dependencies:** MCP-2.
 
@@ -97,9 +99,11 @@ socket, in a session with the token, so each `onStart` guard runs.
 
 ### Checkpoint A: after MCP-1 to MCP-3
 
-- [ ] Claude Code lists the 31 tools over stdio, and over HTTP with
+- [x] Claude Code lists the 31 tools over stdio, and over HTTP with
       `claude mcp add --transport http easel <url>/mcp --header "Authorization: Bearer <token>"`.
-- [ ] `tinker check: OK`, the smoke is green, CI `gates` is green.
+- [x] `tinker check: OK`, the smoke is green, CI `gates` is green.
+- [x] Checked on 2026-11-23 with `claude -p --mcp-config` on a local server: 31 tools on each,
+      and `list_canvases` answered on each.
 - [ ] Review with the user before phase 2.
 
 ## Phase 2: `mcp` complete

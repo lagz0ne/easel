@@ -180,11 +180,11 @@ export const mcpCall = operation({
   },
 });
 
-/** Serves MCP on the link until it closes, or until the run stops. */
-export const mcpServe = operation({
-  label: "mcp.serve",
-  depends: { toolList, call: mcpCall, link: mcpLink.required },
-  run: async ({ toolList, call, link }, { signal }) => {
+/** An MCP server of the table, with no link yet: the stdio and the HTTP serves connect it. */
+export const mcpServer = operation({
+  label: "mcp.server",
+  depends: { toolList, call: mcpCall },
+  run: async ({ toolList, call }) => {
     const listed = toolList.run();
     const { Server } = await import("@modelcontextprotocol/sdk/server/index.js");
     const { CallToolRequestSchema, ListToolsRequestSchema } =
@@ -198,12 +198,24 @@ export const mcpServe = operation({
       call.run({ input: request.params, signal: extra.signal }),
     );
 
+    return server;
+  },
+});
+
+/** Serves MCP on the link until it closes, or until the run stops. */
+export const mcpServe = operation({
+  label: "mcp.serve",
+  depends: { mcpServer, link: mcpLink.required },
+  run: async ({ mcpServer, link }, { signal }) => {
+    const server = await mcpServer.run();
     const closed = new Promise<void>((done) => {
       server.onclose = done;
     });
+
     await server.connect(await link());
     const stop = () => void server.close();
     signal.addEventListener("abort", stop, { once: true });
+
     await closed;
     signal.removeEventListener("abort", stop);
   },
