@@ -52,6 +52,24 @@ const View = resource({
 mount({ View });
 `;
 
+const plainViewJs = `import { mount } from "@easel/frame";
+import { copy } from "@easel/kit";
+import { resource } from "@tinkered/core";
+import { useResource } from "@tinkered/react";
+import { createElement } from "react";
+
+const team = resource({
+  label: "plain.team",
+  depends: { say: copy.say },
+  factory: ({ say }) => say(["trial.start", "people.empty"]),
+});
+function View() {
+  const t = useResource(team);
+  return createElement("p", { id: "team" }, ["trial.start", "people.empty"].map((key) => t(key)).join(" | "));
+}
+mount({ View });
+`;
+
 const parentPage = (doc: string, look: string, css: string) => `<!doctype html>
 <iframe sandbox="allow-scripts" style="width:800px;height:300px"></iframe>
 <script>
@@ -128,13 +146,13 @@ afterAll(async () => {
   await root.close();
 });
 
-const docWith = (name: string, texts: TeamTexts, locale?: "en" | "vi") => {
+const docWith = (name: string, texts: TeamTexts, locale?: "en" | "vi", js = frameJs) => {
   const { scope, runtime } = served;
   if (scope === null || runtime === null) throw new Error("no runtime");
 
   const doc = scope.run(composeApp, {
     input: {
-      js: frameJs,
+      js,
       css: "",
       kit: { look: served.look, css: seedKitCss, texts },
       runtime: { address: `${address}/rt/`, imports: runtime.imports },
@@ -206,4 +224,17 @@ test("an app frame that says a text key that the team does not have does not sta
   const alert = at.frame.getByRole("alert");
   await expect.poll(() => alert.count(), { timeout: 20_000 }).toBe(1);
   expect(await alert.getAttribute("data-easel-refused")).toBe("CopyGaps");
+}, 60_000);
+
+test("a plain function View gets the kit capsules too: its part says the texts of the team, and a change on the port shows", async () => {
+  const at = await opened(docWith("plain", first, undefined, plainViewJs));
+  await expect
+    .poll(() => at.textOf("team"), { timeout: 20_000 })
+    .toBe("Start the trial | No people yet");
+
+  await at.sendKit(changed);
+  await expect
+    .poll(() => at.textOf("team"), { timeout: 1_000, interval: 10 })
+    .toBe("Try it free | No people yet");
+  expect(at.errors).toEqual([]);
 }, 60_000);

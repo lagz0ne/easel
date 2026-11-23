@@ -346,7 +346,7 @@ export const mount = (app: MountApp) => {
 
   const draw = async () => {
     const View = app.View;
-    if (typeof View === "function" || closing) return;
+    if (closing) return;
 
     const made: { scope: Root | null; live: boolean } = { scope: null, live: false };
     const shown = await Promise.resolve()
@@ -370,7 +370,7 @@ export const mount = (app: MountApp) => {
 
         const live = await next.ready;
         made.live = true;
-        const children = createElement(live.resolve(View));
+        const children = createElement(typeof View === "function" ? View : live.resolve(View));
         return createElement(ScopeProvider, { scope: next, children });
       })
       .catch(refused);
@@ -448,11 +448,5 @@ export const mount = (app: MountApp) => {
     setTimeout(hello, 50);
   };
   hello();
-
-  if (typeof app.View === "function") {
-    const children = createElement(app.View);
-    flushSync(() => root.render(createElement(ScopeProvider, { scope, children })));
-    watch(true);
-  }
   steps = steps.then(draw);
 };

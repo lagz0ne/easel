@@ -500,10 +500,11 @@ package.json: `react` and `react-dom` 19.3.1, `@tinkered/core` and `@tinkered/re
 brings its own CSS. An app frame imports only the names of its kit version's runtime: these
 packages, and the subpaths `react/jsx-runtime` and `react-dom/client`. Another import, a relative
 import, an address, or a dynamic `import()` is the finding `kit/import`, and it refuses the put.
-`@easel/frame` mounts the app. A View component gets a scope with no capsules (it starts at once),
-and the mount renders it into `document.body` in one synchronous step (`flushSync`). A capsule
-frame renders after the start of its scope, which runs no timer, so its first render is in the
-document before the `load` event too (a browser test reads the body at `load`).
+`@easel/frame` mounts the app. A View component and a capsule frame both get a scope with the
+kit's capsules (`look`, `copy`, `ui`), so a part of either form can say the texts of the team.
+The mount renders the View after the start of its scope, which runs no timer, in one synchronous
+step (`flushSync`). So its first render is in the document before the `load` event (a browser
+test reads the body at `load`).
 
 - **The build** (`src/kit/runtime.server.ts`, `buildRuntime`): one `Bun.build` for the browser,
   with React's production build, minified, with one entry file for each name (`react.js`,
