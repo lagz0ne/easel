@@ -751,6 +751,31 @@ test("the popover opens below its pin; with no room below it flips above, and wi
   expect(sides).toEqual(["below", "above", "right"]);
 });
 
+test("a wheel over the thread of a popover scrolls the thread, not the canvas: the canvas does not move (Follow the requests 10)", async () => {
+  const server = await boot(() => longThread(1, 40, 10));
+  await tab(server);
+  await pin(1).click();
+  const dialog = page.getByRole("dialog", { name: "Request #1" });
+  await expect.element(dialog).toBeVisible();
+  const thread = dialog.element().querySelector(".e-thread");
+  if (!thread) throw new Error("no thread");
+  const before = pin(1).element().getBoundingClientRect();
+  const box = thread.getBoundingClientRect();
+
+  const wheel = new WheelEvent("wheel", {
+    deltaY: 100,
+    clientX: box.left + box.width / 2,
+    clientY: box.top + box.height / 2,
+    bubbles: true,
+    cancelable: true,
+  });
+  const free = thread.dispatchEvent(wheel);
+
+  expect(free).toBe(true);
+  expect(pin(1).element().getBoundingClientRect().top).toBe(before.top);
+  expect(getComputedStyle(thread).overscrollBehaviorY).toBe("contain");
+});
+
 test("while the socket is down the list may be behind and says Reconnecting; when it is back, the board read brings each change (s16 to s19, s19 to s16, PanelShowsLatest)", async () => {
   const server = await boot(() => stored(1, "Make the logo bigger."));
   const t = await tab(server);

@@ -1161,10 +1161,12 @@
   max-height: calc(60vh - 96px);
 }
 
-/* The head and the controls stay; the thread scrolls. The menu More is not cut. */
+/* The head and the controls stay; the thread scrolls, and its end does not scroll the page.
+   The menu More is not cut. */
 .e-req .e-thread {
   min-height: 0;
   overflow-y: auto;
+  overscroll-behavior: contain;
 }
 
 .e-head .e-menu {

@@ -573,6 +573,9 @@ export const stage = resource({
       },
 
       onWheel: (event: WheelEvent) => {
+        // A plain wheel over an element that takes its own pointer (a popover) scrolls it.
+        const own = event.target instanceof Element && event.target.closest(ownPointer);
+        if (own && !event.ctrlKey) return;
         event.preventDefault();
         if (!moving) at.measure();
         const unit = event.deltaMode === 1 ? 16 : event.deltaMode === 2 ? view.h : 1;
