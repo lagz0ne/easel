@@ -1,8 +1,5 @@
 import { useData, useRun } from "@tinkered/react";
 
-import { frames } from "@/frames";
-import type { FrameInfo } from "@/frames/contract";
-
 import { openedRequest, toggleCard } from "./draft";
 import {
   doneStates,
@@ -11,11 +8,13 @@ import {
   panelList,
   panelOpen,
   pickList,
+  requestStates,
   requestViews,
   serverTime,
   toggleListMenu,
 } from "./follow";
 import type { Outdated, RequestView, Shown } from "./follow";
+import { pageList } from "./pages";
 
 export const stateWords: Record<Exclude<Shown, "inWork">, string> = {
   waiting: "Waiting for an agent",
@@ -71,12 +70,13 @@ export function Age({ from }: { from: number }) {
   return <>{days < 2 ? "Yesterday" : `${days}\u00a0days`}</>;
 }
 
-export function Place({ r, list }: { r: RequestView["r"]; list: readonly FrameInfo[] }) {
-  const gone = useData(frames.board.removed.of({ canvas: r.canvas, id: r.frameId ?? "" }));
-  if (r.frameId === null) return <>On the whole canvas</>;
-  const name = list.find((f) => f.id === r.frameId)?.name ?? gone?.name;
+export function Place({ v }: { v: RequestView }) {
+  const pages = useData(pageList({ canvas: v.r.canvas }));
+  const page = pages.length > 1 ? pages.find((p) => p.key === v.page)?.name : undefined;
+  if (v.r.frameId === null) return <>{page ? `On page ${page}` : "On the whole canvas"}</>;
+  if (v.frameName === null) return null;
 
-  return <>{name ? `On ${name}` : ""}</>;
+  return <>{page ? `On ${v.frameName}, page ${page}` : `On ${v.frameName}`}</>;
 }
 
 function Count({ n }: { n: number }) {
@@ -88,7 +88,7 @@ function Count({ n }: { n: number }) {
 }
 
 export function RequestsButton({ canvas }: { canvas: string }) {
-  const waiting = useData(requestViews({ canvas })).filter((v) =>
+  const waiting = useData(requestStates({ canvas })).filter((v) =>
     forAViewer.includes(v.shown),
   ).length;
   const list = useData(panelOpen);
@@ -115,12 +115,10 @@ export function RequestsButton({ canvas }: { canvas: string }) {
 
 function Row({
   v,
-  list,
   open,
   onOpen,
 }: {
   v: RequestView;
-  list: readonly FrameInfo[];
   open: boolean;
   onOpen: (v: RequestView) => void;
 }) {
@@ -157,7 +155,7 @@ function Row({
           </span>
           <span className="e-rr-text">{v.text}</span>
           <span className="e-rr-place">
-            <Place r={v.r} list={list} />
+            <Place v={v} />
           </span>
         </span>
       </button>
@@ -168,13 +166,11 @@ function Row({
 function Group({
   title,
   views,
-  list,
   canvas,
   onOpen,
 }: {
   title: string | null;
   views: readonly RequestView[];
-  list: readonly FrameInfo[];
   canvas: string;
   onOpen: (v: RequestView) => void;
 }) {
@@ -189,7 +185,6 @@ function Group({
           <Row
             key={v.r.id}
             v={v}
-            list={list}
             open={opened?.canvas === canvas && opened.n === v.r.n}
             onOpen={onOpen}
           />
@@ -254,16 +249,14 @@ function NoRequests() {
 function Lists({
   views,
   canvas,
-  list,
   onOpen,
 }: {
   views: readonly RequestView[];
   canvas: string;
-  list: readonly FrameInfo[];
   onOpen: (v: RequestView) => void;
 }) {
   const shown = useData(panelList);
-  const group = { list, canvas, onOpen };
+  const group = { canvas, onOpen };
   if (views.length === 0) return <NoRequests />;
 
   const done = views.filter((v) => doneStates.includes(v.shown));
@@ -285,15 +278,7 @@ function Lists({
   );
 }
 
-export function Panel({
-  canvas,
-  list,
-  onOpen,
-}: {
-  canvas: string;
-  list: readonly FrameInfo[];
-  onOpen: (v: RequestView) => void;
-}) {
+export function Panel({ canvas, onOpen }: { canvas: string; onOpen: (v: RequestView) => void }) {
   const views = useData(requestViews({ canvas }));
   const waits = views.filter((v) => forAViewer.includes(v.shown)).length;
   const done = views.filter((v) => doneStates.includes(v.shown)).length;
@@ -306,7 +291,7 @@ export function Panel({
         <ListMenu open={views.length - done} done={done} />
       </header>
       <div className="e-panel-body">
-        <Lists views={views} canvas={canvas} list={list} onOpen={onOpen} />
+        <Lists views={views} canvas={canvas} onOpen={onOpen} />
       </div>
     </>
   );

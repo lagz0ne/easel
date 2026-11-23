@@ -1599,3 +1599,53 @@ span.e-opt[data-picked="false"] {
   outline: 2px solid var(--e-focus);
   outline-offset: 2px;
 }
+
+.e-dock-page {
+  gap: var(--e-1);
+  width: auto;
+  max-width: 160px;
+  padding: 0 var(--e-2);
+  font-family: inherit;
+  font-size: var(--e-size-1);
+}
+
+.e-dock-page-name {
+  overflow: hidden;
+  color: var(--e-text);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.e-pages {
+  top: auto;
+  right: auto;
+  bottom: calc(var(--e-4) + 40px + var(--e-2));
+  left: 50%;
+  max-height: calc(36px * 10);
+  overflow-y: auto;
+  transform: translateX(-50%);
+}
+
+.e-pages-name {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.e-find-names [role="option"]:has(.e-find-page) {
+  display: flex;
+  gap: var(--e-2);
+  align-items: baseline;
+}
+
+.e-find-name {
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.e-find-page {
+  flex: none;
+  margin-left: auto;
+  font-size: var(--e-size-1);
+  color: var(--e-muted);
+}

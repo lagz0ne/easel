@@ -10,6 +10,7 @@ import { controlsFor, listMenu, panelOpen } from "./follow";
 import { keepName, keptName } from "./gate";
 
 const place = z.object({
+  page: z.string(),
   frameId: z.string().nullable(),
   frameName: z.string().nullable(),
   version: z.number().nullable(),
@@ -216,7 +217,9 @@ const addInputOf = operation({
   run: (_, { input: d }) => {
     const { canvas, place: p, text, key } = d;
     const at = { canvas, x: p.x, y: p.y, text, key, ...(p.kit === null ? {} : { kit: p.kit }) };
-    if (p.frameId === null || p.version === null) return { ...at, frameId: null, version: null };
+    if (p.frameId === null || p.version === null) {
+      return { ...at, frameId: null, version: null, page: p.page };
+    }
 
     return { ...at, frameId: p.frameId, version: p.version };
   },

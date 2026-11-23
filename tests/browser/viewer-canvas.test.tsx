@@ -186,7 +186,8 @@ const emptyText = () => page.getByText("This canvas has no frames yet.");
 type Tab = Awaited<ReturnType<typeof tab>>;
 
 const statusOf = (at: Tab) =>
-  at.scope.resolve(frames.board.status(frames.board.frames.where({ canvas }))).get()?.status;
+  at.scope.resolve(frames.board.status(frames.board.frames.where({ canvas, page: "page-1" }))).get()
+    ?.status;
 
 const lostOf = (at: Tab) => at.scope.resolve(frames.board.faults).get().frames?.fault === "link";
 

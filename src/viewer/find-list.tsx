@@ -3,6 +3,8 @@ import { useData, useRun } from "@tinkered/react";
 import type { KeyboardEvent } from "react";
 import { z } from "zod";
 
+import type { FrameInfo } from "@/frames/contract";
+
 import {
   closeFind,
   findMatches,
@@ -13,15 +15,24 @@ import {
   toggleFind,
   typeFind,
 } from "./find";
+import { pageList, showFrameOf } from "./pages";
 import { stage } from "./stage";
 
 const takeFind = operation({
   label: "viewer.takeFind",
-  input: z.string(),
-  depends: { at: stage, closeFind },
-  run: ({ at, closeFind }, { input: id }) => {
+  input: z.object({
+    canvas: z.string(),
+    frame: z.object({ id: z.string(), page: z.string() }),
+    shown: z.string(),
+    known: z.custom<readonly FrameInfo[]>(),
+  }),
+  depends: { at: stage, closeFind, showFrameOf },
+  run: async ({ at, closeFind, showFrameOf }, { input: { canvas, frame, shown, known } }) => {
+    const { id } = frame;
     closeFind.run();
-    at.showFrame(id);
+    if (frame.page === shown && known.some((one) => one.id === id)) return at.showFrame(id);
+
+    await showFrameOf.run({ input: { canvas, id, spot: null } });
   },
 });
 
@@ -57,16 +68,32 @@ function Hint({ total, shown, typed }: { total: number; shown: number; typed: bo
   return <>{`${shown} of ${total} frames`}</>;
 }
 
-export function FindList({ canvas }: { canvas: string }) {
+type FindProps = { canvas: string; page: string; list: readonly FrameInfo[] };
+
+function PageName({ name }: { name: string | null | undefined }) {
+  if (!name) return null;
+
+  return <span className="e-find-page">{name}</span>;
+}
+
+export function FindList(props: FindProps) {
   const open = useData(findOpen);
+  if (!open) return null;
+
+  return <FindBox {...props} />;
+}
+
+function FindBox({ canvas, page, list }: FindProps) {
   const text = useData(findText);
   const pick = useData(findPick);
   const { total, names } = useData(findMatches({ canvas }));
+  const pages = useData(pageList({ canvas }));
   const type = useRun(typeFind);
   const move = useRun(movePick);
   const close = useRun(closeFind);
   const take = useRun(takeFind);
-  if (!open) return null;
+  const pageNames = new Map(pages.length > 1 ? pages.map((p) => [p.key, p.name]) : []);
+  const to = { canvas, shown: page, known: list };
 
   const picked = names[Math.min(pick, names.length - 1)];
   const onKey = (event: KeyboardEvent) => {
@@ -78,7 +105,7 @@ export function FindList({ canvas }: { canvas: string }) {
     }
     if (event.key === "Enter" && picked) {
       event.preventDefault();
-      take.run({ input: picked.id });
+      take.run({ input: { ...to, frame: picked } });
     }
   };
 
@@ -117,9 +144,10 @@ export function FindList({ canvas }: { canvas: string }) {
                 if (el && f.id === picked?.id) el.scrollIntoView({ block: "nearest" });
               }}
               onMouseDown={(event) => event.preventDefault()}
-              onClick={() => take.run({ input: f.id })}
+              onClick={() => take.run({ input: { ...to, frame: f } })}
             >
-              {f.name}
+              <span className="e-find-name">{f.name}</span>
+              <PageName name={pageNames.get(f.page)} />
             </li>
           ))}
         </ul>

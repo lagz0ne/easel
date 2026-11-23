@@ -25,8 +25,17 @@ import {
 } from "./draft";
 import { slashKey } from "./find";
 import { FindButton, FindList } from "./find-list";
-import { clockTicker, controlsFor, panelOpen, requestPlaces, requestViews } from "./follow";
+import {
+  clockTicker,
+  controlsFor,
+  panelOpen,
+  requestPlaces,
+  requestStates,
+  requestView,
+} from "./follow";
 import type { RequestView } from "./follow";
+import { pageInAddress, pageList, shellBoxes, showRequest } from "./pages";
+import { PagesButton, PagesList } from "./pages-list";
 import { Panel, RequestsButton } from "./panel";
 import { FramePicture } from "./picture";
 import { Opened } from "./popover";
@@ -62,25 +71,31 @@ const readOnce = resource({
 
 const canvasKey = tag<string>({ label: "viewer.canvas" });
 
+const pageKey = tag<string>({ label: "viewer.page" });
+
 const hasRead = resource({
   label: "viewer.hasRead",
-  config: { canvas: canvasKey.required },
+  config: { canvas: canvasKey.required, page: pageKey.required },
   depends: (c) => ({
-    state: frames.board.status(frames.board.frames.where({ canvas: c.canvas })),
+    state: frames.board.status(frames.board.frames.where({ canvas: c.canvas, page: c.page })),
     seen: readOnce,
   }),
   factory: ({ state, seen }, { config }) => {
-    if (state.get()?.status === "ready") seen.add(config.canvas);
+    const key = `${config.canvas} ${config.page}`;
+    if (state.get()?.status === "ready") seen.add(key);
 
-    return seen.has(config.canvas);
+    return seen.has(key);
   },
 });
 
-function Empty({ canvas, ready, lost }: { canvas: string; ready: boolean; lost: boolean }) {
-  const read = useData(hasRead({ canvas }));
+type EmptyProps = { canvas: string; page: string; ready: boolean; lost: boolean };
+
+function Empty({ canvas, page, ready, lost }: EmptyProps) {
+  const read = useData(hasRead({ canvas, page }));
+  const many = useData(pageList({ canvas })).length > 1;
   if (!ready && !(lost && read)) return null;
 
-  return <p className="e-empty">This canvas has no frames yet.</p>;
+  return <p className="e-empty">{`This ${many ? "page" : "canvas"} has no frames yet.`}</p>;
 }
 
 function Zoom() {
@@ -688,12 +703,13 @@ const icons = {
   close: "M18 6 6 18M6 6l12 12",
 } as const;
 
-function Dock({ at, canvas }: { at: Stage; canvas: string }) {
+function Dock({ at, canvas, page }: { at: Stage; canvas: string; page: string }) {
   return (
     <div className="e-dock" role="toolbar" aria-label="Canvas">
       <RequestButton />
       <RequestsButton canvas={canvas} />
       <FindButton />
+      <PagesButton canvas={canvas} page={page} />
       <LocalePick />
       <span className="e-dock-sep" aria-hidden="true" />
       <button
@@ -728,29 +744,48 @@ function Dock({ at, canvas }: { at: Stage; canvas: string }) {
   );
 }
 
-function CardAt({ at, canvas, list }: { at: Stage; canvas: string; list: readonly FrameInfo[] }) {
+type CardProps = { canvas: string; page: string; list: readonly FrameInfo[] };
+
+function CardAt(props: CardProps) {
+  const { canvas } = props;
   const listed = useData(panelOpen);
   const n = useData(openedRequest, (o) => (o?.canvas === canvas ? o.n : null));
-  const shown = useData(requestViews({ canvas })).find((v) => v.r.n === n);
-  const places = useData(requestPlaces({ canvas }));
-  const opening = useRun(openRequest);
+  const frame = useData(requestStates({ canvas })).find((v) => v.r.n === n)?.r.frameId;
   if (!listed && n === null) return null;
 
-  const onOpen = ({ r }: RequestView) => {
-    const place = places.get(r.n);
-    if (place) at.show(place.x, place.y);
-    opening.run({ input: { canvas, n: r.n } });
-  };
-
+  const all = <RequestList {...props} />;
   return (
     <aside className="e-requests" aria-label="Requests">
-      {shown ? (
-        <Opened v={shown} list={list} />
+      {n === null || frame === undefined ? (
+        all
       ) : (
-        <Panel canvas={canvas} list={list} onOpen={onOpen} />
+        <OpenedOne canvas={canvas} n={n} frame={frame ?? ""} all={all} />
       )}
     </aside>
   );
+}
+
+type OneProps = { canvas: string; n: number; frame: string; all: React.ReactNode };
+
+function OpenedOne({ canvas, n, frame, all }: OneProps) {
+  const v = useData(requestView({ canvas, n, frame }));
+  return v ? <Opened v={v} /> : all;
+}
+
+function RequestList({ canvas, page, list }: CardProps) {
+  const places = useData(requestPlaces({ canvas }));
+  const opening = useRun(openRequest);
+  const show = useRun(showRequest);
+
+  const onOpen = ({ r, page: was, frameGone }: RequestView) => {
+    const place = places.get(r.n);
+    const here = list.some((f) => f.id === r.frameId);
+    const gone = frameGone && place && was !== null ? { page: was, ...place } : null;
+    opening.run({ input: { canvas, n: r.n } });
+    show.run({ input: { canvas, shown: page, here, r, gone } });
+  };
+
+  return <Panel canvas={canvas} onOpen={onOpen} />;
 }
 
 function NewVersion({ canvas }: { canvas: string }) {
@@ -783,16 +818,16 @@ function Status({ lost, fault }: { lost: boolean; fault: boolean }) {
 
 const shownMemo = resource({
   label: "viewer.shownMemo",
-  config: { canvas: canvasKey.required },
+  config: { canvas: canvasKey.required, page: pageKey.required },
   factory: () => new Map<string, BoardFrame>(),
 });
 
 const shownFrames = resource({
   label: "viewer.shownFrames",
-  config: { canvas: canvasKey.required },
+  config: { canvas: canvasKey.required, page: pageKey.required },
   depends: (c) => ({
-    list: frames.board.frames.where({ canvas: c.canvas }),
-    memo: shownMemo({ canvas: c.canvas }),
+    list: frames.board.frames.where({ canvas: c.canvas, page: c.page }),
+    memo: shownMemo({ canvas: c.canvas, page: c.page }),
     live: liveSet,
     held: holding,
   }),
@@ -812,13 +847,23 @@ const shownFrames = resource({
   },
 });
 
-export function Canvas({ canvas, opening }: { canvas: string; opening: React.ReactNode }) {
-  const part = frames.board.frames.where({ canvas });
+type CanvasProps = { canvas: string; opening: React.ReactNode };
+
+export function Canvas({ canvas, opening }: CanvasProps) {
+  const page = useData(pageInAddress({ canvas }));
+  if (page === null) return opening;
+
+  return <CanvasPage canvas={canvas} page={page} opening={opening} />;
+}
+
+function CanvasPage({ canvas, page, opening }: CanvasProps & { page: string }) {
+  const part = frames.board.frames.where({ canvas, page });
   const list = useData(part);
   const state = useData(frames.board.status(part));
   const lost = useData(frames.board.faults, (f) => f.frames?.fault === "link");
   const at = useResource(stage);
-  const drawn = useData(shownFrames({ canvas }));
+  const drawn = useData(shownFrames({ canvas, page }));
+  useData(shellBoxes({ canvas, page }));
   useResource(resendOnBack);
   useResource(escapeKey);
   useResource(slashKey);
@@ -830,13 +875,15 @@ export function Canvas({ canvas, opening }: { canvas: string; opening: React.Rea
   useData(clockTicker({ canvas }));
   const kitNow = useData(kitFeed({ canvas }));
   useData(openFromLink({ canvas }));
-  useData(aimFromLink({ canvas }));
+  useData(aimFromLink({ canvas, page }));
   if (state?.status === "fault" && ended.safeParse(state.fault.payload).success) return opening;
 
   return (
     <main className="e-canvas" data-mode={mode}>
       <section
+        key={page}
         ref={at.viewport}
+        data-page={page}
         className="e-viewport e-light"
         aria-label="Frames"
         onPointerMove={(event) => {
@@ -852,6 +899,7 @@ export function Canvas({ canvas, opening }: { canvas: string; opening: React.Rea
 
           const place = frame
             ? {
+                page,
                 frameId: frame.id,
                 frameName: frame.name,
                 version: frame.version,
@@ -861,6 +909,7 @@ export function Canvas({ canvas, opening }: { canvas: string; opening: React.Rea
                 box: { x: frame.x, y: frame.y, w: frame.w, h: frame.h },
               }
             : {
+                page,
                 frameId: null,
                 frameName: null,
                 version: null,
@@ -873,22 +922,23 @@ export function Canvas({ canvas, opening }: { canvas: string; opening: React.Rea
         }}
       >
         {list.length === 0 ? (
-          <Empty canvas={canvas} ready={state?.status === "ready"} lost={lost} />
+          <Empty canvas={canvas} page={page} ready={state?.status === "ready"} lost={lost} />
         ) : null}
         <div ref={at.world} className="e-world">
           {drawn.map((f) => (
             <Shell key={f.id} canvas={canvas} frame={f} at={at} />
           ))}
-          <Requests canvas={canvas} list={list} lost={lost} />
+          <Requests canvas={canvas} page={page} list={list} lost={lost} />
         </div>
       </section>
       <div className="e-top">
         <Status lost={lost} fault={state?.status === "fault"} />
         <NewVersion canvas={canvas} />
       </div>
-      <Dock at={at} canvas={canvas} />
-      <FindList canvas={canvas} />
-      <CardAt at={at} canvas={canvas} list={list} />
+      <Dock at={at} canvas={canvas} page={page} />
+      <FindList canvas={canvas} page={page} list={list} />
+      <PagesList canvas={canvas} page={page} />
+      <CardAt canvas={canvas} page={page} list={list} />
       <ControlsPanel list={list} />
     </main>
   );

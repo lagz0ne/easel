@@ -1,15 +1,16 @@
 import { data, operation, resource, tag } from "@tinkered/core";
 import { z } from "zod";
 
+import { frames } from "@/frames";
 import { viewerName } from "@/frames/share";
 import { queue } from "@/queue";
 import { state } from "@/queue/contract";
 
 import type { Acting } from "./draft";
 import { actBox, acting, linkFault, moreMenu, nameFault, namePass, openRequest } from "./draft";
-import { panelOpen, requestPlaces, shownStates } from "./follow";
+import { panelOpen, shownStates } from "./follow";
 import { keptName } from "./gate";
-import { stage } from "./stage";
+import { showRequest } from "./pages";
 
 export const act = z.discriminatedUnion("call", [
   z.object({ call: z.literal("edit"), text: z.string() }),
@@ -139,23 +140,28 @@ export const openFromLink = resource({
 
 export const linkAimed = data<string | null>({ label: "viewer.linkAimed", initial: null });
 
+const linkPage = tag<string>({ label: "viewer.linkPage" });
+
 export const aimFromLink = resource({
   label: "viewer.aimFromLink",
-  config: { canvas: linkCanvas.required },
+  config: { canvas: linkCanvas.required, page: linkPage.required },
   depends: (c) => ({
-    places: requestPlaces({ canvas: c.canvas }),
+    rows: frames.board.requests.where({ canvas: c.canvas }),
+    list: frames.board.frames.where({ canvas: c.canvas, page: c.page }),
     aimed: linkAimed.controller,
-    at: stage,
+    showRequest,
   }),
-  factory: ({ places, aimed, at }, ctx) => {
+  factory: ({ rows, list, aimed, showRequest }, ctx) => {
+    const { canvas, page } = ctx.config;
     const n = requestHash.exec(location.hash)?.[1];
-    const key = `${ctx.config.canvas}#${n}`;
-    const place = places.get().get(Number(n));
-    if (n === undefined || !place || aimed.get() === key) return false;
+    const key = `${canvas}#${n}`;
+    const r = rows.get().find((one) => one.n === Number(n));
+    if (n === undefined || !r || aimed.get() === key) return false;
 
+    const here = (list.get() ?? []).some((f) => f.id === r.frameId);
     queueMicrotask(() => {
       aimed.set(key);
-      at.aim(place.x, place.y);
+      void showRequest.run({ input: { canvas, shown: page, here, r, gone: null } });
     });
     return true;
   },

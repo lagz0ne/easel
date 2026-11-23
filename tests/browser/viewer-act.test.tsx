@@ -21,6 +21,8 @@ import { routeTree } from "@/routes";
 import { openedKey, visitKey } from "@/viewer/follow";
 import { nameKey, tabMeta } from "@/viewer/gate";
 
+import { frameOnPage } from "./frame-page";
+
 const live = "c".repeat(32);
 const pass = "4".repeat(32);
 const home = "0123456789ab";
@@ -349,7 +351,10 @@ async function serve() {
       exits({ store: localStorage }),
       frames.board({ serve: true, onStart: [passOnly] }),
       frames.viewer({ implement: { "share.open": open } }),
-      frames.pass({ implement: { "share.name": nameIt }, onStart: [passOnly] }),
+      frames.pass({
+        implement: { "share.name": nameIt, "share.frame": frameOnPage },
+        onStart: [passOnly],
+      }),
       queue.viewer({
         implement: {
           "request.add": addStub,

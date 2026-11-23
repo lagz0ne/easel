@@ -157,6 +157,20 @@ type Box = z.infer<typeof box>;
 
 type Shell = { el: HTMLElement; label: HTMLElement | null; box: Box; hidden: boolean };
 
+export const goal = z.discriminatedUnion("to", [
+  z.object({ to: z.literal("frame"), page: z.string(), id: z.string() }),
+  z.object({
+    to: z.literal("spot"),
+    page: z.string(),
+    id: z.string(),
+    x: z.number(),
+    y: z.number(),
+  }),
+  z.object({ to: z.literal("point"), page: z.string(), x: z.number(), y: z.number() }),
+]);
+
+export type Goal = z.infer<typeof goal>;
+
 export const stage = resource({
   label: "viewer.stage",
   target: "scope",
@@ -202,6 +216,8 @@ export const stage = resource({
     let aimAt: { x: number; y: number } | null = null;
     let held: { x: number; y: number } | null = null;
     let found: Shell | null = null;
+    let sought: Goal | null = null;
+    let pageNow: string | null = null;
     let hoverAt: { x: number; y: number } | null = null;
     let hoverFrame = 0;
     const pointers = new Map<number, { x: number; y: number }>();
@@ -415,9 +431,9 @@ export const stage = resource({
         held = aimAt;
         aimAt = null;
         at.markOpen();
-        if (held) return at.show(held.x, held.y);
-
-        at.move();
+        if (held) at.show(held.x, held.y);
+        else at.move();
+        at.reachGoal();
       },
 
       settle: () => {
@@ -841,6 +857,7 @@ export const stage = resource({
       viewport: (el: HTMLElement | null) => {
         if (!el) return;
         vp = el;
+        pageNow = el.dataset.page ?? null;
         const rect = el.getBoundingClientRect();
         view = { w: rect.width, h: rect.height, left: rect.left, top: rect.top };
         el.addEventListener("wheel", at.onWheel, { passive: false });
@@ -866,6 +883,7 @@ export const stage = resource({
           window.removeEventListener("message", at.onMessage);
           sizes.disconnect();
           vp = null;
+          pageNow = null;
           at.reset();
         };
       },
@@ -891,12 +909,15 @@ export const stage = resource({
         if (vp) at.cull();
         at.writeLabel(shell);
         at.changed();
+        at.reachGoal();
 
         return () => at.dropShell(id, shell);
       },
 
       dropShell: (id: string, shell: Shell) => {
         if (shells.get(id) !== shell) return;
+
+        if (found === shell) at.endMark();
         shells.delete(id);
         queue = queue.filter((other) => other !== id);
         const now = live.get();
@@ -982,9 +1003,50 @@ export const stage = resource({
         cam = { x: (view.w - b.w * z) / 2 - b.x * z, y: (view.h - b.h * z) / 2 - b.y * z, z };
         held = null;
         at.move();
+        at.markFound(shell);
+      },
 
+      markFound: (shell: Shell) => {
+        at.endMark();
         shell.el.dataset.found = "";
         found = shell;
+      },
+
+      rebox: (list: readonly Box[]) => {
+        let moved = 0;
+        for (const f of list) {
+          const shell = shells.get(f.id);
+          const next = { id: f.id, x: f.x, y: f.y, w: f.w, h: f.h };
+          if (!shell || JSON.stringify(shell.box) === JSON.stringify(next)) continue;
+          shell.box = next;
+          moved += 1;
+        }
+        if (moved) at.changed();
+      },
+
+      dropGoal: () => {
+        sought = null;
+      },
+
+      seek: (next: Goal) => {
+        sought = next;
+        at.reachGoal();
+      },
+
+      reachGoal: () => {
+        const want = sought;
+        if (!want || want.page !== pageNow || !placed) return;
+        if (want.to === "point") {
+          sought = null;
+          return at.aim(want.x, want.y);
+        }
+        const shell = shells.get(want.id);
+        if (!shell) return;
+
+        sought = null;
+        if (want.to === "frame") return at.showFrame(want.id);
+        at.aim(shell.box.x + want.x, shell.box.y + want.y);
+        at.markFound(shell);
       },
 
       endMark: () => {

@@ -271,6 +271,7 @@ export const noTool = {
   "request.close": "a person decides it: the page, or `easel close`",
   "share.open": "a viewer's call, from the page",
   "share.name": "a viewer's call, from the page",
+  "share.frame": "a viewer's call, from the page: `frame.get` gives an agent the page of a frame",
   "channel.set": "an owner sets a channel up with its token file: `easel channel set`",
   "channel.list": "an owner's setup: `easel channel ls`",
   "channel.remove": "an owner's setup: `easel channel rm`",

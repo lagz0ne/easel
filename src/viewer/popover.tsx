@@ -1,7 +1,5 @@
 import { useData, useRun } from "@tinkered/react";
 
-import type { FrameInfo } from "@/frames/contract";
-
 import {
   actOn,
   boxCalls,
@@ -448,7 +446,7 @@ function More({ v }: { v: RequestView }) {
   );
 }
 
-export function Opened({ v, list }: { v: RequestView; list: readonly FrameInfo[] }) {
+export function Opened({ v }: { v: RequestView }) {
   const close = useRun(closeCard);
   const back = useRun(backToList);
   const acts = useData(acting);
@@ -486,7 +484,7 @@ export function Opened({ v, list }: { v: RequestView; list: readonly FrameInfo[]
         {v.outdated ? <OutdatedMark cause={v.outdated.cause} /> : null}
         <span className="e-head-ref">
           {`#${r.n} · `}
-          <Place r={r} list={list} />
+          <Place v={v} />
         </span>
         <More v={v} />
         <button type="button" className="e-close" aria-label="Close" onClick={() => close.run()}>

@@ -1,6 +1,7 @@
 import { useData, useResource, useRun } from "@tinkered/react";
 
 import { frames } from "@/frames";
+import { firstPage } from "@/frames/contract";
 import type { FrameInfo } from "@/frames/contract";
 import { viewerName } from "@/frames/share";
 import type { Request } from "@/queue/cells";
@@ -17,8 +18,9 @@ import {
   typeText,
 } from "./draft";
 import type { Draft, Place as DraftPlace } from "./draft";
-import { doneStates, requestViews } from "./follow";
-import type { RequestView, Shown } from "./follow";
+import { doneStates, requestStates, requestView } from "./follow";
+import type { Shown } from "./follow";
+import { pageList } from "./pages";
 import { Initial } from "./panel";
 import { hoverPart, partBox, stage } from "./stage";
 
@@ -185,24 +187,25 @@ function AtRequest({
   );
 }
 
-export function Requests({
-  canvas,
-  list,
-  lost,
-}: {
+type RequestsProps = {
   canvas: string;
+  page: string;
   list: readonly FrameInfo[];
   lost: boolean;
-}) {
+};
+
+export function Requests({ canvas, page, list, lost }: RequestsProps) {
   const d = useData(drafts);
   const opened = useData(openedRequest);
-  const here = d?.canvas === canvas ? d : null;
+  const here = d?.canvas === canvas && d.place.page === page ? d : null;
 
   return (
     <div className="e-pins">
-      <Pins canvas={canvas} list={list} />
+      <Pins canvas={canvas} page={page} list={list} />
       {here ? <DraftAt d={here} lost={lost} /> : <HoverOutline list={list} />}
-      {opened?.canvas === canvas ? <OpenedAt canvas={canvas} n={opened.n} list={list} /> : null}
+      {opened?.canvas === canvas ? (
+        <OpenedAt canvas={canvas} page={page} n={opened.n} list={list} />
+      ) : null}
     </div>
   );
 }
@@ -219,8 +222,11 @@ const pinLooks: Record<Shown, "waits" | "person" | "quiet"> = {
   takenBack: "quiet",
 };
 
-function Pins({ canvas, list }: { canvas: string; list: readonly FrameInfo[] }) {
-  const views = useData(requestViews({ canvas }));
+type PinsProps = { canvas: string; page: string; list: readonly FrameInfo[] };
+
+function Pins({ canvas, page, list }: PinsProps) {
+  const views = useData(requestStates({ canvas }));
+  const first = useData(pageList({ canvas }))[0]?.key ?? firstPage.key;
   const opened = useData(openedRequest);
   const open = useRun(openRequest);
   const at = useResource(stage);
@@ -230,6 +236,7 @@ function Pins({ canvas, list }: { canvas: string; list: readonly FrameInfo[] }) 
     <>
       {views
         .filter((v) => !doneStates.includes(v.shown) || v.r.n === openN)
+        .filter((v) => v.r.frameId !== null || (v.r.page ?? first) === page)
         .map(({ r, shown }) => (
           <AtRequest key={r.n} r={r} list={list}>
             <button
@@ -308,16 +315,19 @@ function HoverOutline({ list }: { list: readonly FrameInfo[] }) {
   );
 }
 
-function OpenedAt({ canvas, n, list }: { canvas: string; n: number; list: readonly FrameInfo[] }) {
-  const v = useData(requestViews({ canvas })).find((one) => one.r.n === n);
-  if (!v || v.r.frameId === null || list.some((f) => f.id === v.r.frameId)) return null;
+function OpenedAt({ canvas, page, n, list }: PinsProps & { n: number }) {
+  const r = useData(requestStates({ canvas })).find((one) => one.r.n === n)?.r;
+  if (!r || r.frameId === null || list.some((f) => f.id === r.frameId)) return null;
 
-  return <GoneAt v={v} id={v.r.frameId} />;
+  return <GoneAt canvas={canvas} n={n} id={r.frameId} page={page} />;
 }
 
-function GoneAt({ v, id }: { v: RequestView; id: string }) {
-  const gone = useData(frames.board.removed.of({ canvas: v.r.canvas, id }));
-  if (!gone) return null;
+type GoneProps = { canvas: string; n: number; id: string; page: string };
+
+function GoneAt({ canvas, n, id, page }: GoneProps) {
+  const v = useData(requestView({ canvas, n, frame: id }));
+  const gone = useData(frames.board.removed.of({ canvas, id }));
+  if (!v || gone?.page !== page) return null;
   const said = `${gone.name} was removed`;
 
   return (

@@ -6,7 +6,7 @@ import { clientAddress, digestOf } from "@/access/guards.server";
 import { addressKey, limiter } from "@/access/login.server";
 import { secretBytes } from "@/access/store.server";
 
-import { framesApi, framesBoard } from "./contract";
+import { framesApi, framesBoard, frames } from "./contract";
 import { hashPassword, passwordMatches, wrongTries } from "./password.server";
 import {
   endedRefusal,
@@ -482,4 +482,14 @@ export const shareServer = capsule({
 
 export const shareOps = { "share.open": openShare } as const;
 
-export const passOps = { "share.name": namePass } as const;
+export const pageOfFrame = operation({
+  label: "share.frame.do",
+  input: passApi["share.frame"].input,
+  depends: { cells: frames.atScope.controller },
+  run: ({ cells }, { input }) => {
+    const [frame] = cells.where({ canvas: input.canvas, id: input.id }).get();
+    return frame ? { kind: "found" as const, page: frame.page } : { kind: "gone" as const };
+  },
+});
+
+export const passOps = { "share.name": namePass, "share.frame": pageOfFrame } as const;

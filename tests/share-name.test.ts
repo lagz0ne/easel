@@ -206,3 +206,27 @@ test("a name is 1 to 40 characters, trimmed; any other stops on the client", asy
   }
   expect(await mai.name(` ${"x".repeat(40)} `)).toEqual({ kind: "named", name: "x".repeat(40) });
 });
+
+test("share.frame gives the page where a frame is now, also after a move; gone for no frame; a pass of another canvas is refused ended", async () => {
+  const srv = await boot();
+  const { a, link } = await sharedFlow(srv);
+  await a.scope.run(frames.api["page.create"], { input: { canvas: "flow", name: "Two" } });
+  const put = await a.scope.run(frames.api["frame.put"], {
+    input: { canvas: "flow", html: "<p>1</p>", name: "One" },
+  });
+  if (put.kind !== "created") throw new Error(put.kind);
+  const mai = await tab(srv, link);
+  const where = (id: string, canvas = "flow") =>
+    mai.scope.run(frames.pass["share.frame"], { input: { canvas, id } });
+
+  expect(await where(put.id)).toEqual({ kind: "found", page: "page-1" });
+  await a.scope.run(frames.api["frame.move"], {
+    input: { canvas: "flow", id: put.id, x: 10, y: 20, page: "two" },
+  });
+  expect(await where(put.id)).toEqual({ kind: "found", page: "two" });
+  expect(await where("no-such-frame")).toEqual({ kind: "gone" });
+  expect(await faultOf(where(put.id, "other"))).toEqual({
+    fault: "refused",
+    payload: { ended: true },
+  });
+});

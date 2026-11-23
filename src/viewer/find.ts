@@ -53,7 +53,7 @@ export const findMatches = resource({
   config: { canvas: findCanvas.required },
   depends: (c) => ({ list: frames.board.frames.where({ canvas: c.canvas }), text: findText }),
   factory: ({ list, text }) => {
-    const all = (list.get() ?? []).map((f) => ({ id: f.id, name: f.name }));
+    const all = (list.get() ?? []).map((f) => ({ id: f.id, name: f.name, page: f.page }));
     const wanted = text.trim().toLocaleLowerCase();
     if (!wanted) return { total: all.length, names: all };
 
@@ -63,7 +63,7 @@ export const findMatches = resource({
 
     return {
       total: all.length,
-      names: [...starts, ...inside].map(({ id, name }) => ({ id, name })),
+      names: [...starts, ...inside].map(({ id, name, page }) => ({ id, name, page })),
     };
   },
 });

@@ -75,6 +75,9 @@ export const oldMs = 7 * 24 * 60 * 60_000;
 
 export type RequestView = {
   r: Request;
+  frameName: string | null;
+  frameGone: boolean;
+  page: string | null;
   shown: Shown;
   text: string;
   thread: readonly Message[];
@@ -86,11 +89,16 @@ export type RequestView = {
 
 export const serverTime = data<number | null>({ label: "viewer.serverTime", initial: null });
 
-export const visits = data<{
-  canvas: string;
-  since: number;
-  opened: Readonly<Record<string, number>>;
-} | null>({ label: "viewer.visits", initial: null });
+const visitShape = z.object({
+  canvas: z.string(),
+  since: z.number(),
+  opened: z.record(z.string(), z.number()),
+});
+
+export const visits = data<z.infer<typeof visitShape> | null>({
+  label: "viewer.visits",
+  initial: null,
+});
 
 export const visitKey = "easel.visit.";
 
@@ -524,6 +532,7 @@ const linesOf = operation({
 
 const frameNow = z.object({
   name: z.string(),
+  page: z.string(),
   version: z.number().nullable(),
   removed: z.number().nullable(),
 });
@@ -558,6 +567,17 @@ const outdatedOf = operation({
   },
 });
 
+const whereOf = operation({
+  label: "viewer.whereOf",
+  input: z.object({ r: request, frame: frameNow.nullable() }),
+  run: (_, { input: { r, frame } }) => {
+    if (r.frameId === null) return { frameName: null, frameGone: false, page: r.page };
+
+    const frameGone = typeof frame?.removed === "number";
+    return { frameName: frame?.name ?? null, frameGone, page: frame?.page ?? null };
+  },
+});
+
 const viewOf = operation({
   label: "viewer.viewOf",
   input: z.object({
@@ -568,9 +588,9 @@ const viewOf = operation({
     opened: z.number().nullable(),
     frame: frameNow.nullable(),
   }),
-  depends: { shownState, linesOf, lastActOf, outdatedOf },
+  depends: { shownState, linesOf, lastActOf, outdatedOf, whereOf },
   run: (deps, { input: { r, thread, now, since, opened, frame } }): RequestView => {
-    const { shownState, linesOf, lastActOf, outdatedOf } = deps;
+    const { shownState, linesOf, lastActOf, outdatedOf, whereOf } = deps;
     const at = now ?? r.updated;
     const closer = thread.findLast((m) => m.kind === "close")?.from ?? null;
     const shown = shownState.run({ input: { request: r, closer, now: at } });
@@ -579,35 +599,43 @@ const viewOf = operation({
     const outdated = outdatedOf.run({ input: { r, shown, now: at, frame } });
     const lines = linesOf.run({ input: { r, thread, shown, outdated } });
     const lastAct = lastActOf.run({ input: { r, shown, thread } });
+    const { frameName, frameGone, page } = whereOf.run({ input: { r, frame } });
 
-    return { r, shown, text, thread, lines, lastAct, changed: r.updated > seen, outdated };
+    return {
+      r,
+      frameName,
+      frameGone,
+      page,
+      shown,
+      text,
+      thread,
+      lines,
+      lastAct,
+      changed: r.updated > seen,
+      outdated,
+    };
   },
 });
 
-export const requestViews = resource({
-  label: "viewer.requestViews",
-  config: { canvas: canvasOf.required },
-  depends: (c) => ({
-    rows: frames.board.requests.where({ canvas: c.canvas }),
-    all: frames.board.messages.where({ canvas: c.canvas }),
-    boxes: frames.board.frames.where({ canvas: c.canvas }),
-    gone: frames.board.removed.where({ canvas: c.canvas }),
-    time: serverTime,
-    seen: visits,
-    threads,
-    viewOf,
+type FrameNow = z.infer<typeof frameNow> & { id: string };
+
+const listViews = operation({
+  label: "viewer.listViews",
+  input: z.object({
+    canvas: z.string(),
+    rows: z.custom<readonly Request[]>(),
+    all: z.custom<readonly Message[]>(),
+    known: z.custom<readonly FrameNow[]>(),
+    time: z.number().nullable(),
+    seen: z.custom<z.infer<typeof visitShape> | null>(),
   }),
-  factory: (deps, ctx): RequestView[] => {
-    const { rows, all, boxes, gone, time, seen, threads, viewOf } = deps;
-    const by = threads.run({ input: [...all.get()] });
-    const visit = seen?.canvas === ctx.config.canvas ? seen : null;
-    const byId = new Map<string | null, z.infer<typeof frameNow>>([
-      ...gone.get().map((f) => [f.id, { ...f, version: null }] as const),
-      ...boxes.get().map((f) => [f.id, { ...f, removed: null }] as const),
-    ]);
+  depends: { threads, viewOf },
+  run: ({ threads, viewOf }, { input: { canvas, rows, all, known, time, seen } }) => {
+    const by = threads.run({ input: [...all] });
+    const visit = seen?.canvas === canvas ? seen : null;
+    const byId = new Map<string | null, FrameNow>(known.map((f) => [f.id, f]));
 
     return rows
-      .get()
       .toSorted((a, b) => b.created - a.created || b.n - a.n)
       .map((r) =>
         viewOf.run({
@@ -621,6 +649,75 @@ export const requestViews = resource({
           },
         }),
       );
+  },
+});
+
+export const requestViews = resource({
+  label: "viewer.requestViews",
+  config: { canvas: canvasOf.required },
+  depends: (c) => ({
+    rows: frames.board.requests.where({ canvas: c.canvas }),
+    all: frames.board.messages.where({ canvas: c.canvas }),
+    boxes: frames.board.frames.where({ canvas: c.canvas }),
+    gone: frames.board.removed.where({ canvas: c.canvas }),
+    time: serverTime,
+    seen: visits,
+    listViews,
+  }),
+  factory: ({ rows, all, boxes, gone, time, seen, listViews }, ctx): RequestView[] => {
+    const known = [
+      ...gone.get().map((f) => ({ ...f, version: null })),
+      ...boxes.get().map((f) => ({ ...f, removed: null })),
+    ];
+    const canvas = ctx.config.canvas;
+    return listViews.run({
+      input: { canvas, rows: rows.get(), all: all.get(), known, time, seen },
+    });
+  },
+});
+
+const viewN = tag<number>({ label: "viewer.viewN" });
+
+const viewFrame = tag<string>({ label: "viewer.viewFrame" });
+
+export const requestView = resource({
+  label: "viewer.requestView",
+  config: { canvas: canvasOf.required, n: viewN.required, frame: viewFrame.required },
+  depends: (c) => ({
+    rows: frames.board.requests.where({ canvas: c.canvas }),
+    all: frames.board.messages.where({ canvas: c.canvas }),
+    boxes: frames.board.frames.where({ canvas: c.canvas, id: c.frame }),
+    gone: frames.board.removed.where({ canvas: c.canvas, id: c.frame }),
+    time: serverTime,
+    seen: visits,
+    listViews,
+  }),
+  factory: ({ rows, all, boxes, gone, time, seen, listViews }, ctx): RequestView | null => {
+    const { canvas, n } = ctx.config;
+    const known = [
+      ...gone.get().map((f) => ({ ...f, version: null })),
+      ...(boxes.get() ?? []).map((f) => ({ ...f, removed: null })),
+    ];
+    const one = rows.get().filter((r) => r.n === n);
+    const input = { canvas, rows: one, all: all.get(), known, time, seen };
+    return listViews.run({ input })[0] ?? null;
+  },
+});
+
+export const requestStates = resource({
+  label: "viewer.requestStates",
+  config: { canvas: canvasOf.required },
+  depends: (c) => ({
+    rows: frames.board.requests.where({ canvas: c.canvas }),
+    all: frames.board.messages.where({ canvas: c.canvas }),
+    time: serverTime,
+    seen: visits,
+    listViews,
+  }),
+  factory: ({ rows, all, time, seen, listViews }, ctx): RequestView[] => {
+    const canvas = ctx.config.canvas;
+    const input = { canvas, rows: rows.get(), all: all.get(), known: [], time, seen };
+    return listViews.run({ input });
   },
 });
 

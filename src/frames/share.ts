@@ -47,6 +47,13 @@ export const passApi = rpc({
     input: z.strictObject({ canvas: z.string(), name: viewerName }),
     output: z.object({ kind: z.literal("named"), name: z.string() }),
   },
+  "share.frame": {
+    input: z.strictObject({ canvas: z.string(), id: z.string() }),
+    output: z.discriminatedUnion("kind", [
+      z.object({ kind: z.literal("found"), page: z.string() }),
+      z.object({ kind: z.literal("gone") }),
+    ]),
+  },
 });
 
-export const passSuccessKinds = { "share.name": ["named"] } as const;
+export const passSuccessKinds = { "share.name": ["named"], "share.frame": ["found"] } as const;

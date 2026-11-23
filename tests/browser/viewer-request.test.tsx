@@ -20,6 +20,8 @@ import { routeTree } from "@/routes";
 import { nameKey, tabMeta } from "@/viewer/gate";
 import { restMs } from "@/viewer/stage";
 
+import { frameOnPage } from "./frame-page";
+
 const live = "a".repeat(32);
 const serverNow = 1_800_000_000_000;
 const home = "0123456789ab";
@@ -298,7 +300,10 @@ async function serve() {
       exits({ store: localStorage }),
       frames.board({ serve: true, onStart: [passOnly] }),
       frames.viewer({ implement: { "share.open": open } }),
-      frames.pass({ implement: { "share.name": nameIt }, onStart: [passOnly] }),
+      frames.pass({
+        implement: { "share.name": nameIt, "share.frame": frameOnPage },
+        onStart: [passOnly],
+      }),
       addOnly.viewer({ implement: { "request.add": add }, onStart: [passOnly, named] }),
       memory.server({ services: [frames.board, frames.viewer, frames.pass, addOnly.viewer] }),
     ],
@@ -444,7 +449,7 @@ test("the first Send asks the name; share.name names the pass, the browser keeps
   await expect.poll(() => pin(1).elements().length).toBe(2);
 });
 
-test("the dock at the bottom centre holds the canvas tools as icons, named: Request (Ask for a change), Requests, Find, Zoom out, the zoom, Zoom in and Fit; Request shows pressed while request mode is on (The page 2)", async () => {
+test("the dock at the bottom centre holds the canvas tools as icons, named: Request (Ask for a change), Requests, Find, Pages, Zoom out, the zoom, Zoom in and Fit; Request shows pressed while request mode is on (The page 2)", async () => {
   const server = await boot();
   await tab(server);
 
@@ -453,7 +458,7 @@ test("the dock at the bottom centre holds the canvas tools as icons, named: Requ
     .getByRole("button")
     .elements()
     .map((b) => b.getAttribute("aria-label"));
-  expect(names).toEqual(["Request", "Requests", "Find", "Zoom out", "Zoom in", "Fit"]);
+  expect(names).toEqual(["Request", "Requests", "Find", "Pages", "Zoom out", "Zoom in", "Fit"]);
   expect(dock.getByRole("status", { name: "Zoom" }).elements()).toHaveLength(1);
   expect(requestButton().element()).toHaveAttribute("title", "Ask for a change");
   expect(requestButton().element().querySelector("svg")).not.toBeNull();
@@ -514,7 +519,7 @@ test("a name kept after the link opened: request.add is refused name, the page g
   expect(store.requests.map((r) => r.author)).toEqual(["Bo"]);
 });
 
-test("a click out of all frames asks about the whole canvas: frameId and version are null (E4.1 N2)", async () => {
+test("a click out of all frames asks about the whole canvas: frameId and version are null, and the page is the page of the tab (E4.1 N2)", async () => {
   const server = await boot();
   localStorage.setItem(nameKey, "Tom");
   await tab(server);
@@ -526,7 +531,7 @@ test("a click out of all frames asks about the whole canvas: frameId and version
   await sendButton().click();
 
   await expect.element(pin(1)).toBeVisible();
-  expect(store.adds[0]).toMatchObject({ frameId: null, version: null });
+  expect(store.adds[0]).toMatchObject({ frameId: null, version: null, page: "page-1" });
   await expect
     .element(page.getByRole("region", { name: "Request #1" }).getByText("#1 · On the whole canvas"))
     .toBeVisible();

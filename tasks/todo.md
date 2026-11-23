@@ -746,16 +746,16 @@ Decisions of 2026-11-23 (the coordinator, for the spec):
 
 ### P8-4: the viewer shows one page
 
-- [ ] The board read of a tab is the list of pages and the frames of one page.
-- [ ] The list of pages in the dock: each name and its count. A pick shows that page at Fit.
-- [ ] `?page=<key>` in the address. A link with no page opens the first page. A reload keeps it.
-- [ ] A move in the page moves the shell; a move to another page takes the frame off, and the mark
+- [x] The board read of a tab is the list of pages and the frames of one page.
+- [x] The list of pages in the dock: each name and its count. A pick shows that page at Fit.
+- [x] `?page=<key>` in the address. A link with no page opens the first page. A reload keeps it.
+- [x] A move in the page moves the shell; a move to another page takes the frame off, and the mark
       ends. Each open tab shows it within 1 s (criterion 2).
-- [ ] Find finds a frame on each page. The Requests panel lists the requests of each page with the
+- [x] Find finds a frame on each page. The Requests panel lists the requests of each page with the
       name of the page. A pick asks the server for the page of the frame, then shows the page and
       the frame (criterion 3).
-- [ ] The pick of a locale stays from page to page.
-- [ ] Browser tests for each rule of the model; `ship.sh --full`.
+- [x] The pick of a locale stays from page to page.
+- [x] Browser tests for each rule of the model; `ship.sh --full`.
 
 **Dependencies:** P8-1, P8-3. **Estimated scope:** L.
 
