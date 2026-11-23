@@ -65,7 +65,8 @@ export const resolveAnswer = z.discriminatedUnion("kind", [
 ]);
 
 /** The call of any user: `easel status`. */
-export const opsUserApi = rpc({
+/** The calls of `opsUserApi`, as written: MCP reads their schemas (rpc keeps no output schema). */
+export const opsUserContracts = {
   "ops.status": {
     input: z.null(),
     output: z.object({
@@ -85,10 +86,13 @@ export const opsUserApi = rpc({
       fixerSilent: z.boolean(),
     }),
   },
-});
+};
+
+export const opsUserApi = rpc(opsUserContracts);
 
 /** The calls of an owner: the groups, their samples, and the moves a person makes. */
-export const opsOwnerApi = rpc({
+/** The calls of `opsOwnerApi`, as written: MCP reads their schemas (rpc keeps no output schema). */
+export const opsOwnerContracts = {
   "ops.errors": {
     input: z.object({
       open: z.boolean().optional(),
@@ -116,7 +120,9 @@ export const opsOwnerApi = rpc({
     input: z.null(),
     output: z.object({ kind: z.literal("stamped"), at: z.number() }),
   },
-});
+};
+
+export const opsOwnerApi = rpc(opsOwnerContracts);
 
 type Api = typeof opsUserApi & typeof opsOwnerApi;
 

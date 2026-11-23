@@ -57,9 +57,9 @@ Prior art:
 ### An agent works through MCP
 
 1. The server's `instructions` (in its answer to `initialize`) say: "Frames are made from the
-   kit of this easel. Call `kit_guide` before the first `put_frame`; call `kit_capsules` before
-   the first app frame." The descriptions of
-   `put_frame` and `create_canvas` say the same.
+   kit of this easel. Call `kit_capsules` before the first app frame." The descriptions of
+   `put_frame` and `create_canvas` say the same. When `kit.guide` ships, the instructions add:
+   "Call `kit_guide` before the first `put_frame`."
 2. The agent lists the tools. Each has a name, a description that says when to use it, an input
    schema, and an output schema.
 3. It runs the queue loop ([queue](SPEC-queue.md)): `next_request`, `get_frame`, `put_frame`,
@@ -83,26 +83,28 @@ Prior art:
 
 ## Contract
 
-Tools, one per call. They are named after the call, and their inputs match the CLI flags.
+Tools, one per call. They are named after the call, and their inputs match the CLI flags. A row
+marked "later" has no call yet ([frames](SPEC-frames.md), [kit](SPEC-kit.md) build order step 4):
+its tool comes in the ship of its call.
 
 | Tool              | Call                 | Annotations             |
 | ----------------- | -------------------- | ----------------------- |
 | `list_canvases`   | `canvas.list`        | readOnly                |
 | `create_canvas`   | `canvas.create`      |                         |
-| `delete_canvas`   | `canvas.delete`      | destructive             |
+| `delete_canvas`   | `canvas.delete`      | destructive, later      |
 | `share_canvas`    | `canvas.share`       | destructive, idempotent |
 | `unshare_canvas`  | `canvas.unshare`     | destructive, idempotent |
 | `list_frames`     | `frame.list`         | readOnly                |
 | `get_frame`       | `frame.get`          | readOnly                |
 | `put_frame`       | `frame.put`          |                         |
-| `move_frame`      | `frame.move`         | idempotent              |
+| `move_frame`      | `frame.move`         | idempotent, later       |
 | `delete_frame`    | `frame.delete`       | destructive             |
 | `shot_frame`      | `frame.shot`         | readOnly                |
-| `kit_guide`       | `kit.guide`          | readOnly                |
+| `kit_guide`       | `kit.guide`          | readOnly, later         |
 | `kit_capsules`    | `kit.capsules`       | readOnly                |
-| `list_pieces`     | `kit.list`           | readOnly                |
-| `get_piece`       | `kit.get`            | readOnly                |
-| `put_piece`       | `kit.put`            |                         |
+| `list_pieces`     | `kit.list`           | readOnly, later         |
+| `get_piece`       | `kit.get`            | readOnly, later         |
+| `put_piece`       | `kit.put`            | later                   |
 | `check_frame`     | `kit.check`          | readOnly                |
 | `accept_kit`      | `kit.accept`         | idempotent              |
 | `get_look`        | `look.get`           | readOnly                |
@@ -132,9 +134,12 @@ The calls with no tool, on purpose, are these. Each is CLI only, or the page's:
   ([access](SPEC-access.md)).
 - `request.edit` and `request.close`: a person decides them, from the page or with `easel edit`
   and `easel close`. An agent does not edit or close a request; it asks or declines.
-- `share.open`, `request.add`, `answer`, `accept` and `reopen`: a viewer's calls, from the page.
+- `share.open`, `share.name`, `request.add`, `answer`, `accept` and `reopen`: a viewer's calls,
+  from the page.
   Their pushed refusals,
   `{ ended: true }` and `{ locked: true }` ([frames](SPEC-frames.md)), reach only the page.
+- `channel.set`, `channel.list` and `channel.remove`: an owner sets up a channel once, with its
+  token file, from the CLI (`easel channel`).
 - `ops.handOff` and `ops.fixerTick`: the fixer's tick and its give-up run them through the CLI
   ([ops](SPEC-ops.md)).
 - Every `fixer.*` call (`fixer.claim`, `fixer.extend`, `fixer.noteIssue`, `fixer.noteFix`,
@@ -166,7 +171,7 @@ The calls with no tool, on purpose, are these. Each is CLI only, or the page's:
    own.
 2. The tool table is built from the rpc contract: every contract call is a tool in the table
    above, or is on the no-tool list above, and none is both. The contract here is easel's own: the
-   demo modules of the starter (`issues`, `todo`), which the smoke uses, get no tool.
+   demo modules of the starter (`greet`, `issues`, `todo`), which the smoke uses, get no tool.
 3. Each tool call runs the same `onStart` guards as the socket. `/mcp` runs the `user` guard
    ([access](SPEC-access.md)) once per request, before any tool.
 4. `easel mcp` reads `hosts.json` only through the CLI cmd, and reaches the server only through the
@@ -188,8 +193,8 @@ The calls with no tool, on purpose, are these. Each is CLI only, or the page's:
 - An MCP client test runs the full queue loop over HTTP and over stdio, against a server in the
   same process.
 - A real client (Claude Code) adds `easel mcp` and runs `list_canvases`.
-- A new agent with only the MCP tools reads `kit_guide` and puts a reference screen with no
-  finding.
+- A new agent with only the MCP tools reads `kit_capsules` (and `kit_guide`, when it ships) and
+  puts a reference screen with no finding.
 - Every tool reaches each of its call's kinds in a test, and each fault mapping is tested;
   `tinker check` is OK.
 

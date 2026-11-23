@@ -1,9 +1,14 @@
 import type { Transport } from "@modelcontextprotocol/sdk/shared/transport.js";
 import type { CallToolResult, Tool } from "@modelcontextprotocol/sdk/types.js";
 import { operation, tag } from "@tinkered/core";
+import type { RunResult } from "@tinkered/core";
 import { z } from "zod";
 
-import { frames } from "@/frames";
+import { ownerApi } from "@/access/contract";
+import { framesApi } from "@/frames/contract";
+import { kitApi } from "@/kit/contract";
+import { opsOwnerApi, opsUserApi } from "@/ops/contract";
+import { queueApi } from "@/queue/contract";
 
 import { contracts, successLists, tools } from "./tools";
 
@@ -19,7 +24,7 @@ export const mcpLink = tag<() => Promise<Transport>>({ label: "mcp.link" });
 
 /** What the server tells an agent in its answer to `initialize`. */
 const instructions =
-  "Frames are made from the kit of this easel. Call `kit_guide` before the first `put_frame`; call `kit_capsules` before the first app frame.";
+  "Frames are made from the kit of this easel. Call `kit_capsules` before the first app frame.";
 
 /** A JSON Schema object at the top, as MCP takes one. */
 const objectSchema = z.looseObject({
@@ -68,16 +73,35 @@ const faultText = z
     return told[fault] ?? failed;
   });
 
+/** The fields of an rpc fault that its text reads. */
+const rpcFault = z.object({
+  fault: z.string(),
+  address: z.string(),
+  payload: z.unknown(),
+  traceId: z.string().optional(),
+  execution: z.string().optional(),
+});
+
+/** One call of the table, as a tool runs it: its raw input, parsed by its own contract. */
+type Caller = {
+  settle(call: { rawInput: unknown; signal: AbortSignal }): PromiseLike<RunResult<object>>;
+};
+
 /** A call that did not answer, as a tool error. An error that is no rpc fault is thrown on. */
 const faultResult = operation({
   label: "mcp.faultResult",
   input: z.unknown(),
   run: (_, { input: error }): CallToolResult => {
-    if (!frames.api.fault.is(error)) throw error;
+    const apis = [framesApi, kitApi, queueApi, ownerApi, opsUserApi, opsOwnerApi];
+    if (!apis.some((api) => api.fault.is(error))) throw error;
 
-    const trace = error.traceId ?? error.execution ?? "none";
-    const { fault, address, payload } = error;
-    const text = faultText.parse({ fault, address, payload, trace });
+    const { fault, address, payload, traceId, execution } = rpcFault.parse(error);
+    const text = faultText.parse({
+      fault,
+      address,
+      payload,
+      trace: traceId ?? execution ?? "none",
+    });
     return { isError: true, content: [{ type: "text", text }] };
   },
 });
@@ -103,7 +127,41 @@ export const mcpCall = operation({
     name: z.string(),
     arguments: z.record(z.string(), z.unknown()).optional(),
   }),
-  depends: { faultResult, answerResult, "canvas.list": frames.api["canvas.list"] },
+  depends: {
+    faultResult,
+    answerResult,
+    "canvas.create": framesApi["canvas.create"],
+    "canvas.list": framesApi["canvas.list"],
+    "canvas.share": framesApi["canvas.share"],
+    "canvas.unshare": framesApi["canvas.unshare"],
+    "frame.put": framesApi["frame.put"],
+    "frame.list": framesApi["frame.list"],
+    "frame.get": framesApi["frame.get"],
+    "frame.delete": framesApi["frame.delete"],
+    "frame.shot": framesApi["frame.shot"],
+    "kit.capsules": kitApi["kit.capsules"],
+    "kit.check": kitApi["kit.check"],
+    "kit.accept": kitApi["kit.accept"],
+    "look.get": kitApi["look.get"],
+    "look.set": kitApi["look.set"],
+    "look.undo": kitApi["look.undo"],
+    "request.next": queueApi["request.next"],
+    "request.extend": queueApi["request.extend"],
+    "request.release": queueApi["request.release"],
+    "request.decline": queueApi["request.decline"],
+    "request.ask": queueApi["request.ask"],
+    "request.resolve": queueApi["request.resolve"],
+    "request.list": queueApi["request.list"],
+    "request.deliveries": queueApi["request.deliveries"],
+    "users.list": ownerApi["users.list"],
+    "users.approve": ownerApi["users.approve"],
+    "users.deny": ownerApi["users.deny"],
+    "users.revoke": ownerApi["users.revoke"],
+    "ops.status": opsUserApi["ops.status"],
+    "ops.errors": opsOwnerApi["ops.errors"],
+    "ops.error": opsOwnerApi["ops.error"],
+    "ops.resolveError": opsOwnerApi["ops.resolveError"],
+  },
   run: async ({ faultResult, answerResult, ...calls }, { input, signal }) => {
     const row = Object.entries(tools).find(([name]) => name === input.name)?.[1];
     if (!row) {
@@ -113,11 +171,12 @@ export const mcpCall = operation({
 
     const takesNull = contracts[row.address].input instanceof z.ZodNull;
     const rawInput = takesNull ? null : (input.arguments ?? {});
-    const reply = await calls[row.address].settle({ rawInput, signal });
+    const callers: Record<keyof typeof calls, Caller> = calls;
+    const reply = await callers[row.address].settle({ rawInput, signal });
     if (reply.status === "failed") return faultResult.run({ input: reply.error });
     if (reply.status === "cancelled") return faultResult.run({ input: reply.reason });
 
-    return answerResult.run({ input: { address: row.address, value: reply.value } });
+    return answerResult.run({ rawInput: { address: row.address, value: reply.value } });
   },
 });
 

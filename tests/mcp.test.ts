@@ -19,7 +19,10 @@ import { cli } from "@/cli";
 import { frames } from "@/frames";
 import { framesLoads, framesOps, mayRead } from "@/frames/ops.server";
 import { framesServer } from "@/frames/store.server";
+import { kit } from "@/kit";
 import { mcpLink } from "@/mcp/server";
+import { ops } from "@/ops";
+import { queue } from "@/queue";
 
 // `easel mcp` (SPEC-mcp.md § A local agent adds easel): the CLI's capsule serves MCP on a link,
 // and each tool runs its call through the CLI's rpc client, with the token of the hosts file. The
@@ -83,6 +86,10 @@ async function easel(srv: Srv) {
       access.user({ remote: memory.client }),
       access.owner({ remote: memory.client }),
       frames.api({ remote: memory.client }),
+      kit.api({ remote: memory.client }),
+      queue.api({ remote: memory.client }),
+      ops.user({ remote: memory.client }),
+      ops.owner({ remote: memory.client }),
       cli({
         stdout: { write: (chunk: string) => out.push(chunk) },
         stderr: { write: (chunk: string) => err.push(chunk) },
@@ -137,6 +144,17 @@ test("easel mcp lists list_canvases with its schemas, and a call answers the use
 
   const { client, served } = await mcp(a);
   const { tools } = await client.listTools();
+  expect(tools).toHaveLength(31);
+  for (const tool of tools) {
+    expect([tool.name, tool.inputSchema.type, tool.outputSchema?.type]).toEqual([
+      tool.name,
+      "object",
+      "object",
+    ]);
+  }
+  expect(client.getInstructions()).toBe(
+    "Frames are made from the kit of this easel. Call `kit_capsules` before the first app frame.",
+  );
   const list = tools.find((tool) => tool.name === "list_canvases");
   expect(list).toMatchObject({
     annotations: { readOnlyHint: true },

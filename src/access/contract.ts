@@ -102,7 +102,8 @@ export const userApi = rpc({
 });
 
 /** The calls of an owner. */
-export const ownerApi = rpc({
+/** The calls of `ownerApi`, as written: MCP reads their schemas (rpc keeps no output schema). */
+export const ownerContracts = {
   "users.list": {
     input: z.null(),
     output: z.object({ users: z.array(user), requests: z.array(pendingRequest) }),
@@ -123,7 +124,9 @@ export const ownerApi = rpc({
       gone,
     ]),
   },
-});
+};
+
+export const ownerApi = rpc(ownerContracts);
 
 type Api = typeof loginApi & typeof userApi & typeof ownerApi;
 

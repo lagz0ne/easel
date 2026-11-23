@@ -50,15 +50,17 @@ finds each address that is in neither list or in both (fact rule 2).
 
 **Acceptance criteria:**
 
-- [ ] `tools/list` gives the 37 tools of the table, and no other.
-- [ ] The fact rule 2 test fails when a test contract adds one call that is in neither list.
-- [ ] Each description has two sentences at most (judged rule 3). The queue tools add the sentence
+- [x] `tools/list` gives the 31 tools of the built calls, and no other. The 6 calls that are not
+      built yet (`canvas.delete`, `frame.move`, `kit.guide`, `kit.list`, `kit.get`, `kit.put`)
+      are marked "later" in SPEC-mcp.
+- [x] The fact rule 2 test fails when a test contract adds one call that is in neither list.
+- [x] Each description has two sentences at most (judged rule 3). The queue tools add the sentence
       on the frame that a request allows.
 
 **Verification:**
 
-- [ ] `tests/mcp-table.test.ts`.
-- [ ] By hand: read the `tools/list` output one time for the descriptions.
+- [x] `tests/mcp-table.test.ts`.
+- [x] By hand: read the `tools/list` output one time for the descriptions.
 
 **Dependencies:** MCP-1.
 
@@ -95,7 +97,7 @@ socket, in a session with the token, so each `onStart` guard runs.
 
 ### Checkpoint A: after MCP-1 to MCP-3
 
-- [ ] Claude Code lists the 37 tools over stdio, and over HTTP with
+- [ ] Claude Code lists the 31 tools over stdio, and over HTTP with
       `claude mcp add --transport http easel <url>/mcp --header "Authorization: Bearer <token>"`.
 - [ ] `tinker check: OK`, the smoke is green, CI `gates` is green.
 - [ ] Review with the user before phase 2.

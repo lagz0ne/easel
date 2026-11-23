@@ -61,7 +61,8 @@ export const kitCapsulesOutput = z.discriminatedUnion("kind", [
   }),
 ]);
 
-export const kitApi = rpc({
+/** The calls of `kitApi`, as written: MCP reads their schemas (rpc keeps no output schema). */
+export const kitContracts = {
   /**
    * The capsules of the current kit version (SPEC-kit.md § The capsules): what each does, how a
    * frame installs it, its config with its schema, and each export with its kind, a line that
@@ -123,7 +124,9 @@ export const kitApi = rpc({
       z.object({ kind: z.literal("none") }),
     ]),
   },
-});
+};
+
+export const kitApi = rpc(kitContracts);
 
 export type KitAddress = Extract<keyof typeof kitApi.contracts, string>;
 
