@@ -37,9 +37,11 @@ import { wsServer } from "./support/ws";
 
 const closers: Array<() => unknown> = [];
 
+// A real Chromium can take more than the default 10 s to close on a loaded machine: the hook gets
+// the time of the longest test that opens one.
 afterEach(async () => {
   for (const close of closers.splice(0).reverse()) await close();
-});
+}, 90_000);
 
 const pricing = () => Bun.file(new URL("kit/frames/pricing.tsx", import.meta.url)).text();
 
