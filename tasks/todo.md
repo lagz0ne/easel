@@ -418,7 +418,9 @@ commit before the push as the base. A red job makes `gates` red, so the deploy d
 
 - [x] A push with no change of speed keeps `gates` green, and the deploy runs.
 - [x] A red `speed` job stops the deploy: `speed` is a job of `gates`, and `deploy` runs only
-      on a green `gates` (as #8 showed for `check`).
+      on a green `gates` (as #8 showed for `check`). Changed on 2026-11-23 (deploy first): a red
+      `speed` job now puts the last green commit live again. Seen at a13880d: the font was not
+      on the hot path list, `speed` was red, and the job `rollback` put 9d90ad6 live in 26 s.
 - [ ] An alert opens one `speed-slower` issue with the step, the two p50 values and the commit.
       Built (job `speed-alert`); not yet seen, because no push has been slower.
 
@@ -426,8 +428,7 @@ commit before the push as the base. A red job makes `gates` red, so the deploy d
 
 - [x] The first push (dd733a2, run 45123999976): the job is green, and its numbers are in the job
       log: open 716 ms at 20 frames, 892 ms at 200; change 117 ms; ask 112 ms; pan 21 ms at most.
-- [ ] Not done: a test commit on main that is over the budget. It would make main red on
-      purpose and stop the line; the fact that it proves (a red `gates` stops `deploy`) is known.
+- [x] A real red commit did it (a13880d, trunk-red #14), so no test commit is needed.
 
 **Dependencies:** SPD-5, SPD-6.
 
@@ -438,12 +439,53 @@ before the ship.
 
 ### Checkpoint D: after SPD-5 to SPD-7
 
-- [ ] Each success criterion of SPEC-speed is met.
-- [ ] Write SPD-8 and after: one task for each item of the first hot path list that the first
+- [x] Each success criterion of SPEC-speed is met. One changed on 2026-11-23: a red `speed` job
+      rolls the site back, it does not stop the deploy (deploy first). Q2 asks for a new text.
+- [x] Write SPD-8 and after: one task for each item of the first hot path list that the first
       view does not show. Each moves after `easel:open` in its own ship, with the change of
-      `open` in the ship message.
+      `open` in the ship message. The list on 2026-11-23: the JS and the CSS (the view needs
+      them), Inter (the labels show it at once, with `swap`), `/api/telemetry` (SPD-8) and
+      `/api/pictures/*` (SPD-9).
 - [ ] Review with the user.
 
 ## Phase 5: off the hot path
 
-Written at checkpoint D.
+### SPD-8: telemetry after `easel:open`
+
+**Description:** The tab's telemetry queue sends every 1 s, and at once with 64 records. A cold
+open takes ~2.2 s, so a send comes before `easel:open`. The tab holds its first send until the
+page marks `easel:open`, or for 10 s at most (a page with no canvas never marks it). Prior art:
+analytics scripts wait for `load` or idle before they send.
+
+**Acceptance criteria:**
+
+- [ ] In the browser, no telemetry send starts before `easel:open`, and the records wait.
+- [ ] After `easel:open`, the records go in the next send; with no `easel:open`, they go at 10 s.
+- [ ] The server and the worker send as before.
+- [ ] `/api/telemetry` is off the hot path list, and the gate is green with the shorter list.
+
+**Verification:**
+
+- [ ] A test of the queue on the test clock: no send before the mark, a send after it, a send
+      at 10 s with no mark.
+- [ ] `bun run speed` on vibea2: `before easel:open` does not list `/api/telemetry`.
+
+**Dependencies:** none. **Files likely touched:** `tinker/components/telemetry/queue.ts`, a test,
+`speed.json`. **Estimated scope:** S.
+
+### SPD-9: a picture at the size its zoom needs
+
+**Description:** At Fit, 20 frames show at 3%, but each picture comes at half size. The tab asks
+for the smallest size that fills the frame on the screen at its zoom (canvas-speed.md 4).
+
+**Acceptance criteria:**
+
+- [ ] At 3%, a picture is at most a few KB; at 40%, it is as sharp as today.
+- [ ] The cold open at 20 frames is shorter than 2218 ms (the report line).
+
+**Verification:**
+
+- [ ] A test of the size that the tab asks at each zoom.
+- [ ] `bun run speed`: the `cold` line, before and after, in the ship message.
+
+**Dependencies:** none. **Estimated scope:** M; split it at the start if it grows.
