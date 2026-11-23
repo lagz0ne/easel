@@ -207,3 +207,26 @@ test("a tool that is not in the table, and a call that the server does not serve
   await client.close();
   expect(await served).toBe(0);
 });
+
+test("a tool error carries no input value: a short password is not in the text of its invalid fault", async () => {
+  const srv = await boot();
+  const a = await ann(srv);
+  expect(
+    await a.scope.run(cli.run, {
+      input: { kind: "frames", act: { kind: "canvas new", name: "Flow" } },
+    }),
+  ).toBe(0);
+  const { client, served } = await mcp(a);
+
+  const answer = await client.callTool({
+    name: "share_canvas",
+    arguments: { canvas: "flow", password: "sEcRe7x" },
+  });
+  const text = JSON.stringify(answer.content);
+  expect(answer.isError).toBe(true);
+  expect(text).toMatch(/the input is wrong: password: [^"]+\. Fix it, then call again/);
+  expect(text).not.toContain("sEcRe7x");
+
+  await client.close();
+  expect(await served).toBe(0);
+});

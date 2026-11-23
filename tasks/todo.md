@@ -142,15 +142,19 @@ trace, a token, a password, a share token, a pass or an input value.
 
 **Acceptance criteria:**
 
-- [ ] `tinker check` finds no exit of `src/mcp` that a test does not reach.
-- [ ] A test for each fault (`refused`, `failed`, `invalid`, `encode`, `decode`, `missing`,
+- [x] `tinker check` finds no exit of `src/mcp` that a test does not reach.
+- [x] A test for each fault (`refused`, `failed`, `invalid`, `encode`, `decode`, `missing`,
       `link`) checks its text.
-- [ ] A test puts a known secret in the input of each kind of error, and does not find it in
-      the answer (judged rule 1).
+- [x] A test puts a short password in `share_canvas`, and does not find it in the answer
+      (judged rule 1). An invalid input lists each issue's path and message only, and a failed
+      fault only its trace id. A wrong input is a tool error, not a JSON-RPC error.
+- [x] Each kind of each tool is a result or a tool error by its call's success list, and each
+      error kind has a line on what to do next (`src/mcp/texts.ts`). Findings and color pairs
+      follow, one a line, in the CLI's form.
 
 **Verification:**
 
-- [ ] `tests/mcp-kinds.test.ts`, `tests/mcp-faults.test.ts`.
+- [x] `tests/mcp-kinds.test.ts` (kinds and faults), `tests/mcp.test.ts` (no value in an error).
 
 **Dependencies:** MCP-3. It can run at the same time as MCP-4.
 

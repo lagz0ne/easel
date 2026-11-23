@@ -1,6 +1,6 @@
 import type { Transport } from "@modelcontextprotocol/sdk/shared/transport.js";
 import type { CallToolResult, Tool } from "@modelcontextprotocol/sdk/types.js";
-import { operation, tag } from "@tinkered/core";
+import { isError, operation, tag } from "@tinkered/core";
 import type { RunResult } from "@tinkered/core";
 import { z } from "zod";
 
@@ -10,6 +10,7 @@ import { kitApi } from "@/kit/contract";
 import { opsOwnerApi, opsUserApi } from "@/ops/contract";
 import { queueApi } from "@/queue/contract";
 
+import { answerText } from "./texts";
 import { contracts, successLists, tools } from "./tools";
 
 // An MCP server of easel's calls (SPEC-mcp.md): each tool runs exactly one call of the contract
@@ -55,6 +56,35 @@ const toolList = operation({
     })),
 });
 
+/**
+ * What was wrong with an input: each issue's path and message, and never its value (judged rule
+ * 1). A zod error, a list of issues, or anything else, which says only that the input is wrong.
+ */
+const issuesText = z.unknown().transform((raw) => {
+  const segment = z.union([
+    z.string(),
+    z.number(),
+    z.object({ key: z.union([z.string(), z.number()]) }),
+  ]);
+  const issue = z.object({ message: z.string(), path: z.array(segment).optional() });
+  const issues = z.array(issue);
+  const found = z
+    .union([
+      issues,
+      z.object({ issues }).transform((one) => one.issues),
+      z.object({ payload: z.object({ issues }) }).transform((one) => one.payload.issues),
+    ])
+    .safeParse(raw);
+  const told = (found.data ?? [])
+    .map((one) => {
+      const path = (one.path ?? []).map((at) => (typeof at === "object" ? at.key : at));
+      return `${path.join(".") || "input"}: ${one.message}`;
+    })
+    .join("; ");
+
+  return `the input is wrong${told ? `: ${told}` : ""}. Fix it, then call again.`;
+});
+
 /** One line for each fault: what happened, and what to do next (SPEC-mcp.md § Built on Tinker). */
 const faultText = z
   .object({ fault: z.string(), address: z.string(), payload: z.unknown(), trace: z.string() })
@@ -65,7 +95,7 @@ const faultText = z
       failed,
       encode: failed,
       decode: failed,
-      invalid: `the input is wrong: ${JSON.stringify(payload)}`,
+      invalid: issuesText.parse(payload),
       missing: `this easel has no ${address}: update easel`,
       link: "cannot reach the easel server: check that it runs, then call again",
     };
@@ -88,10 +118,14 @@ type Caller = {
 };
 
 /** A call that did not answer, as a tool error. An error that is no rpc fault is thrown on. */
-const faultResult = operation({
+export const faultResult = operation({
   label: "mcp.faultResult",
   input: z.unknown(),
   run: (_, { input: error }): CallToolResult => {
+    if (isError(error, "DataValidationFailed")) {
+      return { isError: true, content: [{ type: "text", text: issuesText.parse(error.payload) }] };
+    }
+
     const apis = [framesApi, kitApi, queueApi, ownerApi, opsUserApi, opsOwnerApi];
     if (!apis.some((api) => api.fault.is(error))) throw error;
 
@@ -107,14 +141,15 @@ const faultResult = operation({
 });
 
 /** A call's answer, as it is: an error when its kind is not on the call's success list. */
-const answerResult = operation({
+export const answerResult = operation({
   label: "mcp.answerResult",
   input: z.object({ address: z.enum(Object.keys(successLists)), value: z.looseObject({}) }),
-  run: (_, { input: { address, value } }): CallToolResult => {
+  depends: { answerText },
+  run: ({ answerText }, { input: { address, value } }): CallToolResult => {
     const kind = "kind" in value ? String(value.kind) : undefined;
     const list = Object.entries(successLists).find(([at]) => at === address)?.[1] ?? [];
     const ok = [list].flat().some((k) => k === "always" || k === kind);
-    const text = JSON.stringify(value);
+    const text = answerText.run({ input: { ok, value } });
 
     return { isError: !ok, structuredContent: value, content: [{ type: "text", text }] };
   },
