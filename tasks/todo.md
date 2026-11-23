@@ -333,7 +333,7 @@ throttled run (4× CPU, 40 ms round trip) to the report only.
 
 ### Checkpoint C: after SPD-1 to SPD-4
 
-- [ ] The first numbers of each step, at 20 and 200 frames, are in `docs/canvas-speed.md`
+- [x] The first numbers of each step, at 20 and 200 frames, are in `docs/canvas-speed.md`
       ("Budgets").
 - [ ] A step that is over its budget today gets a task before phase 4.
 - [ ] Review with the user.

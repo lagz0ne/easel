@@ -302,6 +302,34 @@ Easel's own measures, 2026-11-21 (E8, see
 - Screencast zooms and wakes to catch white
   flashes. Numbers do not show them.
 
+## Budgets
+
+The budgets of the critical path are in
+`speed.json`. `bun run speed` measures each step
+on the built binary (SPEC-speed.md). The first
+numbers, on vibea2 on 2026-11-23 (p50 of 7 runs):
+
+| Step             | Frames | p50    | Budget     |
+| ---------------- | ------ | ------ | ---------- |
+| `open`           | 20     | 749 ms | 2000 ms    |
+| `open`           | 200    | 937 ms | 2000 ms    |
+| `change`, at Fit | 20     | 118 ms | 1000 ms    |
+| `change`, live   | 20     | 57 ms  | 1000 ms    |
+| `change`, at Fit | 200    | 214 ms | 1000 ms    |
+| `ask`            | 20     | 108 ms | 1000 ms    |
+| `pan`, longest   | 200    | 56 ms  | 100 ms     |
+| `pan`, handler   | 200    | 0.3 ms | 8 ms (p95) |
+
+- Easel puts frames in one row. So at Fit, 20
+  frames show at 3% and 200 at 0.3%, with no
+  live frame: `open` waits for each picture.
+- A cold open (empty cache) took 2176 ms. With
+  4x CPU and a 40 ms round trip, it took 2880 ms.
+  Both are over 2000 ms. The run only reports
+  them.
+- `change` at 200 frames had p50 118 ms in one
+  run and 214 ms in the next.
+
 ## Order to build in
 
 1. One transform stage; 8, 14.
