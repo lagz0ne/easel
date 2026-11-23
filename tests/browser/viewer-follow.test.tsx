@@ -115,7 +115,17 @@ const seed = operation({
   },
   run: ({ cells, gone, rows, thread, clocks, client }) => {
     const version = store.homeVersion;
-    cells.set({ canvas: "home", id: home, name: "Home", x: 0, y: 0, w: 400, h: 300, version });
+    cells.set({
+      canvas: "home",
+      id: home,
+      name: "Home",
+      x: 0,
+      y: 0,
+      w: 400,
+      h: 300,
+      version,
+      status: "exploring",
+    });
 
     if (store.farGone) {
       const box = { name: "Far", x: 3000, y: 2000, w: 400, h: 300 };
@@ -131,6 +141,7 @@ const seed = operation({
         w: 400,
         h: 300,
         version: 1,
+        status: "exploring",
       });
     }
     clocks.set({ canvas: "home", now: serverNow });

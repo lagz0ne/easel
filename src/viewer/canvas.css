@@ -206,6 +206,23 @@
   text-overflow: ellipsis;
 }
 
+.e-label > .e-ready {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--e-1);
+  margin-left: var(--e-2);
+  color: var(--e-ok);
+  font-weight: var(--e-w-medium);
+}
+
+.e-ready::before {
+  content: "";
+  width: 6px;
+  height: 6px;
+  background-color: currentColor;
+  border-radius: var(--e-radius-full);
+}
+
 .e-card {
   position: absolute;
   inset: 0;

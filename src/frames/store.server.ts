@@ -107,7 +107,7 @@ const boardFrame = operation({
   label: "frames.boardFrame",
   input: keyedRow,
   depends: { boardKey },
-  run: ({ boardKey }, { input: { gen, status: _status, ...row } }) => ({
+  run: ({ boardKey }, { input: { gen, ...row } }) => ({
     ...row,
     k: boardKey.run({ input: { canvas: row.canvas, id: row.id, version: row.version, gen } }),
   }),

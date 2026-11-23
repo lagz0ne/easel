@@ -241,7 +241,17 @@ const seed = operation({
     docCells: docs.controller,
   },
   run: ({ cells, rows, thread, clocks, docCells }) => {
-    cells.set({ canvas: "home", id: home, name: "Home", x: 0, y: 0, w: 400, h: 300, version: 1 });
+    cells.set({
+      canvas: "home",
+      id: home,
+      name: "Home",
+      x: 0,
+      y: 0,
+      w: 400,
+      h: 300,
+      version: 1,
+      status: "exploring",
+    });
     clocks.set({ canvas: "home", now: serverNow });
     if (store.doc !== null) {
       docCells.set({ canvas: "home", id: home, version: 1, html: store.doc, css: null });

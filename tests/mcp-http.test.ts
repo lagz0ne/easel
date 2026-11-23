@@ -1,3 +1,4 @@
+import { createHash } from "node:crypto";
 import { mkdtempSync, readFileSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
@@ -26,7 +27,10 @@ import { frames } from "@/frames";
 import { framesLoads, framesOps, mayRead } from "@/frames/ops.server";
 import { framesServer } from "@/frames/store.server";
 import { kit } from "@/kit";
+import { kitOps } from "@/kit/ops.server";
 import { portClient, portServer } from "@/kit/port-link";
+import { runtimeNames } from "@/kit/runtime";
+import type { BuiltRuntime } from "@/kit/runtime.server";
 import { mcpHttp, mcpMeta } from "@/mcp/http.server";
 import { ops } from "@/ops";
 import { queue } from "@/queue";
@@ -38,6 +42,14 @@ afterEach(async () => {
 });
 
 const origin = "https://easel.test";
+
+function fakeRuntime(): BuiltRuntime {
+  const imports = Object.fromEntries(
+    runtimeNames.map((name) => [name, `${name.replace(/^@/, "").replaceAll("/", "__")}.js`]),
+  );
+  const files = Object.fromEntries(Object.values(imports).map((file) => [file, "export {};"]));
+  return { sha: createHash("sha256").update("fake").digest("hex"), imports, files };
+}
 
 const signInHeader = `Bearer realm="easel", resource_metadata="${origin}/.well-known/oauth-protected-resource"`;
 
@@ -60,19 +72,20 @@ async function boot() {
       ops.owner({ remote: portClient }),
     ],
   });
-  const services = [access.login, access.user, access.owner, frames.api];
+  const services = [access.login, access.user, access.owner, frames.api, kit.api];
   const server = await createScope({
     clock,
     capsules: [
       exits({ file: process.env.TINKER_EXITS }),
       bunSqlite({ file: ":memory:" }),
       accessServer({ mode: "approve", origin: null, stdout, trusted: [], durable: false }),
-      framesServer({ stdout }),
+      framesServer({ stdout, runtime: fakeRuntime() }),
       access.login({ implement: loginOps }),
       access.user({ implement: userOps, onStart: [user] }),
       access.owner({ implement: ownerOps, onStart: [user, owner] }),
       frames.api({ implement: framesOps, onStart: [user] }),
       frames.board({ serve: true, load: framesLoads, onStart: [mayRead] }),
+      kit.api({ implement: kitOps, onStart: [user] }),
       memory.server({ services }),
       portServer({ services }),
       mcpHttp({
@@ -380,4 +393,62 @@ test("an owner makes a user for Claude with `easel users add`; its token signs C
     },
   });
   expect(after.status).toBe(401);
+});
+
+const startPart = [
+  'import { copy } from "@easel/kit";',
+  'import { resource } from "@tinkered/core";',
+  "",
+  'const texts = ["trial.start"] as const;',
+  "",
+  "const text = resource({",
+  '  label: "trial.text",',
+  "  depends: { say: copy.say },",
+  "  factory: ({ say }) => say(texts),",
+  "});",
+  "",
+  "export function View() {",
+  '  return <button className="bg-primary p-4">Start</button>;',
+  "}",
+  "",
+].join("\n");
+
+test("L3: agent A sets trial.start; agent B lists the texts over MCP and puts a ready frame with it; the put is created and B adds no text; with the ready frame of A, two agents use one text key (L1)", async () => {
+  const srv = await boot();
+  const tokens = await team(srv);
+  const a = await client(srv, tokens.ann);
+  const b = await client(srv, tokens.bob);
+  const call = (mcp: Client, name: string, args: Record<string, unknown>) =>
+    mcp.callTool({ name, arguments: args });
+
+  const made = await call(a, "create_canvas", { name: "Flow" });
+  expect(made).toMatchObject({ isError: false, structuredContent: { key: "flow" } });
+  const set = await call(a, "set_texts", { texts: { "trial.start": { en: "Start the trial" } } });
+  expect(set).toMatchObject({ isError: false, structuredContent: { kind: "updated", rev: 2 } });
+
+  const listed = await call(b, "list_texts", {});
+  expect(listed).toMatchObject({
+    isError: false,
+    structuredContent: { rev: 2, texts: { "trial.start": { en: "Start the trial" } } },
+  });
+
+  const put = await call(b, "put_frame", { canvas: "flow", tsx: startPart, ready: true });
+  expect(put).toMatchObject({
+    isError: false,
+    structuredContent: { kind: "created", version: 1, findings: [] },
+  });
+  const own = await call(a, "put_frame", { canvas: "flow", tsx: startPart, ready: true });
+  expect(own).toMatchObject({ isError: false, structuredContent: { kind: "created" } });
+  expect(await call(b, "list_frames", { canvas: "flow" })).toMatchObject({
+    isError: false,
+    structuredContent: {
+      frames: [
+        { version: 1, status: "ready" },
+        { version: 1, status: "ready" },
+      ],
+    },
+  });
+  expect(await call(a, "list_texts", {})).toMatchObject({
+    structuredContent: { rev: 2, texts: { "trial.start": { en: "Start the trial" } } },
+  });
 });

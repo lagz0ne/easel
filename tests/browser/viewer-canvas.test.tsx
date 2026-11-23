@@ -11,7 +11,12 @@ import { cdp, page, userEvent } from "vite-plus/test/browser/context";
 import { z } from "zod";
 
 import { frames } from "@/frames";
-import { frames as frameCells, framesBoard } from "@/frames/contract";
+import {
+  type FrameStatus,
+  frames as frameCells,
+  frameStatus,
+  framesBoard,
+} from "@/frames/contract";
 import { Canvas } from "@/viewer/canvas";
 import { picRetryMs } from "@/viewer/picture";
 
@@ -30,6 +35,7 @@ type Put = {
   h: number;
   html: string;
   k?: string;
+  status?: FrameStatus;
 };
 
 const htmls = new Map<string, { version: number; html: string }>();
@@ -58,14 +64,24 @@ const put = operation({
     h: z.number(),
     html: z.string(),
     k: z.string().optional(),
+    status: frameStatus.optional(),
   }),
   depends: { cells: frameCells.controller, invalidate: framesBoard.invalidate },
-  run: async ({ cells, invalidate }, { input }) => {
-    const { html, ...box } = input;
-    const version = (htmls.get(input.id)?.version ?? 0) + 1;
-    htmls.set(input.id, { version, html });
-    cells.set({ ...box, canvas, version });
-    await invalidate.run({ input: { docs: { canvas, id: input.id } } });
+  run: async ({ cells, invalidate }, { input: { html, status = "exploring", ...box } }) => {
+    const version = (htmls.get(box.id)?.version ?? 0) + 1;
+    htmls.set(box.id, { version, html });
+    cells.set({ ...box, canvas, version, status });
+    await invalidate.run({ input: { docs: { canvas, id: box.id } } });
+  },
+});
+
+const mark = operation({
+  label: "test.mark",
+  input: z.object({ id: z.string(), status: frameStatus }),
+  depends: { cells: frameCells.controller },
+  run: ({ cells }, { input: { id, status } }) => {
+    const now = cells.of({ canvas, id }).get();
+    if (now) cells.set({ ...now, status });
   },
 });
 
@@ -487,6 +503,39 @@ test("in a dark system theme the canvas stays light gray, as in Doop, and its la
   expect(getComputedStyle(region()).backgroundColor).toBe("rgb(243, 243, 242)");
   expect(label && getComputedStyle(label).color).toBe("rgb(97, 97, 94)");
   expect(getComputedStyle(dock).backgroundColor).toBe("rgb(31, 31, 31)");
+});
+
+test("SPEC-copy rule 14: the label row of a ready frame says Ready in the ok color, in both themes; an exploring frame has no mark; the mark follows each change of the status live", async () => {
+  const scheme = (value: string) =>
+    cdp().send("Emulation.setEmulatedMedia", {
+      features: [{ name: "prefers-color-scheme", value }],
+    });
+  onTestFinished(() => scheme("").then(() => undefined));
+  const server = await boot([frame("a", 0, 0, { status: "ready" }), frame("b", 400, 0)]);
+  const at = await tab(server);
+  await opened(at, 2);
+  const markOf = (id: string) =>
+    shellOf(id)?.querySelector<HTMLElement>(".e-label .e-ready") ?? null;
+  const okColor = "rgb(29, 107, 64)";
+
+  await expect
+    .element(page.getByRole("group", { name: "Frame a" }).getByText("Ready", { exact: true }))
+    .toBeVisible();
+  expect(markOf("b")).toBeNull();
+  expect(getComputedStyle(markOf("a") ?? region()).color).toBe(okColor);
+
+  await scheme("dark");
+  expect(getComputedStyle(markOf("a") ?? region()).color).toBe(okColor);
+
+  server.run(mark, { input: { id: "a", status: "exploring" } });
+  server.run(mark, { input: { id: "b", status: "ready" } });
+  await expect.poll(() => markOf("a")).toBeNull();
+  await expect.poll(() => markOf("b")?.textContent).toBe("Ready");
+
+  await server.run(put, { input: frame("a", 0, 0, { status: "ready" }) });
+  await expect.poll(() => markOf("a")?.textContent).toBe("Ready");
+  await server.run(put, { input: frame("b", 400, 0) });
+  await expect.poll(() => markOf("b")).toBeNull();
 });
 
 test("a trackpad pinch (small Ctrl+wheel steps) zooms 1% for each pixel, as tldraw and Excalidraw; a wheel notch stays ×1.25", async () => {

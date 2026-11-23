@@ -5,7 +5,7 @@ import { z } from "zod";
 
 import { frames } from "@/frames";
 import { boardDoc } from "@/frames/contract";
-import type { FrameInfo } from "@/frames/contract";
+import type { BoardFrame, FrameInfo } from "@/frames/contract";
 import { compose, composeApp, composeKit, frameAxes } from "@/kit/compose";
 import { paneScript } from "@/kit/controls";
 import type { ControlShown, PanePlace } from "@/kit/controls";
@@ -299,7 +299,7 @@ const Shell = memo(function Shell({
   at,
 }: {
   canvas: string;
-  frame: FrameInfo & { k?: string; gone?: true };
+  frame: BoardFrame & { gone?: true };
   at: Stage;
 }) {
   const live = useData(liveSet, (ids) => ids.includes(frame.id));
@@ -323,6 +323,7 @@ const Shell = memo(function Shell({
     >
       <div className="e-label" data-label>
         <span className="e-label-name">{frame.name}</span>
+        {frame.status === "ready" ? <ReadyMark /> : null}
         <FrameAxes frame={frame} />
         <DockedControls {...pane} place="top" />
         <ControlsButton frame={frame} />
@@ -342,6 +343,10 @@ const Shell = memo(function Shell({
     </div>
   );
 });
+
+function ReadyMark() {
+  return <span className="e-ready">Ready</span>;
+}
 
 function FrameAxes({ frame }: { frame: FrameInfo }) {
   const offer = useData(offeredAxes, (all) => all[frame.id]);
@@ -779,7 +784,7 @@ function Status({ lost, fault }: { lost: boolean; fault: boolean }) {
 const shownMemo = resource({
   label: "viewer.shownMemo",
   config: { canvas: canvasKey.required },
-  factory: () => new Map<string, FrameInfo & { k?: string }>(),
+  factory: () => new Map<string, BoardFrame>(),
 });
 
 const shownFrames = resource({
@@ -795,7 +800,7 @@ const shownFrames = resource({
     const now = list.get() ?? [];
     const last = memo.get();
     const ids = new Set(now.map((f) => f.id));
-    const shown: Array<FrameInfo & { k?: string; gone?: true }> = [...now];
+    const shown: Array<BoardFrame & { gone?: true }> = [...now];
     for (const [at, f] of [...last.values()].entries()) {
       const keep = !ids.has(f.id) && (live.includes(f.id) || held.includes(f.id));
       if (keep) shown.splice(at, 0, { ...f, gone: true });

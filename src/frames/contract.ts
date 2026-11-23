@@ -86,7 +86,13 @@ export const frame = z.union([
 
 export type Frame = z.infer<typeof frame>;
 
-const boardFrame = frameInfo.extend({ canvas: z.string(), k: z.string().optional() });
+const boardFrame = frameInfo.extend({
+  canvas: z.string(),
+  k: z.string().optional(),
+  status: frameStatus,
+});
+
+export type BoardFrame = z.infer<typeof boardFrame>;
 
 export const boardApp = z.object({ js: z.string(), kit: z.number(), runtime: runtimeLink });
 

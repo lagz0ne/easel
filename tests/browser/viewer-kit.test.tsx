@@ -132,7 +132,15 @@ const put = operation({
         ? { version, html: "", app: { js, kit: 1, runtime: noRuntime } }
         : { version, html: probeDoc(input.id) };
     htmls.set(input.id, served);
-    cells.set({ ...input, canvas, name: `Frame ${input.id}`, w: 320, h: 200, version });
+    cells.set({
+      ...input,
+      canvas,
+      name: `Frame ${input.id}`,
+      w: 320,
+      h: 200,
+      version,
+      status: "exploring",
+    });
     await invalidate.run({ input: { docs: { canvas, id: input.id } } });
   },
 });

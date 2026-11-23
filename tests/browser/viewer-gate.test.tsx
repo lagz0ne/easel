@@ -117,7 +117,16 @@ const putFrame = operation({
   input: z.object({ id: z.string(), name: z.string() }),
   depends: { cells: frameCells.controller },
   run: ({ cells }, { input }) =>
-    cells.set({ ...input, canvas: "home", x: 0, y: 0, w: 100, h: 100, version: 1 }),
+    cells.set({
+      ...input,
+      canvas: "home",
+      x: 0,
+      y: 0,
+      w: 100,
+      h: 100,
+      version: 1,
+      status: "exploring",
+    }),
 });
 
 async function boot() {
