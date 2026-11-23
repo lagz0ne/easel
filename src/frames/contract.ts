@@ -130,6 +130,13 @@ export const removed = data({
   key: (f) => ({ canvas: f.canvas, id: f.id }),
 });
 
+export const pageClient = data({
+  label: "frames.client",
+  mode: "keyed",
+  parse: z.object({ canvas: z.string(), client: z.string().nullable() }),
+  key: (c) => ({ canvas: c.canvas }),
+});
+
 export const framesBoard = remoteData({
   frames,
   docs,
@@ -139,6 +146,7 @@ export const framesBoard = remoteData({
   messages,
   serverClock,
   kit,
+  client: pageClient,
 });
 
 const gone = z.object({ kind: z.literal("gone") });

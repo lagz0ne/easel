@@ -30,6 +30,14 @@ this spec wins, and the screen gets a fix.
    bottom edges. The canvas and the dock keep the full width. Nothing
    on the canvas moves when the card opens, changes or closes, as the comments of Figma and
    Linear. Decided on 2026-11-23 (E4.4, requests #4 and #11).
+4. When easel deploys a new version of the page, a bar at the top left says "A new version of
+   easel is ready." with the button `Reload`, as Linear and Slack do (request #12, 2026-11-23).
+   The board's cell `client` names the page script of the server's build. The tab keeps the first
+   name that it reads, and the socket reads the cell again each time it connects. A deploy that
+   does not change the page keeps the name, so no bar shows. The tab never reloads by itself.
+   While a request or an answer is typed, the bar says "Send your text first, then reload." in
+   the place of `Reload`, so a reload loses no text. A server run from source names no page, and
+   shows no bar. The chart is [viewer-version](docs/statecharts/viewer-version.md).
 
 ### Open the link
 
@@ -385,7 +393,7 @@ and 4 s; after the third try the card shows.
 
 ## Contract
 
-The page reads `easel.board` (cells `frames`, `docs`, `kept`, `removed`, `requests`, `messages` and `kit`, keyed by canvas,
+The page reads `easel.board` (cells `frames`, `docs`, `kept`, `removed`, `requests`, `messages`, `kit` and `client`, keyed by canvas,
 and the server's clock offset). Its calls are:
 
 - `share.open { link, password?, name? }` ([frames](SPEC-frames.md)), once at the gate. `name` is

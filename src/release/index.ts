@@ -11,6 +11,8 @@ const build = tag<number>({
 
 const origin = tag<string | null>({ label: "release.origin", default: null });
 
+export const releaseClient = tag<string | null>({ label: "release.client", default: null });
+
 const downloads = tag<string>({
   label: "release.downloads",
   default: "https://github.com/lagz0ne/easel/releases/download",
@@ -19,8 +21,8 @@ const downloads = tag<string>({
 
 const version = operation({
   label: "release.version",
-  depends: { commit, build },
-  run: ({ commit, build }) => ({ commit, build }),
+  depends: { commit, build, client: releaseClient },
+  run: ({ commit, build, client }) => ({ commit, build, client }),
 });
 
 const script = `#!/bin/sh
@@ -122,6 +124,6 @@ const install = operation({
 
 export const release = capsule({
   label: "release",
-  config: { commit: commit.required, build, origin, downloads },
+  config: { commit: commit.required, build, origin, downloads, client: releaseClient },
   exports: { version, install },
 });

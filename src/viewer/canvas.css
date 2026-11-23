@@ -1554,3 +1554,31 @@ span.e-opt[data-picked="false"] {
     background-color: var(--e-accent-bg);
   }
 }
+
+.e-top .e-update {
+  display: flex;
+  gap: var(--e-2);
+  align-items: center;
+  font-family: var(--e-font);
+}
+
+.e-update-wait {
+  color: var(--e-muted);
+}
+
+.e-update-go {
+  height: 24px;
+  padding: 0 var(--e-2);
+  font: inherit;
+  font-weight: 600;
+  color: var(--e-on-accent);
+  background-color: var(--e-accent);
+  border: 0;
+  border-radius: var(--e-radius);
+  cursor: pointer;
+}
+
+.e-update-go:focus-visible {
+  outline: 2px solid var(--e-focus);
+  outline-offset: 2px;
+}

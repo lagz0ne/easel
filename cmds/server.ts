@@ -43,7 +43,7 @@ import { release } from "@/release";
 import { todo } from "@/todo";
 import { todoOps } from "@/todo/ops.server";
 
-import { pages } from "./pages";
+import { clientEntry, pages } from "./pages";
 import { runtime } from "./runtime";
 
 const defaults = { PORT: "4318", GIT_SHA: "dev", BUILD: "0" };
@@ -182,7 +182,12 @@ export default defineMain(async ({ env, args, signal, stdout, stderr, exit }) =>
       queue.viewer({ implement: requestOps, onStart: [mayAct] }),
       dispatchServer({ fetch }),
       queue.channels({ implement: channelOps, onStart: [user, owner] }),
-      release({ commit: set.GIT_SHA, build: Number(set.BUILD), origin: auth.origin }),
+      release({
+        commit: set.GIT_SHA,
+        build: Number(set.BUILD),
+        origin: auth.origin,
+        client: clientEntry,
+      }),
       opsServer({ database: auth.file }),
       ops.user({ implement: opsUserOps, onStart: [user] }),
       ops.owner({ implement: opsOwnerOps, onStart: [user, owner] }),

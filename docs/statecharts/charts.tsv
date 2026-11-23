@@ -38,3 +38,4 @@ kit-control-link	models/kit/ControlLink.tla	models/kit/ControlLink.cfg	models/ki
 viewer-card	models/viewer/ViewerCard.tla	models/viewer/ViewerCard.cfg	models/viewer/ViewerCard.view.mjs	holds
 viewer-find	models/viewer/FindFrame.tla	models/viewer/FindFrame.cfg	models/viewer/FindFrame.view.mjs	holds
 viewer-hover	models/viewer/PartHover.tla	models/viewer/PartHover.cfg	models/viewer/PartHover.view.mjs	holds
+viewer-version	models/viewer/NewVersion.tla	models/viewer/NewVersion.cfg	models/viewer/NewVersion.view.mjs	holds

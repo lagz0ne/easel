@@ -14,6 +14,7 @@ import {
   utf8Bytes,
 } from "@/kit/schema";
 import { frameKit } from "@/kit/store.server";
+import { releaseClient } from "@/release";
 
 import {
   framesApi,
@@ -296,4 +297,15 @@ export const framesOps = {
   "frame.shot": shotFrame,
 } as const;
 
-export const framesLoads = { docs: loadDocs, serverClock: loadServerClock } as const;
+export const loadClient = operation({
+  label: "frames.loadClient",
+  input: z.object({ canvas: z.string() }),
+  depends: { client: releaseClient },
+  run: ({ client }, { input }) => [{ canvas: input.canvas, client }],
+});
+
+export const framesLoads = {
+  docs: loadDocs,
+  serverClock: loadServerClock,
+  client: loadClient,
+} as const;

@@ -155,7 +155,7 @@ test("the cmd wires ops: /api/version says BUILD, a member is refused ops.errors
   const { ann, bob } = await people(srv);
 
   const version = await fetch(new URL("/api/version", srv.url));
-  expect(await version.json()).toEqual({ commit: "c0ffee", build: 7 });
+  expect(await version.json()).toEqual({ commit: "c0ffee", build: 7, client: null });
 
   expect(await faultOf(bob.scope.run(ops.owner["ops.errors"], { input: {} }))).toEqual({
     fault: "refused",

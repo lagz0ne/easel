@@ -12,6 +12,7 @@ import { queue } from "@/queue";
 import { requests } from "@/queue/cells";
 import { maxOpen, requestContracts } from "@/queue/contract";
 import { perAddress, perPass } from "@/queue/ops.server";
+import { release } from "@/release";
 
 import {
   boot,
@@ -281,6 +282,19 @@ test("the board carries the time of the server for a canvas: a tab reads now, so
 
   await until(() => read.get() !== undefined);
   expect(read.get()).toEqual({ canvas: "flow", now: start + 1_234 });
+});
+
+test("the board carries the page client of the server's build for a canvas, so a tab sees a new version of the page (SPEC-viewer The page 4)", async () => {
+  const srv = await boot(":memory:", [], {
+    extra: [release({ commit: "c0ffee", build: 9, client: "/assets/index-Ab12.js" })],
+  });
+  const { link } = await sharedFlow(srv);
+  const bo = await viewer(srv, link, "Bo");
+  const read = bo.scope.resolve(frames.board.client.of({ canvas: "flow" }));
+  closers.push(read.watch(() => undefined));
+
+  await until(() => read.get() !== undefined);
+  expect(read.get()).toEqual({ canvas: "flow", client: "/assets/index-Ab12.js" });
 });
 
 test(

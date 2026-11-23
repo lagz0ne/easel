@@ -722,6 +722,7 @@ test("status: the build, the checks, each module's counters, the error counts an
   expect(await srv.status()).toEqual({
     commit: "c0ffee",
     build: 12,
+    client: null,
     uptime: 2 * 60 * minute,
     checks: expect.arrayContaining([
       { name: "database", ok: true, detail: "reads and writes" },

@@ -55,6 +55,7 @@ Each chart's page has the chart, its rules in plain words, and what the model le
 | [viewer-card](viewer-card.md)                       | viewer | The card of the Requests, docked at the right: list, thread, Back, Close, Escape           |
 | [viewer-find](viewer-find.md)                       | viewer | Find a frame by its name, from the dock: the list, the take, the mark                      |
 | [viewer-hover](viewer-hover.md)                     | viewer | The outline of the part under the pointer, in the request mode                             |
+| [viewer-version](viewer-version.md)                 | viewer | A new version of the page: the bar, Reload, and no text lost                               |
 | [kit-piece](kit-piece.md)                           | kit    | Two agents change one piece: the first change on a revision wins, the other gets `stale`   |
 | [kit-look](kit-look.md)                             | kit    | The look: a change, a refused unreadable look, one step back, and what a viewer saw        |
 | [kit-look-unbound](kit-look-unbound.md)             | kit    | Why a request keeps its kit version: with the frame version only, its Before is wrong      |

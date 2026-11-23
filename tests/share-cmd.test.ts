@@ -11,7 +11,7 @@ type Pages = typeof import("../cmds/pages");
 
 const server: Server = await import(new URL("../cmds/server.ts", import.meta.url).href);
 const easelCmd: Server = await import(new URL("../cmds/easel.ts", import.meta.url).href);
-const { pagesOf }: Pages = await import(new URL("../cmds/pages.ts", import.meta.url).href);
+const { entryOf, pagesOf }: Pages = await import(new URL("../cmds/pages.ts", import.meta.url).href);
 
 const collector = Bun.serve({ port: 0, fetch: () => new Response(null, { status: 204 }) });
 
@@ -123,6 +123,18 @@ test("every page and file the binary serves says Referrer-Policy: no-referrer", 
   expect(routes["/*"]?.headers.get("cache-control")).toBeNull();
 
   await rm(dir, { recursive: true });
+});
+
+test("the page client of a build is its hashed entry script, and a server run from source has none (SPEC-viewer The page 4)", () => {
+  const built = {
+    "/assets/index-BkkCqC0M.js": "a",
+    "/assets/index-FV3AItSg.css": "b",
+    "/assets/chunk-Ab12.js": "c",
+    "/index.html": "d",
+  };
+
+  expect(entryOf.parse(built)).toBe("/assets/index-BkkCqC0M.js");
+  expect(entryOf.parse({})).toBeNull();
 });
 
 test("the page itself asks for no referrer, so a link to elsewhere never carries /s/<link>", async () => {

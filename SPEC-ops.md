@@ -54,7 +54,8 @@ fixer lease, and which claim holds it. ops reads it, and still imports no other 
 A commit sha cannot say whether one build comes after another. Every image carries `BUILD`, the
 count of commits on main (`git rev-list --count HEAD`, full history). main is one straight line,
 so a larger number is a later build that contains every earlier one. `/api/version` answers
-`{ commit, build }`.
+`{ commit, build, client }`. `client` is the page script of the build, or null for a server run
+from source. A tab compares it to see a new version of the page (SPEC-viewer.md § The page 4).
 
 ## Journeys
 

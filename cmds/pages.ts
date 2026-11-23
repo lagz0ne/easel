@@ -20,3 +20,11 @@ export const pagesOf = z.record(z.string(), z.string()).transform((built) => {
 });
 
 export const pages = pagesOf.parse(files);
+
+const entryScript = /^\/assets\/index-[^/]+\.js$/;
+
+export const entryOf = z
+  .record(z.string(), z.string())
+  .transform((built) => Object.keys(built).find((path) => entryScript.test(path)) ?? null);
+
+export const clientEntry = entryOf.parse(files);

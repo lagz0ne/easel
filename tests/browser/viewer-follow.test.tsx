@@ -2,7 +2,7 @@ import { createMemoryHistory, createRouter, RouterProvider } from "@tanstack/rea
 import { exits } from "@tinkered/cli/test";
 import { createScope, operation, transport } from "@tinkered/core";
 import type { Scope } from "@tinkered/core";
-import { makeTestClock, memory } from "@tinkered/core/testing";
+import { makeTestClock, memory, preset } from "@tinkered/core/testing";
 import { ScopeProvider } from "@tinkered/react";
 import { createRoot } from "react-dom/client";
 import { expect, onTestFinished, test, vi } from "vite-plus/test";
@@ -10,7 +10,7 @@ import { page, userEvent } from "vite-plus/test/browser/context";
 import { z } from "zod";
 
 import { frames } from "@/frames";
-import { frames as frameCells, removed } from "@/frames/contract";
+import { frames as frameCells, pageClient, removed } from "@/frames/contract";
 import { passMeta, shareApi } from "@/frames/share";
 import { queue } from "@/queue";
 import { messageKind, messages, request, requests, serverClock } from "@/queue/cells";
@@ -18,6 +18,7 @@ import type { Message, Request } from "@/queue/cells";
 import { routeTree } from "@/routes";
 import { openedKey, visitKey } from "@/viewer/follow";
 import { nameKey, tabMeta } from "@/viewer/gate";
+import { pageReloader } from "@/viewer/release";
 
 const live = "e".repeat(32);
 const pass = "3".repeat(32);
@@ -32,6 +33,8 @@ const store = {
   far: false,
   farGone: false,
   homeVersion: 1,
+  client: null as string | null,
+  reloads: 0,
 };
 
 let current: Scope.Handle | null = null;
@@ -108,8 +111,9 @@ const seed = operation({
     rows: requests.controller,
     thread: messages.controller,
     clocks: serverClock.controller,
+    client: pageClient.controller,
   },
-  run: ({ cells, gone, rows, thread, clocks }) => {
+  run: ({ cells, gone, rows, thread, clocks, client }) => {
     const version = store.homeVersion;
     cells.set({ canvas: "home", id: home, name: "Home", x: 0, y: 0, w: 400, h: 300, version });
 
@@ -130,6 +134,7 @@ const seed = operation({
       });
     }
     clocks.set({ canvas: "home", now: serverNow });
+    client.set({ canvas: "home", client: store.client });
     for (const row of store.requests) rows.set(row);
     for (const m of store.messages) thread.set(m);
   },
@@ -208,6 +213,8 @@ async function boot(fill?: () => void) {
   store.far = false;
   store.farGone = false;
   store.homeVersion = 1;
+  store.client = null;
+  store.reloads = 0;
   fill?.();
 
   return serve();
@@ -225,6 +232,7 @@ async function tab(first: Scope.Handle) {
   const clock = makeTestClock();
   const scope = await createScope({
     clock,
+    presets: [preset(pageReloader, () => ({ reload: () => void store.reloads++ }))],
     capsules: [
       exits({ store: localStorage }),
       memory.client({ peer, meta: tabMeta }),
@@ -876,4 +884,54 @@ test("SPEC-speed marks: easel:ask:<request id> comes when the pin of a new reque
   });
   await expect.poll(() => markOf(1)).toBe("claude-1");
   expect(asks()).toEqual([{ name: "easel:ask:r1", pin: true }]);
+});
+
+test("after a deploy that changes the page, the socket connects again and a bar says a new version is ready, with Reload; while a text is typed it asks to send the text first; the tab never reloads by itself (The page 4, TheBarMeansNewer, NoTextLost, OnlyTheViewerReloads)", async () => {
+  const server = await boot(() => {
+    store.client = "/assets/index-old.js";
+    stored(1, "Make the logo bigger.");
+  });
+  const t = await tab(server);
+  await expect.element(pin(1)).toBeVisible();
+  const bar = () =>
+    page.getByRole("status").filter({ hasText: "A new version of easel is ready." });
+  await tick(100);
+  expect(bar().elements()).toHaveLength(0);
+
+  await server.close();
+  store.client = "/assets/index-new.js";
+  await serve();
+  for (let i = 0; i < 100 && !bar().elements().length; i++) {
+    t.clock.advance(1_000);
+    await tick(20);
+  }
+  await expect.element(bar()).toBeVisible();
+  const reload = bar().getByRole("button", { name: "Reload" });
+  expect(reload.elements()).toHaveLength(1);
+
+  await page.getByRole("button", { name: "Request", exact: true }).click();
+  await page.getByRole("region", { name: "Frames" }).click({ position: { x: 600, y: 600 } });
+  await page.getByRole("textbox", { name: "Request" }).fill("A new FAQ.");
+  await expect.element(bar().getByText("Send your text first, then reload.")).toBeVisible();
+  expect(reload.elements()).toHaveLength(0);
+
+  await userEvent.keyboard("{Escape}");
+  await expect.element(reload).toBeVisible();
+  expect(store.reloads).toBe(0);
+  await reload.click();
+  expect(store.reloads).toBe(1);
+});
+
+test("a server that names no page client, as in dev, never shows the bar (TheBarMeansNewer)", async () => {
+  const server = await boot(() => stored(1, "Make the logo bigger."));
+  const t = await tab(server);
+  await expect.element(pin(1)).toBeVisible();
+
+  await server.close();
+  await serve();
+  for (let i = 0; i < 20; i++) {
+    t.clock.advance(1_000);
+    await tick(20);
+  }
+  expect(page.getByText("A new version of easel is ready.").elements()).toHaveLength(0);
 });

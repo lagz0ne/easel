@@ -13,6 +13,7 @@ import type { ControlShown, PanePlace } from "@/kit/controls";
 import "./canvas.css";
 import { aimFromLink, openFromLink } from "./act";
 import {
+  acting,
   closeCard,
   drafts,
   escapeKey,
@@ -29,6 +30,7 @@ import type { RequestView } from "./follow";
 import { Panel, RequestsButton } from "./panel";
 import { FramePicture } from "./picture";
 import { Opened } from "./popover";
+import { newPage, reloadPage } from "./release";
 import { RequestButton, Requests } from "./request";
 import {
   axesPost,
@@ -745,6 +747,27 @@ function CardAt({ at, canvas, list }: { at: Stage; canvas: string; list: readonl
   );
 }
 
+function NewVersion({ canvas }: { canvas: string }) {
+  const newer = useData(newPage({ canvas }));
+  const drafted = useData(drafts, (d) => Boolean(d?.text.trim()));
+  const answering = useData(acting, (a) => Boolean(a?.text.trim()));
+  const reload = useRun(reloadPage);
+  if (!newer) return null;
+
+  return (
+    <div className="e-update" role="status">
+      <span>A new version of easel is ready.</span>
+      {drafted || answering ? (
+        <span className="e-update-wait">Send your text first, then reload.</span>
+      ) : (
+        <button type="button" className="e-update-go" onClick={() => reload.run()}>
+          Reload
+        </button>
+      )}
+    </div>
+  );
+}
+
 function Status({ lost, fault }: { lost: boolean; fault: boolean }) {
   if (lost) return <p role="status">Reconnecting</p>;
   if (fault) return <p role="alert">Something broke. Load the page again.</p>;
@@ -855,6 +878,7 @@ export function Canvas({ canvas, opening }: { canvas: string; opening: React.Rea
       </section>
       <div className="e-top">
         <Status lost={lost} fault={state?.status === "fault"} />
+        <NewVersion canvas={canvas} />
       </div>
       <Dock at={at} canvas={canvas} />
       <FindList canvas={canvas} />
