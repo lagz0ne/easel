@@ -10,15 +10,17 @@ COPY . .
 # build: client, server binary, and its checks (no test code in dist).
 RUN bun run build
 
-# The binary alone. The deploy job builds it on the runner, with bun's cache, and gives its dist/
-# as the context `bin` (docker buildx --build-context bin=dist): then the stage build does not run.
+# The binary alone: the stage that the final image copies it from.
 FROM scratch AS bin
 COPY --from=build /app/dist/server /server
 
 # Debian, not distroless: frames are drawn by Chromium, which comes from apt, with Liberation
 # (metric-compatible with Arial, Times and Courier) and Noto's color emoji. EASEL_CHROMIUM names
 # it; with no Chromium there, the server still starts, pictures are off, and /api/ready says so.
-FROM docker.io/library/debian:trixie-slim
+# The stage runtime is all of the image but the binary and its commit. The deploy job pushes it
+# once as ghcr.io/lagz0ne/easel-runtime:<hash of this file>, then adds each binary to it as one
+# layer with `crane append` (as ko and Jib do): no docker build, and only the binary goes up.
+FROM docker.io/library/debian:trixie-slim AS runtime
 RUN apt-get update \
   && apt-get install -y --no-install-recommends chromium fonts-liberation fonts-noto-color-emoji \
   && rm -rf /var/lib/apt/lists/*
@@ -28,14 +30,19 @@ RUN mkdir -p /etc/chromium/policies/managed \
     > /etc/chromium/policies/managed/easel.json
 RUN useradd --system --uid 10001 --create-home easel
 WORKDIR /app
-COPY --from=bin /server /app/server
 USER easel
+ENV NODE_ENV=production PORT=3000 EASEL_CHROMIUM=/usr/bin/chromium
+EXPOSE 3000
+# One binary: `easel serve` runs the server; any other command is the CLI (SPEC-cli.md).
+CMD ["/app/server", "serve"]
+
+# The image. The deploy job makes the same image with crane: /app/server (root, mode 755) and the
+# two values below as env.
+FROM runtime
+COPY --from=bin /server /app/server
 # GET /api/version answers these: the deploy job waits for the commit it shipped. BUILD is the
 # count of commits on main up to it, so a later build has a larger number (SPEC-ops.md). It has
 # no default: an image built without it refuses to start.
 ARG GIT_SHA=dev
 ARG BUILD
-ENV NODE_ENV=production PORT=3000 GIT_SHA=$GIT_SHA BUILD=$BUILD EASEL_CHROMIUM=/usr/bin/chromium
-EXPOSE 3000
-# One binary: `easel serve` runs the server; any other command is the CLI (SPEC-cli.md).
-CMD ["/app/server", "serve"]
+ENV GIT_SHA=$GIT_SHA BUILD=$BUILD
