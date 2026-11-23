@@ -1,8 +1,11 @@
+import type { Database } from "bun:sqlite";
+
 import { bunSqlite } from "@tinkered/bun/sqlite";
 import { capsule, operation, resource, tag } from "@tinkered/core";
 import { z } from "zod";
 
 import { frameStatus } from "@/frames/contract";
+import { firstPageOf, hasPage } from "@/frames/store.server";
 
 import { message, messages, request, requests } from "./cells";
 import { maxOpen, maxTries, stateOf } from "./contract";
@@ -36,6 +39,7 @@ CREATE TABLE IF NOT EXISTS queue_requests (
   accepted_by TEXT,
   created INTEGER NOT NULL,
   updated INTEGER NOT NULL,
+  page TEXT,
   UNIQUE (canvas, n),
   UNIQUE (canvas, key)
 );
@@ -81,7 +85,7 @@ const addedColumns = [
 ] as const;
 
 const requestColumns = `canvas, id, n, frame_id AS frameId, version, COALESCE(kit, 1) AS kit, x, y,
-  author, key, status,
+  page, author, key, status,
   claimed_by AS claimedBy, claimed_until AS claimedUntil, claimed_at AS claimedAt, tries,
   queued_at AS queuedAt,
   accepted_by AS acceptedBy, created, updated`;
@@ -165,6 +169,7 @@ const addWrite = z.object({
   kit: z.number().optional(),
   x: z.number(),
   y: z.number(),
+  page: z.string().nullable(),
   text: z.string(),
   key: z.string(),
   author: z.string(),
@@ -179,6 +184,17 @@ const plainMessage = `INSERT INTO queue_messages (id, canvas, request, kind, sen
   VALUES ($id, $canvas, $request, $kind, $from, $text, $option, $now)
   RETURNING ${messageColumns}`;
 
+const pageOfAsk = operation({
+  label: "queue.pageOfAsk",
+  input: z.object({ canvas: z.string(), page: z.string().nullable(), db: z.custom<Database>() }),
+  depends: { firstPageOf, hasPage },
+  run: ({ firstPageOf, hasPage }, { input: { canvas, db, ...asked } }) => {
+    const page = asked.page ?? firstPageOf.run({ input: { canvas, db } });
+    if (page === null || !hasPage.run({ input: { canvas, page, db } })) return null;
+    return page;
+  },
+});
+
 export const saveRequest = operation({
   label: "queue.saveRequest",
   input: addWrite,
@@ -187,8 +203,9 @@ export const saveRequest = operation({
     requestCells: requests.atScope.controller,
     messageCells: messages.atScope.controller,
     bell: waitingBell,
+    pageOfAsk,
   },
-  run: async ({ connection, requestCells, messageCells, bell }, { input }) => {
+  run: async ({ connection, requestCells, messageCells, bell, pageOfAsk }, { input }) => {
     const db = connection.db.$client;
     const at = { $canvas: input.canvas, $now: input.now };
 
@@ -203,12 +220,13 @@ export const saveRequest = operation({
         );
       if (seen) return { kind: "added" as const, n: seen.n, rows: null };
 
+      const page = input.frameId === null ? pageOfAsk.run({ input: { ...input, db } }) : null;
       const there =
         input.frameId === null
-          ? db.query("SELECT 1 FROM frames_canvases WHERE key = $canvas").get(at)
+          ? page !== null
           : db
               .query("SELECT 1 FROM frames_frames WHERE canvas = $canvas AND id = $id")
-              .get({ ...at, $id: input.frameId });
+              .get({ ...at, $id: input.frameId }) !== null;
       if (!there) return { kind: "gone" as const };
       const open = z.object({ open: z.number() }).parse(db.query(openCount).get(at)).open;
       if (open >= maxOpen) return { kind: "full" as const };
@@ -216,10 +234,11 @@ export const saveRequest = operation({
       const row = request.parse(
         db
           .query(
-            `INSERT INTO queue_requests (id, canvas, n, frame_id, version, kit, x, y, author, key,
+            `INSERT INTO queue_requests (id, canvas, n, frame_id, version, kit, x, y, page, author, key,
                status, tries, queued_at, created, updated)
              SELECT $id, $canvas, COALESCE(MAX(n), 0) + 1, $frame, $version,
-               MIN(COALESCE($kit, $past), (SELECT MAX(version) FROM kit_versions)), $x, $y, $author, $key,
+               MIN(COALESCE($kit, $past), (SELECT MAX(version) FROM kit_versions)), $x, $y, $page,
+               $author, $key,
                'open', 0, $now, $now, $now
              FROM queue_requests WHERE canvas = $canvas
              RETURNING ${requestColumns}`,
@@ -233,6 +252,7 @@ export const saveRequest = operation({
             $past: Number.MAX_SAFE_INTEGER,
             $x: input.x,
             $y: input.y,
+            $page: page,
             $author: input.author,
             $key: input.key,
           }),
@@ -648,9 +668,9 @@ export const readClaimed = operation({
     if (row.frameId === null) {
       const frames = db
         .query(
-          "SELECT id, name, page, x, y, w, h, version FROM frames_frames WHERE canvas = $canvas ORDER BY made, rowid",
+          "SELECT id, name, page, x, y, w, h, version FROM frames_frames WHERE canvas = $canvas AND page = $page ORDER BY made, rowid",
         )
-        .all({ $canvas: row.canvas })
+        .all({ $canvas: row.canvas, $page: row.page })
         .map((f) => box.parse(f));
       return { messages: thread, frame: null, saw: null, frames };
     }
@@ -703,6 +723,10 @@ export const seenView = operation({
     ).seen === 1,
 });
 
+const firstPageOfOldAsks = `UPDATE queue_requests SET page = (SELECT p.key FROM frames_pages p
+  WHERE p.canvas = queue_requests.canvas ORDER BY p.ord, p.rowid LIMIT 1)
+  WHERE frame_id IS NULL AND page IS NULL`;
+
 const load = operation({
   label: "queue.load",
   depends: {
@@ -720,6 +744,13 @@ const load = operation({
         db.exec(`ALTER TABLE ${table} ADD COLUMN ${column} INTEGER`);
       }
     }
+    const requestColumnsNow = db.query("PRAGMA table_info(queue_requests)").all();
+    if (
+      !requestColumnsNow.some((c) => z.object({ name: z.literal("page") }).safeParse(c).success)
+    ) {
+      db.exec("ALTER TABLE queue_requests ADD COLUMN page TEXT");
+    }
+    db.exec(firstPageOfOldAsks);
 
     const requestRows = db.query(`SELECT ${requestColumns} FROM queue_requests`).all();
     const messageRows = db

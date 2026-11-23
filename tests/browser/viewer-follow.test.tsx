@@ -60,6 +60,7 @@ function stored(n: number, text: string, patch: Partial<Request> = {}) {
     canvas: "home",
     id: `r${n}`,
     n,
+    page: null,
     frameId: home,
     version: 1,
     kit: 1,

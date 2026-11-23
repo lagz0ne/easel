@@ -1,7 +1,7 @@
 import { operation, rpc } from "@tinkered/core";
 import { z } from "zod";
 
-import { canvasKey, frame, frameId, frameInfo, version } from "@/frames/contract";
+import { canvasKey, frame, frameId, frameInfo, pageKey, version } from "@/frames/contract";
 import { kitVersion } from "@/kit/contract";
 
 import { message, request } from "./cells";
@@ -71,6 +71,7 @@ export const addInput = z.union([
     kit: kitVersion.optional(),
     x: place,
     y: place,
+    page: pageKey.optional(),
     text,
     key: clientKey,
   }),

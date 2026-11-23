@@ -12,6 +12,7 @@ export const request = z.object({
   kit: z.number(),
   x: z.number(),
   y: z.number(),
+  page: z.string().nullable(),
   author: z.string(),
   key: z.string(),
   status: requestStatus,

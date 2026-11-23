@@ -65,6 +65,7 @@ export const addRequest = operation({
     return saveRequest.run({
       input: {
         ...input,
+        page: "page" in input ? (input.page ?? null) : null,
         id: newId.run(),
         author: who.name,
         message: newId.run(),

@@ -260,6 +260,7 @@ async function boot(options: Boot = {}) {
           version,
           x: 1,
           y: 2,
+          page: null,
           text: "Change it.",
           key: `pictures-key-${String(n).padStart(8, "0")}`,
           author: "Mai",

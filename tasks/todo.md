@@ -739,7 +739,7 @@ Decisions of 2026-11-23 (the coordinator, for the spec):
 
 ### P8-3: the page of a request with no frame
 
-- [ ] `request.add` takes the page of the tab for a request with no frame. The row keeps it. A
+- [x] `request.add` takes the page of the tab for a request with no frame. The row keeps it. A
       migration puts each old request with no frame on the first page.
 
 **Dependencies:** P8-1. **Estimated scope:** S.
