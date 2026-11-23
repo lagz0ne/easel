@@ -880,6 +880,9 @@ Decided:
   capitals).
 - On 2026-11-23, the user set the smallest form for Round 1: "same text should be in same place,
   driven by key and will be sufficient to derive the i18n". Round 1 takes L1, L3, L5 and L12.
+- On 2026-11-23, the user decided how the rules apply to a frame: "A frame can have text and even
+  out of band color if they are in exploration mode. To switch to ready, they'll need to settle
+  those". And the name: "Use texts or i18n". See [copy](../SPEC-copy.md).
 - Deferred: a second language for the team. Add it when a team asks for its frames in a second
   language. L12 keeps it possible with no change to a frame.
 - Deferred: rules of tone beyond a list of terms (for example "no passive voice"). Add it when a
