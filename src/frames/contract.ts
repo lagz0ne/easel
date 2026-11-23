@@ -298,8 +298,11 @@ export const picturePath = z
     "not a picture's path",
   );
 
-/** A user's calls. Each needs a live user token (`{ signIn: true }` without one). */
-export const framesApi = rpc({
+/**
+ * A user's calls, as written: each address's input and output. MCP reads them for its schemas
+ * (SPEC-mcp.md fact rule 2), as rpc keeps no output schema at run time.
+ */
+export const framesContracts = {
   "canvas.create": {
     input: z.object({ name: canvasName }),
     output: z.discriminatedUnion("kind", [
@@ -362,7 +365,10 @@ export const framesApi = rpc({
       gone,
     ]),
   },
-});
+};
+
+/** A user's calls. Each needs a live user token (`{ signIn: true }` without one). */
+export const framesApi = rpc(framesContracts);
 
 export type FramesAddress = Extract<keyof typeof framesApi.contracts, string>;
 

@@ -16,6 +16,7 @@ import { hostsAt } from "@/cli/hosts";
 import { since } from "@/cli/ops";
 import { frames } from "@/frames";
 import { kit } from "@/kit";
+import { mcpLink } from "@/mcp/server";
 import { ops } from "@/ops";
 import { queue } from "@/queue";
 
@@ -33,6 +34,8 @@ const help = `easel: the canvas CLI. Every command takes --json (one JSON value 
   easel login --resume                             wait again for the login that waits
   easel whoami                                     the name, the role and the server
   easel logout                                     end this user on the server, then forget its token
+  easel mcp                                        serve each command as an MCP tool on stdio, with this
+                                                   user's token: \`claude mcp add easel -- easel mcp\`
   easel users                                      the users, and the codes that wait (owner)
   easel users approve <code> [--owner]             approve a code; --owner makes an owner (owner)
   easel users deny <code>                          deny a code (owner)
@@ -618,7 +621,7 @@ const invocation = z.union([
   z
     .object({
       positionals: z.union([
-        z.tuple([z.enum(["whoami", "logout"])]),
+        z.tuple([z.enum(["whoami", "logout", "mcp"])]),
         z.tuple([z.literal("users")]).transform(() => ["users", "ls"] as const),
         z.tuple([z.literal("users"), z.literal("ls")]),
       ]),
@@ -782,7 +785,15 @@ const main = defineMain(async (ctx) => {
   const app = createScope({
     signal,
     // `easel put <canvas> -` reads the document from stdin; `easel shot` fetches the picture.
-    tags: [stdinText(() => Bun.stdin.text()), pictureFetch((request) => fetch(request))],
+    // `easel mcp` serves on stdin and stdout.
+    tags: [
+      stdinText(() => Bun.stdin.text()),
+      pictureFetch((request) => fetch(request)),
+      mcpLink(async () => {
+        const { StdioServerTransport } = await import("@modelcontextprotocol/sdk/server/stdio.js");
+        return new StdioServerTransport();
+      }),
+    ],
     capsules: [
       ws.client({ url: `${planned.server.replace(/^http/, "ws")}/rpc`, meta: cli.bearer }),
       access.login({ remote: ws.client }),

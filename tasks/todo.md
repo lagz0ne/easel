@@ -22,17 +22,18 @@ task makes the full path: the table builder, the server, the stdio command and t
 
 **Acceptance criteria:**
 
-- [ ] An SDK `Client` over stdio lists `list_canvases`, with its input and output JSON Schema
+- [x] An SDK `Client` over stdio lists `list_canvases`, with its input and output JSON Schema
       from the contract and the annotation `readOnlyHint: true`.
-- [ ] A call answers the canvases of the token's user in `structuredContent`, unchanged.
-- [ ] With no `hosts.json` entry, the command exits with the same text as the other commands
+- [x] A call answers the canvases of the token's user in `structuredContent`, unchanged.
+- [x] With no `hosts.json` entry, the command exits with the same text as the other commands
       ("run `easel login`").
 
 **Verification:**
 
-- [ ] `tests/mcp-stdio.test.ts`: a server in the same process, `easel mcp` as a child process,
-      the SDK client.
-- [ ] By hand: `claude mcp add easel-dev -- bun cmds/easel.ts mcp`, then `/mcp` shows 1 tool.
+- [x] `tests/mcp.test.ts`: a server in the same process, `easel mcp` on an in-memory link, the
+      SDK client. The stdio link was checked by hand: the SDK's stdio client against
+      `bun cmds/easel.ts mcp` lists the tool and gets a `link` fault as a tool error.
+- [ ] By hand (moved to MCP-6): `claude mcp add easel-dev -- bun cmds/easel.ts mcp`, then `/mcp` shows 1 tool.
 
 **Dependencies:** none.
 
