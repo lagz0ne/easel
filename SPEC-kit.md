@@ -171,6 +171,9 @@ Prior art:
 
 ### Add to the kit (E8.3)
 
+Not built. [SPEC-pieces](SPEC-pieces.md) (proposed on 2026-11-23) replaces this section: the
+pieces of a team are TSX components, not HTML templates.
+
 1. An agent needs a pricing card that the kit does not have. It writes one file, `k-plan.html`:
 
    ```html

@@ -6,12 +6,13 @@ the design through MCP. This map lists the modules that are not built yet, and t
 them in. The user approved it on 2026-11-23. Each module gets its spec, then its plan, then its
 build, with a review at each step.
 
-| Module id  | What it does                                                                                                                              | Depends on                 | Requirements      | Spec                                            |
-| ---------- | ----------------------------------------------------------------------------------------------------------------------------------------- | -------------------------- | ----------------- | ----------------------------------------------- |
-| `mcp`      | The tools, from the rpc contract, over stdio and HTTP, with the bearer token: Claude Code, local and remote.                              | access, frames, queue, kit | C3, W1 to W6      | [SPEC-mcp.md](SPEC-mcp.md)                      |
-| `speed`    | A budget for each step of the critical path, a check that stops a slower change, and only the necessary work on the critical path.        | viewer, frames             | Q1 to Q3, S9, S11 | [SPEC-speed.md](SPEC-speed.md)                  |
-| `mcp-auth` | OAuth 2.1 for the Claude web app: each person signs in with their own easel account, and one agent can be stopped.                        | access, `mcp`              | C1, C2            | [SPEC-mcp-auth.md](SPEC-mcp-auth.md) (approved) |
-| `copy`     | The texts of the frames by key, in one place, live, and enough for a second language. Its calls get tools in `mcp` with no work in `mcp`. | kit, frames                | L1, L3, L5, L12   | [SPEC-copy.md](SPEC-copy.md) (approved)         |
+| Module id  | What it does                                                                                                                                                       | Depends on                 | Requirements                      | Spec                                            |
+| ---------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------ | -------------------------- | --------------------------------- | ----------------------------------------------- |
+| `mcp`      | The tools, from the rpc contract, over stdio and HTTP, with the bearer token: Claude Code, local and remote.                                                       | access, frames, queue, kit | C3, W1 to W6                      | [SPEC-mcp.md](SPEC-mcp.md)                      |
+| `speed`    | A budget for each step of the critical path, a check that stops a slower change, and only the necessary work on the critical path.                                 | viewer, frames             | Q1 to Q3, S9, S11                 | [SPEC-speed.md](SPEC-speed.md)                  |
+| `mcp-auth` | OAuth 2.1 for the Claude web app: each person signs in with their own easel account, and one agent can be stopped.                                                 | access, `mcp`              | C1, C2                            | [SPEC-mcp-auth.md](SPEC-mcp-auth.md) (approved) |
+| `copy`     | The texts of the frames by key, in one place, live, and enough for a second language. Its calls get tools in `mcp` with no work in `mcp`.                          | kit, frames                | L1, L3, L5, L12                   | [SPEC-copy.md](SPEC-copy.md) (approved)         |
+| `pieces`   | The components of the team as TSX pieces in the kit, live in each app frame that imports them. Needed to move the design from Doop and to keep designing in easel. | kit, `copy`                | the end goal of Round 1; K12, K13 | [SPEC-pieces.md](SPEC-pieces.md) (proposed)     |
 
 Build order: `mcp` and `speed` at the same time, then `mcp-auth` and `copy`.
 
