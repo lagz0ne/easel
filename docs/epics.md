@@ -59,7 +59,7 @@ The user named, on 2026-11-23, what must work on a new easel with no setup:
 | Need                                       | Requirements                    |
 | ------------------------------------------ | ------------------------------- |
 | A person comments on the design.           | E4.1 (N), E4.2, E4.4            |
-| A person sees the content.                 | E3 (S1 to S14)                  |
+| A person sees the content.                 | E3 (S1 to S15)                  |
 | The design system and its components work. | E8 (K1 to K14)                  |
 | The texts of the frames are in one place.  | E9: L1, L3, L5, L12             |
 | The controls of a frame work.              | E10: X1 to X5                   |
@@ -282,6 +282,9 @@ the sheet `E3.00`, then one state sheet and its click paths for each journey. Ea
 IDs below that it meets. Decided on 2026-11-21: the viewer gives a name at the first request, not
 when the link opens (S7).
 
+Decided on 2026-11-23: the viewer finds a frame by its name only (S15). Deferred: a find in the text
+that a frame shows. Add it when a viewer cannot find a frame by its name.
+
 ### E3.1 Share a canvas
 
 - **Actor:** user (an agent or a person of the team).
@@ -320,6 +323,7 @@ when the link opens (S7).
 | S12 | The viewer knows when the page may be behind.                                                      | A mark shows while the connection is lost. It goes only when the page shows the changes again.                                                                                                     |
 | S13 | A viewer cannot change a frame.                                                                    | The page has no control that changes a frame.                                                                                                                                                      |
 | S14 | Each person can use the page: in a light or dark theme, with only a keyboard, or with less motion. | Each control can be reached with the keyboard, and shows where the focus is. Text has WCAG AA contrast in both themes. A person who asks for less motion sees no movement that they did not start. |
+| S15 | The viewer finds a frame among many.                                                               | On a canvas of 200 frames, a viewer who knows the name of a frame has it in view within 10 seconds, with no pan and no zoom.                                                                       |
 
 ## E4: Comment and get a change
 
