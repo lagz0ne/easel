@@ -102,25 +102,65 @@ trial")` gives a `Said` for any text. The code still passes the type check.
    `look/color`, `look/size`) become this rule plus the type check.
 9. The design system itself has no exceptions: `design/` does not import `@easel/explore`.
 
+### Switches: one state for one frame or for all frames
+
+The user asked on 2026-11-23: "we'll want to add some controls to all frames. For example the
+control to turn dark mode or white mode for specific frame or every. Use of fixture and show them
+in a specific component or page. Change of localization." Prior art: the toolbar globals of
+Storybook (one theme and one locale for each story on the page) and the parameters of one story
+that change them for that story only; the matrix of Chromatic (one story in each mode).
+
+10. **A switch** is a config tag of the design system with a fixed list of values:
+    `switch({ label: "theme", values: ["light", "dark"], default: "light" })`. `design/` declares
+    the switches of the team. easel gives three: `locale` (`en`, `vi`), `theme` (`light`, `dark`)
+    and `fixture` (below). A frame takes a switch in the config of its capsule, as it takes an
+    axis now (`config: { theme, fixture }`).
+11. **The board value.** The dock of the viewer shows each switch that a frame on the board takes,
+    one control for each. A pick gives the value to each frame that takes the switch, and each
+    live document draws again in a new scope, as a pick of the locale does now. A frame that does
+    not take the switch does not change. The locale pick of the dock becomes the `locale` switch.
+12. **The frame value.** The controls of a frame (E10) show each switch that it takes. A pick there
+    is for that frame only, and the control says that the frame has its own value. `Use the
+board` gives the frame the board value again.
+13. **Where a value is kept.** The board values and the frame values are of the tab, as the locale
+    pick is now. They are in the address of the page (`?theme=dark&locale=vi&f.<frame>.theme=light`),
+    so a link opens the board in the same state, and a reload keeps it. A pick writes no frame and
+    no kit version.
+14. **Theme.** The look has a value for each theme: the `light` values are the look of today, and
+    the `dark` values are the same names with other values (`look.set` takes a patch for each
+    theme). The `look` capsule takes the `theme` switch, so each component and each frame on the
+    look follows it with no code of its own.
+15. **Fixtures.** A fixture is a named set of data of one shape:
+    `fixtures(request, { empty: [], one: [...], many: [...], error: [...] })`. The shape is a Zod
+    schema, so each fixture is checked against it, and a frame gets typed data. `design/` declares
+    the fixtures that many frames share; a frame can declare its own. The `fixture` switch has the
+    names of the fixtures (`empty`, `one`, `many`, `error`): the board value shows each frame with
+    that fixture, if it has it; a frame with no fixture of that name keeps its own value and says
+    so.
+16. **Show a component in each state.** `matrix({ of: StateBadge, by: { theme, state } })` makes a
+    frame that shows one component in each value of the switches and props that it names, side by
+    side, with a label for each (the Chromatic matrix). A page of the design system is a frame of
+    matrices. The same works for a frame: `matrix({ of: RequestsView, by: { fixture } })`.
+
 ### A change of the design system
 
-10. `design.put` checks the new folder, then type-checks each frame that depends on a capsule that
+17. `design.put` checks the new folder, then type-checks each frame that depends on a capsule that
     changed (from the graph), against the new types.
     - A ready frame with a type error refuses the put: the answer `breaks` names each frame, its
       file, line and error. Nothing is written. The team changes the frames first, or marks them
       exploring.
     - An exploring frame with a type error does not stop the put. The answer lists it as
       `exploringBroken`, and the frame shows its last good version until a put fixes it.
-11. After the put, each live document of a frame that depends on a changed capsule gets a new
+18. After the put, each live document of a frame that depends on a changed capsule gets a new
     document, as for a new frame version (the page keeps the old iframe until the new one draws).
     A frame that depends on no changed capsule keeps its document. Each picture of such a frame is
     made again for the new kit version.
-12. A request keeps the kit version that its viewer saw, so its picture shows the design system as
+19. A request keeps the kit version that its viewer saw, so its picture shows the design system as
     it was.
 
 ### Checks of styling
 
-13. Two checks of the design system, as findings that do not stop a put (a later version can make
+20. Two checks of the design system, as findings that do not stop a put (a later version can make
     them stop it):
     - **duplicate**: a frame repeats one list of classes, or one JSX shape, that a component of
       the design system has. The fix names the component.
@@ -145,6 +185,9 @@ type DesignFinding = Finding & { frame?: { canvas: string; id: string } }
 - `design.put` takes `{ files: Record<string, string>, base: number }`. `rev` starts at 0 (no
   design system) and each change adds 1.
 - A frame put gets the finding rule `type` for a type error, with the error of TypeScript.
+- The switches of a board are read from the frames (`kit.capsules` lists the switches that each
+  frame takes). A pick is not a call: it changes the address of the page and the axes of the
+  documents.
 - MCP: `get_design`, `put_design`, `design_types`. CLI: `easel design get -o <dir>`,
   `easel design put <dir> --base <rev>`, `easel design types -o <dir>`.
 
@@ -159,6 +202,13 @@ new one draws. Its rules:
 - No ready frame has a type error against the current kit version.
 - Each live frame that depends on a changed capsule shows the new kit version in the end.
 - A frame that depends on no changed capsule keeps its document.
+
+A second model, `board-switch`: two frames that take a switch, one that does not, a board pick, a
+frame pick, `Use the board`, and a reload. Its rules:
+
+- Each frame that takes a switch shows its own value if it has one, else the board value.
+- A frame that does not take the switch never draws again for a pick.
+- A reload shows each frame as before the reload.
 
 ## Fact rules
 
@@ -189,8 +239,13 @@ new one draws. Its rules:
    of a usual frame takes 0.5 s at most on this host.
 7. **An agent finds the design system.** A new agent with only the MCP tools makes a frame with a
    request row. It uses `RequestRow` from the capsule list and writes no new row.
-8. The model holds its rules. The speed gate stays green, and a frame that uses no design system
-   loads no more bytes than today.
+8. **Switches.** On a board of 20 frames, one pick of `theme` in the dock shows each frame that
+   takes it in `dark` within 1 second; a frame with its own value `light` stays light. The same for
+   `locale` and `fixture`. A reload keeps each value.
+9. **A page of the design system.** The page Primitives of the Doop canvas is one frame of
+   matrices: each component in each of its variants, in `light` and `dark`.
+10. The models hold their rules. The speed gate stays green, and a frame that uses no design system
+    loads no more bytes than today.
 
 ## Testing strategy
 
@@ -220,8 +275,10 @@ new one draws. Its rules:
   asks for a flow of frames.
 - **A Git sync of `design/`.** Add it when a team keeps its design system in Git and a put from CI
   is not enough.
-- **A catalogue page** made by easel from the graph. A frame of each component with controls is
-  the catalogue for Round 1.
+- **A catalogue page** made by easel from the graph. Frames of matrices are the catalogue for
+  Round 1.
+- **A switch value kept for all viewers** (a board that opens in dark for each person). Add it when
+  a team asks for a default state of a board.
 - **The duplicate and arbitrary checks as refusals.** Add them when a team asks for a strict design
   system.
 

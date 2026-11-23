@@ -121,8 +121,9 @@ Decided:
   when a person of a team wants the requests done with no computer.
 - Deferred: the rest of E9 (L2, L4, L6 to L11). Add it when the frames of a team name one thing in
   two ways, or a person reviews or translates the words.
-- Deferred: a control for all frames at one time, other than the language (a theme, a data set).
-  Add it when a review needs one state on each frame at the same time.
+- On 2026-11-23, the user moved a control for all frames into the round: "the control to turn dark
+  mode or white mode for specific frame or every. Use of fixture and show them in a specific
+  component or page. Change of localization". See [pieces](../SPEC-pieces.md) § Switches.
 - Deferred: E7, fix errors with no person. Add it when the errors of all teams take a person of the
   company more than 1 hour a day.
 - Deferred: moving a frame (E2). Add it when a team asks for it.
@@ -135,13 +136,12 @@ Decided:
 
 #### Design changes that Round 1 needs
 
-| Req.            | Gap in the design now                                                                                                                                                                                               | Spec or file                                    |
-| --------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------- |
-| C1, C2          | The sign-in of the Claude web app is live with the easel token, and a script passed each step on the live easel (2026-11-23). Left: the check in the Claude web app by a person, then the hardening (MA-2 to MA-6). | [SPEC-mcp-auth](../SPEC-mcp-auth.md) (approved) |
-| L1, L3, L5, L12 | Each frame keeps its own texts. Nothing keeps the texts of the team in one place.                                                                                                                                   | SPEC-kit                                        |
-| Q3              | No measure shows which work is on the critical path and which is not.                                                                                                                                               | docs/canvas-speed.md                            |
+| Req.   | Gap in the design now                                                                                                                                                                                               | Spec or file                                    |
+| ------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------- |
+| C1, C2 | The sign-in of the Claude web app is live with the easel token, and a script passed each step on the live easel (2026-11-23). Left: the check in the Claude web app by a person, then the hardening (MA-2 to MA-6). | [SPEC-mcp-auth](../SPEC-mcp-auth.md) (approved) |
+| Q3     | No measure shows which work is on the critical path and which is not.                                                                                                                                               | docs/canvas-speed.md                            |
 
-Closed before: R2 (`c79d841`, `6a5a0ec`: the install script and [the start steps](start.md); MCP in them on 2026-11-23), C3 and W1 to W6 (SPEC-mcp, built), R5
+Closed before: L1, L3, L5 and L12 (CP-1 to CP-5 of [SPEC-copy](../SPEC-copy.md): the texts of the team by text key, and ready frames), R2 (`c79d841`, `6a5a0ec`: the install script and [the start steps](start.md); MCP in them on 2026-11-23), C3 and W1 to W6 (SPEC-mcp, built), R5
 and R8 (`8d452f6`: the design of the backups and the delete).
 
 ### Round 1 walk of the slice
