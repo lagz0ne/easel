@@ -579,6 +579,93 @@ decision 34; the bar of the walk has the group `Answers`. The proofs are
     designed frame. A new answer in the code is a finding, as a new exit with no test is a finding
     of `tinker check`. It replaces the model `flows-links`: no drawn link is left to break.
 
+#### The decisions of ship 6
+
+Prior art for the check: the graph stage of `tinker check` (the graph of the code must be the
+committed `tinker.graph`; `tinker graph --write` writes it), the exits stage of `tinker check` (a
+new exit with no test is a finding), the baselines of Playwright `toHaveScreenshot` (a picture with
+no baseline fails; `--update-snapshots` writes it, and the baseline is in the repository), Jest
+snapshots (`-u`, and an obsolete snapshot is reported), Chromatic (a new story is a change that a
+person accepts), `@xstate/graph` and model-based tests (each state and each event must be
+covered), and Pact (a provider fails when a consumer expects an interaction that it does not
+have).
+
+40. **A state or an answer is designed when the file `maps.designed` names it.** The file is in
+    the repository, beside `tinker.graph`. `bun scripts/map-check.ts --write` writes it from the
+    maps of the code, and the commit that changes it is the sign-off: its diff shows each new state
+    and answer. The check compares the maps of the code with the file. This is the baseline of
+    Playwright and Chromatic, and the `tinker.graph` of Tinker. Other ways:
+    - the picture frame of ship 2 on the page `Map · <name>`. The job puts a picture of each state
+      after each deploy, so each state has a frame and a new answer is never a finding. The gates
+      also have no token of the canvas;
+    - a mark `designed` that a person sets on a frame in the viewer, as "Ready for dev" of Figma or
+      the accept of Chromatic. It is a new state of the server with its own model. Deferred until
+      the person must accept a state on the canvas, not in a commit.
+
+    The trade-off: the agent that adds an answer can also write the file. As with a snapshot, the
+    diff in the commit shows it to the reviewer. The file is not a fact of the map: it is the
+    decision that the screens of the map are designed, so the Boundaries hold.
+
+41. **The file holds each state and each answer of each map, one line each.** The lines are
+    sorted:
+    - `<map>: state <state>`, for each state, a run state too;
+    - `<map>: answer <call> <kind>`, for each answer of the contract of each call, and
+      `<map>: answer <call> fault link` for the fault (decision 7). An answer that changes no
+      state (`browser.wait pending` waits again) is a line too, so a new answer of a contract is a
+      finding also when the screen does not change;
+    - `<map>: answer <action> no answer`, for an action that changes the state before an answer
+      (`home.askAgain`, or the run state `name · askForCode pending`).
+
+    The places, the samples, the effects and the moves are not in the file. They change with no
+    new outcome, and the map and the card show them from the code. So an old answer that now leads
+    to another designed state is not a finding: a designed screen shows it. `@xstate/graph`
+    covers the states and the events in the same way, not the paths.
+
+42. **A finding is one line, then its fix, as in `tinker check`.** The line is
+    `<file>:<line> <rule id> <what is there>`. The rules:
+    - `map/answer`: an answer that the file does not have. The line is the answer in its contract
+      (or the call, for the fault), or the label of the action. The text names each state that the
+      answer leads to. A state that the file does not have is said in the same finding
+      (`a state with no designed frame`), so one new answer gives one finding.
+    - `map/state`: a state that the file does not have, which no new answer reaches: a new first
+      state, or an old answer that now leads to a new state. The line is the kind in the cell, or
+      the press in the view for a run state.
+    - `map/gone`: a line of the file that the code does not have now. The line is in
+      `maps.designed`, as `tinker/graph` says `in tinker.graph, not in the code`.
+
+    A fix shows once for each rule, and the last two lines say the result and what to do next:
+    `map check: failed, <n> findings.`, then `Next: fix each finding, then run
+bun scripts/map-check.ts again.` With no finding it prints
+    `map check: OK (<n> maps, <n> states, <n> answers)`. Exit 0 when OK, 1 with a finding, 64 on a
+    wrong argument.
+
+43. **The check runs in the tests, and the job marks the map.**
+    - `tests/map-check.test.ts` runs `bun scripts/map-check.ts` on the maps of
+      `src/live/screens.ts`. So `bun run check`, `bun run check:plain` (`tinker check` runs the
+      tests), `ship.sh --full` and the CI `gates` fail on a finding, with no change of
+      `package.json` or of `gates.yml`. The fast gate of `ship.sh` (style and types) does not run
+      it, as it does not run the exits of `tinker check`.
+    - The job `screens` runs the same check after each deploy. The frame `Maps` on the page `Live`
+      gets the column `Check`: the badge `OK`, or the badge `<n> findings` and each finding under
+      the table. The card of each state that a finding names gets the section `Check` with the
+      finding. The badges are the classes `badge badge-success` and `badge badge-warning` of the
+      kit, so no look value changes. The job puts the walk and the marks in one run, so the person
+      sees the mark beside the Walk button before a walk meets the state (J8).
+    - A finding on `main` turns the CI `gates` red. The live site goes back to the last green
+      commit, and the line stops until the answer is designed or removed.
+
+44. **The agent is told by the check, not by a new tool of MCP.** The agent gets the findings
+    from `bun run check`, `tinker check`, the log of the CI `gates` and its `trunk-red` issue, and
+    the log of the job. Through MCP, `get_frame` gives the text of the frame `Maps` and of each
+    card, with the findings. The easel server never runs the code of a project (Boundaries), so it
+    cannot run the check, and a tool of MCP could only repeat the frame `Maps`. `tinker check` and
+    Chromatic tell through the status of the commit for the same reason.
+
+45. **The check has no model.** It is a pure function of the code and `maps.designed`: no person
+    changes a state of a running app in it, and the job is a bounded run, as in ship 2. The models
+    `flows-links` and `flows-links-unchecked` were removed with their charts in 9e5c520, when this
+    delta replaced the drawn links. `scripts/statecharts.sh --check` stays at exit 0.
+
 ## Contract (ship 1 to ship 3)
 
 ```ts
@@ -616,7 +703,8 @@ type MapCard = { title: string; about: string; sections: { head: string; lines: 
 - `viewer-walk` and its twin stay. Ship 4 changed their rule to the moves of the map
   (`EachStepIsAMove`, decisions 23 to 31).
 - `flows-links` and `flows-links-unchecked` go with this delta: the links that they model are not
-  in the design now. Ship 6 has the check that replaces them.
+  in the design now. They were removed in 9e5c520. Ship 6 has the check that replaces them, and
+  no model (decision 45).
 - Ship 5 has the model `viewer-walk-backend` and its twin `viewer-walk-backend-keep-scope`
   (decisions 33 to 39).
 
