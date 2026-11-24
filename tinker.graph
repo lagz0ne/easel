@@ -320,7 +320,7 @@ frames.makeAppDoc exits{made,offKit,tooBig,unsettled} reads{} writes{} calls{kit
 frames.makeDoc exits{made,tooBig} reads{} writes{} calls{kit.frameKit,kit.makeFrame}
 frames.markFrame exits{gone,marked,moved,unchanged} reads{?} writes{?} calls{frames.boardFrame}
 frames.markReady exits{gone,ready,unchanged} reads{} writes{} calls{frames.markFrame}
-frames.mayName exits{refused,value} reads{} writes{} calls{access.digestOf,frames.passCanvas}
+frames.mayName exits{refused,value} reads{} writes{} calls{access.digestOf,access.user,frames.passCanvas}
 frames.mayRead exits{refused,value} reads{} writes{} calls{access.user,frames.passCanvas}
 frames.mountOldJs exits{value} reads{} writes{} calls{}
 frames.moveFrame exits{changed,gone,moved,placed,unchanged} reads{?} writes{?} calls{frames.layoutOf,frames.moveRow,frames.showArranged,frames.showPages}
@@ -830,6 +830,7 @@ viewer.listViews exits{value} reads{} writes{} calls{viewer.threads,viewer.viewO
 viewer.markSeen exits{value} reads{viewer.visits.get} writes{viewer.visits.set} calls{}
 viewer.messageLine exits{message} reads{} writes{} calls{}
 viewer.movePick exits{value} reads{viewer.findPick.get} writes{viewer.findPick.set} calls{}
+viewer.nameHere exits{value} reads{viewer.signedInAs.get} writes{} calls{viewer.keptName}
 viewer.namePass exits{value} reads{} writes{} calls{?,viewer.keepName}
 viewer.nameToGive exits{value} reads{viewer.typedName.get} writes{} calls{}
 viewer.nextWake exits{value} reads{} writes{} calls{}
@@ -854,7 +855,7 @@ viewer.pressFind exits{value} reads{viewer.findOpen.get} writes{viewer.controlsF
 viewer.proofOf exits{value} reads{} writes{} calls{viewer.askProof,viewer.resultProof}
 viewer.questionStep exits{value} reads{} writes{} calls{}
 viewer.readBase64 exits{value} reads{} writes{} calls{}
-viewer.readyToAct exits{value} reads{} writes{viewer.acting.set} calls{viewer.actingOn,viewer.keptName,viewer.nameToGive}
+viewer.readyToAct exits{value} reads{} writes{viewer.acting.set} calls{viewer.actingOn,viewer.nameHere,viewer.nameToGive}
 viewer.readyToSend exits{value} reads{viewer.draft.get} writes{viewer.draft.set} calls{viewer.stepBeforeSend}
 viewer.refusedWhy exits{value} reads{} writes{} calls{}
 viewer.reloadPage exits{value} reads{} writes{} calls{}
@@ -877,7 +878,7 @@ viewer.sofarStep exits{value} reads{} writes{} calls{viewer.headStep,viewer.ques
 viewer.startPick exits{value} reads{viewer.draft.get} writes{viewer.draft.set} calls{}
 viewer.startVisit exits{value} reads{viewer.visits.get} writes{viewer.visits.set} calls{}
 viewer.stateLine exits{value} reads{} writes{} calls{viewer.claimLines,viewer.triesLine}
-viewer.stepBeforeSend exits{value} reads{?} writes{} calls{viewer.keptName}
+viewer.stepBeforeSend exits{value} reads{?} writes{} calls{viewer.nameHere}
 viewer.stepWords exits{value} reads{} writes{} calls{}
 viewer.tabMeta exits{value} reads{viewer.passes.of,viewer.shownLink.get} writes{} calls{issues.whoMeta}
 viewer.takeFind exits{value} reads{} writes{} calls{?,viewer.closeFind,viewer.showFrameOf}

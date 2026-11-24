@@ -62,6 +62,17 @@ export const keptName = operation({
   run: () => viewerName.safeParse(localStorage.getItem(nameKey)).data ?? null,
 });
 
+export const signedInAs = data<{ name: string; owner: boolean } | null>({
+  label: "viewer.signedInAs",
+  initial: null,
+});
+
+export const nameHere = operation({
+  label: "viewer.nameHere",
+  depends: { me: signedInAs, keptName },
+  run: ({ me, keptName }) => me?.name ?? keptName.run(),
+});
+
 export const keepName = operation({
   label: "viewer.keepName",
   input: viewerName,

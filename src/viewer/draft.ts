@@ -8,7 +8,7 @@ import { queue } from "@/queue";
 import { closeFind, findOpen, toggleFind } from "./find";
 import type { Shown } from "./follow";
 import { controlsFor, panelOpen } from "./follow";
-import { keepName, keptName } from "./gate";
+import { keepName, keptName, nameHere, signedInAs } from "./gate";
 import { openMenu, screenSize } from "./overlays";
 
 const place = z.object({
@@ -350,14 +350,14 @@ const sendable = draft.extend({
 const stepBeforeSend = operation({
   label: "viewer.stepBeforeSend",
   input: z.object({ draft, typed: z.boolean() }),
-  depends: { faults: frames.board.faults, keptName },
-  run: ({ faults, keptName }, { input: { draft: d, typed } }) => {
+  depends: { faults: frames.board.faults, nameHere },
+  run: ({ faults, nameHere }, { input: { draft: d, typed } }) => {
     if (faults.get().frames?.fault === "link") {
       return d.step === "unknown"
         ? { step: d.step, why: d.why }
         : ({ step: "notSent", why: "link" } as const);
     }
-    if (!typed && keptName.run() === null) return { step: "naming", why: "none" } as const;
+    if (!typed && nameHere.run() === null) return { step: "naming", why: "none" } as const;
 
     return { step: "sending", why: "none" } as const;
   },
@@ -480,8 +480,8 @@ export const resendOnBack = resource({
 export const shownName = resource({
   label: "viewer.shownName",
   config: {},
-  depends: { d: drafts, keptName },
-  factory: ({ d, keptName }) => (d ? keptName.run() : null),
+  depends: { d: drafts, me: signedInAs, keptName },
+  factory: ({ d, me, keptName }) => (d ? (me?.name ?? keptName.run()) : null),
 });
 
 export const escapeKey = resource({

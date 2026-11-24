@@ -40,7 +40,7 @@ const canvas = createRoute({
     const { who, site } = canvas.useLoaderData();
     const key = canvas.useParams().canvas;
     return who.kind === "in" ? (
-      <Canvas canvas={key} opening={<Opening />} back />
+      <Canvas canvas={key} opening={<Opening />} me={{ name: who.name, owner: who.owner }} />
     ) : (
       <HomePage who={who} site={site} />
     );

@@ -9,7 +9,7 @@ import { state } from "@/queue/contract";
 import type { Acting } from "./draft";
 import { actBox, acting, linkFault, nameFault, namePass, openRequest } from "./draft";
 import { panelOpen, shownStates } from "./follow";
-import { keptName } from "./gate";
+import { keptName, nameHere, signedInAs } from "./gate";
 import { openMenu } from "./overlays";
 import { showRequest } from "./pages";
 
@@ -47,8 +47,8 @@ export const typedName = data({ label: "viewer.typedName", initial: "" });
 export const myName = resource({
   label: "viewer.myName",
   config: {},
-  depends: { acts: acting, keptName },
-  factory: ({ keptName }) => keptName.run(),
+  depends: { acts: acting, me: signedInAs, keptName },
+  factory: ({ me, keptName }) => me?.name ?? keptName.run(),
 });
 
 export const openBox = operation({
@@ -239,8 +239,8 @@ const nameToGive = operation({
 const readyToAct = operation({
   label: "viewer.readyToAct",
   input: z.object({ at: target, act, now: z.enum(shownStates) }),
-  depends: { acts: acting.controller, actingOn, nameToGive, keptName },
-  run: ({ acts, actingOn, nameToGive, keptName }, { input: { at, act: a, now } }) => {
+  depends: { acts: acting.controller, actingOn, nameToGive, nameHere },
+  run: ({ acts, actingOn, nameToGive, nameHere }, { input: { at, act: a, now } }) => {
     const { kept, naming } = actingOn.run({ input: { at, now } });
     const steers = a.call === "note" && boxFits.chat.includes(now);
     if ("text" in a && !steers && kept.saw !== now) {
@@ -249,7 +249,7 @@ const readyToAct = operation({
       return null;
     }
     const typed = nameToGive.run({ input: naming });
-    if (typed === undefined && keptName.run() === null) {
+    if (typed === undefined && nameHere.run() === null) {
       acts.set({ ...at, ...kept, step: "naming", why: "none" });
       return null;
     }

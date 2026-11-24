@@ -63,7 +63,8 @@ this spec wins, and the screen gets a fix.
    ([frames](SPEC-frames.md)): the page does not open the link again, so it does not ask the
    password again. A browser that kept a name sends it with `share.open`, so its first `Send` asks
    nothing. Decided on 2026-11-21 in the E3 design (page `Work · E3 Share and look`),
-   as Pastel, BugHerd and Markup.io do.
+   as Pastel, BugHerd and Markup.io do. On `/c/<canvas>`, the signed-in user acts as that user
+   ([home](SPEC-home.md)): no name step, no pass, and the author is the user's name.
 2. While the link opens, the page shows the empty canvas and no text, as Figma and Miro do. The
    status `Opening the link` is for a screen reader only (user, 2026-11-23: "if I have the link
    already, I expect the page to open right off").

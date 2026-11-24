@@ -125,9 +125,11 @@ These points were open in the rules above. The build decided them so:
   4401). The browser connects again, is refused, and shows the sign-in page.
 - The back button is on `/c/<canvas>`. A share link (`/s/<link>`) shows the canvas as before, with
   no back button, also in a browser with a session.
-- On `/c/<canvas>`, a user sees the frames and the requests, and answers them. To ask for a new
-  change, the user opens the share link: the name step of a request needs a pass. Deferred to a
-  follow-up.
+- On `/c/<canvas>`, a user sees the frames and the requests. The user adds, corrects, answers,
+  notes, accepts and reopens requests as that user: the author is the user's name, with no name
+  step and no share pass. A request of an owner is agreed when it is made; a request of a member
+  waits for the owner ([starts](SPEC-starts.md)). `share.name` and `share.frame` take a session
+  with no pass; `share.name` then gives the user's name.
 - "When it last changed" is the last time the server saw a change to a frame, a page or a request
   of the canvas. The server keeps it. At its first start, it is the newest time that the tables
   have.

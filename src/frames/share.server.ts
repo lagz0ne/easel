@@ -2,7 +2,7 @@ import { bunSqlite } from "@tinkered/bun/sqlite";
 import { capsule, operation, tag, transport } from "@tinkered/core";
 import { z } from "zod";
 
-import { clientAddress, digestOf } from "@/access/guards.server";
+import { caller, clientAddress, digestOf, user } from "@/access/guards.server";
 import { addressKey, limiter } from "@/access/login.server";
 import { secretBytes } from "@/access/store.server";
 
@@ -415,10 +415,10 @@ const namedCanvas = z.object({ canvas: z.string() });
 export const mayName = operation({
   label: "frames.mayName",
   input: transport.hook.start,
-  depends: { passCanvas, digestOf },
-  run: async ({ passCanvas, digestOf }, { input }) => {
+  depends: { user, passCanvas, digestOf },
+  run: async ({ user, passCanvas, digestOf }, { input }) => {
     const sent = passMeta.safeParse(input.meta);
-    if (!sent.success) return input.refuse(endedRefusal);
+    if (!sent.success) return user.run({ input });
 
     const held = await passCanvas.run({ input: sent.data.pass });
     if (held === null || namedCanvas.safeParse(input.input).data?.canvas !== held.canvas) {
@@ -438,12 +438,17 @@ const nameRow = z.object({ name: z.string() }).nullable();
 export const namePass = operation({
   label: "share.name.do",
   input: passApi["share.name"].input,
-  depends: { connection: bunSqlite.connection, held: heldPass.required },
-  run: async ({ connection, held }, { input }) => {
+  depends: { connection: bunSqlite.connection, held: heldPass.optional, me: caller.optional },
+  run: async ({ connection, held, me }, { input }) => {
+    if (!held.present) {
+      if (me.present) return { kind: "named" as const, name: me.value.name };
+      throw new Error("share.name ran without mayName");
+    }
+
     const row = nameRow.parse(
       connection.db.$client
         .query("UPDATE frames_passes SET name = COALESCE(name, ?) WHERE digest = ? RETURNING name")
-        .get(input.name, held.digest),
+        .get(input.name, held.value.digest),
     );
 
     return { kind: "named" as const, name: row?.name ?? input.name };

@@ -174,15 +174,20 @@ test("a pass takes a name only once: a later name does not replace it, and the c
   expect(await kept.name("Cy")).toEqual({ kind: "named", name: "Bo" });
 });
 
-test("mayName: no pass, a made-up pass, or a pass for another canvas is refused ended; a pass a new password ended is refused locked", async () => {
+test("mayName: a made-up pass, or a pass for another canvas, is refused ended; a pass a new password ended is refused locked; no pass goes to the user's sign-in, and the user's name stays", async () => {
   const srv = await boot();
   const { a, link } = await sharedFlow(srv, "first password");
   const mai = await tab(srv, link, "first password");
   const forged = await client(srv.server, { pass: "f".repeat(32) });
   const signedIn = await client(srv.server, { token: a.held.token });
+  const nobody = await client(srv.server);
 
   const ended = { fault: "refused", payload: { ended: true } };
-  expect(await faultOf(signedIn.name("Ann"))).toEqual(ended);
+  expect(await signedIn.name("Mai")).toEqual({ kind: "named", name: "ann" });
+  expect(await faultOf(nobody.name("Mai"))).toEqual({
+    fault: "refused",
+    payload: { signIn: true },
+  });
   expect(await faultOf(forged.name("Mai"))).toEqual(ended);
   expect(await faultOf(mai.name("Mai", "other"))).toEqual(ended);
 

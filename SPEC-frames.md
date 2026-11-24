@@ -105,9 +105,9 @@ that a manifest refers to and removes the rest.
 ## Contract
 
 Every call but `share.open` and `share.name` is refused `{ signIn: true }` without a live user
-token. `share.open` needs nothing but the link. `share.name` needs a live pass for the canvas that
-it names. In V1 any signed-in user may read and write any canvas: one server is
-one team.
+token. `share.open` needs nothing but the link. `share.name` and `share.frame` need a live pass
+for the canvas that they name, or a live user (a token or a browser session). In V1 any
+signed-in user may read and write any canvas: one server is one team.
 
 ```ts
 type CanvasInfo = { key: string; name: string; created: number; shared: boolean }
@@ -215,11 +215,13 @@ Inputs:
   that has none is no try: the link opens.
 - `share.name` takes `{ canvas, name }`, with the name 1 to 40 characters, trimmed, as
   `share.open` takes it. The pass in the call's meta is the proof: the `mayName` guard judges it
-  as `mayRead` judges a read. No pass, a pass that is not live, or a pass for another canvas is
-  refused `{ ended: true }`; a pass that a new password ended is refused `{ locked: true }`. A
-  pass takes a name only once: a later name does not replace it, and `named` gives the name that
-  the pass holds. So the page gives the name at the first request with no new `share.open`: it
-  does not ask the password again, and the browser never keeps the password.
+  as `mayRead` judges a read. A pass that is not live, or a pass for another canvas, is refused
+  `{ ended: true }`; a pass that a new password ended is refused `{ locked: true }`. A call with
+  no pass goes to the `user` guard: a signed-in user gets `named` with the user's name, and no
+  pass changes. With no user, the call is refused `{ signIn: true }`. A pass takes a name only
+  once: a later name does not replace it, and `named` gives the name that the pass holds. So the
+  page gives the name at the first request with no new `share.open`: it does not ask the password
+  again, and the browser never keeps the password.
 - A `share.open` with no password, on a link that has one, answers `locked`. It is not a try, and
   is never locked out.
 - The flood limit: every `share.open` counts, any link, password or not, at most 30 a minute per

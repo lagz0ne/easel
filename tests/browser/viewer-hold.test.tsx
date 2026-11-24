@@ -40,6 +40,7 @@ const store = {
   agreed: [] as Array<{ canvas: string; n: number }>,
   hold: null as Hold | null,
   owner: false,
+  member: false,
 };
 
 const open = operation({
@@ -68,7 +69,13 @@ const root = createRootRoute({ component: Outlet });
 const signedIn = createRoute({
   getParentRoute: () => root,
   path: "/c/$canvas",
-  component: () => <Canvas canvas={signedIn.useParams().canvas} opening={null} back />,
+  component: () => (
+    <Canvas
+      canvas={signedIn.useParams().canvas}
+      opening={null}
+      me={{ name: store.member ? "vibea-claude" : "lagz0ne", owner: !store.member }}
+    />
+  ),
 });
 
 const signedInTree = root.addChildren([signedIn]);
@@ -187,8 +194,9 @@ async function serve(hold: Hold) {
   return server;
 }
 
-async function tab(server: Scope.Handle, person: boolean) {
+async function tab(server: Scope.Handle, person: boolean, member = false) {
   store.owner = person;
+  store.member = member;
   localStorage.setItem(nameKey, "Lan");
   await page.viewport(1200, 800);
   const scope = await createScope({
@@ -249,6 +257,13 @@ test("the person sees Waits for you to agree and an Agree button; Agree calls re
   server.run(dropHold);
   await expect.poll(() => card.getByRole("button", { name: "Agree" }).elements().length).toBe(0);
   expect(card.getByRole("status").filter({ hasText: "agree" }).elements()).toHaveLength(0);
+});
+
+test("a member on /c/<canvas> is not the person: the request waits for the owner, with no Agree button (H-4)", async () => {
+  const card = await tab(await serve({ kind: "agreement" }), true, true);
+
+  await expect.element(card.getByText("Waits for the owner to agree")).toBeVisible();
+  expect(card.getByRole("button", { name: "Agree" }).elements()).toHaveLength(0);
 });
 
 const otherHolds: Array<[string, Hold, string | RegExp]> = [

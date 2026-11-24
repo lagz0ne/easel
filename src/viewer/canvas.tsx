@@ -984,16 +984,26 @@ const shownFrames = resource({
   },
 });
 
-type CanvasProps = { canvas: string; opening: React.ReactNode; back?: boolean };
+type SignedIn = { name: string; owner: boolean };
 
-export function Canvas({ canvas, opening, back }: CanvasProps) {
+type CanvasProps = { canvas: string; opening: React.ReactNode; me?: SignedIn };
+
+type PageProps = {
+  canvas: string;
+  page: string;
+  opening: React.ReactNode;
+  signedIn: { name: string; owner: string };
+};
+
+export function Canvas({ canvas, opening, me }: CanvasProps) {
   const page = useData(pageInAddress({ canvas }));
   if (page === null) return opening;
 
-  return <CanvasPage canvas={canvas} page={page} opening={opening} back={back} />;
+  const signedIn = { name: me?.name ?? "", owner: `${me?.owner === true}` };
+  return <CanvasPage canvas={canvas} page={page} opening={opening} signedIn={signedIn} />;
 }
 
-function CanvasPage({ canvas, page, opening, back }: CanvasProps & { page: string }) {
+function CanvasPage({ canvas, page, opening, signedIn }: PageProps) {
   const part = frames.board.frames.where({ canvas, page });
   const list = useData(part);
   const state = useData(frames.board.status(part));
@@ -1010,7 +1020,7 @@ function CanvasPage({ canvas, page, opening, back }: CanvasProps & { page: strin
   const hovering = asking && !drafting;
   const mode = useData(requestMode, (on) => (on ? "request" : "view"));
   useData(clockTicker({ canvas }));
-  useData(personOfPage({ signedIn: `${back === true}` }));
+  useData(personOfPage(signedIn));
   const kitNow = useData(kitFeed({ canvas }));
   useData(openFromLink({ canvas }));
   useData(aimFromLink({ canvas, page }));
@@ -1075,10 +1085,10 @@ function CanvasPage({ canvas, page, opening, back }: CanvasProps & { page: strin
         </div>
       </section>
       <div className="e-top">
-        <BackBar canvas={canvas} shown={back === true} />
+        <BackBar canvas={canvas} shown={signedIn.name !== ""} />
         <Status lost={lost} fault={state?.status === "fault"} />
         <NewVersion canvas={canvas} />
-        <DropStatus canvas={canvas} page={page} shown={back === true} />
+        <DropStatus canvas={canvas} page={page} shown={signedIn.name !== ""} />
       </div>
       <Dock at={at} canvas={canvas} page={page} />
       <FindList canvas={canvas} page={page} list={list} />

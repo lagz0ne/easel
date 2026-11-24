@@ -6,17 +6,20 @@ import { queue } from "@/queue";
 import { hold } from "@/queue/holds";
 import type { Hold } from "@/queue/holds";
 
-export const personHere = data({ label: "viewer.personHere", initial: false });
+import { signedInAs } from "./gate";
 
-const signedInPage = tag<string>({ label: "viewer.signedInPage" });
+const signedInName = tag<string>({ label: "viewer.signedInName" });
+
+const signedInOwner = tag<string>({ label: "viewer.signedInOwner" });
 
 export const personOfPage = resource({
   label: "viewer.personOfPage",
-  config: { signedIn: signedInPage.required },
-  depends: { person: personHere.controller },
-  factory: ({ person }, ctx) => {
-    const signedIn = ctx.config.signedIn === "true";
-    queueMicrotask(() => person.set(signedIn));
+  config: { name: signedInName.required, owner: signedInOwner.required },
+  depends: { me: signedInAs.controller },
+  factory: ({ me }, ctx) => {
+    const { name, owner } = ctx.config;
+    const signedIn = name === "" ? null : { name, owner: owner === "true" };
+    queueMicrotask(() => me.set(signedIn));
 
     return signedIn;
   },
@@ -114,10 +117,11 @@ export const holdsHere = resource({
   depends: (c) => ({
     rows: frames.board.holds.where({ canvas: c.canvas }),
     asks: frames.board.requests.where({ canvas: c.canvas }),
-    person: personHere,
+    me: signedInAs,
     holdWords,
   }),
-  factory: ({ rows, asks, person, holdWords }): ReadonlyMap<string, HoldWords> => {
+  factory: ({ rows, asks, me, holdWords }): ReadonlyMap<string, HoldWords> => {
+    const person = me?.owner === true;
     const authors = new Map(asks.get().map((r) => [r.id, r.author]));
     return new Map(
       rows.get().map((one) => [
