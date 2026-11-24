@@ -550,6 +550,11 @@ type MapCard = { title: string; about: string; sections: { head: string; lines: 
 - **A section with empty places.** SPEC-arrange rule 6 packs a column with no gap, so the row of
   a state shows only in `bun scripts/map.ts`. Add `grid-row` places to SPEC-arrange when a review
   reads two states as one outcome because they are on the same row of two columns.
+- **Back to a state in the middle of a press.** Back gives the cell the value of that step, but
+  not the rest of the press. So Back from `in` to `code` shows `code` with no call that waits,
+  and the way to `denied` is Restart, then the press again (seen live on 2026-11-24). Add a
+  replay of the presses of the path when a review must branch from a step in the middle of a
+  press.
 - **The address of a walk.** A reload or a link starts the walk again at the first state. Add a
   step in the address when a person must send a step of a walk to an other person.
 
