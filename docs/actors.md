@@ -47,6 +47,8 @@ runs. An owner can do all that a member can do.
 - Start a server and log in with the setup code. See [access](../SPEC-access.md#become-the-first-owner).
 - Approve or deny a login code. An owner can make a new user an owner. See [access](../SPEC-access.md#join-a-server).
 - Revoke a user. The last owner cannot be revoked. See [access](../SPEC-access.md#revoke-a-user).
+- Approve or deny the code of a browser, from the CLI or on the home page. End a browser
+  session. See [home](../SPEC-home.md#the-browser-signs-in).
 - Read the server status and the error groups. See [ops](../SPEC-ops.md#a-person-sees-the-state).
 - Take an error group that the fixer gave up on. See [fixer](../SPEC-fixer.md#a-fixer-fixes-an-error).
 
@@ -68,6 +70,22 @@ CLI with `--json`, or MCP.
   other instructions in the request text. See [mcp](../SPEC-mcp.md#an-agent-works-through-mcp).
 - Edit or close a request that needs a person, when a person tells the agent to. See [queue](../SPEC-queue.md#a-request-no-agent-finishes).
 - Log out. See [access](../SPEC-access.md#sign-out).
+
+### Member in a browser
+
+A member in a browser is a user (a member or an owner) whose browser has a session. The browser
+signs in with a one-time code that an owner approves, or with a link of `easel open`. The session
+is a cookie that a script cannot read. It has the rights of its user, and no more. It cannot make a
+sign-in link.
+
+- Sign in on the page of `/`: get a code, and wait for an owner. Or run `easel open` on a computer
+  where the CLI is signed in. See [home](../SPEC-home.md#the-browser-signs-in).
+- See each canvas of the team on the home page, with its inbox: the requests that wait for a
+  person. See [home](../SPEC-home.md#the-home-page).
+- Open a canvas at `/c/<canvas>`, also a canvas that is not shared. Go back to the list with the
+  back button. See [home](../SPEC-home.md#the-back-button).
+- Answer, accept or open again a request, as a viewer does, under the name of the user.
+- Sign out. A revoke, an owner's `easel users end`, or 30 days with no use also end the session.
 
 ### Viewer
 
@@ -127,16 +145,18 @@ These actors run on a clock or on an event. They use no model.
 | Make, change, delete canvases   | yes   | yes    | no     | no    |
 | Put, move, delete frames        | yes   | yes    | no     | no    |
 | Share, unshare, set a password  | yes   | yes    | no     | no    |
-| See a canvas in a browser       | link  | link   | yes    | no    |
+| See a canvas in a browser       | yes   | yes    | yes    | no    |
 | Ask for a change                | link  | link   | yes    | no    |
-| Answer, accept, open again      | link  | link   | yes    | no    |
+| Answer, accept, open again      | yes   | yes    | yes    | no    |
 | Edit or close a request         | yes   | yes    | yes    | no    |
 | Claim requests, end their tries | yes   | yes    | no     | no    |
 | Read the server status          | yes   | yes    | no     | yes   |
 | Read error groups and samples   | yes   | no     | no     | yes   |
 | Claim, resolve, hand off groups | yes   | no     | no     | yes   |
 
-"link" means: only through a share link. In that browser tab, the user is a viewer.
+"link" means: only through a share link. In that browser tab, the user is a viewer. A user sees a
+canvas, and answers its requests, also in a browser that has a session
+([home](../SPEC-home.md)). To ask for a change, a user still opens the share link.
 
 The fixer has an owner token. All `ops.*` calls except `ops.status` need an owner, and so do all
 `fixer.*` calls. See [ops](../SPEC-ops.md) and [fixer](../SPEC-fixer.md). The fixer uses only the

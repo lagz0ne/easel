@@ -96,6 +96,33 @@ The chart is [access-browser](docs/statecharts/access-browser.md). Its twin,
 [access-browser-two-step](docs/statecharts/access-browser-two-step.md), breaks on purpose: a link
 that one write checks and a second write uses signs in two browsers.
 
+## Notes from the build
+
+These points were open in the rules above. The build decided them so:
+
+- The sign-in page asks for a name first, then shows the code. When an owner approves it, a new
+  name becomes a member (`--owner` makes an owner). The name of a user signs the browser in as
+  that user, with its role. `easel users` marks each code `cli` or `browser`.
+- The cookie is `easel_session_secret`, with `Path=/` and `Max-Age` of 400 days. The server ends
+  the session after 30 days with no use, so the cookie then reads nothing.
+- `easel open` puts the link after `#` (`/open#<link>`). A browser does not send that part, so no
+  log, proxy or `Referer` gets it. The page posts it to `/auth/open` and takes it out of the
+  address bar.
+- A sign-in post must come from the origin of easel (its `Origin` header), with a body of 4 KiB at
+  most.
+- On `easel users end` or a revoke, the server closes each socket of that session at once (code
+  4401). The browser connects again, is refused, and shows the sign-in page.
+- The back button is on `/c/<canvas>`. A share link (`/s/<link>`) shows the canvas as before, with
+  no back button, also in a browser with a session.
+- On `/c/<canvas>`, a user sees the frames and the requests, and answers them. To ask for a new
+  change, the user opens the share link: the name step of a request needs a pass. Deferred to a
+  follow-up.
+- "When it last changed" is the last time the server saw a change to a frame, a page or a request
+  of the canvas. The server keeps it. At its first start, it is the newest time that the tables
+  have.
+- With `EASEL_AUTH=open` (a local server), a code is approved at once, and a new name becomes an
+  owner.
+
 ## Boundaries
 
 - Always: a session is a cookie that a script cannot read. The server keeps only its digest.

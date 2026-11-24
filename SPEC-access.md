@@ -224,7 +224,8 @@ journeys. Its rules are the oracle the tests follow.
 
 ## Out of Scope (Deferred)
 
-- Accounts with passwords, OAuth and SSO.
+- Accounts with passwords, OAuth and SSO. A browser signs in with a code that an owner approves,
+  or with a link of `easel open`: see [home](SPEC-home.md).
 - More roles than owner and member, and per-canvas permissions for users: any user may work on
   any canvas.
 - One user on two machines: the second machine logs in under its own name.
