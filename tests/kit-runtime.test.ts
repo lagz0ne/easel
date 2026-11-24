@@ -133,6 +133,24 @@ test(
 );
 
 test(
+  "the runtime gives Base UI, the default of shadcn/ui, as a whole and as each part that a shadcn part imports; it gives no Radix",
+  { timeout: 30_000 },
+  async () => {
+    const scope = createScope();
+    closers.push(() => scope.close());
+    const built = await scope.run(buildRuntime);
+    const names = Object.keys(built.imports);
+
+    expect(names).not.toContain("radix-ui");
+    for (const name of ["@base-ui/react", "@base-ui/react/menu", "@base-ui/react/dialog"]) {
+      expect(names).toContain(name);
+    }
+    expect(names.filter((name) => name.includes("/internals/"))).toEqual([]);
+    expect(built.files[built.imports["@base-ui/react/menu"] ?? ""]).toMatch(/Menu/);
+  },
+);
+
+test(
   "a kit version gets its runtime at its first use, one time, and keeps it",
   { timeout: 30_000 },
   async () => {

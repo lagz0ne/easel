@@ -493,7 +493,8 @@ written now works in the worker later. Item 7 tells how a frame asks for the wor
 **The runtime.** Each kit version has one runtime bundle, kept with it (K11), as its made CSS
 (build order item 3). Its packages, for the first kit version, each pinned exactly in
 package.json: `react` and `react-dom` 19.3.1, `@tinkered/core` and `@tinkered/react` 0.30.1, `zod`
-4.6.7, `radix-ui` 1.8.1, `lucide-react` 1.77.0, `clsx` 2.1.1, `class-variance-authority` 0.7.1,
+4.6.7, `@base-ui/react` 1.9.0 (the whole, and each part as `@base-ui/react/<part>`, as a shadcn/ui
+part imports it), `lucide-react` 1.77.0, `clsx` 2.1.1, `class-variance-authority` 0.7.1,
 `tailwind-merge` 3.7.1, `@easel/frame` (easel's own helper, `src/kit/easel-frame.ts`:
 `frameLogic`, `cn`, and the mount), and `@easel/kit` (the kit's capsules, the exports of
 `src/kit/capsules/look.ts`, `copy.ts` and `ui.tsx`: `look`, `copy`, `ui`, `locales`, `textGaps`). A new package comes with a new kit version; no package that
@@ -558,7 +559,10 @@ immutable` and `Access-Control-Allow-Origin: *`. It needs no user and no pass: a
   names of the runtime that this easel will give it. `kit.check` writes no runtime.
 - Measured on 2026-11-22 (this host, Bun 1.4.4): 22 files, 1 895 107 bytes minified, 513 495
   bytes gzip (`lucide-react.js` 862 KB of it, `zod.js` 368 KB, `radix-ui.js` 267 KB). A build
-  takes 116 to 156 ms. With `@easel/kit`: 25 files, 1 911 353 bytes, 520 790 bytes gzip, 161 ms. The bytes and the SHA-256 are the same in each build, after a restart, and
+  takes 116 to 156 ms. With `@easel/kit`: 25 files, 1 911 353 bytes, 520 790 bytes gzip, 161 ms. On 2026-11-24, with Base UI in place of Radix
+  (shadcn/ui made Base UI its default in July 2026): 215 files, 2 295 065 bytes, 696 109 bytes
+  gzip, 320 ms. Each part of Base UI is its own entry, and the parts share chunks, so a frame
+  loads only the parts that it imports. The bytes and the SHA-256 are the same in each build, after a restart, and
   in the compiled binary.
 
 **The class rule before a put.** An agent has the easel CLI only, and the Oxlint plugin of
@@ -686,7 +690,7 @@ same thing, and gets the same WebP bytes. The mount renders in one step before `
 first render, after the fonts are ready, as now. Reasons, and the option that is refused:
 
 - The picture is the same document that a tab shows: the same runtime bytes, the same JS, the same
-  CSS. So it shows what a viewer sees, Radix and layout included.
+  CSS. So it shows what a viewer sees, Base UI and layout included.
 - `react-dom/server` is refused. It would run the frame's code in the server process, out of each
   sandbox, with the server's files, database and secrets. Chromium in its container is the
   boundary that frames already have (frames, known risk). It also gives no layout, and its HTML is

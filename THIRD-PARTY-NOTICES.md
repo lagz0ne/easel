@@ -90,8 +90,17 @@ not change their source; the build bundles and minifies it.
   <https://github.com/lagz0ne/tinkered>.
 - Zod 4.6.7: MIT. Copyright (c) 2025 Colin McDonnell.
   <https://github.com/colinhacks/zod>.
-- Radix UI (`radix-ui` 1.8.1, and the `@radix-ui/*` packages that it holds):
-  MIT. Copyright (c) 2022 WorkOS. <https://github.com/radix-ui/primitives>.
+- Base UI (`@base-ui/react` 1.9.0, `@base-ui/utils` 0.5.0): MIT. Copyright (c)
+  2019 Material-UI SAS. <https://github.com/mui/base-ui>.
+- Floating UI (`@floating-ui/core` 1.8.0, `@floating-ui/dom` 1.8.0,
+  `@floating-ui/react-dom` 2.1.9, `@floating-ui/utils` 0.2.12): MIT. Copyright
+  (c) 2021-present Floating UI contributors. <https://github.com/floating-ui/floating-ui>.
+- Reselect 5.3.0: MIT. Copyright (c) 2015-2018 Reselect Contributors.
+  <https://github.com/reduxjs/reselect>.
+- use-sync-external-store 1.7.0: MIT. Copyright (c) Meta Platforms, Inc. and
+  affiliates. <https://github.com/facebook/react>.
+- @babel/runtime 7.29.10: MIT. Copyright (c) 2014-present Sebastian McKenzie and
+  other contributors. <https://github.com/babel/babel>.
 - Lucide (`lucide-react` 1.77.0): ISC. Copyright (c) 2026 Lucide Icons and
   Contributors; the parts from Feather are MIT, Copyright (c) 2013-present Cole
   Bemis. <https://github.com/lucide-icons/lucide>.

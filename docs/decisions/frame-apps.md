@@ -81,6 +81,9 @@ oxc-transform makes JS from the 8.7 KB frame in 0.14 ms (Bun.Transpiler: 0.19 ms
 3. **The package list** of the first kit version: `react`, `react-dom`, `@tinkered/core`,
    `@tinkered/react`, `radix-ui`, `lucide-react`, `clsx`, `class-variance-authority`. A new package
    comes with a new kit version. No package that brings its own CSS (Emotion, MUI).
+   Changed on 2026-11-24 (the user: "Don't use radix anymore, let's move to the baseui"): Base UI
+   (`@base-ui/react`) replaces `radix-ui`, because shadcn/ui made Base UI its default in July 2026.
+   A kit version made before keeps its runtime with Radix (K11).
 4. **The kit's pieces are shadcn/ui React components** (MIT), in the kit's source, styled with the
    look's names. They replace the `k-` HTML element pieces of step 4. An agent adds a piece with
    `put_piece` (K12, K14), as a component.
