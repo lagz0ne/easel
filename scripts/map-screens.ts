@@ -615,14 +615,20 @@ function cardsOf(entry: MapEntry, map: MapJson, graph: MapGraph): Card[] {
   });
 }
 
+const listClasses = {
+  main: "box-border h-full m-0 bg-background font-sans text-foreground",
+  about: "text-muted-foreground",
+  walk: "cursor-pointer rounded-md border border-border bg-background px-3 py-1 font-medium shadow-xs hover:bg-accent",
+} as const;
+
 function listHtml(rows: Array<{ entry: MapEntry; map: MapJson; page: string }>) {
   const cells = rows
     .map(
       ({ entry, map }) =>
-        `<tr><td>${entry.name}</td><td>Map · ${entry.name}</td><td>${map.cell}</td><td>${map.start}</td><td>${map.states.length}</td><td><button type="button" ${walkAttribute}="${entry.name}" style="font:inherit;padding:4px 12px;border-radius:6px;border:1px solid var(--e-line);background:var(--e-bg);color:var(--e-text);cursor:pointer">Walk ${entry.name}</button></td></tr>`,
+        `<tr><td>${entry.name}</td><td>Map · ${entry.name}</td><td>${map.cell}</td><td>${map.start}</td><td>${map.states.length}</td><td><button type="button" ${walkAttribute}="${entry.name}" class="${listClasses.walk}">Walk ${entry.name}</button></td></tr>`,
     )
     .join("");
-  return `<main style="font-family:var(--e-font);padding:32px;background:var(--e-bg);color:var(--e-text)"><h1 style="margin:0 0 8px">Maps</h1><p style="margin:0 0 16px;color:var(--e-muted)">Each map of the product: its page, its cell, its first state and its count of states. bun scripts/map-screens.ts puts them after each deploy. A press on Walk starts the walk of the map.</p><table style="border-collapse:collapse;width:100%"><thead><tr><th align="left">Map</th><th align="left">Page</th><th align="left">Cell</th><th align="left">First state</th><th align="left">States</th><th align="left">Walk</th></tr></thead><tbody>${cells}</tbody></table></main>`;
+  return `<main class="${listClasses.main}" style="padding:32px"><h1 style="margin:0 0 8px">Maps</h1><p class="${listClasses.about}" style="margin:0 0 16px">Each map of the product: its page, its cell, its first state and its count of states. bun scripts/map-screens.ts puts them after each deploy. A press on Walk starts the walk of the map.</p><table style="border-collapse:collapse;width:100%"><thead><tr><th align="left">Map</th><th align="left">Page</th><th align="left">Cell</th><th align="left">First state</th><th align="left">States</th><th align="left">Walk</th></tr></thead><tbody>${cells}</tbody></table></main>`;
 }
 
 function putList(html: string) {
