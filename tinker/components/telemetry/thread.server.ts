@@ -11,6 +11,8 @@ import { workerThreads } from "./modules.server";
 import { encodeValue, quiet } from "./records";
 import type { Telemetry } from "./records";
 import {
+  healthSlowMs,
+  healthSpans,
   logLevel,
   logsUrl,
   resourceAttributes,
@@ -295,12 +297,19 @@ export const threadObserver = resource({
     level: logLevel,
     history: spanHistory,
     encodeValue,
+    healthSpans,
+    slowMs: healthSlowMs,
   },
-  factory: ({ thread, side, level, history, encodeValue }, ctx): Observe.Config => {
+  factory: (
+    { thread, side, level, history, encodeValue, healthSpans, slowMs },
+    ctx,
+  ): Observe.Config => {
+    const health = new Set(healthSpans);
     const owned = {
       history,
       level,
       export(span: Observe.Span) {
+        if (health.has(span.name) && owned.okAndFast(span)) return;
         const time = ctx.clock.currentTimeMillis();
         const entry = span.parentId === undefined ? 1 : 0;
         if (owned.plainSpan(span)) {
@@ -321,6 +330,9 @@ export const threadObserver = resource({
         }
 
         thread.write(JSON.stringify(owned.logLine(entry, true)));
+      },
+      okAndFast(span: Observe.Span) {
+        return span.status !== "failed" && (span.end ?? span.start) - span.start < slowMs;
       },
       plainSpan(span: Observe.Span) {
         if (!owned.plain(span.attributes)) return false;

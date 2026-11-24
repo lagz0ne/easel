@@ -3,6 +3,7 @@ import { createScope, operation } from "@tinkered/core";
 import { makeTestClock } from "@tinkered/core/testing";
 import { expect, onTestFinished, test } from "vite-plus/test";
 
+import { health } from "~/components/health";
 import { httpBackend } from "~/components/http";
 import { routes } from "~/components/requests/index.server";
 import { telemetry as tab } from "~/components/telemetry";
@@ -298,7 +299,7 @@ test("each call that ends well sends one info line with its trace id, span id, t
       spanId: call?.spanId,
       attributes: [
         { key: "ms", value: { stringValue: "0" } },
-        { key: "outcome", value: { stringValue: '"ok"' } },
+        { key: "outcome", value: { stringValue: "ok" } },
       ],
     },
   ]);
@@ -363,12 +364,12 @@ test("an uncaught error of the tab becomes an error log line of the tab", async 
     expect.objectContaining({
       level: 50,
       msg: "tab error",
-      attributes: { name: '"TypeError"', message: '"x is not a function"' },
+      attributes: { name: "TypeError", message: "x is not a function" },
     }),
     expect.objectContaining({
       level: 50,
       msg: "tab error",
-      attributes: { name: '"Error"', message: '"load failed"' },
+      attributes: { name: "Error", message: "load failed" },
     }),
   ]);
 });
@@ -400,6 +401,7 @@ test("thread: the worker sends the info line of each call and the error line of 
   const live = await scope.ready;
 
   live.run(outer);
+  live.run(health);
   await Promise.resolve()
     .then(() => live.run(broken))
     .catch(() => undefined);
@@ -421,4 +423,76 @@ test("thread: the worker sends the info line of each call and the error line of 
     ]),
   );
   expect(logs.filter((line) => line.body.stringValue === "test.step")).toEqual([]);
+  expect(spans.filter((span) => span.name === "tinker.health")).toEqual([]);
+  expect(logs.filter((line) => line.body.stringValue === "tinker.health")).toEqual([]);
+});
+
+const labelled = operation({
+  label: "test.labelled",
+  run: (_deps, ctx) => {
+    ctx.log.info("labelled", { who: "tab", count: 2, on: true, list: ["a"] });
+    return { kind: "drawn" as const };
+  },
+});
+
+test("a log attribute and a span attribute are the plain value: a string has no quotes, a number stays a number string", async () => {
+  const at = await server();
+
+  at.live.run(labelled);
+  await at.wait(2000);
+
+  const line = at.logs().find((one) => one.body.stringValue === "labelled");
+  expect(line?.attributes).toEqual([
+    { key: "who", value: { stringValue: "tab" } },
+    { key: "count", value: { stringValue: "2" } },
+    { key: "on", value: { stringValue: "true" } },
+    { key: "list", value: { stringValue: '["a"]' } },
+  ]);
+  const call = at.logs().find((one) => one.body.stringValue === "test.labelled");
+  expect(call?.attributes).toEqual([
+    { key: "ms", value: { stringValue: "0" } },
+    { key: "outcome", value: { stringValue: "ok" } },
+    { key: "exit", value: { stringValue: "drawn" } },
+  ]);
+  const span = at
+    .spanGroups()
+    .flatMap((group) => group.scopeSpans.flatMap((one) => one.spans))
+    .find((one) => one.name === "test.labelled");
+  expect(JSON.stringify(span)).toContain('{"key":"tinker.exit","value":{"stringValue":"drawn"}}');
+});
+
+const sickHealth = operation({
+  label: "tinker.health",
+  run: () => {
+    throw new Error("the disk is full");
+  },
+});
+
+const slowHealth = operation({
+  label: "tinker.health",
+  run: async (_deps, ctx) => {
+    await ctx.clock.sleep(1000);
+    return { ok: true };
+  },
+});
+
+test("a health call that ends ok and fast sends no span and no line; a failed or a slow one sends both", async () => {
+  const at = await server();
+
+  at.live.run(health);
+  await Promise.resolve()
+    .then(() => at.live.run(sickHealth))
+    .catch(() => undefined);
+  const slow = at.live.run(slowHealth);
+  await at.wait(3000);
+  await slow;
+  await at.wait(2000);
+
+  const spans = at.spans().filter((span) => span.name === "tinker.health");
+  const lines = at.logs().filter((line) => line.body.stringValue === "tinker.health");
+  expect(spans).toHaveLength(2);
+  expect(lines.map((line) => line.severityNumber).toSorted((a, b) => a - b)).toEqual([9, 17]);
+  expect(new Set(lines.map((line) => line.traceId))).toEqual(
+    new Set(spans.map((span) => span.traceId)),
+  );
 });

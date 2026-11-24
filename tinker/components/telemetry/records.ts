@@ -84,6 +84,7 @@ export const encodeValue = operation({
     const value = ctx.input;
     switch (typeof value) {
       case "string":
+        return value.slice(0, 2048);
       case "number":
       case "boolean":
         return JSON.stringify(value).slice(0, 2048);
@@ -253,13 +254,13 @@ export const interactionLine = operation({
   input: z.custom<{
     span: Telemetry.SpanFields;
     entry: boolean;
-    encoded: boolean;
     service: string;
     side: Telemetry.Side;
   }>(),
   run: ({ encodeValue }, ctx): Telemetry.Log | undefined => {
-    const { span, entry, encoded, service, side } = ctx.input;
-    if (!entry || span.kind !== "operation" || span.status === "failed") return undefined;
+    const { span, entry, service, side } = ctx.input;
+    const interaction = entry && side !== "browser" && span.kind === "operation";
+    if (!interaction || span.status === "failed") return undefined;
 
     const end = span.end ?? span.start;
     const exit = span.attributes["tinker.exit"];
@@ -273,11 +274,7 @@ export const interactionLine = operation({
       attributes: {
         ms: encodeValue.run({ input: Math.round(end - span.start) }),
         outcome: encodeValue.run({ input: "ok" }),
-        ...(exit === undefined
-          ? {}
-          : {
-              exit: encoded && typeof exit === "string" ? exit : encodeValue.run({ input: exit }),
-            }),
+        ...(exit === undefined ? {} : { exit: encodeValue.run({ input: exit }) }),
       },
       msg: span.name.slice(0, 2048),
     };

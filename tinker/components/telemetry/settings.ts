@@ -55,3 +55,15 @@ export const tabErrorSource = tag<EventTarget | null>({
   label: "telemetry.tabErrorSource",
   default: null,
 });
+
+export const healthSpans = tag<string[]>({
+  label: "telemetry.healthSpans",
+  default: ["tinker.health"],
+  parse: z.array(z.string()),
+});
+
+export const healthSlowMs = tag({
+  label: "telemetry.healthSlowMs",
+  default: 250,
+  parse: z.number().int().min(0),
+});

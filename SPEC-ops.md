@@ -209,6 +209,17 @@ A kind with no endpoint is not sent. The `VICTORIA_*` variables have no use now.
 8. The picture draws (`pictures.route`, `pictures.draw`, `pictures.render`, `pictures.drawPage`)
    are spans with the answer kind in `tinker.exit`. A Chromium that does not answer shows as
    `late` or as a failed span.
+9. A health call that ends well and in less than 250 ms gives no span and no log line. A health
+   call is a span named in `telemetry.healthSpans` (default `tinker.health`, the answer of
+   `GET /api/health`). A failed or slow health call is exported as each other call. Why: the Swarm
+   health check calls `/api/health` each second (hq-2w6), and the site probe each 30 s, so the
+   health calls were most of the records. Prior art: the filter processor of the OpenTelemetry
+   Collector, and APMs that drop health-check spans by default.
+10. A value of a log or span attribute is the plain value. A string has no quotes (`ok`, not
+    `"ok"`). A number or a boolean is its text (`3`, `true`). An object or a list is its JSON.
+11. In VictoriaLogs, the level of a line is in `severity_text` (`INFO`, `WARN`, `ERROR`) and
+    `severity_number` (9, 13, 17). The trace id is in `trace_id`, the span id in `span_id`, the
+    message in `_msg`, and the service in `service.name`.
 
 ## Contract
 

@@ -98,7 +98,7 @@ export const threadDrain = resource({
         queue.writeConsole(record);
 
         const line = interactionLine.run({
-          input: { span, entry: entry === 1, encoded: encoded === 1, service, side },
+          input: { span, entry: entry === 1, service, side },
           ns: quiet,
         });
         if (line) queue.addLog(side, line);

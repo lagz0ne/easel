@@ -5,7 +5,15 @@ import { logConsole } from "./console";
 import { queue } from "./queue";
 import { encodeValue, interactionLine, quiet, spanBody } from "./records";
 import type { Telemetry } from "./records";
-import { logLevel, spanHistory, tabErrorSource, telemetryService, telemetrySide } from "./settings";
+import {
+  healthSlowMs,
+  healthSpans,
+  logLevel,
+  spanHistory,
+  tabErrorSource,
+  telemetryService,
+  telemetrySide,
+} from "./settings";
 
 export const ingestTelemetry = operation({
   label: "telemetry.ingest",
@@ -59,63 +67,81 @@ export const observer = resource({
     encodeValue,
     spanBody,
     interactionLine,
+    healthSpans,
+    slowMs: healthSlowMs,
   },
   factory: (
-    { queue, service, side, level, history, show, encodeValue, spanBody, interactionLine },
+    {
+      queue,
+      service,
+      side,
+      level,
+      history,
+      show,
+      encodeValue,
+      spanBody,
+      interactionLine,
+      healthSpans,
+      slowMs,
+    },
     ctx,
-  ): Observe.Config => ({
-    history,
-    level,
-    export(span) {
-      queue.addSpan(side, spanBody.run({ input: { span, encoded: false }, ns: quiet }));
+  ): Observe.Config => {
+    const health = new Set(healthSpans);
+    return {
+      history,
+      level,
+      export(span) {
+        const fast = Number(span.end) - span.start < slowMs;
+        if (fast && span.status !== "failed" && health.has(span.name)) return;
+        queue.addSpan(side, spanBody.run({ input: { span, encoded: false }, ns: quiet }));
 
-      const record: Telemetry.Log = {
-        level: LEVELS.info,
-        time: ctx.clock.currentTimeMillis(),
-        service,
-        side,
-        traceId: span.traceId,
-        spanId: span.spanId,
-        attributes: undefined,
-        msg: "core.span",
-      };
-      if (side === "browser") show?.info(record);
-      else queue.writeConsole(record);
+        const record: Telemetry.Log = {
+          level: LEVELS.info,
+          time: ctx.clock.currentTimeMillis(),
+          service,
+          side,
+          traceId: span.traceId,
+          spanId: span.spanId,
+          attributes: undefined,
+          msg: "core.span",
+        };
+        if (side === "browser") show?.info(record);
+        else queue.writeConsole(record);
 
-      const entry = span.parentId === undefined;
-      const line = interactionLine.run({
-        input: { span, entry: entry && side !== "browser", encoded: false, service, side },
-        ns: quiet,
-      });
-      if (line) queue.addLog(side, line);
+        const line = interactionLine.run({
+          input: { span, entry: span.parentId === undefined, service, side },
+          ns: quiet,
+        });
+        if (line) queue.addLog(side, line);
 
-      queue.publishQueued();
-    },
-    log(entry) {
-      const record: Telemetry.Log = {
-        level: entry.level,
-        time: entry.time,
-        service,
-        side,
-        traceId: entry.span?.traceId,
-        spanId: entry.span?.spanId,
-        attributes: Object.fromEntries(
-          Object.entries(entry.attributes).map(([key, value]) => [
-            key.slice(0, 256),
-            encodeValue.run({ input: value, ns: quiet }),
-          ]),
-        ),
-        msg: entry.message.slice(0, 2048),
-      };
-      const clean = queue.addLog(side, record);
-      if (side !== "browser") queue.writeConsole(clean);
-      else if (!show) {
-      } else if (record.level >= LEVELS.error) show.error(record);
-      else if (record.level >= LEVELS.warn) show.warn(record);
-      else show.info(record);
-      queue.publishQueued();
-    },
-  }),
+        queue.publishQueued();
+      },
+      log(entry) {
+        const record: Telemetry.Log = {
+          level: entry.level,
+          time: entry.time,
+          service,
+          side,
+          traceId: entry.span?.traceId,
+          spanId: entry.span?.spanId,
+          attributes: Object.fromEntries(
+            Object.entries(entry.attributes).map(([key, value]) => [
+              key.slice(0, 256),
+              encodeValue.run({ input: value, ns: quiet }),
+            ]),
+          ),
+          msg: entry.message.slice(0, 2048),
+        };
+        const clean = queue.addLog(side, record);
+        if (side !== "browser") queue.writeConsole(clean);
+        else if (!show) {
+        } else if (record.level >= LEVELS.error) show.error(record);
+        else if (record.level >= LEVELS.warn) show.warn(record);
+        else show.info(record);
+        queue.publishQueued();
+      },
+    };
+  },
 });
 
 export const tabErrors = resource({
