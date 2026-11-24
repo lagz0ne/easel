@@ -59,29 +59,17 @@ and `stopped`. The log never shows the seed.
 
 ## The user unit
 
-`~/.config/systemd/user/easel-paseo-adapter.service`:
+The hub runs the adapter as the user unit `easel-paseo-adapter.service` (hq-io7). The hub keeps
+the unit in `~/work/config/systemd/easel-paseo-adapter.service`.
 
-```ini
-[Unit]
-Description=easel Paseo adapter: a Paseo agent for each design request (EASEL_REQUESTS/paseo)
-After=hub-nats.service paseo.service
-Wants=hub-nats.service paseo.service
-
-[Service]
-Type=simple
-WorkingDirectory=%h/dev/easel
-Environment=PATH=%h/.local/bin:%h/.npm-global/bin:/usr/local/bin:/usr/bin:/bin
-Environment=EASEL_PASEO_SEED_FILE=%h/.config/secrets/hub-nats/easel-paseo.nk
-ExecStart=%h/.local/bin/bun run %h/dev/easel/services/paseo-adapter/main.ts
-Restart=on-failure
-RestartSec=10
-SyslogIdentifier=easel-paseo-adapter
-
-[Install]
-WantedBy=default.target
-```
-
-See the log with `journalctl --user -u easel-paseo-adapter -f`.
+- The unit runs a copy of `origin/main`, not the live checkout: uncommitted edits in the shared
+  checkout never reach the adapter. Each start exports `origin/main` to
+  `~/.cache/hub-exports/easel` and runs `bun install --frozen-lockfile --production` there.
+- The design agents still work in `~/dev/easel` (`EASEL_PASEO_WORKSPACE_DIR`).
+- To get a new version live, ship it to `main`, then run
+  `systemctl --user restart easel-paseo-adapter`.
+- To see the running version, run `readlink ~/.cache/hub-exports/easel/current`.
+- To see the log, run `journalctl --user -u easel-paseo-adapter -o cat -f`.
 
 ## Tests
 
