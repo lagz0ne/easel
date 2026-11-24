@@ -32,6 +32,7 @@ import {
   removed,
 } from "./contract";
 import { boardKey } from "./keys.server";
+import { passwordCost } from "./password.server";
 
 export const canvases = data({
   label: "frames.canvases",
@@ -1413,7 +1414,7 @@ const load = operation({
 
 export const framesServer = capsule({
   label: "framesServer",
-  config: { stdout, runtime: kitRuntime },
+  config: { stdout, runtime: kitRuntime, passwordCost },
   hooks: {
     async start({ run, next }) {
       await run(load, {}, { role: "setup", explain: "Reads canvases and frames" });

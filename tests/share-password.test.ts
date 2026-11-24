@@ -22,7 +22,7 @@ import { ownerOps, userOps } from "@/access/users.server";
 import { frames } from "@/frames";
 import { frames as frameCells } from "@/frames/contract";
 import { framesLoads, framesOps, mayRead } from "@/frames/ops.server";
-import { passwordMatches } from "@/frames/password.server";
+import { hashPassword, passwordMatches } from "@/frames/password.server";
 import { drawPage, pictureRoute, picturesServer } from "@/frames/pictures.server";
 import { shareOps, shareServer } from "@/frames/share.server";
 import { framesServer } from "@/frames/store.server";
@@ -34,6 +34,8 @@ afterEach(async () => {
 });
 
 const tick = (ms = 30) => new Promise((done) => setTimeout(done, ms));
+
+const testCost = { memoryCost: 64, timeCost: 1 };
 
 async function until(ok: () => boolean) {
   for (let i = 0; i < 100 && !ok(); i++) await tick(20);
@@ -62,7 +64,7 @@ async function boot(
       bunSqlite({ file }),
       ...(pictures ? [picturesServer({ chromium: process.execPath, database: file })] : []),
       accessServer({ mode: "approve", origin: null, stdout, trusted: [], durable: false }),
-      framesServer({ stdout }),
+      framesServer({ stdout, passwordCost: testCost }),
       shareServer(),
       access.login({ implement: loginOps }),
       access.user({ implement: userOps, onStart: [user] }),
@@ -592,6 +594,21 @@ test("unshare on a canvas that is not there answers gone; a guest's unshare is r
     payload: { signIn: true },
   });
   expect((await guest.open(link)).kind).toBe("open");
+});
+
+test("a server hashes a password with the argon2id cost of Bun: 64 MiB and 2 passes; these tests give a lower cost, as Django and Rails tests do, and a hash of either cost checks the same", async () => {
+  const scope = await createScope({ capsules: [exits({ file: process.env.TINKER_EXITS })] }).ready;
+  closers.push(() => scope.close());
+
+  const hash = await scope.run(hashPassword, { input: pw1 });
+  expect(hash).toMatch(/^\$argon2id\$v=19\$m=65536,t=2,p=1\$/);
+  expect(await scope.run(passwordMatches, { input: { password: pw1, hash } })).toBe(true);
+  expect(await scope.run(passwordMatches, { input: { password: pw2, hash } })).toBe(false);
+
+  const srv = await boot();
+  const low = await srv.server.run(hashPassword, { input: pw1 });
+  expect(low).toMatch(/^\$argon2id\$v=19\$m=64,t=1,p=1\$/);
+  expect(await scope.run(passwordMatches, { input: { password: pw1, hash: low } })).toBe(true);
 });
 
 test(

@@ -1,4 +1,4 @@
-import { operation, resource } from "@tinkered/core";
+import { operation, resource, tag } from "@tinkered/core";
 import { z } from "zod";
 
 import { sharePassword } from "./share";
@@ -9,10 +9,16 @@ export const tryWindow = 60_000;
 
 export const lockTime = 60_000;
 
+export const passwordCost = tag<{ memoryCost: number; timeCost: number }>({
+  label: "frames.passwordCost",
+  default: { memoryCost: 65_536, timeCost: 2 },
+});
+
 export const hashPassword = operation({
   label: "frames.hashPassword",
   input: sharePassword,
-  run: (_, { input }) => Bun.password.hash(input, { algorithm: "argon2id" }),
+  depends: { cost: passwordCost },
+  run: ({ cost }, { input }) => Bun.password.hash(input, { algorithm: "argon2id", ...cost }),
 });
 
 export const passwordMatches = operation({
