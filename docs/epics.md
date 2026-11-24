@@ -262,12 +262,12 @@ SPEC-cli closes A8 with `login --print-token` and `EASEL_TOKEN` (`c79d841`).
 
 ## E2: Make frames
 
-| ID   | Journey                | Actor         | Design                                                                                        | Review |
-| ---- | ---------------------- | ------------- | --------------------------------------------------------------------------------------------- | ------ |
-| E2.1 | Make a canvas          | agent         | [frames](../SPEC-frames.md#make-a-canvas)                                                     | ready  |
-| E2.2 | Make and change frames | agent         | [frames](../SPEC-frames.md#make-and-change-frames)                                            | ready  |
-| E2.3 | Arrange the frames     | agent         | not designed                                                                                  | to do  |
-| E2.4 | Show an image          | agent, person | [frames](../SPEC-frames.md#image-frames), [queue](../SPEC-queue.md#a-screenshot-on-a-request) | active |
+| ID   | Journey                | Actor         | Design                                                                                                                                                               | Review |
+| ---- | ---------------------- | ------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------ |
+| E2.1 | Make a canvas          | agent         | [frames](../SPEC-frames.md#make-a-canvas)                                                                                                                            | ready  |
+| E2.2 | Make and change frames | agent         | [frames](../SPEC-frames.md#make-and-change-frames)                                                                                                                   | ready  |
+| E2.3 | Arrange the frames     | agent         | [arrange](../SPEC-arrange.md)                                                                                                                                        | ready  |
+| E2.4 | Show an image          | agent, person | [frames](../SPEC-frames.md#image-frames), [queue](../SPEC-queue.md#a-screenshot-on-a-request), [arrange](../SPEC-arrange.md#drop-or-paste-an-image-on-the-canvas-i3) | ready  |
 
 ### E2.1 Make a canvas
 
@@ -313,14 +313,14 @@ SPEC-cli closes A8 with `login --print-token` and `EASEL_TOKEN` (`c79d841`).
 - **Failure end:** the arrangement breaks a rule (two frames on each other, a frame out of its
   group). The agent is told which frames and why, and nothing that the person sees gets worse.
 
-| ID  | Requirement                                                                                        | Fit criterion                                                                                                                 |
-| --- | -------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------- |
-| G1  | The agent places a frame by its relation to the other frames: after a frame, below it, in a group. | The agent puts 10 frames of a flow, and gives no position for any of them. The person sees them in the order of the flow.     |
-| G2  | A frame that grows or goes keeps the arrangement.                                                  | When a frame in a row gets 300 px wider, the frames after it move, and no two frames touch. When a frame goes, no hole stays. |
-| G3  | A group has a name, and its frames stay in it.                                                     | The person sees the name of each group above its frames. A move of the group moves each of its frames.                        |
-| G4  | The agent can still give an exact place when it must.                                              | A frame with an exact place stays there, and the frames placed by relation go around it.                                      |
-| G5  | The agent knows when an arrangement is wrong, before the person sees it.                           | The agent gets the list of frames that touch, and of frames out of their group, with each change.                             |
-| G6  | Two agents that arrange the same canvas lose no change.                                            | When the board changed after the agent read it, its change is refused and the agent reads again (B6).                         |
+| ID  | Requirement                                                                                        | Fit criterion                                                                                                                        |
+| --- | -------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------ |
+| G1  | The agent places a frame by its relation to the other frames: after a frame, below it, in a group. | The agent puts 10 frames of a flow, and gives no position for any of them. The person sees them in the order of the flow. Built.     |
+| G2  | A frame that grows or goes keeps the arrangement.                                                  | When a frame in a row gets 300 px wider, the frames after it move, and no two frames touch. When a frame goes, no hole stays. Built. |
+| G3  | A group has a name, and its frames stay in it.                                                     | The person sees the name of each group above its frames. A move of the group moves each of its frames. Built.                        |
+| G4  | The agent can still give an exact place when it must.                                              | A frame with an exact place stays there, and the frames placed by relation go around it. Built.                                      |
+| G5  | The agent knows when an arrangement is wrong, before the person sees it.                           | The agent gets the list of frames that touch, and of frames out of their group, with each change. Built.                             |
+| G6  | Two agents that arrange the same canvas lose no change.                                            | When the board changed after the agent read it, its change is refused and the agent reads again (B6). Built.                         |
 
 ### E2.4 Show an image
 
@@ -336,7 +336,7 @@ SPEC-cli closes A8 with `login --print-token` and `EASEL_TOKEN` (`c79d841`).
 | --- | -------------------------------------------------------- | ---------------------------------------------------------------------------------------------------- |
 | I1  | The agent puts an image on a canvas as a frame.          | The frame has the size of the image, and has versions and requests as each other frame. Built.       |
 | I2  | The person adds a screenshot to a request.               | The person pastes it, or takes a part of the board. The agent that takes the request sees it. Built. |
-| I3  | The person drops or pastes an image on the board.        | Within 5 seconds, the image is a frame where the person dropped it.                                  |
+| I3  | The person drops or pastes an image on the board.        | Within 5 seconds, the image is a frame where the person dropped it. Built.                           |
 | I4  | An agent looks at each image that it gets, as a picture. | The agent says in its reply what the image shows. Built.                                             |
 
 Decided:

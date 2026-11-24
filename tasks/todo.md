@@ -798,10 +798,8 @@ images, and the proof (D9-8) comes last.
 - [x] `easel put <canvas> shot.png|jpg|webp` (10 MB at most) makes an image frame at the size of
       the image; a new put is a new version. MCP `put_frame` takes an image.
 - [x] The viewer shows an image frame, with requests, pages and versions as each other frame.
-- [ ] A member drops or pastes an image on the board, and it becomes a frame (a model first: the
-      drop is new state of the viewer).
-      Open: it waits for the browser session of [SPEC-home](../SPEC-home.md), so that the drop
-      runs as a signed-in member.
+- [x] A member drops or pastes an image on the board, and it becomes a frame (a model first: the
+      drop is new state of the viewer). Built in be6f0f7 ([SPEC-arrange](../SPEC-arrange.md)).
 
 **Estimated scope:** M.
 

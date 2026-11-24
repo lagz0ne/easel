@@ -1,7 +1,7 @@
 # Spec delta: `arrange`, the agents arrange the frames by relation, and a person drops an image
 
-Status: approved (the requirements of 2026-11-24: E2.3 G1 to G6, E2.4 I3; the user granted the
-decisions).
+Status: implemented (be6f0f7, live on easel.vibea.dev since 2026-11-24, build 307). Approved (the
+requirements of 2026-11-24: E2.3 G1 to G6, E2.4 I3; the user granted the decisions).
 
 ## Objective
 
