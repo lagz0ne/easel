@@ -205,7 +205,7 @@ this spec. It breaks: a viewer posts, the dispatcher publishes, an agent starts 
 4. **The limit (D12).** With `--running 2`, the person adds 3 requests. Two agents start. The
    third card shows "Waits for the limit: 2 of 2 agents run" within 2 minutes, and its agent
    starts after one of the first two ends.
-5. **The person sets the limits (D12).** `easel channel limits loop --per-day 1` holds within
+5. **The person sets the limits (D12).** `easel channel limits design-loop --per-day 1` holds within
    30 s: after one start, the next request shows "1 of 1 starts today".
 6. **A failed start (D13).** A `paseo run` that fails shows "The agent did not start" on the card
    within 2 minutes, and `easel deliveries` shows its cause.
@@ -270,8 +270,14 @@ D11 to D13 show on no state. The table above is the proof until it reads easel (
 | ---- | ------------------------------------------------------------------------------------------ | ----- |
 | ST-1 | This spec, the model `starts` and its twin.                                                | done  |
 | ST-2 | The design: the states of the card and the list on the page `E4.5 dispatch` of `product`.  | done  |
-| ST-3 | The server: agreement, `request.agree`, the gate of the dispatcher and of `easel next`.    | open  |
-| ST-4 | The server: `channel.limits`, `channel.report`, the holds, and the starts in `deliveries`. | open  |
-| ST-5 | The viewer: the hold on the card and in the list, and `Agree`.                             | open  |
+| ST-3 | The server: agreement, `request.agree`, the gate of the dispatcher and of `easel next`.    | done  |
+| ST-4 | The server: `channel.limits`, `channel.report`, the holds, and the starts in `deliveries`. | done  |
+| ST-5 | The viewer: the hold on the card and in the list, and `Agree`.                             | done  |
 | ST-6 | The adapter: the limits from easel, the reports.                                           | done  |
 | ST-7 | Live proof (success criteria 1, 2 and 4), then this spec is implemented.                   | open  |
+
+ST-3 and ST-4 shipped in f1561ca, and ST-5 in 9ffcf17. The rule of agreement is off in these
+deploys (`dispatchServer` gets no `agreement`), so each request goes to the agents as before. A
+one-line ship turns it on after `easel users` shows `lagz0ne` as the one owner (SPEC-single).
+ST-7 waits for that ship: with the rule off, a test request on `product` starts a real agent.
+The live NATS channel is `design-loop`; the adapter reads it from `EASEL_PASEO_CHANNEL` (hq-8uk).
