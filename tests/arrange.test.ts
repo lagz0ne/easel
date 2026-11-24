@@ -151,17 +151,19 @@ test("speed: the layout and the check of a page of 200 frames in 10 sections tak
   const s = await scope();
   const sections = Array.from({ length: 10 }, (_, n) => flow(`s${n}`, n, { wrap: 5 }));
   const slots = Array.from({ length: 200 }, (_, i) => at(`f${i}`, `s${i % 10}`, i, 0, 390, 844));
-  const times: number[] = [];
-
-  for (let run = 0; run < 7; run++) {
+  const arrangeOnce = () => {
     const start = performance.now();
     const laid = s.run(layoutPage, { input: { sections, slots, fixed: [] } });
     const boxes = laid.places.map((p) => ({ ...p, w: 390, h: 844, section: "s0" }));
     s.run(findingsOf, { input: { frames: boxes, sections: laid.sections } });
-    times.push(performance.now() - start);
-  }
+    return performance.now() - start;
+  };
+  const warmUpRuns = 20;
+  const timedRuns = 31;
+  for (let run = 0; run < warmUpRuns; run++) arrangeOnce();
+  const times = Array.from({ length: timedRuns }, arrangeOnce).sort((a, b) => a - b);
+  const p50 = times[Math.floor(timedRuns / 2)] ?? Infinity;
 
-  times.sort((a, b) => a - b);
-  console.log(`speed: the layout and the check of 200 frames: p50 ${times[3]?.toFixed(2)} ms`);
-  expect(times[3] ?? Infinity).toBeLessThan(5);
+  console.log(`speed: the layout and the check of 200 frames, warm: p50 ${p50.toFixed(2)} ms`);
+  expect(p50).toBeLessThan(5);
 });
