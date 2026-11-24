@@ -179,7 +179,7 @@ test("an app frame that the check refuses answers offKit with its findings, and 
   if (refused.kind !== "offKit") return;
   expect(at(refused.findings)).toEqual(["1:10 kit/react-state", "2:24 kit/import"]);
   expect(refused.more).toBe(0);
-  expect(await ann.list()).toEqual({ kind: "found", frames: [] });
+  expect(await ann.list()).toEqual({ kind: "found", rev: 0, frames: [] });
 
   const unparsed = await ann.put({
     canvas: "flow",
@@ -190,7 +190,7 @@ test("an app frame that the check refuses answers offKit with its findings, and 
   const many = Array.from({ length: 23 }, (_, i) => `import { a${i} } from "left-pad-${i}";`);
   const lots = await ann.put({ canvas: "flow", tsx: many.join("\n") });
   expect(lots.kind === "offKit" && [lots.findings.length, lots.more]).toEqual([20, 4]);
-  expect(await ann.list()).toEqual({ kind: "found", frames: [] });
+  expect(await ann.list()).toEqual({ kind: "found", rev: 0, frames: [] });
 });
 
 test("an app frame over 256 KiB is tooBig with maxBytes 262144, and nothing is written", async () => {
@@ -199,7 +199,7 @@ test("an app frame over 256 KiB is tooBig with maxBytes 262144, and nothing is w
 
   const big = `export const logic = {};\n//${"x".repeat(256 * 1024)}`;
   expect(await ann.put({ canvas: "flow", tsx: big })).toEqual({ kind: "tooBig", maxBytes: 262144 });
-  expect(await ann.list()).toEqual({ kind: "found", frames: [] });
+  expect(await ann.list()).toEqual({ kind: "found", rev: 0, frames: [] });
 
   const classes = Array.from({ length: 9000 }, (_, i) => `w-[${i + 1}px]`).join(" ");
   const wide = `export const logic = {};\nexport function View() {\n  return <p className="${classes}" />;\n}`;
@@ -207,7 +207,7 @@ test("an app frame over 256 KiB is tooBig with maxBytes 262144, and nothing is w
     kind: "tooBig",
     maxBytes: 262144,
   });
-  expect(await ann.list()).toEqual({ kind: "found", frames: [] });
+  expect(await ann.list()).toEqual({ kind: "found", rev: 0, frames: [] });
 }, 30_000);
 
 test("a frame is one kind for each version: a TSX put on an HTML frame is its next version, and back", async () => {

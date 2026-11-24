@@ -85,7 +85,7 @@ test("a move of a frame keeps its request on it: the same frame, the same versio
     await a.scope.run(frames.api["frame.move"], {
       input: { canvas: "flow", id, x: 900, y: 40, page: "two" },
     }),
-  ).toEqual({ kind: "moved" });
+  ).toEqual({ kind: "moved", layout: expect.any(Object) });
   const claimed = await a.next({ canvas: "flow" });
   expect(claimed).toMatchObject({
     kind: "claimed",

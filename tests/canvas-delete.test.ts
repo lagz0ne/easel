@@ -105,7 +105,7 @@ async function fullCanvas(srv: Server, a: Client, id: string, link: string) {
   if (extra.kind !== "created") throw new Error(extra.kind);
   expect(
     await a.scope.run(frames.api["frame.delete"], { input: { canvas: "flow", id: extra.id } }),
-  ).toEqual({ kind: "deleted" });
+  ).toEqual({ kind: "deleted", layout: expect.any(Object) });
   expect(
     (await a.scope.run(frames.api["page.create"], { input: { canvas: "flow", name: "Second" } }))
       .kind,
@@ -192,6 +192,7 @@ test("a new canvas with the key of a deleted one starts empty: one page, no fram
 
   expect(await a.scope.run(frames.api["frame.list"], { input: { canvas: "flow" } })).toEqual({
     kind: "found",
+    rev: 0,
     frames: [],
   });
   expect(await a.scope.run(frames.api["page.list"], { input: { canvas: "flow" } })).toEqual({

@@ -223,6 +223,7 @@ export const stage = resource({
     let pageNow: string | null = null;
     let hoverAt: { x: number; y: number } | null = null;
     let hoverFrame = 0;
+    let lastPointer: { x: number; y: number } | null = null;
     const pointers = new Map<number, { x: number; y: number }>();
     const showedAt = new Map<string, number>();
     const pinned = new Set<string>();
@@ -270,6 +271,29 @@ export const stage = resource({
         labelZoom = cam.z;
         world?.style.setProperty("--e-unzoom", String(1 / cam.z));
         for (const shell of shells.values()) if (!shell.hidden) at.writeLabel(shell);
+      },
+
+      worldAt: (clientX: number, clientY: number) => {
+        at.measure();
+        return {
+          x: (clientX - view.left - cam.x) / cam.z,
+          y: (clientY - view.top - cam.y) / cam.z,
+        };
+      },
+
+      pointerAt: (clientX: number, clientY: number) => {
+        lastPointer = { x: clientX, y: clientY };
+      },
+
+      pointerOff: () => {
+        lastPointer = null;
+      },
+
+      pasteSpot: () => {
+        at.measure();
+        const middle = { x: view.left + view.w / 2, y: view.top + view.h / 2 };
+        const spot = lastPointer ?? middle;
+        return at.worldAt(spot.x, spot.y);
       },
 
       showZoom: () => {

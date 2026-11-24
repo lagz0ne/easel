@@ -503,7 +503,7 @@ const typingDraft = draft.extend({
   picking: z.literal(false),
 });
 
-const readBase64 = operation({
+export const readBase64 = operation({
   label: "viewer.readBase64",
   input: z.instanceof(Blob),
   run: async (_, { input: file }) => {

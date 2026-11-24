@@ -1,0 +1,25 @@
+.e-canvas:has(.e-drop-over) .e-viewport {
+  outline: 2px dashed var(--e-accent);
+  outline-offset: -6px;
+}
+
+.e-section {
+  position: absolute;
+  width: 0;
+  height: 0;
+  pointer-events: none;
+}
+
+.e-section-name {
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  margin: 0;
+  padding-bottom: calc(var(--e-size-1) * 2.5);
+  color: var(--e-muted);
+  font-weight: var(--e-w-medium);
+  font-size: var(--e-size-3);
+  white-space: nowrap;
+  transform: scale(var(--e-unzoom, 1));
+  transform-origin: 0 100%;
+}

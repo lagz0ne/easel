@@ -232,6 +232,8 @@ export const mcpCall = operation({
     "frame.ready": framesApi["frame.ready"],
     "frame.explore": framesApi["frame.explore"],
     "frame.move": framesApi["frame.move"],
+    "section.set": framesApi["section.set"],
+    "page.layout": framesApi["page.layout"],
     "page.list": framesApi["page.list"],
     "page.create": framesApi["page.create"],
     "kit.capsules": kitApi["kit.capsules"],

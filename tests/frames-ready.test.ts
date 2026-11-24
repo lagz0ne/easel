@@ -305,6 +305,7 @@ test("a put with ready marks an exploring frame ready in one call: a new frame, 
     version: 1,
     findings: [],
     more: 0,
+    layout: expect.any(Object),
   });
   expect(await get(made.id)).toMatchObject({ frame: { status: "ready", version: 1 } });
 

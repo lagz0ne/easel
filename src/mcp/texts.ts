@@ -1,6 +1,7 @@
 import { operation } from "@tinkered/core";
 import { z } from "zod";
 
+import { findingLine, layout } from "@/frames/arrange";
 import { pair } from "@/kit/compose";
 import { findingShape } from "@/kit/schema";
 import { textFinding } from "@/kit/texts";
@@ -38,12 +39,17 @@ export const kindTexts: Readonly<Record<string, string>> = {
   failing: "failing: the error was seen on build {seen}, so the fix did not hold.",
   held: "held: a person has this error group. Leave it to them.",
   empty: "empty: no request waits. Call next_request again.",
+  changed:
+    "changed: the canvas is at revision {rev} now, so nothing was written. Read it again with list_frames or check_layout, and make your change with that rev.",
+  placed:
+    "placed: frame {id} has an exact place, so no frame goes after or below it, and nothing was written. Give x and y, or move {id} into a section first.",
 };
 
 const listed = z.object({
   findings: z.array(z.union([findingShape, textFinding])).optional(),
   fails: z.array(pair).optional(),
   more: z.number().optional(),
+  layout: layout.optional(),
 });
 
 const headText = operation({
@@ -64,7 +70,9 @@ export const answerText = operation({
   input: z.object({ ok: z.boolean(), value: z.looseObject({}) }),
   depends: { headText },
   run: ({ headText }, { input }) => {
-    const { findings = [], fails = [], more = 0 } = listed.safeParse(input.value).data ?? {};
+    const read = listed.safeParse(input.value).data ?? {};
+    const { findings = [], fails = [], more = 0 } = read;
+    const laid = read.layout ?? { findings: [], more: 0 };
     const lines = [
       headText.run({ input }),
       ...findings.map((f) =>
@@ -74,6 +82,8 @@ export const answerText = operation({
       ),
       ...fails.map((p) => `${p.text} on ${p.on}: ${p.ratio}:1, needs ${p.min}:1 (${p.where})`),
       ...(more > 0 ? [`and ${more} more`] : []),
+      ...laid.findings.map((f) => findingLine.parse(f)),
+      ...(laid.more > 0 ? [`and ${laid.more} more on the page`] : []),
     ];
 
     return lines.join("\n");

@@ -7,6 +7,7 @@ import { findingShape, frameFiles } from "@/kit/schema";
 import { messages, requests, serverClock, shots } from "@/queue/cells";
 import { holds } from "@/queue/holds";
 
+import { layout, revision, sectionGap, sectionInfo, sections, sectionWrap } from "./arrange";
 import { sharePassword, sharePath } from "./share";
 
 export const maxDocBytes = 1024 * 1024;
@@ -78,6 +79,16 @@ export const placeAt = z.number().int().min(0).max(100_000);
 export const frameId = z.string().regex(/^[0-9a-f]{12}$/, "not a frame id");
 
 export const frameName = z.string().trim().min(1).max(200);
+
+export const sectionName = z
+  .string()
+  .trim()
+  .min(1)
+  .max(80)
+  .refine(
+    (name) => pageKey.safeParse(keyOfName.parse(name)).success,
+    "a section name needs a letter or a digit",
+  );
 
 const side = z.number().int().min(1).max(16_000);
 
@@ -219,6 +230,7 @@ export const pageClient = data({
 export const framesBoard = remoteData({
   frames,
   pages,
+  sections,
   docs,
   kept,
   removed,
@@ -243,7 +255,12 @@ const written = z.object({
   version: z.number(),
   findings: z.array(findingShape),
   more: z.number(),
+  layout,
 });
+
+const changed = z.object({ kind: z.literal("changed"), rev: z.number() });
+
+const placed = z.object({ kind: z.literal("placed"), id: z.string() });
 
 const unsettled = z.object({
   kind: z.literal("unsettled"),
@@ -271,25 +288,53 @@ const placeOfNew = {
   page: pageKey.optional(),
   x: placeAt.optional(),
   y: placeAt.optional(),
+  after: frameId.optional(),
+  below: frameId.optional(),
+  section: sectionName.optional(),
+  rev: revision.optional(),
 };
 
+type Place = {
+  page?: string;
+  x?: number;
+  y?: number;
+  after?: string;
+  below?: string;
+  section?: string;
+};
+
+const onePlace = z.custom<Place>().transform((place) => {
+  const places = [place.x ?? place.y, place.after, place.below, place.section];
+  const one = places.filter((p) => p !== undefined).length <= 1;
+  return (
+    one && (place.page === undefined || (place.after === undefined && place.below === undefined))
+  );
+});
+
+const onePlaceWords =
+  "give one place: x and y, after, below or section; page goes with no after or below";
+
 export const putInput = z.union([
-  z.strictObject({
-    canvas: canvasKey,
-    html: z.string(),
-    name: frameName.optional(),
-    size: size.optional(),
-    ...placeOfNew,
-  }),
+  z
+    .strictObject({
+      canvas: canvasKey,
+      html: z.string(),
+      name: frameName.optional(),
+      size: size.optional(),
+      ...placeOfNew,
+    })
+    .refine((place) => onePlace.parse(place), onePlaceWords),
   z.strictObject({ canvas: canvasKey, html: z.string(), id: frameId, base: version }),
-  z.strictObject({
-    canvas: canvasKey,
-    tsx: z.string(),
-    name: frameName.optional(),
-    size: size.optional(),
-    ready: z.boolean().optional(),
-    ...placeOfNew,
-  }),
+  z
+    .strictObject({
+      canvas: canvasKey,
+      tsx: z.string(),
+      name: frameName.optional(),
+      size: size.optional(),
+      ready: z.boolean().optional(),
+      ...placeOfNew,
+    })
+    .refine((place) => onePlace.parse(place), onePlaceWords),
   z.strictObject({
     canvas: canvasKey,
     tsx: z.string(),
@@ -297,14 +342,16 @@ export const putInput = z.union([
     base: version,
     ready: z.boolean().optional(),
   }),
-  z.strictObject({
-    canvas: canvasKey,
-    files: frameFiles,
-    name: frameName.optional(),
-    size: size.optional(),
-    ready: z.boolean().optional(),
-    ...placeOfNew,
-  }),
+  z
+    .strictObject({
+      canvas: canvasKey,
+      files: frameFiles,
+      name: frameName.optional(),
+      size: size.optional(),
+      ready: z.boolean().optional(),
+      ...placeOfNew,
+    })
+    .refine((place) => onePlace.parse(place), onePlaceWords),
   z.strictObject({
     canvas: canvasKey,
     files: frameFiles,
@@ -312,12 +359,14 @@ export const putInput = z.union([
     base: version,
     ready: z.boolean().optional(),
   }),
-  z.strictObject({
-    canvas: canvasKey,
-    image: imageInput,
-    name: frameName.optional(),
-    ...placeOfNew,
-  }),
+  z
+    .strictObject({
+      canvas: canvasKey,
+      image: imageInput,
+      name: frameName.optional(),
+      ...placeOfNew,
+    })
+    .refine((place) => onePlace.parse(place), onePlaceWords),
   z.strictObject({ canvas: canvasKey, image: imageInput, id: frameId, base: version }),
 ]);
 
@@ -327,6 +376,8 @@ export const putOutput = z.union([
   written,
   z.object({ kind: z.literal("stale"), id: z.string(), version: z.number() }),
   gone,
+  changed,
+  placed,
   z.object({ kind: z.literal("tooBig"), maxBytes: z.number() }),
   z.object({ kind: z.literal("offKit"), findings: z.array(findingShape), more: z.number() }),
   unsettled,
@@ -390,7 +441,11 @@ export const framesContracts = {
   "frame.list": {
     input: z.object({ canvas: canvasKey }),
     output: z.discriminatedUnion("kind", [
-      z.object({ kind: z.literal("found"), frames: z.array(listedFrame) }),
+      z.object({
+        kind: z.literal("found"),
+        rev: z.number(),
+        frames: z.array(listedFrame.extend({ section: z.string().nullable() })),
+      }),
       gone,
     ]),
   },
@@ -400,7 +455,7 @@ export const framesContracts = {
   },
   "frame.delete": {
     input: one,
-    output: z.discriminatedUnion("kind", [z.object({ kind: z.literal("deleted") }), gone]),
+    output: z.discriminatedUnion("kind", [z.object({ kind: z.literal("deleted"), layout }), gone]),
   },
   "frame.ready": {
     input: one,
@@ -418,15 +473,43 @@ export const framesContracts = {
     ]),
   },
   "frame.move": {
+    input: z
+      .strictObject({
+        canvas: canvasKey,
+        id: frameId,
+        size: size.optional(),
+        ...placeOfNew,
+      })
+      .refine((move) => (move.x === undefined) === (move.y === undefined), "give x and y together")
+      .refine((move) => onePlace.parse(move), onePlaceWords),
+    output: z.discriminatedUnion("kind", [
+      z.object({ kind: z.enum(["moved", "unchanged"]), layout }),
+      gone,
+      placed,
+      changed,
+    ]),
+  },
+  "section.set": {
     input: z.strictObject({
       canvas: canvasKey,
-      id: frameId,
-      x: placeAt,
-      y: placeAt,
       page: pageKey.optional(),
+      section: sectionName,
+      at: z.object({ x: placeAt, y: placeAt }).nullable().optional(),
+      after: sectionName.nullable().optional(),
+      wrap: sectionWrap.nullable().optional(),
+      gap: sectionGap.optional(),
+      rev: revision.optional(),
     }),
     output: z.discriminatedUnion("kind", [
-      z.object({ kind: z.enum(["moved", "unchanged"]) }),
+      z.object({ kind: z.enum(["set", "unchanged"]), layout }),
+      changed,
+      gone,
+    ]),
+  },
+  "page.layout": {
+    input: z.strictObject({ canvas: canvasKey, page: pageKey.optional() }),
+    output: z.discriminatedUnion("kind", [
+      z.object({ kind: z.literal("found"), layout, sections: z.array(sectionInfo) }),
       gone,
     ]),
   },
@@ -487,6 +570,8 @@ export const framesContracts = {
   },
 };
 
+export type MoveInput = z.infer<(typeof framesContracts)["frame.move"]["input"]>;
+
 export const framesApi = rpc(framesContracts);
 
 export type FramesAddress = Extract<keyof typeof framesApi.contracts, string>;
@@ -512,6 +597,8 @@ export const framesSuccessKinds = {
   "frame.explore": ["exploring", "unchanged"],
   "frame.shot": ["ready"],
   "frame.move": ["moved", "unchanged"],
+  "section.set": ["set", "unchanged"],
+  "page.layout": ["found"],
   "page.list": ["found"],
   "page.create": ["created"],
   "page.rename": ["renamed"],

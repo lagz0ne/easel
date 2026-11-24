@@ -226,9 +226,13 @@ test("put makes a frame and exits 0; a put with --id at its version exits 0, upd
   const file = a.file("two.html", "<p>2</p>");
 
   expect(await a.run({ kind: "put", canvas: "flow", file, id, base: "1" })).toBe(0);
-  expect(a.lines()).toEqual([{ kind: "updated", id, version: 2, findings: [], more: 0 }]);
+  expect(a.lines()).toEqual([
+    { kind: "updated", id, version: 2, findings: [], more: 0, layout: expect.any(Object) },
+  ]);
   expect(await a.run({ kind: "put", canvas: "flow", file, id, base: "2" })).toBe(0);
-  expect(a.lines()).toEqual([{ kind: "unchanged", id, version: 2, findings: [], more: 0 }]);
+  expect(a.lines()).toEqual([
+    { kind: "unchanged", id, version: 2, findings: [], more: 0, layout: expect.any(Object) },
+  ]);
 });
 
 test("put on an old version exits 1, stale, and says how to get the frame again", async () => {
@@ -254,7 +258,7 @@ test("put with --id on a frame that is not there, or on a canvas that is not the
   expect(await a.run({ kind: "put", canvas: "nowhere", file })).toBe(1);
   expect(a.lines()).toEqual([{ kind: "gone" }, { kind: "gone" }]);
   expect(await a.run({ kind: "ls", canvas: "flow" })).toBe(0);
-  expect(a.lines()).toEqual([{ kind: "found", frames: [] }]);
+  expect(a.lines()).toEqual([{ kind: "found", rev: 0, frames: [] }]);
 });
 
 test("put: --id needs --base, --base needs --id, and --name or --size with --id is bad usage, 64 (C5)", async () => {
@@ -371,7 +375,7 @@ test("put of a document over 1 MiB of UTF-8 exits 1, tooBig, and sends nothing",
   ).toBe(1);
   expect(a.lines()).toEqual([{ kind: "tooBig", maxBytes: maxDocBytes }]);
   await a.run({ kind: "ls", canvas: "flow" });
-  expect(a.lines()).toEqual([{ kind: "found", frames: [] }]);
+  expect(a.lines()).toEqual([{ kind: "found", rev: 0, frames: [] }]);
 });
 
 test("put of a document of quotes under 1 MiB saves: its JSON is twice its size, under the socket's 16 MiB", async () => {
@@ -471,7 +475,7 @@ test("put of a .tsx file over 256 KiB exits 1, tooBig, and sends nothing", async
   expect(await a.run({ kind: "put", canvas: "flow", file: a.file("big.tsx", big) })).toBe(1);
   expect(a.lines()).toEqual([{ kind: "tooBig", maxBytes: 262144 }]);
   await a.run({ kind: "ls", canvas: "flow" });
-  expect(a.lines()).toEqual([{ kind: "found", frames: [] }]);
+  expect(a.lines()).toEqual([{ kind: "found", rev: 0, frames: [] }]);
 });
 
 test("ls exits 0 with the frames, and 1 for a canvas that is not there", async () => {
@@ -482,6 +486,7 @@ test("ls exits 0 with the frames, and 1 for a canvas that is not there", async (
   expect(a.lines()).toEqual([
     {
       kind: "found",
+      rev: 1,
       frames: [
         {
           id,
@@ -493,6 +498,7 @@ test("ls exits 0 with the frames, and 1 for a canvas that is not there", async (
           h: 900,
           version: 1,
           status: "exploring",
+          section: null,
         },
       ],
     },
@@ -538,7 +544,7 @@ test("rm exits 0, deleted; a second rm exits 1, gone", async () => {
 
   expect(await a.run({ kind: "rm", canvas: "flow", id })).toBe(0);
   expect(await a.run({ kind: "rm", canvas: "flow", id })).toBe(1);
-  expect(a.lines()).toEqual([{ kind: "deleted" }, { kind: "gone" }]);
+  expect(a.lines()).toEqual([{ kind: "deleted", layout: expect.any(Object) }, { kind: "gone" }]);
 });
 
 test("canvas rm exits 0, deleted, and canvas ls no longer lists it; a second canvas rm exits 1, gone, and says how to list the canvases", async () => {

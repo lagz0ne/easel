@@ -308,7 +308,7 @@ test("bytes that are not the type the put names answer badImage type: SVG, HTML,
     });
   }
   const list = await a.scope.run(frames.api["frame.list"], { input: { canvas: "flow" } });
-  expect(list).toEqual({ kind: "found", frames: [] });
+  expect(list).toEqual({ kind: "found", rev: 0, frames: [] });
 });
 
 test("an image of more pixels than the limit answers badImage pixels from its header, before a decode", async () => {
@@ -349,7 +349,7 @@ test("an image over 10 MiB answers tooBig and writes nothing", async () => {
 
   expect(await a.put("image/png", big)).toEqual({ kind: "tooBig", maxBytes: maxImageBytes });
   const list = await a.scope.run(frames.api["frame.list"], { input: { canvas: "flow" } });
-  expect(list).toEqual({ kind: "found", frames: [] });
+  expect(list).toEqual({ kind: "found", rev: 0, frames: [] });
 });
 
 test("the board document of an image frame is an img of the image's address, with the kit off", async () => {

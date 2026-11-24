@@ -41,6 +41,7 @@ const app = createScope({
     issues.board({ read: ws.client }),
     issues.api({ remote: ws.client }),
     frames.board({ read: ws.client }),
+    frames.api({ remote: ws.client }),
     frames.viewer({ remote: ws.client }),
     frames.pass({ remote: ws.client }),
     queue.viewer({ remote: ws.client }),

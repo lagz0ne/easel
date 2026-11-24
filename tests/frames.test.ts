@@ -170,7 +170,7 @@ test("an agent makes the canvas: its key is the name's slug, and canvas ls lists
       },
     ],
   });
-  expect(await a.list("checkout-flow-v2")).toEqual({ kind: "found", frames: [] });
+  expect(await a.list("checkout-flow-v2")).toEqual({ kind: "found", rev: 0, frames: [] });
 });
 
 test("a second canvas with the same key answers taken, and changes nothing", async () => {
@@ -211,6 +211,7 @@ test("an agent puts a new frame: version 1, the first at 0,0, each next right of
 
   expect(await a.list("flow")).toEqual({
     kind: "found",
+    rev: 3,
     frames: [
       {
         id: first.kind === "created" ? first.id : "",
@@ -222,6 +223,7 @@ test("an agent puts a new frame: version 1, the first at 0,0, each next right of
         h: 844,
         version: 1,
         status: "exploring",
+        section: null,
       },
       {
         id: second.kind === "created" ? second.id : "",
@@ -233,6 +235,7 @@ test("an agent puts a new frame: version 1, the first at 0,0, each next right of
         h: 900,
         version: 1,
         status: "exploring",
+        section: null,
       },
       {
         id: third.kind === "created" ? third.id : "",
@@ -244,6 +247,7 @@ test("an agent puts a new frame: version 1, the first at 0,0, each next right of
         h: 100,
         version: 1,
         status: "exploring",
+        section: null,
       },
     ],
   });
@@ -266,6 +270,7 @@ test("a put on the current version saves a new document, and raises the version 
     version: 2,
     findings: [],
     more: 0,
+    layout: expect.any(Object),
   });
   expect(await a.put({ canvas: "flow", id, base: 2, html: "<p>3</p>" })).toEqual({
     kind: "updated",
@@ -273,6 +278,7 @@ test("a put on the current version saves a new document, and raises the version 
     version: 3,
     findings: [],
     more: 0,
+    layout: expect.any(Object),
   });
   expect(await a.get("flow", id)).toEqual({
     kind: "found",
@@ -302,6 +308,7 @@ test("TheVersionGoesUpOnlyWhenTheDocumentChanges: the same document answers unch
     version: 1,
     findings: [],
     more: 0,
+    layout: expect.any(Object),
   });
   expect(await a.get("flow", id)).toMatchObject({ frame: { version: 1, html: "<p>1</p>" } });
 });
@@ -354,7 +361,7 @@ test("the agent gets the frame again, and a put on that version saves", async ()
   if (!("html" in got.frame)) throw new Error("not an HTML frame");
   expect(
     await b.put({ canvas: "flow", id, base: got.frame.version, html: `${got.frame.html}<p>b</p>` }),
-  ).toEqual({ kind: "updated", id, version: 3, findings: [], more: 0 });
+  ).toEqual({ kind: "updated", id, version: 3, findings: [], more: 0, layout: expect.any(Object) });
 });
 
 test("APutOnAnIdNeverMakesAFrame: a put on an id that is not there answers gone", async () => {
@@ -365,7 +372,7 @@ test("APutOnAnIdNeverMakesAFrame: a put on an id that is not there answers gone"
     kind: "gone",
   });
   expect(await a.get("flow", "0123456789ab")).toEqual({ kind: "gone" });
-  expect(await a.list("flow")).toEqual({ kind: "found", frames: [] });
+  expect(await a.list("flow")).toEqual({ kind: "found", rev: 0, frames: [] });
 });
 
 test("an id without base, base without an id, or name or size with an id is invalid, and is not sent (C5)", async () => {
@@ -389,7 +396,7 @@ test("an agent deletes the frame: it stays deleted, and a later put or get answe
   const id = await newFrame(a, "flow", "<p>1</p>");
   const keep = await newFrame(a, "flow", "<p>2</p>");
 
-  expect(await a.rm("flow", id)).toEqual({ kind: "deleted" });
+  expect(await a.rm("flow", id)).toEqual({ kind: "deleted", layout: expect.any(Object) });
   expect(await b.rm("flow", id)).toEqual({ kind: "gone" });
   expect(await b.get("flow", id)).toEqual({ kind: "gone" });
   expect(await b.put({ canvas: "flow", id, base: 1, html: "<p>back</p>" })).toEqual({
@@ -461,7 +468,7 @@ test("a document over 1 MiB of UTF-8 answers tooBig and writes nothing; 1 MiB it
     kind: "tooBig",
     maxBytes: maxDocBytes,
   });
-  expect(await a.list("flow")).toEqual({ kind: "found", frames: [] });
+  expect(await a.list("flow")).toEqual({ kind: "found", rev: 0, frames: [] });
 
   const id = await newFrame(a, "flow", "x".repeat(maxDocBytes));
   expect(await a.put({ canvas: "flow", id, base: 1, html: wide })).toEqual({

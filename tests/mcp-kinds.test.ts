@@ -113,6 +113,48 @@ test("an answer's text lists its findings and its pairs in the CLI's form, and f
   expect(empty).toMatchObject({ isError: false, content: [{ text: kindTexts.empty }] });
 });
 
+test("the answer of a layout change lists each touch and stray in the CLI's form; changed and placed fill their fields", async () => {
+  const app = await scope();
+  const layout = {
+    page: "page-1",
+    rev: 4,
+    findings: [
+      { touch: ["aaaaaaaaaaaa", "bbbbbbbbbbbb"] },
+      { stray: "cccccccccccc", section: "Checkout" },
+    ],
+    more: 3,
+  };
+  const moved = await app.run(answerResult, {
+    rawInput: { address: "frame.move", value: { kind: "moved", layout } },
+  });
+  expect(moved.isError).toBe(false);
+  expect(moved.content).toEqual([
+    {
+      type: "text",
+      text: [
+        JSON.stringify({ kind: "moved", layout }),
+        "touch aaaaaaaaaaaa bbbbbbbbbbbb",
+        "stray cccccccccccc Checkout",
+        "and 3 more on the page",
+      ].join("\n"),
+    },
+  ]);
+
+  const changed = await app.run(answerResult, {
+    rawInput: { address: "section.set", value: { kind: "changed", rev: 7 } },
+  });
+  expect(changed.content).toEqual([
+    { type: "text", text: kindTexts.changed?.replace("{rev}", "7") },
+  ]);
+  const placed = await app.run(answerResult, {
+    rawInput: { address: "frame.put", value: { kind: "placed", id: "aaaaaaaaaaaa" } },
+  });
+  expect(placed.isError).toBe(true);
+  expect(placed.content[0]).toMatchObject({
+    text: expect.stringContaining("frame aaaaaaaaaaaa has an exact place"),
+  });
+});
+
 test("set_texts: an invalid answer lists each text key, what is wrong and its fix; list_texts is a result", async () => {
   const app = await scope();
   const finding = {

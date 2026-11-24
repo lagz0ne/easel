@@ -56,11 +56,25 @@ const help = `easel: the canvas CLI. Every command takes --json (one JSON value 
   easel put <canvas> <file|dir|-> [--name N] [--size WxH] [--page P] [--at x,y]
                                                    make a frame from a file, a folder, or stdin with -; it goes on page P
                                                    (else the first page) at x,y (else right of the frames of the page, at y 0)
+  easel put <canvas> <file|dir|-> [--after <id> | --below <id> | --section <name>] [--rev <n>]
+                                                   a new frame after or below a frame of a section, or at the end of
+                                                   section <name> of page P; easel places it, and prints each finding
+                                                   on stderr (touch <id> <id>, stray <id> <section>); --rev: refuse a
+                                                   change on another revision of the canvas (changed)
   easel put <canvas> <file|dir|-> --id <id> --base <v>     write a frame again on the version you got
                                                    a .tsx file is an app frame; a folder is one of its .ts and .tsx files, from index.tsx
                                                    --ready marks the app frame ready: it uses only the texts of the team and the look
   easel ls <canvas>                                the frames: id, name, page, box, version, status (exploring or ready)
   easel move <canvas> <id> --at <x>,<y> [--page P] move a frame to x,y, and to page P; it makes no version
+  easel move <canvas> <id> [--after <id> | --below <id> | --section <name>] [--page P] [--size WxH] [--rev <n>]
+                                                   move a frame by a relation, or give it a new size; the frames
+                                                   after it move
+  easel section <canvas> <name> [--page P] [--at x,y | --flow] [--after <section> | --first]
+                [--wrap <n> | --no-wrap] [--gap <n>] [--rev <n>]
+                                                   place a section at x,y or in the flow, put it in the order,
+                                                   set its columns on a line (1 to 100) and its gap (16 to 800)
+  easel layout <canvas> [--page P]                 the sections of a page, its revision, the frames that touch
+                                                   and the strays; exit 1 when it finds one
   easel pages <canvas>                             the pages in their order: key, name, count of frames
   easel page new <canvas> <name>                   add a page at the end; prints its key
   easel page rename <canvas> <page> <name>         give a page a new name; its key stays
@@ -175,6 +189,15 @@ const options = {
   at: { type: "string" },
   page: { type: "string" },
   file: { type: "string", short: "f" },
+  after: { type: "string" },
+  below: { type: "string" },
+  section: { type: "string" },
+  rev: { type: "string" },
+  flow: { type: "boolean" },
+  first: { type: "boolean" },
+  wrap: { type: "string" },
+  "no-wrap": { type: "boolean" },
+  gap: { type: "string" },
   locale: { type: "string" },
   help: { type: "boolean", short: "h" },
 } as const;
@@ -306,6 +329,10 @@ const framesInvocations = [
         ready: z.boolean().optional(),
         page: z.string().optional(),
         at: z.string().optional(),
+        after: z.string().optional(),
+        below: z.string().optional(),
+        section: z.string().optional(),
+        rev: z.string().optional(),
       }),
     })
     .transform(({ positionals: [, canvas, file], values }): unknown => ({
@@ -323,20 +350,89 @@ const framesInvocations = [
           ready: values.ready,
           page: values.page,
           at: values.at,
+          after: values.after,
+          below: values.below,
+          section: values.section,
+          rev: values.rev,
         },
       },
     })),
   z
     .object({
       positionals: z.tuple([z.literal("move"), z.string(), z.string()]),
-      values: z.strictObject({ ...common, at: z.string(), page: z.string().optional() }),
+      values: z.strictObject({
+        ...common,
+        at: z.string().optional(),
+        after: z.string().optional(),
+        below: z.string().optional(),
+        section: z.string().optional(),
+        page: z.string().optional(),
+        size: z.string().optional(),
+        rev: z.string().optional(),
+      }),
     })
     .transform(({ positionals: [, canvas, id], values }): unknown => ({
       at: values.server,
       command: {
         kind: "pages",
-        act: { kind: "move", canvas, id, at: values.at, page: values.page },
+        act: {
+          kind: "move",
+          canvas,
+          id,
+          at: values.at,
+          after: values.after,
+          below: values.below,
+          section: values.section,
+          page: values.page,
+          size: values.size,
+          rev: values.rev,
+        },
       },
+    })),
+  z
+    .object({
+      positionals: z.tuple([z.literal("section"), z.string(), z.string()]),
+      values: z.strictObject({
+        ...common,
+        page: z.string().optional(),
+        at: z.string().optional(),
+        flow: z.boolean().optional(),
+        after: z.string().optional(),
+        first: z.boolean().optional(),
+        wrap: z.string().optional(),
+        "no-wrap": z.boolean().optional(),
+        gap: z.string().optional(),
+        rev: z.string().optional(),
+      }),
+    })
+    .transform(({ positionals: [, canvas, name], values }): unknown => ({
+      at: values.server,
+      command: {
+        kind: "pages",
+        act: {
+          kind: "section",
+          canvas,
+          name,
+          page: values.page,
+          at: values.at,
+          flow: values.flow,
+          after: values.after,
+          first: values.first,
+          wrap: values.wrap,
+          noWrap: values["no-wrap"],
+          gap: values.gap,
+          rev: values.rev,
+        },
+      },
+    })),
+  z
+    .object({
+      positionals: z.tuple([z.literal("layout"), z.string()]),
+      values: z.strictObject({ ...common, page: z.string().optional() }),
+    })
+    .transform(({ positionals: [, canvas], values }): unknown => ({
+      at: values.server,
+      command: { kind: "pages", act: { kind: "layout", canvas, page: values.page } },
     })),
   z
     .object({

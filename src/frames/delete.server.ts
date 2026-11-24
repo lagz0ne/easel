@@ -5,6 +5,7 @@ import { z } from "zod";
 import { kit } from "@/kit/cells";
 import { messages, requests } from "@/queue/cells";
 
+import { sections } from "./arrange";
 import { docs, framesApi, frames, kept, pages, removed } from "./contract";
 import { endPasses } from "./share.server";
 import { canvases } from "./store.server";
@@ -27,6 +28,7 @@ const rowsOfCanvas = [
   ["frames_removed", "DELETE FROM frames_removed WHERE canvas = $canvas"],
   ["frames_images", "DELETE FROM frames_images WHERE canvas = $canvas"],
   ["frames_pages", "DELETE FROM frames_pages WHERE canvas = $canvas"],
+  ["frames_sections", "DELETE FROM frames_sections WHERE canvas = $canvas"],
   ["frames_canvases", "DELETE FROM frames_canvases WHERE key = $canvas"],
 ] as const;
 
@@ -91,14 +93,24 @@ const forgetCells = operation({
   },
 });
 
+const forgetSections = operation({
+  label: "frames.forgetSections",
+  input: z.string(),
+  depends: { cells: sections.atScope.controller },
+  run: ({ cells }, { input: canvas }) => {
+    for (const { page, key } of cells.where({ canvas }).get()) cells.delete({ canvas, page, key });
+  },
+});
+
 export const deleteCanvas = operation({
   label: "canvas.delete.do",
   input: framesApi["canvas.delete"].input,
-  depends: { deleteRows, forgetCells, endPasses },
-  run: async ({ deleteRows, forgetCells, endPasses }, { input }) => {
+  depends: { deleteRows, forgetCells, forgetSections, endPasses },
+  run: async ({ deleteRows, forgetCells, forgetSections, endPasses }, { input }) => {
     if (!(await deleteRows.run({ input: input.canvas }))) return { kind: "gone" as const };
 
     forgetCells.run({ input: input.canvas });
+    forgetSections.run({ input: input.canvas });
     await endPasses.run({ input: { canvas: input.canvas } });
     return { kind: "deleted" as const };
   },

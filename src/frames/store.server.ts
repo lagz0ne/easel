@@ -7,12 +7,26 @@ import { z } from "zod";
 import { kitRuntime } from "@/kit/runtime.server";
 import { kitStart, showKit } from "@/kit/store.server";
 
+import { boardSection, finding, sectionInfo, sections } from "./arrange";
+import {
+  arrangePage,
+  bumpRev,
+  layoutAnswer,
+  pageState,
+  revOf,
+  seatAt,
+  seatFrame,
+  sectionsSchema,
+  targetOf,
+  unseatFrame,
+} from "./arrange.server";
 import {
   canvasInfo,
   firstPage,
   frameStatus,
   frames,
   imageType,
+  keyOfName,
   kept,
   pages,
   removed,
@@ -110,6 +124,10 @@ const addedColumns = [
   ["frames_frames", "image", "TEXT"],
   ["frames_images", "held", "INTEGER NOT NULL DEFAULT 0"],
   ["frames_kept", "image", "TEXT"],
+  ["frames_frames", "section", "TEXT"],
+  ["frames_frames", "col", "INTEGER"],
+  ["frames_frames", "row", "INTEGER"],
+  ["frames_canvases", "rev", "INTEGER NOT NULL DEFAULT 0"],
 ] as const;
 
 const frameColumns = "canvas, id, name, page, x, y, w, h, version, status";
@@ -344,15 +362,70 @@ export const saveCanvas = operation({
 
 const writeMode = z.enum(["ready", "exploring", "html"]);
 
-const frameWrite = z.discriminatedUnion("kind", [
+export const placeWrite = z.discriminatedUnion("kind", [
+  z.object({ kind: z.literal("exact"), x: z.number().nullable(), y: z.number().nullable() }),
+  z.object({ kind: z.literal("after"), id: z.string() }),
+  z.object({ kind: z.literal("below"), id: z.string() }),
+  z.object({ kind: z.literal("section"), name: z.string() }),
+]);
+
+export type PlaceWrite = z.infer<typeof placeWrite>;
+
+const sectionSeat = operation({
+  label: "frames.sectionSeat",
+  input: z.object({
+    canvas: z.string(),
+    page: z.string().nullable(),
+    name: z.string(),
+    db: z.custom<Database>(),
+  }),
+  depends: { firstPageOf, hasPage },
+  run: ({ firstPageOf, hasPage }, { input: { canvas, page, name, db } }) => {
+    const on = page ?? firstPageOf.run({ input: { canvas, db } });
+    if (on === null || !hasPage.run({ input: { canvas, page: on, db } })) {
+      return { kind: "gone" as const };
+    }
+
+    const key = keyOfName.parse(name);
+    return { kind: "seat" as const, at: { kind: "section" as const, name, key, page: on } };
+  },
+});
+
+const seatOfPlace = operation({
+  label: "frames.seatOfPlace",
+  input: z.object({
+    canvas: z.string(),
+    page: z.string().nullable(),
+    place: placeWrite,
+    db: z.custom<Database>(),
+  }),
+  depends: { sectionSeat, targetOf },
+  run: ({ sectionSeat, targetOf }, { input: { canvas, page, place, db } }) => {
+    switch (place.kind) {
+      case "exact":
+        return { kind: "exact" as const };
+      case "section":
+        return sectionSeat.run({ input: { canvas, page, name: place.name, db } });
+      case "after":
+      case "below": {
+        const target = targetOf.run({ input: { canvas, id: place.id, db } });
+        if (target.kind !== "seat") return target;
+        const { kind: _, ...at } = target;
+        return { kind: "seat" as const, at: { ...at, kind: place.kind } };
+      }
+    }
+  },
+});
+
+export const frameWrite = z.discriminatedUnion("kind", [
   z.object({
     kind: z.literal("new"),
     canvas: z.string(),
     id: z.string(),
     name: z.string(),
     page: z.string().nullable(),
-    x: z.number().nullable(),
-    y: z.number().nullable(),
+    place: placeWrite,
+    rev: z.number().nullable(),
     w: z.number(),
     h: z.number(),
     html: z.string(),
@@ -427,14 +500,35 @@ const storeImage = operation({
 
 const newWrite = frameWrite.options[0];
 
+const newSeat = operation({
+  label: "frames.newSeat",
+  input: z.object({ write: newWrite, db: z.custom<Database>() }),
+  depends: { newPlace, revOf, seatOfPlace },
+  run: ({ newPlace, revOf, seatOfPlace }, { input: { write, db } }) => {
+    const { canvas } = write;
+    const rev = revOf.run({ input: { canvas, db } });
+    if (write.rev !== null && write.rev !== rev) return { kind: "changed" as const, rev };
+
+    const seat = seatOfPlace.run({ input: { canvas, page: write.page, place: write.place, db } });
+    if (seat.kind === "gone" || seat.kind === "placed") return seat;
+
+    const exact = write.place.kind === "exact" ? write.place : { x: 0, y: 0 };
+    const asked = seat.kind === "seat" ? seat.at.page : write.page;
+    const place = newPlace.run({ input: { canvas, page: asked, x: exact.x, y: exact.y, db } });
+    return place === null ? { kind: "gone" as const } : { kind: "free" as const, seat, place };
+  },
+});
+
 const insertFrame = operation({
   label: "frames.insertFrame",
   input: z.object({ write: newWrite, db: z.custom<Database>() }),
-  depends: { newPlace, showPages, storeImage },
-  run: ({ newPlace, showPages, storeImage }, { input: { write, db }, clock }) => {
-    const place = newPlace.run({ input: { ...write, db } });
-    if (place === null) return { kind: "gone" as const };
+  depends: { newSeat, showPages, storeImage, seatFrame },
+  run: ({ newSeat, showPages, storeImage, seatFrame }, { input: { write, db }, clock }) => {
+    const { canvas } = write;
+    const found = newSeat.run({ input: { write, db } });
+    if (found.kind !== "free") return found;
 
+    const { seat, place } = found;
     const row = keyedRow.parse(
       db
         .query(
@@ -462,6 +556,7 @@ const insertFrame = operation({
         ),
     );
     storeImage.run({ input: { canvas: write.canvas, image: write.image, db } });
+    if (seat.kind === "seat") seatFrame.run({ input: { canvas, id: row.id, at: seat.at, db } });
     showPages.run({ input: { canvas: write.canvas, db } });
     return { kind: "created" as const, row, keptBase: false };
   },
@@ -520,49 +615,216 @@ const updateFrame = operation({
   },
 });
 
+const boxNow = operation({
+  label: "frames.boxNow",
+  input: z.object({ canvas: z.string(), id: z.string(), db: z.custom<Database>() }),
+  run: (_, { input: { canvas, id, db } }) =>
+    z
+      .object({ page: z.string(), w: z.number(), h: z.number() })
+      .nullable()
+      .parse(
+        db
+          .query("SELECT page, w, h FROM frames_frames WHERE canvas = ? AND id = ?")
+          .get(canvas, id),
+      ),
+});
+
+export const arrangeAfter = operation({
+  label: "frames.arrangeAfter",
+  input: z.object({
+    canvas: z.string(),
+    pages: z.array(z.string()),
+    changed: z.boolean(),
+    db: z.custom<Database>(),
+  }),
+  depends: { arrangePage, bumpRev, revOf },
+  run: ({ arrangePage, bumpRev, revOf }, { input: { canvas, pages, changed, db } }) => {
+    const arranged = [...new Set(pages)].map((page) => ({
+      page,
+      ...arrangePage.run({ input: { canvas, page, db } }),
+    }));
+    const moved = arranged.some((one) => one.moved.length > 0);
+    const rev =
+      changed || moved
+        ? bumpRev.run({ input: { canvas, db } })
+        : revOf.run({ input: { canvas, db } });
+    return { rev, arranged };
+  },
+});
+
+const arrangedShape = z.object({
+  rev: z.number(),
+  arranged: z.array(
+    z.object({
+      page: z.string(),
+      moved: z.array(z.string()),
+      sections: z.array(sectionInfo),
+      findings: z.array(finding),
+    }),
+  ),
+});
+
+export const showArranged = operation({
+  label: "frames.showArranged",
+  input: z.object({
+    canvas: z.string(),
+    done: arrangedShape,
+    also: z.array(z.string()),
+    db: z.custom<Database>(),
+  }),
+  depends: {
+    cells: frames.atScope.controller,
+    sectionCells: sections.atScope.controller,
+    boardFrame,
+  },
+  run: ({ cells, sectionCells, boardFrame }, { input: { canvas, done, also, db } }) => {
+    const ids = [...new Set([...also, ...done.arranged.flatMap((one) => one.moved)])];
+    const rows = db
+      .query(
+        `SELECT ${frameColumns}, ${genOf} AS gen FROM frames_frames
+         WHERE canvas = ? AND id IN (SELECT value FROM json_each(?))`,
+      )
+      .all(canvas, canvas, JSON.stringify(ids))
+      .map((row) => keyedRow.parse(row));
+    for (const row of rows) cells.set(boardFrame.run({ input: row }));
+    for (const { page, sections: now } of done.arranged) {
+      const keys = new Set(now.map((one) => one.key));
+      for (const old of sectionCells.where({ canvas, page }).get()) {
+        if (!keys.has(old.key)) sectionCells.delete({ canvas, page, key: old.key });
+      }
+      for (const { key, name, x, y, w, h } of now) {
+        sectionCells.set({ canvas, page, key, name, x, y, w, h });
+      }
+    }
+  },
+});
+
+export const layoutOf = operation({
+  label: "frames.layoutOf",
+  input: z.object({ page: z.string(), done: arrangedShape }),
+  depends: { layoutAnswer },
+  run: ({ layoutAnswer }, { input: { page, done } }) => {
+    const findings = done.arranged.find((one) => one.page === page)?.findings ?? [];
+    return layoutAnswer.run({ input: { page, rev: done.rev, findings } });
+  },
+});
+
+const frameBox = z.object({ page: z.string(), w: z.number(), h: z.number() });
+
+const grewOf = z
+  .object({ before: frameBox.nullable(), now: frameBox.nullable() })
+  .transform(({ before, now }) => {
+    if (before === null || now === null) return false;
+    return before.w !== now.w || before.h !== now.h;
+  });
+
+const arrangeWrite = operation({
+  label: "frames.arrangeWrite",
+  input: z.object({
+    canvas: z.string(),
+    id: z.string(),
+    before: frameBox.nullable(),
+    created: z.boolean(),
+    db: z.custom<Database>(),
+  }),
+  depends: { boxNow, arrangeAfter },
+  run: ({ boxNow, arrangeAfter }, { input: { canvas, id, before, created, db } }) => {
+    const now = boxNow.run({ input: { canvas, id, db } });
+    const page = now?.page ?? "";
+    const changed = created || grewOf.parse({ before, now });
+    const done = arrangeAfter.run({ input: { canvas, pages: [page], changed, db } });
+    return { done, page };
+  },
+});
+
+const saveNew = operation({
+  label: "frames.saveNew",
+  input: z.object({ write: newWrite, db: z.custom<Database>() }),
+  depends: { insertFrame, arrangeWrite },
+  run: ({ insertFrame, arrangeWrite }, { input: { write, db } }) => {
+    const out = insertFrame.run({ input: { write, db } });
+    switch (out.kind) {
+      case "changed":
+      case "gone":
+      case "placed":
+        return { out, done: null, page: "" };
+      case "created": {
+        const id = out.row.id;
+        const laid = arrangeWrite.run({
+          input: { canvas: write.canvas, id, before: null, created: true, db },
+        });
+        return { out, ...laid };
+      }
+    }
+  },
+});
+
+const saveOn = operation({
+  label: "frames.saveOn",
+  input: z.object({ write: onWrite, db: z.custom<Database>() }),
+  depends: { updateFrame, boxNow, arrangeWrite },
+  run: ({ updateFrame, boxNow, arrangeWrite }, { input: { write, db } }) => {
+    const { canvas, id } = write;
+    const before = boxNow.run({ input: { canvas, id, db } });
+    const out = updateFrame.run({ input: { write, db } });
+    switch (out.kind) {
+      case "stale":
+      case "gone":
+        return { out, done: null, page: "" };
+      case "updated":
+      case "marked":
+      case "unchanged":
+        return {
+          out,
+          ...arrangeWrite.run({ input: { canvas, id, before, created: false, db } }),
+        };
+    }
+  },
+});
+
 export const saveFrame = operation({
   label: "frames.saveFrame",
   input: frameWrite,
   depends: {
     connection: bunSqlite.connection,
-    cells: frames.atScope.controller,
     keptCells: kept.atScope.controller,
-    boardFrame,
     boardKept,
-    insertFrame,
-    updateFrame,
+    saveNew,
+    saveOn,
+    showArranged,
+    layoutOf,
   },
   run: async (units, { input }) => {
-    const { connection, cells, keptCells, boardFrame, boardKept } = units;
+    const { connection, keptCells, boardKept, saveNew, saveOn, showArranged, layoutOf } = units;
     const db = connection.db.$client;
+    const { canvas } = input;
     const answer = db.transaction(() =>
       input.kind === "new"
-        ? units.insertFrame.run({ input: { write: input, db } })
-        : units.updateFrame.run({ input: { write: input, db } }),
+        ? saveNew.run({ input: { write: input, db } })
+        : saveOn.run({ input: { write: input, db } }),
     )();
 
-    switch (answer.kind) {
+    const { out, done, page } = answer;
+    if (done === null) return out;
+    const also = out.kind === "unchanged" ? [] : [out.row.id];
+    showArranged.run({ input: { canvas, done, also, db } });
+    const layout = layoutOf.run({ input: { page, done } });
+    switch (out.kind) {
       case "created":
       case "updated": {
-        const { row } = answer;
-        cells.set(boardFrame.run({ input: row }));
-        if (answer.keptBase) {
+        const { row } = out;
+        if (out.keptBase) {
           const version = row.version - 1;
           keptCells.set(
             boardKept.run({ input: { canvas: row.canvas, id: row.id, version, gen: row.gen } }),
           );
         }
-        return { kind: answer.kind, id: row.id, version: row.version };
+        return { kind: out.kind, id: row.id, version: row.version, layout };
       }
-      case "marked": {
-        const { row } = answer;
-        cells.set(boardFrame.run({ input: row }));
-        return { kind: "unchanged" as const, id: row.id, version: row.version };
-      }
+      case "marked":
+        return { kind: "unchanged" as const, id: out.row.id, version: out.row.version, layout };
       case "unchanged":
-      case "stale":
-      case "gone":
-        return answer;
+        return { ...out, layout };
     }
   },
 });
@@ -653,9 +915,13 @@ export const dropFrame = operation({
     removedCells: removed.atScope.controller,
     boardKept,
     showPages,
+    arrangeAfter,
+    showArranged,
+    layoutOf,
   },
   run: async (units, { input, clock }) => {
     const { connection, cells, keptCells, removedCells, boardKept, showPages } = units;
+    const { arrangeAfter, showArranged, layoutOf } = units;
     const db = connection.db.$client;
     const answer = db.transaction(() => {
       const found = db
@@ -689,12 +955,15 @@ export const dropFrame = operation({
       db.query("DELETE FROM frames_frames WHERE canvas = ? AND id = ?").run(input.canvas, input.id);
       db.query(dropLooseImages).run({ $canvas: input.canvas });
       const keptLast = db.query(isKept).get(row.canvas, row.id, row.version) !== null;
-      return { row, gone, keptLast };
+      const { canvas } = input;
+      const done = arrangeAfter.run({ input: { canvas, pages: [row.page], changed: true, db } });
+      return { row, gone, keptLast, done };
     })();
     if (answer === null) return { kind: "gone" as const };
 
-    const { row, gone, keptLast } = answer;
+    const { row, gone, keptLast, done } = answer;
     cells.delete({ canvas: row.canvas, page: row.page, id: row.id });
+    showArranged.run({ input: { canvas: row.canvas, done, also: [], db } });
     removedCells.set(gone);
     showPages.run({ input: { canvas: row.canvas, db } });
     if (keptLast) {
@@ -704,71 +973,165 @@ export const dropFrame = operation({
         }),
       );
     }
-    return { kind: "deleted" as const };
+    return { kind: "deleted" as const, layout: layoutOf.run({ input: { page: row.page, done } }) };
   },
 });
 
-const moveRow = operation({
-  label: "frames.moveRow",
-  input: z.object({
-    canvas: z.string(),
-    id: z.string(),
-    x: z.number(),
-    y: z.number(),
-    page: z.string().nullable(),
-    db: z.custom<Database>(),
-  }),
-  depends: { hasPage },
-  run: ({ hasPage }, { input: { canvas, id, x, y, db, ...asked } }) => {
+const moveInput = z.object({
+  canvas: z.string(),
+  id: z.string(),
+  page: z.string().nullable(),
+  place: placeWrite.nullable(),
+  size: z.object({ w: z.number(), h: z.number() }).nullable(),
+  rev: z.number().nullable(),
+});
+
+const rowNow = operation({
+  label: "frames.rowNow",
+  input: z.object({ canvas: z.string(), id: z.string(), db: z.custom<Database>() }),
+  run: (_, { input: { canvas, id, db } }) => {
     const found = db
       .query(
         `SELECT ${frameColumns}, ${genOf} AS gen FROM frames_frames WHERE canvas = ? AND id = ?`,
       )
       .get(canvas, canvas, id);
-    if (found === null) return { kind: "gone" as const };
-    const was = keyedRow.parse(found);
+    return found === null ? null : keyedRow.parse(found);
+  },
+});
+
+const moveStart = operation({
+  label: "frames.moveStart",
+  input: z.object({
+    canvas: z.string(),
+    id: z.string(),
+    page: z.string().nullable(),
+    rev: z.number().nullable(),
+    db: z.custom<Database>(),
+  }),
+  depends: { revOf, rowNow, hasPage },
+  run: ({ revOf, rowNow, hasPage }, { input: { canvas, id, db, ...asked } }) => {
+    const rev = revOf.run({ input: { canvas, db } });
+    if (asked.rev !== null && asked.rev !== rev) return { kind: "changed" as const, rev };
+
+    const was = rowNow.run({ input: { canvas, id, db } });
+    if (was === null) return { kind: "gone" as const };
+
     const page = asked.page ?? was.page;
     if (!hasPage.run({ input: { canvas, page, db } })) return { kind: "gone" as const };
-    if (was.x === x && was.y === y && was.page === page) return { kind: "unchanged" as const };
+    return { kind: "found" as const, was, page };
+  },
+});
 
-    const row = keyedRow.parse(
-      db
-        .query(
-          `UPDATE frames_frames SET x = ?, y = ?, page = ? WHERE canvas = ? AND id = ?
-           RETURNING ${frameColumns}, ${genOf} AS gen`,
-        )
-        .get(x, y, page, canvas, id, canvas),
-    );
-    return { kind: "moved" as const, was, row };
+const selfRelation = z
+  .object({ id: z.string(), place: placeWrite })
+  .transform(
+    ({ id, place }) => (place.kind === "after" || place.kind === "below") && place.id === id,
+  );
+
+const moveSeat = operation({
+  label: "frames.moveSeat",
+  input: z.object({
+    canvas: z.string(),
+    id: z.string(),
+    page: z.string(),
+    place: placeWrite.nullable(),
+    db: z.custom<Database>(),
+  }),
+  depends: { seatOfPlace },
+  run: ({ seatOfPlace }, { input: { canvas, id, page, place, db } }) => {
+    if (place === null || selfRelation.parse({ id, place })) return { kind: "none" as const };
+
+    return seatOfPlace.run({ input: { canvas, page, place, db } });
+  },
+});
+
+const applyMove = operation({
+  label: "frames.applyMove",
+  input: z.object({
+    canvas: z.string(),
+    was: keyedRow,
+    page: z.string(),
+    place: placeWrite.nullable(),
+    size: z.object({ w: z.number(), h: z.number() }).nullable(),
+    at: seatAt.nullable(),
+    db: z.custom<Database>(),
+  }),
+  depends: { seatFrame, unseatFrame },
+  run: ({ seatFrame, unseatFrame }, { input: { canvas, was, page, place, size, at, db } }) => {
+    const { id } = was;
+    if (size !== null) {
+      const sized = "UPDATE frames_frames SET w = ?, h = ? WHERE canvas = ? AND id = ?";
+      db.query(sized).run(size.w, size.h, canvas, id);
+    }
+    if (place !== null && place.kind === "exact") {
+      unseatFrame.run({ input: { canvas, id, db } });
+      const placed = "UPDATE frames_frames SET x = ?, y = ?, page = ? WHERE canvas = ? AND id = ?";
+      db.query(placed).run(place.x ?? was.x, place.y ?? was.y, page, canvas, id);
+    }
+    if (at !== null) {
+      unseatFrame.run({ input: { canvas, id, db } });
+      seatFrame.run({ input: { canvas, id, at, db } });
+    }
+  },
+});
+
+const moveRow = operation({
+  label: "frames.moveRow",
+  input: moveInput.extend({ db: z.custom<Database>() }),
+  depends: { moveStart, moveSeat, applyMove, rowNow, pageState, arrangeAfter },
+  run: (deps, { input: { canvas, id, place, size, db, ...asked } }) => {
+    const { moveStart, moveSeat, applyMove, rowNow, pageState, arrangeAfter } = deps;
+    const start = moveStart.run({ input: { canvas, id, page: asked.page, rev: asked.rev, db } });
+    if (start.kind !== "found") return start;
+
+    const { was, page } = start;
+    const seat = moveSeat.run({ input: { canvas, id, page, place, db } });
+    if (seat.kind === "gone" || seat.kind === "placed") return seat;
+
+    const at = seat.kind === "seat" ? seat.at : null;
+    const pages = [was.page, at === null ? page : at.page];
+    const before = pageState.run({ input: { canvas, pages, db } });
+    applyMove.run({ input: { canvas, was, page, place, size, at, db } });
+
+    const changed = pageState.run({ input: { canvas, pages, db } }) !== before;
+    const done = arrangeAfter.run({ input: { canvas, pages, changed, db } });
+    const moved = pageState.run({ input: { canvas, pages, db } }) !== before;
+    const now = keyedRow.parse(rowNow.run({ input: { canvas, id, db } }));
+    return { kind: moved ? ("moved" as const) : ("unchanged" as const), was, now, done };
   },
 });
 
 export const moveFrame = operation({
   label: "frames.moveFrame",
-  input: z.object({
-    canvas: z.string(),
-    id: z.string(),
-    x: z.number(),
-    y: z.number(),
-    page: z.string().nullable(),
-  }),
+  input: moveInput,
   depends: {
     connection: bunSqlite.connection,
     cells: frames.atScope.controller,
-    boardFrame,
     moveRow,
     showPages,
+    showArranged,
+    layoutOf,
   },
-  run: async ({ connection, cells, boardFrame, moveRow, showPages }, { input }) => {
+  run: async (deps, { input }) => {
+    const { connection, cells, moveRow, showPages, showArranged, layoutOf } = deps;
     const db = connection.db.$client;
     const answer = db.transaction(() => moveRow.run({ input: { ...input, db } }))();
-    if (answer.kind !== "moved") return answer;
+    switch (answer.kind) {
+      case "changed":
+      case "gone":
+      case "placed":
+        return answer;
+      case "unchanged":
+      case "moved":
+        break;
+    }
 
-    const { was, row } = answer;
-    if (was.page !== row.page) cells.delete({ canvas: was.canvas, page: was.page, id: was.id });
-    cells.set(boardFrame.run({ input: row }));
-    if (was.page !== row.page) showPages.run({ input: { canvas: row.canvas, db } });
-    return { kind: "moved" as const };
+    const { was, now, done } = answer;
+    const { canvas } = input;
+    if (was.page !== now.page) cells.delete({ canvas, page: was.page, id: was.id });
+    showArranged.run({ input: { canvas, done, also: [now.id], db } });
+    if (was.page !== now.page) showPages.run({ input: { canvas, db } });
+    return { kind: answer.kind, layout: layoutOf.run({ input: { page: now.page, done } }) };
   },
 });
 
@@ -972,6 +1335,17 @@ const putOnFirstPages = operation({
   },
 });
 
+const loadSections = operation({
+  label: "frames.loadSections",
+  depends: { connection: bunSqlite.connection, cells: sections.atScope.controller },
+  run: async ({ connection, cells }) => {
+    const db = connection.db.$client;
+    db.exec(sectionsSchema);
+    const rows = db.query("SELECT canvas, page, key, name, x, y, w, h FROM frames_sections").all();
+    for (const one of rows.flatMap((row) => boardSection.safeParse(row).data ?? [])) cells.set(one);
+  },
+});
+
 const load = operation({
   label: "frames.load",
   depends: {
@@ -982,6 +1356,7 @@ const load = operation({
     removedCells: removed.atScope.controller,
     pageCells: pages.atScope.controller,
     out: stdout,
+    loadSections,
     boardFrame,
     boardKept,
     addColumns,
@@ -992,6 +1367,7 @@ const load = operation({
   },
   run: async (deps) => {
     const { connection, canvasCells, frameCells, keptCells, removedCells, pageCells, out } = deps;
+    const { loadSections } = deps;
     const { boardFrame, boardKept, addColumns, mountOldJs, putOnFirstPages } = deps;
     const { kitStart, showKit } = deps;
     const db = connection.db.$client;
@@ -1031,6 +1407,7 @@ const load = operation({
     for (const page of pageRows.flatMap((row) => pageRow.safeParse(row).data ?? [])) {
       pageCells.set(page);
     }
+    await loadSections.run();
   },
 });
 

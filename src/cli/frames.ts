@@ -6,6 +6,7 @@ import { z } from "zod";
 
 import { loginApi } from "@/access/contract";
 import { frames } from "@/frames";
+import { findingLine, layout, revision } from "@/frames/arrange";
 import {
   badImage,
   canvasKey,
@@ -27,6 +28,7 @@ import {
   pictureScale,
   placeAt,
   putOutput,
+  sectionName,
   size,
   version,
 } from "@/frames/contract";
@@ -57,6 +59,10 @@ export const framesCommand = z.discriminatedUnion("kind", [
     ready: z.boolean().optional(),
     page: pageKey.optional(),
     at: z.string().optional(),
+    after: z.string().optional(),
+    below: z.string().optional(),
+    section: z.string().optional(),
+    rev: z.string().optional(),
   }),
   z.object({ kind: z.literal("ls"), canvas: canvasKey }),
   z.object({ kind: z.literal("get"), canvas: canvasKey, id: frameId, out: z.string().optional() }),
@@ -88,7 +94,7 @@ export const shareCommand = z.discriminatedUnion("kind", [
 
 export type ShareCommand = z.infer<typeof shareCommand>;
 
-const sizeFlag = z
+export const sizeFlag = z
   .string()
   .regex(/^\d+x\d+$/)
   .transform((typed) => typed.split("x").map(Number))
@@ -107,12 +113,69 @@ export const atFlag = z
 export const badAt =
   "--at takes x,y in CSS pixels, each a whole number from 0 to 100000, as 0,1200";
 
-const badFlag = {
+export const revFlag = z.string().regex(/^\d+$/).transform(Number).pipe(revision);
+
+export const badPlace = {
   size: "--size takes WxH in CSS pixels, each 1 to 16000, as 390x844",
+  at: badAt,
+  after: "--after takes a frame's id, 12 of 0-9 and a-f: `easel ls <canvas>` prints them",
+  below: "--below takes a frame's id, 12 of 0-9 and a-f: `easel ls <canvas>` prints them",
+  section: "--section takes a name of 1 to 80 characters with a letter or a digit",
+  rev: "--rev takes the revision you read, 0 or more: `easel ls` and `easel layout` print it",
+} as const;
+
+const badFlag = {
+  ...badPlace,
   id: "--id takes a frame's id, 12 of 0-9 and a-f: `easel ls <canvas>` prints them",
   base: "--base takes the version you got, 1 or more: `easel get` prints it",
-  at: badAt,
 } as const;
+
+export const placeFlags = z.object({
+  at: z.string().optional(),
+  after: z.string().optional(),
+  below: z.string().optional(),
+  section: z.string().optional(),
+  page: z.string().optional(),
+});
+
+export const placeUsage = operation({
+  label: "cli.placeUsage",
+  input: placeFlags,
+  run: (_, { input }) => {
+    const { at, after, below, section, page } = input;
+    const places = [at, after, below, section].filter((flag) => flag !== undefined);
+    if (places.length > 1) return "give one place: --at, --after, --below or --section";
+    return page !== undefined && (after !== undefined || below !== undefined)
+      ? "--page does not go with --after or --below: the frame goes on the page of that frame"
+      : null;
+  },
+});
+
+export const layoutFindings = operation({
+  label: "cli.layoutFindings",
+  input: layout,
+  depends: { stderr: stderr.required, asJson: json },
+  run: ({ stderr, asJson }, { input: { findings, more } }) => {
+    if (asJson) return;
+
+    for (const f of findings) stderr.write(`${findingLine.parse(f)}\n`);
+    if (more > 0) stderr.write(`and ${more} more\n`);
+  },
+});
+
+export const changedText = operation({
+  label: "cli.changedText",
+  input: z.object({ canvas: z.string(), rev: z.number(), verb: z.enum(["put", "move", "set"]) }),
+  run: (_, { input: { canvas, rev, verb } }) =>
+    `changed: the canvas is at revision ${rev} now, and nothing was written. Read it again (\`easel layout ${canvas}\`), and ${verb} with --rev ${rev}`,
+});
+
+export const placedText = operation({
+  label: "cli.placedText",
+  input: z.object({ canvas: z.string(), id: z.string() }),
+  run: (_, { input: { canvas, id } }) =>
+    `placed: ${id} has an exact place, so no frame goes after or below it, and nothing was written. Give --at, or move ${id} into a section first (\`easel move ${canvas} ${id} --section <name>\`)`,
+});
 
 const address = z.enum([
   "canvas.create",
@@ -128,6 +191,8 @@ const address = z.enum([
   "frame.ready",
   "frame.explore",
   "frame.move",
+  "section.set",
+  "page.layout",
   "page.list",
   "page.create",
   "page.rename",
@@ -366,22 +431,29 @@ const readDocument = operation({
   },
 });
 
-const typedFlags = z.object({
+export const typedPlace = z.object({
   size: sizeFlag.optional(),
+  at: atFlag.optional(),
+  after: frameId.optional(),
+  below: frameId.optional(),
+  section: sectionName.optional(),
+  rev: revFlag.optional(),
+});
+
+const typedFlags = typedPlace.extend({
   id: frameId.optional(),
   base: baseFlag.optional(),
-  at: atFlag.optional(),
 });
 
 const putFlags = operation({
   label: "cli.putFlags",
   input: framesCommand.options[2],
   run: (_, { input }) => {
-    const { size, id, base, at } = input;
-    const read = typedFlags.safeParse({ size, id, base, at });
+    const { size, id, base, at, after, below, section, rev } = input;
+    const read = typedFlags.safeParse({ size, id, base, at, after, below, section, rev });
     if (read.success) return { bad: null, ...read.data };
 
-    const flag = z.enum(["size", "id", "base", "at"]).parse(read.error.issues[0]?.path[0]);
+    const flag = typedFlags.keyof().parse(read.error.issues[0]?.path[0]);
     return { bad: badFlag[flag] };
   },
 });
@@ -389,7 +461,8 @@ const putFlags = operation({
 const putUsage = operation({
   label: "cli.putUsage",
   input: framesCommand.options[2],
-  run: (_, { input }) => {
+  depends: { placeUsage },
+  run: ({ placeUsage }, { input }) => {
     if ((input.id === undefined) !== (input.base === undefined)) {
       return "--id needs --base, the version you got: `easel get` prints it";
     }
@@ -398,9 +471,14 @@ const putUsage = operation({
       return "--size does not go with an image: the frame takes the size of the image";
     }
     const boxed = [input.name, input.size, input.page, input.at].some((flag) => flag !== undefined);
-    return input.id !== undefined && boxed
-      ? "--name, --size, --page and --at do not go with --id: a put with --id writes the document only; `easel move` moves a frame"
-      : null;
+    if (input.id !== undefined && boxed) {
+      return "--name, --size, --page and --at do not go with --id: a put with --id writes the document only; `easel move` moves a frame";
+    }
+    const related = [input.after, input.below, input.section, input.rev];
+    if (input.id !== undefined && related.some((flag) => flag !== undefined)) {
+      return "--after, --below, --section and --rev do not go with --id: a put with --id writes the document only; `easel move` moves a frame";
+    }
+    return placeUsage.run({ input });
   },
 });
 
@@ -487,11 +565,9 @@ const putText = operation({
     answer: putOutput,
     app: z.boolean(),
   }),
-  depends: { tooBigText, foundText, goneText, badImageText },
-  run: (
-    { tooBigText, foundText, goneText, badImageText },
-    { input: { canvas, id, page, answer, app } },
-  ) => {
+  depends: { tooBigText, foundText, goneText, badImageText, changedText, placedText },
+  run: (units, { input: { canvas, id, page, answer, app } }) => {
+    const { tooBigText, foundText, goneText, badImageText, changedText, placedText } = units;
     if ("findings" in answer) return foundText.run({ input: answer });
 
     switch (answer.kind) {
@@ -506,6 +582,13 @@ const putText = operation({
         return { text: tooBigText.run({ input: { maxBytes: answer.maxBytes, app } }), error: true };
       case "badImage":
         return { text: badImageText.run({ input: answer }), error: true };
+      case "changed":
+        return {
+          text: changedText.run({ input: { canvas, rev: answer.rev, verb: "put" } }),
+          error: true,
+        };
+      case "placed":
+        return { text: placedText.run({ input: { canvas, id: answer.id } }), error: true };
     }
   },
 });
@@ -595,6 +678,10 @@ const sendPut = operation({
       page: pageKey.optional(),
       x: placeAt.optional(),
       y: placeAt.optional(),
+      after: frameId.optional(),
+      below: frameId.optional(),
+      section: sectionName.optional(),
+      rev: revision.optional(),
     }),
     doc: putDoc,
     bytes: z.number(),
@@ -610,13 +697,13 @@ const sendPut = operation({
       return { answered: true as const, answer: { kind: "tooBig" as const, maxBytes } };
     }
 
-    const { canvas, id, base, name, size, page, x, y } = command;
+    const { canvas, id, base, name, size, ...place } = command;
     const sent =
       id !== undefined && base !== undefined
         ? { canvas, ...doc, id, base }
         : "image" in doc
-          ? { canvas, ...doc, name, page, x, y }
-          : { canvas, ...doc, name, size, page, x, y };
+          ? { canvas, ...doc, name, ...place }
+          : { canvas, ...doc, name, size, ...place };
     const stop = deadline.run({ input: "frame.put" });
     const reply = await putCall.settle({ input: sent, signal: stop.signal });
     stop.abort();
@@ -643,11 +730,12 @@ export const put = operation({
     sendPut,
     putText,
     putFindings,
+    layoutFindings,
     exitOf: framesExitOf,
   },
   run: async (units, { input }) => {
     const { say, usage, putUsage, putFlags, loadDoc, sendPut } = units;
-    const { putText, putFindings, exitOf } = units;
+    const { putText, putFindings, layoutFindings, exitOf } = units;
     const bad = putUsage.run({ input });
     if (bad !== null) return usage.run({ input: bad });
 
@@ -657,8 +745,8 @@ export const put = operation({
     const loaded = await loadDoc.run({ input: { file: input.file, ready: input.ready } });
     if (loaded.bad !== null) return usage.run({ input: loaded.bad });
 
-    const { size, id, base } = flags;
-    const place = { page: input.page, x: flags.at?.x, y: flags.at?.y };
+    const { size, id, base, after, below, section, rev } = flags;
+    const place = { page: input.page, x: flags.at?.x, y: flags.at?.y, after, below, section, rev };
     const command = { canvas: input.canvas, name: input.name, size, id, base, ...place };
     const { folder, app, doc, bytes } = loaded;
     const sent = await sendPut.run({ input: { command, doc, bytes } });
@@ -669,6 +757,7 @@ export const put = operation({
     const told = putText.run({ input: { canvas, id: input.id, page, answer, app } });
     say.run({ input: { json: answer, ...told } });
     putFindings.run({ input: { file: input.file, folder, answer } });
+    if ("layout" in answer) layoutFindings.run({ input: answer.layout });
     return exitOf.run({ input: { address: "frame.put", kind: answer.kind } });
   },
 });
@@ -700,7 +789,7 @@ export const ls = operation({
               ? answer.frames
                   .map(
                     (f) =>
-                      `${f.id}\t${f.name}\t${f.page}\t${f.x},${f.y} ${f.w}x${f.h}\tv${f.version}\t${f.status}`,
+                      `${f.id}\t${f.name}\t${f.page}\t${f.x},${f.y} ${f.w}x${f.h}\tv${f.version}\t${f.status}${f.section === null ? "" : `\tsection ${f.section}`}`,
                   )
                   .join("\n")
               : `no frame on ${input.canvas} yet: \`easel put ${input.canvas} <file>\``,

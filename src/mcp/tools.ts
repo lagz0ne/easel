@@ -70,7 +70,7 @@ export const tools = {
     address: "frame.list",
     annotations: readOnly,
     description:
-      "List the frames of a canvas: id, name, box, version and status (exploring or ready). Use an id and its version in `get_frame` and `put_frame`.",
+      "List the frames of a canvas: id, name, box, version, status (exploring or ready) and section, with the revision `rev` of the canvas. Use an id and its version in `get_frame` and `put_frame`, and `rev` in a change that you computed from this read.",
   },
   get_frame: {
     address: "frame.get",
@@ -81,13 +81,25 @@ export const tools = {
   put_frame: {
     address: "frame.put",
     annotations: write,
-    description: `Make a frame, or change one with \`id\` and \`base\` (an older version answers \`stale\`); a new frame goes on \`page\` (else the first page) at \`x\`, \`y\` (else right of the frames of its page, at y 0); an app frame is exploring until \`ready\`, which needs the texts of the team and fixes colors to the look. ${kitFirst}`,
+    description: `Make a frame, or change one with \`id\` and \`base\` (an older version answers \`stale\`); give a new frame one place, \`after\` or \`below\` a frame id, \`section\` (a name), or \`x\`, \`y\` (else right of the frames of its page), on \`page\` (else the first page), and \`rev\` to refuse it as \`changed\` when the canvas changed after your read; the answer has \`layout\` (the frames that touch, and the strays on a section), and an app frame is exploring until \`ready\`, which needs the texts of the team and fixes colors to the look. ${kitFirst}`,
   },
   move_frame: {
     address: "frame.move",
     annotations: idempotent,
     description:
-      "Move a frame to `x`, `y` (0 to 100000), and to another `page` when you give one. A move makes no version, so a request on the frame stays on it, and each open tab shows the move.",
+      "Move a frame to one place, `x` and `y` (0 to 100000), `after` or `below` a frame id, or `section` (a name), and to another `page` when you give one; `size` gives it a new size, and the frames after it move. A move makes no version, so a request on the frame stays on it; `rev` refuses it with `changed` when the canvas changed after your read, and the answer has `layout`.",
+  },
+  set_section: {
+    address: "section.set",
+    annotations: idempotent,
+    description:
+      "Change a section of a page: `at` (x, y) gives it an exact place and its frames move with it (null: back in the flow), `after` puts it after that section (null: first), `wrap` is the most columns on a line (null: one row), and `gap` is the space between its frames (16 to 800). The answer has `layout`, and `rev` refuses the change with `changed` when the canvas changed after your read.",
+  },
+  check_layout: {
+    address: "page.layout",
+    annotations: readOnly,
+    description:
+      "Check the layout of a page (else the first page), and write nothing: its sections with their boxes and columns of frame ids, the revision `rev`, the pairs of frames that touch, and the strays (a frame on the box of a section that it is not in). Fix a touch or a stray with `move_frame`.",
   },
   list_pages: {
     address: "page.list",

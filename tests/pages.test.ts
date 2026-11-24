@@ -263,10 +263,22 @@ test("a move changes the place and the page and writes no version; the same plac
   await agent.newPage("Two");
   const id = await made(agent);
 
-  expect(await agent.move({ id, x: 40, y: 60 })).toEqual({ kind: "moved" });
-  expect(await agent.move({ id, x: 40, y: 60 })).toEqual({ kind: "unchanged" });
-  expect(await agent.move({ id, x: 40, y: 60, page: "page-1" })).toEqual({ kind: "unchanged" });
-  expect(await agent.move({ id, x: 0, y: 0, page: "two" })).toEqual({ kind: "moved" });
+  expect(await agent.move({ id, x: 40, y: 60 })).toEqual({
+    kind: "moved",
+    layout: expect.any(Object),
+  });
+  expect(await agent.move({ id, x: 40, y: 60 })).toEqual({
+    kind: "unchanged",
+    layout: expect.any(Object),
+  });
+  expect(await agent.move({ id, x: 40, y: 60, page: "page-1" })).toEqual({
+    kind: "unchanged",
+    layout: expect.any(Object),
+  });
+  expect(await agent.move({ id, x: 0, y: 0, page: "two" })).toEqual({
+    kind: "moved",
+    layout: expect.any(Object),
+  });
   expect(await agent.move({ id, x: 0, y: 0, page: "nope" })).toEqual({ kind: "gone" });
   expect(await agent.move({ id: "0123456789ab", x: 0, y: 0 })).toEqual({ kind: "gone" });
   expect(await agent.move({ id, x: 0, y: 0, canvas: "none" })).toEqual({ kind: "gone" });

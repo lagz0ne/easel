@@ -5,6 +5,7 @@ import { Fragment, memo, useId } from "react";
 import { z } from "zod";
 
 import { frames } from "@/frames";
+import { sectionHead } from "@/frames/arrange";
 import { boardDoc } from "@/frames/contract";
 import type { BoardFrame, FrameInfo } from "@/frames/contract";
 import { BackBar } from "@/home/back";
@@ -13,6 +14,7 @@ import { paneScript } from "@/kit/controls";
 import type { ControlShown, PanePlace } from "@/kit/controls";
 
 import "./canvas.css";
+import "./arrange.css";
 import { aimFromLink, openFromLink } from "./act";
 import {
   acting,
@@ -26,6 +28,7 @@ import {
   resendOnBack,
   slashKey,
 } from "./draft";
+import { dropImages, imageDrop, pasteImages } from "./drop";
 import { FindButton, FindList } from "./find-list";
 import { columnOpen, fold } from "./fold";
 import type { Side } from "./fold";
@@ -905,6 +908,51 @@ function Status({ lost, fault }: { lost: boolean; fault: boolean }) {
   return null;
 }
 
+function SectionNames({ canvas, page }: { canvas: string; page: string }) {
+  const list = useData(frames.board.sections.where({ canvas, page })) ?? [];
+  return (
+    <>
+      {list.map((s) => (
+        <div
+          key={s.key}
+          className="e-section"
+          data-section={s.key}
+          style={{ left: s.x, top: s.y + sectionHead }}
+        >
+          <p className="e-section-name">{s.name}</p>
+        </div>
+      ))}
+    </>
+  );
+}
+
+function DropStatus({ canvas, page, shown }: { canvas: string; page: string; shown: boolean }) {
+  return shown ? <DropWatch canvas={canvas} page={page} /> : null;
+}
+
+function DropWatch({ canvas, page }: { canvas: string; page: string }) {
+  useData(pasteImages({ canvas, page }));
+  useData(dropImages({ canvas, page }));
+  const drop = useData(imageDrop);
+  if (drop.over) {
+    return (
+      <p role="status" className="e-drop-over">
+        Drop the image to put it on this page
+      </p>
+    );
+  }
+  switch (drop.told.kind) {
+    case "none":
+      return drop.going ? <p role="status">The image goes on this page</p> : null;
+    case "refused":
+      return <p role="alert">{drop.told.why}</p>;
+    case "wait":
+      return <p role="status">Wait for the image that goes now.</p>;
+    case "lost":
+      return <p role="alert">The image did not go. Drop it again.</p>;
+  }
+}
+
 const shownMemo = resource({
   label: "viewer.shownMemo",
   config: { canvas: canvasKey.required, page: pageKey.required },
@@ -977,9 +1025,13 @@ function CanvasPage({ canvas, page, opening, back }: CanvasProps & { page: strin
         className="e-viewport e-light"
         aria-label="Frames"
         onPointerMove={(event) => {
+          at.pointerAt(event.clientX, event.clientY);
           if (hovering && event.buttons === 0) at.hover(event.clientX, event.clientY);
         }}
-        onPointerLeave={() => at.hoverOff()}
+        onPointerLeave={() => {
+          at.pointerOff();
+          at.hoverOff();
+        }}
         onClick={(event) => {
           const spot = at.pick(event.nativeEvent);
           if (!spot) return;
@@ -1018,6 +1070,7 @@ function CanvasPage({ canvas, page, opening, back }: CanvasProps & { page: strin
           {drawn.map((f) => (
             <Shell key={f.id} canvas={canvas} frame={f} at={at} />
           ))}
+          <SectionNames canvas={canvas} page={page} />
           <Requests canvas={canvas} page={page} list={list} lost={lost} />
         </div>
       </section>
@@ -1025,6 +1078,7 @@ function CanvasPage({ canvas, page, opening, back }: CanvasProps & { page: strin
         <BackBar canvas={canvas} shown={back === true} />
         <Status lost={lost} fault={state?.status === "fault"} />
         <NewVersion canvas={canvas} />
+        <DropStatus canvas={canvas} page={page} shown={back === true} />
       </div>
       <Dock at={at} canvas={canvas} page={page} />
       <FindList canvas={canvas} page={page} list={list} />

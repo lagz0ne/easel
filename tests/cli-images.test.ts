@@ -204,7 +204,7 @@ test("easel put of an image with --size is bad usage, exits 64, and sends nothin
     usage: "--size does not go with an image: the frame takes the size of the image",
   });
   await a.run({ kind: "ls", canvas: "flow" });
-  expect(a.lines()).toEqual([{ kind: "found", frames: [] }]);
+  expect(a.lines()).toEqual([{ kind: "found", rev: 0, frames: [] }]);
 });
 
 test("easel put of an image over 10 MiB exits 1 tooBig, and sends nothing", async () => {

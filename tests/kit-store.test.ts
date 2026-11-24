@@ -365,6 +365,7 @@ test("a put whose made CSS would be over 256 KiB answers tooBig and writes nothi
   expect(await put(agent, `<p class="${classes}">`)).toEqual({ kind: "tooBig", maxBytes: 262144 });
   expect(await agent.run(frames.api["frame.list"], { input: { canvas: "flow" } })).toEqual({
     kind: "found",
+    rev: 0,
     frames: [],
   });
 }, 30_000);

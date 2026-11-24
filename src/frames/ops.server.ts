@@ -36,13 +36,16 @@ import { deleteCanvas } from "./delete.server";
 import { imageAddress, imageDoc, readImage, sanitizedImage } from "./images.server";
 import { createPage, deletePage, listPages, orderPages, renamePage } from "./pages.server";
 import { shotFrame } from "./pictures.server";
+import { pageLayout, readSeats, setSection } from "./sections.server";
 import { endedRefusal, lockedRefusal, passMeta } from "./share";
 import { passCanvas, shareCanvas, unshareCanvas } from "./share.server";
 import {
   canvases,
   dropFrame,
+  frameWrite,
   markFrame,
   moveFrame,
+  type PlaceWrite,
   readDoc,
   readStatus,
   readStatuses,
@@ -201,6 +204,22 @@ const boxOf = z
     return ("size" in put && put.size) || defaultSize;
   });
 
+const askedPlace = z.object({
+  after: z.string().optional(),
+  below: z.string().optional(),
+  section: z.string().optional(),
+  x: z.number().optional(),
+  y: z.number().optional(),
+  page: z.string().optional(),
+});
+
+const placeOf = askedPlace.transform((asked): PlaceWrite => {
+  if (asked.after !== undefined) return { kind: "after", id: asked.after };
+  if (asked.below !== undefined) return { kind: "below", id: asked.below };
+  if (asked.section !== undefined) return { kind: "section", name: asked.section };
+  return { kind: "exact", x: asked.x ?? null, y: asked.y ?? null };
+});
+
 const writeOf = operation({
   label: "frames.writeOf",
   input: z.object({
@@ -237,8 +256,8 @@ const writeOf = operation({
       id: newFrameId.run(),
       name,
       page: put.page ?? null,
-      x: put.x ?? null,
-      y: put.y ?? null,
+      place: placeOf.parse(put),
+      rev: put.rev ?? null,
       ...box,
       html,
       css,
@@ -321,11 +340,32 @@ const madeOf = operation({
   },
 });
 
+const savePut = operation({
+  label: "frames.savePut",
+  input: frameWrite,
+  depends: { saveFrame, invalidate: framesBoard.invalidate },
+  run: async ({ saveFrame, invalidate }, { input: write }) => {
+    const answer = await saveFrame.run({ input: write });
+    switch (answer.kind) {
+      case "stale":
+      case "gone":
+      case "changed":
+      case "placed":
+      case "unchanged":
+        return answer;
+      case "created":
+      case "updated":
+        await invalidate.run({ input: { docs: { canvas: write.canvas, id: answer.id } } });
+        return answer;
+    }
+  },
+});
+
 export const putFrame = operation({
   label: "frame.put.do",
   input: framesApi["frame.put"].input,
-  depends: { saveFrame, madeOf, writeOf, invalidate: framesBoard.invalidate },
-  run: async ({ saveFrame, madeOf, writeOf, invalidate }, { input }) => {
+  depends: { savePut, madeOf, writeOf },
+  run: async ({ savePut, madeOf, writeOf }, { input }) => {
     const made = await madeOf.run({ input });
     if (made.kind === "tooBig" || made.kind === "badImage") return made;
     if (made.kind === "offKit" || made.kind === "unsettled") {
@@ -335,11 +375,9 @@ export const putFrame = operation({
 
     const { html, css, kit, js, mode, image } = made;
     const write = writeOf.run({ input: { put: input, html, css, kit, js, image, mode } });
-    const answer = await saveFrame.run({ input: write });
-    if (answer.kind === "stale" || answer.kind === "gone") return answer;
-    if (answer.kind !== "unchanged") {
-      await invalidate.run({ input: { docs: { canvas: input.canvas, id: answer.id } } });
-    }
+    const answer = await savePut.run({ input: write });
+    if (!("layout" in answer)) return answer;
+
     const findings = made.findings.slice(0, maxFindings);
     return { ...answer, findings, more: made.findings.length - findings.length };
   },
@@ -352,14 +390,17 @@ export const listFrames = operation({
     all: canvases.atScope.controller,
     cells: frames.atScope.controller,
     readStatuses,
+    readSeats,
   },
-  run: async ({ all, cells, readStatuses }, { input }) => {
+  run: async ({ all, cells, readStatuses, readSeats }, { input }) => {
     if (!all.of({ key: input.canvas }).get()) return { kind: "gone" as const };
 
     const list = cells.where({ canvas: input.canvas }).get();
     const statuses = await readStatuses.run({ input });
+    const { rev, seats } = await readSeats.run({ input });
     return {
       kind: "found" as const,
+      rev,
       frames: list.map(({ id, name, page, x, y, w, h, version }) => ({
         id,
         name,
@@ -370,6 +411,7 @@ export const listFrames = operation({
         h,
         version,
         status: statuses.get(id) ?? "exploring",
+        section: seats.get(id) ?? null,
       })),
     };
   },
@@ -492,12 +534,27 @@ export const deleteFrame = operation({
   },
 });
 
+const movePlaceOf = askedPlace.transform((move): PlaceWrite | null => {
+  const { after, below, section, x, page } = move;
+  const asked = [after, below, section, x, page].some((flag) => flag !== undefined);
+  return asked ? placeOf.parse(move) : null;
+});
+
 export const moveFrameTo = operation({
   label: "frame.move.do",
   input: framesApi["frame.move"].input,
   depends: { moveFrame },
   run: async ({ moveFrame }, { input }) =>
-    moveFrame.run({ input: { ...input, page: input.page ?? null } }),
+    moveFrame.run({
+      input: {
+        canvas: input.canvas,
+        id: input.id,
+        page: input.page ?? null,
+        place: movePlaceOf.parse(input),
+        size: input.size ?? null,
+        rev: input.rev ?? null,
+      },
+    }),
 });
 
 export const framesOps = {
@@ -514,6 +571,8 @@ export const framesOps = {
   "frame.explore": exploreFrame,
   "frame.shot": shotFrame,
   "frame.move": moveFrameTo,
+  "section.set": setSection,
+  "page.layout": pageLayout,
   "page.list": listPages,
   "page.create": createPage,
   "page.rename": renamePage,
