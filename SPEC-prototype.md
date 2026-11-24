@@ -567,6 +567,12 @@ Ship 5 lands in two parts. Ship 5a: the model, decisions 33 to 39, and the switc
 answers and the state `none` of decision 38. Ship 5b, after the hub answers open question 1: the
 relay of decision 37, the states `starting`, `ready`, `failed` and `gone`, and decision 39.
 
+Ship 5a is built on 2026-11-24: the model in 7788a84, then the switch. The tag `backend` is in
+`src/map/walk.ts`; `src/viewer/walk-backend.ts` has the hold of decision 38 and the pick of
+decision 34; the bar of the walk has the group `Answers`. The proofs are
+`tests/viewer-walk-backend.test.ts` and `tests/browser/viewer-walk.test.tsx`. The cell
+`viewer.liveServer` stays `none` until ship 5b.
+
 ### Ship 6: the check (J8)
 
 11. The check fails when an answer of an action has no state on the map, or when a state has no

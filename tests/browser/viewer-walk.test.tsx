@@ -1,7 +1,7 @@
 import { createMemoryHistory, createRouter, RouterProvider } from "@tanstack/react-router";
 import { exits } from "@tinkered/cli/test";
 import { capsule, createScope, operation, rpc, transport } from "@tinkered/core";
-import { makeTestClock, memory } from "@tinkered/core/testing";
+import { makeTestClock, memory, preset } from "@tinkered/core/testing";
 import { ScopeProvider } from "@tinkered/react";
 import { createRoot } from "react-dom/client";
 import { expect, onTestFinished, test } from "vite-plus/test";
@@ -17,8 +17,11 @@ import { queue } from "@/queue";
 import { serverClock } from "@/queue/cells";
 import { addInput } from "@/queue/contract";
 import { routeTree } from "@/routes";
+import { requestMode } from "@/viewer/draft";
 import { nameKey, tabMeta } from "@/viewer/gate";
 import { restMs } from "@/viewer/stage";
+import { pickBackend } from "@/viewer/walk-backend";
+import { walking } from "@/viewer/walking";
 
 import { frameOnPage } from "./frame-page";
 
@@ -339,4 +342,61 @@ test("the walk draws its screen with the theme of the board", async () => {
   await page.getByRole("button", { name: "Walk fixture" }).click();
 
   await expect.element(screen()).toHaveStyle({ colorScheme: "dark" });
+});
+
+const answers = () => bar().getByRole("group", { name: "Answers" });
+const answer = (name: string) => answers().getByRole("button", { name, exact: true });
+
+test("a pick of the live server starts the walk again; with no live server set up, the walk is held, and Use example answers starts it again", async () => {
+  await tab("?page=map", "fixture · walk");
+  await page.getByRole("button", { name: "Walk fixture" }).click();
+  await expect.element(answer("examples")).toHaveAttribute("aria-pressed", "true");
+  await bar().getByRole("button", { name: "done → done" }).click();
+  await expect.element(steps()).toHaveTextContent("idle → done");
+
+  await answer("examples").click();
+  await expect.element(steps()).toHaveTextContent("idle → done");
+
+  await answer("live server").click();
+  await expect.element(answer("live server")).toHaveAttribute("aria-pressed", "true");
+  await expect
+    .poll(() => bar().getByRole("status").element().textContent)
+    .toContain("No live server is set up for this easel.");
+  await expect.element(screen()).not.toBeInTheDocument();
+  await expect.element(shownState()).toHaveTextContent("held");
+  await expect.poll(() => steps().element().textContent).toBe("");
+  await expect.element(button("Back")).toBeDisabled();
+  expect(new URLSearchParams(location.search).get("backend")).toBe("live");
+
+  await button("Use example answers").click();
+  await expect.element(answer("examples")).toHaveAttribute("aria-pressed", "true");
+  await expect.element(screen()).toHaveAttribute("title", "fixture · idle");
+  await expect.poll(() => steps().element().textContent).toBe("idle");
+  await expect.element(bar().getByRole("button", { name: "done → done" })).toBeVisible();
+});
+
+test("a walk with the board value live and no live server starts held, and says why", async () => {
+  await tab("?page=map&backend=live", "fixture · walk");
+  await page.getByRole("button", { name: "Walk fixture" }).click();
+
+  await expect
+    .poll(() => bar().getByRole("status").element().textContent)
+    .toContain("No live server is set up for this easel.");
+  await expect.element(screen()).not.toBeInTheDocument();
+  await expect.element(answer("live server")).toHaveAttribute("aria-pressed", "true");
+});
+
+test("the switch of the backend takes no pick while a request is in work, or with no walk", async () => {
+  await tab("?page=map", "fixture · walk");
+  await page.getByRole("button", { name: "Walk fixture" }).click();
+  await button("Comment").click();
+  await expect.element(answer("live server")).toBeDisabled();
+
+  const shown = { kind: "none" } as const;
+  const walk = { map: "fixture", path: [], told: shown, waits: [] };
+  for (const presets of [[], [preset(walking, walk), preset(requestMode, true)]]) {
+    const scope = await createScope({ capsules: [exits({ store: localStorage })], presets }).ready;
+    expect(scope.run(pickBackend, { input: "live" })).toEqual({ kind: "stays" });
+    await scope.close();
+  }
 });

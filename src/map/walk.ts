@@ -1,4 +1,4 @@
-import { operation } from "@tinkered/core";
+import { operation, tag } from "@tinkered/core";
 import { z } from "zod";
 
 import { mapJson } from "./text";
@@ -6,6 +6,16 @@ import { mapJson } from "./text";
 export const walkMark = "walk";
 
 export const walkAttribute = "data-easel-walk";
+
+export const walkBackends = z.enum(["examples", "live"]);
+
+export type WalkBackend = z.infer<typeof walkBackends>;
+
+export const walkBackend = tag({
+  label: "backend",
+  default: walkBackends.enum.examples,
+  parse: walkBackends,
+});
 
 export const walkPageName = operation({
   label: "map.walkPageName",

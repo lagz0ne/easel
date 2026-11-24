@@ -1931,6 +1931,17 @@ span.e-opt[data-picked="false"] {
   margin-left: auto;
 }
 
+.e-walk-answers {
+  display: flex;
+  gap: var(--e-1);
+  align-items: center;
+  margin-right: var(--e-2);
+}
+
+.e-walk-answers span {
+  color: var(--e-muted);
+}
+
 .e-walk-bar button {
   padding: var(--e-1) var(--e-2);
   font: inherit;

@@ -4,8 +4,15 @@ import { useData, useResource, useRun } from "@tinkered/react";
 import { frames } from "@/frames";
 import type { BoardFrame } from "@/frames/contract";
 import type { MapJson } from "@/map/text";
-import { walkDataOf, walkFrameName, walkNameOf, walkPageName, walkPicks } from "@/map/walk";
-import type { Waiting } from "@/map/walk";
+import {
+  walkBackends,
+  walkDataOf,
+  walkFrameName,
+  walkNameOf,
+  walkPageName,
+  walkPicks,
+} from "@/map/walk";
+import type { WalkBackend, Waiting } from "@/map/walk";
 
 import { drafts, requestMode, pickPlace, toggleRequest } from "./draft";
 import type { Place } from "./draft";
@@ -13,6 +20,7 @@ import { pageList } from "./pages";
 import { Composer } from "./request";
 import { frameValue, picksNow, themeSwitch } from "./switches";
 import { askForIt, leaveWalk, startWalk, walkPort } from "./walk";
+import { backendHold, backendNow, pickBackend } from "./walk-backend";
 import { walkFit, walking } from "./walking";
 import type { Walk } from "./walking";
 
@@ -167,6 +175,8 @@ const statePlace = resource({
 
 function WalkScreen({ canvas, page, walk, frame }: ScreenProps) {
   const doc = useData(walkDoc({ canvas, id: frame.id }));
+  const hold = useData(backendHold({}));
+  const backend = useData(backendNow({}));
   const port = useResource(walkPort);
   const fit = useData(walkFit);
   const shown = walk.path.at(-1)?.state ?? "";
@@ -179,7 +189,9 @@ function WalkScreen({ canvas, page, walk, frame }: ScreenProps) {
       <WalkBar walk={walk} canvas={canvas} id={frame.id} doc={doc} place={place} size={size} />
       <div className="e-walk-stage" ref={(el) => port.measure(el, size)}>
         <div className="e-walk-screen" style={{ width: size.w * fit, height: size.h * fit }}>
-          {doc ? <WalkDoc walk={walk} doc={doc} size={size} fit={fit} /> : null}
+          {doc && hold.kind === "runs" ? (
+            <WalkDoc walk={walk} doc={doc} size={size} fit={fit} backend={backend} />
+          ) : null}
           <WalkAsk canvas={canvas} place={place} fit={fit} />
           <WalkDraft canvas={canvas} place={place} fit={fit} />
         </div>
@@ -190,15 +202,21 @@ function WalkScreen({ canvas, page, walk, frame }: ScreenProps) {
 
 type Doc = { html: string; version: number; map: MapJson | null; theme: string };
 
-type DocProps = { walk: Walk; doc: Doc; size: { w: number; h: number }; fit: number };
+type DocProps = {
+  walk: Walk;
+  doc: Doc;
+  size: { w: number; h: number };
+  fit: number;
+  backend: WalkBackend;
+};
 
-function WalkDoc({ walk, doc, size, fit }: DocProps) {
+function WalkDoc({ walk, doc, size, fit, backend }: DocProps) {
   const port = useResource(walkPort);
   const scheme = doc.theme === themeSwitch.default ? {} : { colorScheme: doc.theme };
 
   return (
     <iframe
-      key={doc.version}
+      key={`${doc.version} ${backend}`}
       className="e-walk-doc"
       sandbox="allow-scripts allow-forms"
       title={`${walk.map} · ${walk.path.at(-1)?.state ?? "starting"}`}
@@ -264,6 +282,23 @@ type BarProps = {
   size: { w: number; h: number };
 };
 
+function WalkWhere({ walk }: { walk: Walk }) {
+  const held = useData(backendHold({})).kind === "held";
+  const shown = walk.path.at(-1)?.state ?? (held ? "held" : "starting");
+
+  return (
+    <p className="e-walk-where">
+      <span className="e-walk-title">Walk {walk.map}</span>
+      <span className="e-walk-state" aria-label="State">
+        {shown}
+      </span>
+      <span className="e-walk-steps" aria-label="Steps">
+        {walk.path.map((step) => step.state).join(" → ")}
+      </span>
+    </p>
+  );
+}
+
 function WalkBar({ walk, canvas, id, doc, place, size }: BarProps) {
   const shown = walk.path.at(-1)?.state ?? null;
   const middle = { x: Math.round(size.w / 2), y: Math.round(size.h / 3) };
@@ -271,16 +306,9 @@ function WalkBar({ walk, canvas, id, doc, place, size }: BarProps) {
 
   return (
     <header className="e-walk-bar" role="toolbar" aria-label="Walk">
-      <p className="e-walk-where">
-        <span className="e-walk-title">Walk {walk.map}</span>
-        <span className="e-walk-state" aria-label="State">
-          {shown ?? "starting"}
-        </span>
-        <span className="e-walk-steps" aria-label="Steps">
-          {walk.path.map((step) => step.state).join(" → ")}
-        </span>
-      </p>
+      <WalkWhere walk={walk} />
       <WalkActs walk={walk} />
+      <HeldWhy />
       <OffMap walk={walk} canvas={canvas} asked={asked} />
       {doc?.map && shown
         ? walk.waits.map((wait) => (
@@ -301,6 +329,7 @@ function WalkActs({ walk }: { walk: Walk }) {
 
   return (
     <div className="e-walk-acts">
+      <BackendPick />
       <button type="button" disabled={stuck} onClick={() => port.step("back")}>
         Back
       </button>
@@ -314,6 +343,49 @@ function WalkActs({ walk }: { walk: Walk }) {
         Leave
       </button>
     </div>
+  );
+}
+
+const backendNames: Readonly<Record<WalkBackend, string>> = {
+  examples: "examples",
+  live: "live server",
+};
+
+function BackendPick() {
+  const backend = useData(backendNow({}));
+  const held = useData(walkHeld({}));
+  const pick = useRun(pickBackend);
+
+  return (
+    <div className="e-walk-answers" role="group" aria-label="Answers">
+      <span>Answers</span>
+      {walkBackends.options.map((one) => (
+        <button
+          key={one}
+          type="button"
+          aria-pressed={one === backend}
+          disabled={held}
+          onClick={() => pick.run({ input: one })}
+        >
+          {backendNames[one]}
+        </button>
+      ))}
+    </div>
+  );
+}
+
+function HeldWhy() {
+  const hold = useData(backendHold({}));
+  const pick = useRun(pickBackend);
+  if (hold.kind === "runs") return null;
+
+  return (
+    <p className="e-walk-told" role="status">
+      {hold.why}
+      <button type="button" onClick={() => pick.run({ input: "examples" })}>
+        Use example answers
+      </button>
+    </p>
   );
 }
 
