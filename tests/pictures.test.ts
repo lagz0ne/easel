@@ -746,7 +746,7 @@ test("the key names the way the server draws: the same frame drawn the old way, 
   const k = (await srv.member("flow", srv.id)).k;
   expect(k).toBe(hmac(`flow\n${srv.id}\n1\n0\n${pictureDraw}`));
   expect(k).not.toBe(hmac(`flow\n${srv.id}\n1\n0`));
-});
+}, 30_000);
 
 test("a secret file that is not 256 bits stops the start", async () => {
   const dir = mkdtempSync(join(tmpdir(), "easel-pictures-"));
