@@ -48,6 +48,8 @@ export const agentImage = operation({
   },
 });
 
+const ownPath = z.string().regex(/^\/api\//);
+
 const imagePaths = z
   .object({ address: z.string(), value: z.looseObject({}) })
   .transform(({ address, value }) => {
@@ -59,7 +61,7 @@ const imagePaths = z
 
     const paths = { "frame.get": [framed], "frame.shot": [shot], "request.next": [told, framed] };
     const found = Object.entries(paths).find(([at]) => at === address)?.[1] ?? [];
-    return found.filter((path) => path !== undefined);
+    return found.flatMap((path) => ownPath.safeParse(path).data ?? []);
   });
 
 export const imageContent = operation({

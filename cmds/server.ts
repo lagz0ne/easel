@@ -40,6 +40,7 @@ import { kitOps } from "@/kit/ops.server";
 import { portClient, portServer } from "@/kit/port-link";
 import { runtimeRoute } from "@/kit/runtime.server";
 import { mcpHttp, mcpMeta } from "@/mcp/http.server";
+import { mcpFetch } from "@/mcp/server";
 import { ops } from "@/ops";
 import { opsOwnerOps, opsServer, opsUserOps, ready } from "@/ops/ops.server";
 import { observePanics } from "@/ops/panic.server";
@@ -136,6 +137,7 @@ export default defineMain(async ({ env, args, signal, stdout, stderr, exit }) =>
   const mcpChannel = new MessageChannel();
   const mcpScope = createScope({
     signal,
+    tags: [mcpFetch((path) => fetch(new URL(path, `http://127.0.0.1:${set.PORT}`)))],
     capsules: [
       portClient({ port: Promise.resolve(mcpChannel.port2), meta: mcpMeta }),
       ...mcpServices.map((api) => api({ remote: portClient })),

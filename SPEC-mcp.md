@@ -171,8 +171,8 @@ The calls with no tool, on purpose, are these. Each is CLI only, or the page's:
   show an image to the model only as image content, not as a URL (Claude, the MCP SDK). easel
   runs no model: it only sends the bytes.
 - The MCP layer fetches each image from its own address, with the key in it. `easel mcp` fetches
-  over the CLI's server origin. `/mcp` gets the same fetch over the loopback of the server in a
-  later ship; until then it sends the URLs only. It fits each image inside 1568 px on its long
+  over the CLI's server origin. `/mcp` fetches over the loopback of the server
+  (`127.0.0.1` and its own port), and refuses a path that names another host. It fits each image inside 1568 px on its long
   side, the largest side that Claude takes with no scale. A JPEG stays a JPEG. Every other type
   goes as PNG. A fetch that fails gives the text
   `the image at <path> cannot be fetched (HTTP <status>): call again` in place of the image. It is
