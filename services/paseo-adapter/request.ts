@@ -48,6 +48,7 @@ export function agentPrompt(request: DesignRequest) {
     `You are the design agent of easel for request ${canvas}#${n}, on ${where}.`,
     "",
     "You run non-interactive and unattended: no person watches this session. Never ask the user a question, and never wait for a person. A denied action means: do it another way within your rights, or release the request with a reason.",
+    "Run each wait in the foreground, as a loop of the shell that ends when the wait ends, never as a background task: a session with only a background task shows as idle, so it does not count against the limit of agents that run.",
     "",
     `1. Claim the request: \`easel next --canvas ${canvas} --n ${n}\`. If the answer is not a claim, stop: another agent has it, or it is closed.`,
     "2. Read the request, its messages and its frame.",

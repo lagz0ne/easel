@@ -90,6 +90,7 @@ test(
     expect(prompt).toContain("/api/version");
     expect(prompt).toContain("You run non-interactive and unattended");
     expect(prompt).toContain("Never ask the user");
+    expect(prompt).toContain("Run each wait in the foreground");
     expect(prompt).toContain("act as the member vibea-claude");
     expect(prompt).toContain("`easel whoami`");
     expect(prompt).toContain("Never use another login");
