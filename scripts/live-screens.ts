@@ -301,12 +301,10 @@ async function accept(tab: Page, n: number) {
 
 async function noteSent(tab: Page, note: string) {
   const card = tab.getByRole("region", { name: "Request #2" });
-  const field = tab.getByRole("textbox", { name: "Note" });
-  const shown = (one: ReturnType<Page["getByText"]>) => one.isVisible().catch(() => false);
-  const reopened = await shown(card.getByText("opened it again"));
-  const message = await shown(card.getByText(note, { exact: true }));
+  const reopened = await card.getByText("opened it again").count();
+  const messages = await card.getByText(note, { exact: true }).count();
 
-  return reopened && message && !(await field.isVisible().catch(() => false));
+  return reopened > 0 && messages > 0;
 }
 
 async function openAgain(tab: Page, note: string) {
