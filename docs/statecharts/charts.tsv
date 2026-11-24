@@ -72,5 +72,7 @@ words-frame	models/words/Words.tla	models/words/Words.cfg	models/words/Words.vie
 words-frame-no-rev	models/words/Words.tla	models/words/WordsNoRev.cfg	models/words/Words.view.mjs	breaks
 viewer-walk	models/viewer/Walk.tla	models/viewer/Walk.cfg	models/viewer/Walk.view.mjs	holds
 viewer-walk-any-post	models/viewer/Walk.tla	models/viewer/WalkAnyPost.cfg	models/viewer/Walk.view.mjs	breaks
+viewer-walk-backend	models/viewer/WalkBackend.tla	models/viewer/WalkBackend.cfg	models/viewer/WalkBackend.view.mjs	holds
+viewer-walk-backend-keep-scope	models/viewer/WalkBackend.tla	models/viewer/WalkBackendKeepScope.cfg	models/viewer/WalkBackend.view.mjs	breaks
 part-copies	models/pieces/PartCopies.tla	models/pieces/PartCopies.cfg	models/pieces/PartCopies.view.mjs	holds
 part-copies-outside-kit	models/pieces/PartCopies.tla	models/pieces/PartCopiesOutsideKit.cfg	models/pieces/PartCopies.view.mjs	breaks

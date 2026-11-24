@@ -478,6 +478,95 @@ Charles or the overrides of Chrome DevTools (a request waits until a person give
     server of the build on a new database, as the E11 job starts one. This ship has state that a
     person changes, so it gets a model and its chart first.
 
+The model is [viewer-walk-backend](docs/statecharts/viewer-walk-backend.md): it holds
+`EachCallWaitsOnTheSwitch`, `LiveRunsOnAReadyServer` and `HeldOnlyForTheServer` on its 38 states.
+The twin [viewer-walk-backend-keep-scope](docs/statecharts/viewer-walk-backend-keep-scope.md)
+breaks `EachCallWaitsOnTheSwitch` in 3 steps: a pick that keeps the scope sends the next call to
+the examples while the bar says `live`.
+
+#### The decisions of ship 5
+
+Prior art for the switch: the toolbar globals of Storybook with `msw-storybook-addon` (one value
+for each story on the page; a change remounts the story), the two modes of Prism (`prism mock`
+makes the answers from the contract, `prism proxy` sends each request to a real server), the
+`passthrough` of Mock Service Worker (the worker sends on a request that it does not mock), the
+preview deployments of Vercel and Netlify (one server for each commit, on a database branch such
+as a Neon branch), and the test mode of Stripe (a sandbox of the real product, where a person
+plays the other side with "simulate" buttons).
+
+33. **The switch is the tag `backend`, a board value.** It is
+    `tag({ label: "backend", parse: z.enum(["examples", "live"]), default: "examples" })`, as
+    SPEC-pieces rule 10 says. Its value is a board value in the address (`?backend=live`, rule
+    13), so a reload keeps it. The switch shows in the bar of the walk, with the name `Answers`
+    and the values `examples` and `live server`. It is not in the menu `States` of the dock:
+    rule 11 shows a switch that a frame of the canvas takes, and only the walk takes this one.
+    Other ways: a value for each walk frame (rule 12), deferred until two maps of one board need
+    two backends; a second control system, which rule 10 forbids.
+34. **A pick of the switch starts the walk again at its first state, in a new scope.** The scope
+    of the screen has the backend of the switch when it starts. A pick closes it, which ends the
+    call that waits, and the walk starts again at the first state of the map. A value of a step
+    on one backend is not a value of the other: the code `KDWB-RTQM` of the examples is on no
+    live server. So a step that stays (as Back gives the value of a step) gets `expired` from the
+    live server. The twin `viewer-walk-backend-keep-scope` shows the other bug: a pick that keeps
+    the scope sends the next call to the examples while the bar says `live`. Storybook remounts a
+    story when a global changes, for the same reason.
+35. **The live server is one server for each deploy, on a new database, for each walk.** A deploy
+    starts it with the image of the build; the next deploy replaces it, with a new database. So
+    it lives from one deploy to the next, and a deploy is its reset. The seed is one owner, made
+    with the setup code as the E11 job makes one, and nothing else: the sign-in needs only an
+    owner. This is the preview deployment of Vercel and Netlify. Other ways:
+    - a server for each walk (Heroku review apps, one for each pull request): no two walks share
+      data, but each walk waits seconds for a start and holds one container. Deferred until two
+      walks at one time get in the way of each other;
+    - a reset button: deferred until a walk needs a clean database between two deploys.
+
+    The trade-off: two persons who walk at the same time share one database. The screens of easel
+    that have a map now (the sign-in) make a new request for each walk, so they do not collide.
+
+36. **The live server needs the hub: open question 1.** easel cannot start it alone (see "Open
+    questions"). Until the hub sets it up, the server is `none`, and the bar says so
+    (decision 38).
+37. **The walk frame reaches the live server only through the viewer and the easel server.** The
+    frame gets no credential, and no stranger reaches the live server.
+    - The frame posts each call to the viewer (`call`, with its id, address and input), as it
+      posts the calls that wait now. The viewer sends it to `POST /api/walk/call` of easel, with
+      the session of the member. The easel server checks the member, checks that the address is
+      a call of a map, and sends the call to the live server on the network of the machine. The
+      answer goes back the same way.
+    - A call that this relay refuses, or a live server that does not answer, is the fault `link`
+      of the call, as a lost connection is.
+
+    Prior art: the `passthrough` of MSW, a backend for the frontend, and the proxy of `/api` in
+    the middleware of Storybook. Other ways: the frame calls the live server itself (the frame
+    has the opaque origin `null`, so it needs CORS for `null` and a token in the frame: a frame
+    with a credential); a public host of the live server with its own sign-in (a stranger can
+    reach it). Each is a security trade-off, so the relay is the pick. Its cost: one more hop for
+    each call, and the easel server knows the addresses of the maps.
+
+38. **With `live` and a server that is not ready, the walk is held, and the bar says why.** No
+    screen runs, so no call goes to a server that is not there. The bar shows one line for each
+    state of the server, and the button `Use example answers`:
+    - `none`: `No live server is set up for this easel.`
+    - `starting`: `The live server of this build starts.`
+    - `failed`: `The live server did not start.`
+    - `gone`: `The live server stopped. The walk starts again when it is ready.`
+
+    When the server is ready, the walk starts at its first state. When it goes, a walk on it is
+    held again. The screen does not show the state `lost`: `lost` is a state of the product for a
+    lost connection, and a server that is not there is a fact of the walk. Vercel shows
+    `Building` for a preview that is not ready, not a broken page, for the same reason.
+
+39. **With a live server, the person plays the owner in the bar.** A call that waits on an owner
+    (`browser.wait` gives `pending` until an owner approves the code) shows `Approve` and `Deny`
+    in the bar. The easel server does the act on the live server with the owner of the seed. So
+    the person reaches `in` and `denied` on the live server, as with the examples. Prior art: the
+    "simulate" buttons of the test mode of Stripe. Other way: the person approves with the
+    command line of an owner of the live server, which needs a login of that server.
+
+Ship 5 lands in two parts. Ship 5a: the model, decisions 33 to 39, and the switch with the example
+answers and the state `none` of decision 38. Ship 5b, after the hub answers open question 1: the
+relay of decision 37, the states `starting`, `ready`, `failed` and `gone`, and decision 39.
+
 ### Ship 6: the check (J8)
 
 11. The check fails when an answer of an action has no state on the map, or when a state has no
@@ -522,7 +611,8 @@ type MapCard = { title: string; about: string; sections: { head: string; lines: 
   (`EachStepIsAMove`, decisions 23 to 31).
 - `flows-links` and `flows-links-unchecked` go with this delta: the links that they model are not
   in the design now. Ship 6 has the check that replaces them.
-- Ship 5 gets a model of the switch and the live server before its code.
+- Ship 5 has the model `viewer-walk-backend` and its twin `viewer-walk-backend-keep-scope`
+  (decisions 33 to 39).
 
 ## Success criteria
 
@@ -540,6 +630,41 @@ type MapCard = { title: string; about: string; sections: { head: string; lines: 
   Tinker issue that removes it.
 - Always: the derivation runs the code of the project in the project.
 - Never: the easel server imports or runs the code of a project.
+
+## Open questions
+
+1. **Where does the live server of decision 35 run?** easel cannot start it without a change of
+   the machine, so the agent stopped here, as the user asked. The options, from the smallest:
+   - **A. A second Dokploy app of the same image, with no host name (the pick).** One more
+     container of easel (the memory of one more easel), one deploy hook, and two settings. It has
+     no volume, so each deploy gives it a new database (decision 35). It has no domain, so only
+     the easel server reaches it, on the network of the machine (decision 37). It has no secret
+     of production: no S3, no token, no telemetry.
+   - **B. A child process of the easel server, in the same container.** It needs no change of
+     the machine. But it shares the CPU, the memory and the slow disk of the live app, it gets
+     the settings of production (and their secrets) unless the code removes them, and it works
+     only because the project is easel itself: for the project of a team, the easel server never
+     runs the code of a project (Boundaries).
+   - **C. A server for each walk.** easel starts a container for each walk. easel then needs the
+     Docker socket of the machine, which is root on the machine. Not recommended.
+
+   The recommendation is A, because it is the preview deployment of decision 35 with the
+   isolation of a container, and it keeps the live app apart. The hub must do these 5 steps:
+   1. Make the Dokploy app `easel-walk` in the project `easel`, from the image
+      `ghcr.io/lagz0ne/easel:latest`, with the command of the image (`/app/server serve`), no
+      domain, no volume, a limit of 512 MiB, and stop-first deploys (one process for each
+      database, as `easel`).
+   2. Give `easel-walk` the settings `PORT=3000` and `EASEL_DB=/tmp/easel-walk.db`, and no
+      other setting of `easel`.
+   3. Give the agent the swarm service name of `easel-walk`. Both apps are on
+      `dokploy-network`, so `http://<that name>:3000` answers from the container of `easel`.
+   4. Make one random secret. Give it to `easel-walk` as `EASEL_WALK_SETUP`, and to `easel` as
+      `EASEL_WALK_SETUP` with `EASEL_WALK_SERVER=http://<that name>:3000`. Ship 5b makes the
+      walk server take it as its setup code, and the easel server log in as the owner of the
+      seed (decision 39).
+   5. Put the deploy hook of `easel-walk` in the GitHub environment `production` of
+      `lagz0ne/easel` as `DOKPLOY_WALK_HOOK`. Ship 5b makes `deploy.yml` call it after the hook
+      of `easel`.
 
 ## Out of scope (deferred)
 
