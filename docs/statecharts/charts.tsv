@@ -63,3 +63,8 @@ design-build	models/live/DesignBuild.tla	models/live/DesignBuild.cfg	models/live
 design-build-no-check	models/live/DesignBuild.tla	models/live/DesignBuildNoCheck.cfg	models/live/DesignBuild.view.mjs	breaks
 starts	models/starts/Starts.tla	models/starts/Starts.cfg	models/starts/Starts.view.mjs	holds
 starts-no-agreement	models/starts/Starts.tla	models/starts/StartsNoAgreement.cfg	models/starts/Starts.view.mjs	breaks
+frames-arrange	models/frames/Arrange.tla	models/frames/Arrange.cfg	models/frames/Arrange.view.mjs	holds
+frames-arrange-rev	models/frames/ArrangeRev.tla	models/frames/ArrangeRev.cfg	models/frames/ArrangeRev.view.mjs	holds
+frames-arrange-no-rev	models/frames/ArrangeRev.tla	models/frames/ArrangeNoRev.cfg	models/frames/ArrangeRev.view.mjs	breaks
+viewer-image-drop	models/viewer/ImageDrop.tla	models/viewer/ImageDrop.cfg	models/viewer/ImageDrop.view.mjs	holds
+viewer-image-drop-any-paste	models/viewer/ImageDrop.tla	models/viewer/ImageDropAnyPaste.cfg	models/viewer/ImageDrop.view.mjs	breaks
