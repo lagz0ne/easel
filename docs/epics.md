@@ -626,14 +626,19 @@ Decided:
 
 #### Design changes that E4.5 needs
 
-| Req.   | Gap in the design now                                                     | Spec       |
-| ------ | ------------------------------------------------------------------------- | ---------- |
-| D6, D7 | Agents get work only when they ask. There is no other way, and no choice. | SPEC-queue |
-| D9     | Nothing records how a request got to an agent.                            | SPEC-queue |
-| D10    | Easel does not put requests on GitHub.                                    | SPEC-queue |
+| Req.   | Gap in the design now                                                     | Spec        |
+| ------ | ------------------------------------------------------------------------- | ----------- |
+| D6, D7 | Agents get work only when they ask. There is no other way, and no choice. | SPEC-queue  |
+| D9     | Nothing records how a request got to an agent.                            | SPEC-queue  |
+| D10    | Easel does not put requests on GitHub.                                    | SPEC-queue  |
+| D11    | A request of a share link goes to the agents with no agreement.           | SPEC-starts |
+| D12    | Nothing limits the count of agents that start.                            | SPEC-starts |
+| D13    | A request that waits does not say why no agent started.                   | SPEC-starts |
 
 SPEC-queue closes D6, D7, D9 and D10 with the dispatcher and the channels, and the statechart
-[queue-dispatch](statecharts/queue-dispatch.md) (2026-11-20).
+[queue-dispatch](statecharts/queue-dispatch.md) (2026-11-20). SPEC-starts closes D11 to D13 with
+the agreement, the limits and the holds, and the statechart [starts](statecharts/starts.md)
+(2026-11-24).
 
 ### E4 walk of the slice
 
