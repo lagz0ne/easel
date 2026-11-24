@@ -16,41 +16,43 @@ it with the skill `writing-requirements`.
 The main story is E1, E2, E3, then E4. E8 makes each frame fast to make and like the others, from
 the first day. E5 gives the same actions through MCP. E6 and E7 keep the easel of each team healthy. E9 does for the
 words what E8 does for the look.
-E10 lets a person see each state of a frame with no agent. Round 1 (below) holds E1, E2, E3,
+E10 lets a person see each state of a frame with no agent. E11 keeps the design and the live app
+in step. Round 1 (below) holds E1, E2, E3,
 E4, E5.1, E5.2, E6, E8, part of E9, and E10. E7 is deferred.
 
-| ID  | Epic                      | Outcome                                                                                     | Actors                  | Journeys                                                                                                                              | Status                                                                                                                  | Review |
-| --- | ------------------------- | ------------------------------------------------------------------------------------------- | ----------------------- | ------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------- | ------ |
-| E1  | Get in                    | A person or an agent gets a token when an owner approves it.                                | team lead, owner, agent | [access](../SPEC-access.md#journeys), [cli](../SPEC-cli.md#journeys)                                                                  | Built                                                                                                                   | ready  |
-| E2  | Make frames               | An agent puts HTML frames on a canvas and changes them safely.                              | agent                   | [frames](../SPEC-frames.md#make-a-canvas): make a canvas, make and change frames                                                      | Built, except `frame.move`                                                                                              | ready  |
-| E3  | Share and look            | A person opens a link and sees the frames change at once.                                   | agent, viewer           | [frames](../SPEC-frames.md#share-a-canvas): share, open; [viewer](../SPEC-viewer.md#journeys) 7; [design](../SPEC-design.md#journeys) | Built                                                                                                                   | ready  |
-| E4  | Comment and get a change  | A viewer asks for a change. An agent makes it and replies.                                  | viewer, agent           | [queue](../SPEC-queue.md#journeys) 3; [viewer](../SPEC-viewer.md#ask-for-a-change): ask for a change, follow the requests             | Built; a GitHub run can get the CLI and sign in ([cli](../SPEC-cli.md#sign-in-with-no-file)), but no real run is proven | active |
-| E5  | Work through MCP          | An agent with no shell does all of E2, E3 and E4.                                           | agent                   | [mcp](../SPEC-mcp.md#journeys) 3                                                                                                      | Specified; no MCP server yet                                                                                            | active |
-| E6  | Watch production          | The company sees the health, the errors and the copies of each easel.                       | company                 | [ops](../SPEC-ops.md#journeys) 5                                                                                                      | Built, except backups                                                                                                   | ready  |
-| E7  | Fix errors with no person | An agent fixes a production error and proves the fix.                                       | fixer, tick, probe      | [fixer](../SPEC-fixer.md#journeys) 5                                                                                                  | Not built                                                                                                               | to do  |
-| E8  | One look, fast            | Agents make frames fast, and all frames of a team look like one product.                    | agent, user             | [kit](../SPEC-kit.md#journeys) 3                                                                                                      | Built: the look, the kit, its pieces and capsules; not all fit criteria are proven                                      | to do  |
-| E9  | One voice                 | All frames of a team say one thing in one way, and one change of a text reaches each frame. | agent, user, person     | [kit](../SPEC-kit.md)                                                                                                                 | Each frame keeps its own texts; nothing keeps the texts of a team                                                       | to do  |
-| E10 | See each state of a frame | A person sees a frame in each state of its design, with no agent.                           | viewer, user            | [kit](../SPEC-kit.md#the-capsules): controls, panes                                                                                   | Built; no test names X1 to X5                                                                                           | to do  |
+| ID  | Epic                         | Outcome                                                                                      | Actors                  | Journeys                                                                                                                              | Status                                                                                                                  | Review |
+| --- | ---------------------------- | -------------------------------------------------------------------------------------------- | ----------------------- | ------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------- | ------ |
+| E1  | Get in                       | A person or an agent gets a token when an owner approves it.                                 | team lead, owner, agent | [access](../SPEC-access.md#journeys), [cli](../SPEC-cli.md#journeys)                                                                  | Built                                                                                                                   | ready  |
+| E2  | Make frames                  | An agent puts HTML frames on a canvas and changes them safely.                               | agent                   | [frames](../SPEC-frames.md#make-a-canvas): make a canvas, make and change frames                                                      | Built, except `frame.move`                                                                                              | ready  |
+| E3  | Share and look               | A person opens a link and sees the frames change at once.                                    | agent, viewer           | [frames](../SPEC-frames.md#share-a-canvas): share, open; [viewer](../SPEC-viewer.md#journeys) 7; [design](../SPEC-design.md#journeys) | Built                                                                                                                   | ready  |
+| E4  | Comment and get a change     | A viewer asks for a change. An agent makes it and replies.                                   | viewer, agent           | [queue](../SPEC-queue.md#journeys) 3; [viewer](../SPEC-viewer.md#ask-for-a-change): ask for a change, follow the requests             | Built; a GitHub run can get the CLI and sign in ([cli](../SPEC-cli.md#sign-in-with-no-file)), but no real run is proven | active |
+| E5  | Work through MCP             | An agent with no shell does all of E2, E3 and E4.                                            | agent                   | [mcp](../SPEC-mcp.md#journeys) 3                                                                                                      | Specified; no MCP server yet                                                                                            | active |
+| E6  | Watch production             | The company sees the health, the errors and the copies of each easel.                        | company                 | [ops](../SPEC-ops.md#journeys) 5                                                                                                      | Built, except backups                                                                                                   | ready  |
+| E7  | Fix errors with no person    | An agent fixes a production error and proves the fix.                                        | fixer, tick, probe      | [fixer](../SPEC-fixer.md#journeys) 5                                                                                                  | Not built                                                                                                               | to do  |
+| E8  | One look, fast               | Agents make frames fast, and all frames of a team look like one product.                     | agent, user             | [kit](../SPEC-kit.md#journeys) 3                                                                                                      | Built: the look, the kit, its pieces and capsules; not all fit criteria are proven                                      | to do  |
+| E9  | One voice                    | All frames of a team say one thing in one way, and one change of a text reaches each frame.  | agent, user, person     | [kit](../SPEC-kit.md)                                                                                                                 | Each frame keeps its own texts; nothing keeps the texts of a team                                                       | to do  |
+| E10 | See each state of a frame    | A person sees a frame in each state of its design, with no agent.                            | viewer, user            | [kit](../SPEC-kit.md#the-capsules): controls, panes                                                                                   | Built; no test names X1 to X5                                                                                           | to do  |
+| E11 | The design and the app agree | The person sees the live app beside the design, and an accepted design reaches the live app. | person, agent           | [design-loop](../SPEC-design-loop.md)                                                                                                 | Not built: the live screens and the proof on easel                                                                      | to do  |
 
 ## Round 1: Show the design
 
 - **Outcome:** a team shows its design on a canvas. People see it, change its states and comment
   on it, and agents make and change the design through MCP. Each requirement, decision and
   deferred item of the round is matched against this outcome.
-- **Offer:** a hosted easel for one team, at no cost, while the company learns.
-- **Customer:** the team of the company and a small number of invited teams. No team pays in this
-  round.
+- **Offer:** one easel for one person and their agents, on one project: easel itself. The person
+  gives feedback, and the agents do all the work.
+- **Customer:** the user, one person. No one pays in this round.
 - **Base:** none.
 
-| Part  | Mark                                                                             | Epics or reason                                                                                                                                                                                       |
-| ----- | -------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Value | in the round                                                                     | E1, E2, E3, E4.1 to E4.4, E4.5 (an agent that asks), E5.1, E5.2, E8, E9 (L1, L3, L5, L12) and E10. The outcome needs each of them: see, change the states, comment, and drive the design through MCP. |
-| Get   | by hand: the company starts the easel of each team (R1), with written steps (R2) | The teams come from the contacts of the company.                                                                                                                                                      |
-| Pay   | deferred: no team pays in this round (R3)                                        | Add it when the first team pays.                                                                                                                                                                      |
-| Help  | by hand: the company answers at one address (R4)                                 | A share link from the team lets the company see what the team sees.                                                                                                                                   |
-| Run   | in the round: E6, except backups; by hand: updates (R6)                          | Deferred: a copy off the host (R5). Add it when the first team pays, or a team keeps work on easel that it cannot make again.                                                                         |
-| Trust | by hand: one easel for each team (R1), a short note (R7), a delete (R8)          | The note says who sees the work, where it is kept, and how to delete it. Terms that a lawyer checked come with Pay.                                                                                   |
-| Learn | by hand: the company talks with each team each month (R9)                        | A talk with a small number of teams teaches more than numbers.                                                                                                                                        |
+| Part  | Mark                                                                              | Epics or reason                                                                                                                                                                                                                                                                   |
+| ----- | --------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Value | in the round                                                                      | E1 (E1.4 for the one person), E2 (with E2.3 and E2.4), E3, E4.1 to E4.4, E4.5 (an agent that asks, and D6, D9, D11 to D13), E5.1, E5.2, E8, E9 (L1, L3, L5, L12), E10 and E11. The outcome needs each of them: see, change the states, comment, and drive the design through MCP. |
+| Get   | deferred (R1, R2)                                                                 | The one person runs the easel. Add it when a second person or team comes.                                                                                                                                                                                                         |
+| Pay   | deferred: no team pays in this round (R3)                                         | Add it when the first team pays.                                                                                                                                                                                                                                                  |
+| Help  | deferred (R4)                                                                     | The person and the company are the same. Add it when a second person or team comes.                                                                                                                                                                                               |
+| Run   | in the round: E6, except backups; by hand: updates (R6)                           | Deferred: a copy off the host (R5). Most of the content and the look of easel come from the code in the repository, so the repository is the copy. Add it when work that only easel holds is lost.                                                                                |
+| Trust | in the round: only the person starts the work of an agent (D11); deferred: R7, R8 | A share link can show the work to others, but an agent acts only for the person. R7 and R8 come back with a second person or team.                                                                                                                                                |
+| Learn | deferred (R9)                                                                     | The person gives feedback on the canvas each day. Add it when a second person or team comes.                                                                                                                                                                                      |
 
 ### What works at once
 
@@ -76,21 +78,29 @@ The user named, on 2026-11-23, what must work on a new easel with no setup:
 
 ### The business of the round
 
-| ID  | Requirement                                                    | Fit criterion                                                                                                                                                                                                 | Round 1               |
-| --- | -------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | --------------------- |
-| R1  | A new team gets an easel that holds only its own work.         | Within 1 working day of the request, the team lead has the address of the easel of the team and its setup code. A person of another team cannot see its canvases, except by a share link.                     | by hand               |
-| R2  | A new team gets the first value with no help from the company. | With only the written start steps, the team lead and one agent have a first frame on a shared canvas within 30 minutes after the setup code.                                                                  | in the round          |
-| R3  | The team lead pays the agreed price.                           | Each month, the team lead gets an invoice for the price agreed before the start.                                                                                                                              | deferred              |
-| R4  | A team gets help when easel does not do what it needs.         | The team knows one address for help. A person of the company answers within 1 working day, and can see the problem from a share link that the team sends.                                                     | by hand               |
-| R5  | A team keeps its work when the server or its host is lost.     | After a restore, the team has each canvas, frame, share link and request as it was at most 1 hour before the loss. A person of the company did a restore with the written steps before the first team starts. | deferred              |
-| R6  | A team gets fixes with no loss.                                | On the day of an update, each easel of each team has the update. Its canvases, share links and requests work as before.                                                                                       | by hand               |
-| R7  | A team knows the terms, and how the company uses its data.     | The team lead accepts the terms and the privacy text before the company gives the setup code. The texts say who can see the work of the team, where it is kept, and how to delete it.                         | by hand: a short note |
-| R8  | A team that leaves gets its work deleted.                      | Within 7 days of the request, the easel of the team and its data, backups included, are deleted. The team lead gets a note that says so.                                                                      | by hand               |
-| R9  | The company learns what the teams need.                        | Each month, there is a note for each team that says what the team needs and what stopped it.                                                                                                                  | by hand               |
+| ID  | Requirement                                                    | Fit criterion                                                                                                                                                                                                 | Round 1  |
+| --- | -------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------- |
+| R1  | A new team gets an easel that holds only its own work.         | Within 1 working day of the request, the team lead has the address of the easel of the team and its setup code. A person of another team cannot see its canvases, except by a share link.                     | deferred |
+| R2  | A new team gets the first value with no help from the company. | With only the written start steps, the team lead and one agent have a first frame on a shared canvas within 30 minutes after the setup code.                                                                  | deferred |
+| R3  | The team lead pays the agreed price.                           | Each month, the team lead gets an invoice for the price agreed before the start.                                                                                                                              | deferred |
+| R4  | A team gets help when easel does not do what it needs.         | The team knows one address for help. A person of the company answers within 1 working day, and can see the problem from a share link that the team sends.                                                     | deferred |
+| R5  | A team keeps its work when the server or its host is lost.     | After a restore, the team has each canvas, frame, share link and request as it was at most 1 hour before the loss. A person of the company did a restore with the written steps before the first team starts. | deferred |
+| R6  | A team gets fixes with no loss.                                | On the day of an update, each easel of each team has the update. Its canvases, share links and requests work as before.                                                                                       | by hand  |
+| R7  | A team knows the terms, and how the company uses its data.     | The team lead accepts the terms and the privacy text before the company gives the setup code. The texts say who can see the work of the team, where it is kept, and how to delete it.                         | deferred |
+| R8  | A team that leaves gets its work deleted.                      | Within 7 days of the request, the easel of the team and its data, backups included, are deleted. The team lead gets a note that says so.                                                                      | deferred |
+| R9  | The company learns what the teams need.                        | Each month, there is a note for each team that says what the team needs and what stopped it.                                                                                                                  | deferred |
 
 Open questions: none.
 
 Decided:
+
+- On 2026-11-24, the user changed the offer of the round: one person and one project
+  ([single](../SPEC-single.md)), "defer for now" the business with teams. So R1, R2, R4, R7, R8
+  and R9 are deferred. Each comes back when a second person or team comes.
+- On 2026-11-24, the user kept R5 deferred: "Assume if the most of easel content and details (and
+  even customization), coming from the code, tinker code on userland, we can be good".
+- On 2026-11-24, the user: "I don't do any work, agents does only". The person reads, comments,
+  accepts and decides. The agents make, change and arrange the frames, and change the code.
 
 - On 2026-11-23, the user gave Round 1 its outcome: "use the canvas to show off the design, making
   comment, use MCP to drive the design". Each slice of easel has one outcome, and its decisions
@@ -145,6 +155,13 @@ Closed before: L1, L3, L5 and L12 (CP-1 to CP-5 of [SPEC-copy](../SPEC-copy.md):
 and R8 (`8d452f6`: the design of the backups and the delete).
 
 ### Round 1 walk of the slice
+
+On 2026-11-24, Round 1 was read as the one person, with agents that do all the work: get in on a
+phone, see what waits, comment on a frame of `product` with a screenshot, see an agent start with
+no step, see the changed frame, accept it, and see the live app change. The walk added A12 to A15
+(three codes that did not sign the user in), D11 to D13 (a share link could start an agent, and
+the limits were never set), G1 to G6, I1 to I4, and V1 to V7 (the accept of #1 to #3 did not
+change the live app).
 
 On 2026-11-20, Round 1 was read as a team lead and as the company. That walk added R1 to R9.
 
@@ -212,8 +229,25 @@ start steps have no MCP.
 | A10 | The easel always has an owner.                | Stopping or signing out the last owner is refused, and nothing changes.           |
 | A11 | A user can sign out.                          | After sign out, the computer of the user keeps no access. The name is free again. |
 
+### E1.4 The person gets in on any device
+
+- **Actor:** the person (the one user of the easel).
+- **Need:** open the easel on a phone or a computer, get in, and see the work that waits for them.
+- **Trigger:** the person opens the address of the easel on a device with no access.
+- **Success end:** the person sees the project and what waits for them, on that device.
+- **Failure end:** the device does not get in. The person sees why, and one step to try again.
+
+| ID  | Requirement                                                               | Fit criterion                                                                                                                    |
+| --- | ------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------- |
+| A12 | The person gets a device in with one step on a device that is already in. | Within 1 minute of the first look, the new device shows the project. The person typed no name and no password on the new device. |
+| A13 | A step that went wrong never leaves the device in a dead end.             | When the person leaves the page and comes back, or the network drops, the page still gets in, or says what to do next.           |
+| A14 | No other person gets in.                                                  | A device that the person did not let in sees only the sign-in page. A share link shows only its canvas.                          |
+| A15 | The person sees first what waits for them.                                | The first page after the sign-in shows, for each canvas, the count of the requests that wait for the person.                     |
+
 Decided:
 
+- On 2026-11-24, E1.4 came from three codes that did not sign the user in. The design is
+  [home](../SPEC-home.md) and [single](../SPEC-single.md).
 - A viewer needs no access. A viewer uses a share link (E3).
 - There are two roles: owner and user. Deferred: more roles. Add them when a team asks that some
   users cannot delete a canvas.
@@ -228,10 +262,12 @@ SPEC-cli closes A8 with `login --print-token` and `EASEL_TOKEN` (`c79d841`).
 
 ## E2: Make frames
 
-| ID   | Journey                | Actor | Design                                             | Review |
-| ---- | ---------------------- | ----- | -------------------------------------------------- | ------ |
-| E2.1 | Make a canvas          | agent | [frames](../SPEC-frames.md#make-a-canvas)          | ready  |
-| E2.2 | Make and change frames | agent | [frames](../SPEC-frames.md#make-and-change-frames) | ready  |
+| ID   | Journey                | Actor         | Design                                                                                        | Review |
+| ---- | ---------------------- | ------------- | --------------------------------------------------------------------------------------------- | ------ |
+| E2.1 | Make a canvas          | agent         | [frames](../SPEC-frames.md#make-a-canvas)                                                     | ready  |
+| E2.2 | Make and change frames | agent         | [frames](../SPEC-frames.md#make-and-change-frames)                                            | ready  |
+| E2.3 | Arrange the frames     | agent         | not designed                                                                                  | to do  |
+| E2.4 | Show an image          | agent, person | [frames](../SPEC-frames.md#image-frames), [queue](../SPEC-queue.md#a-screenshot-on-a-request) | active |
 
 ### E2.1 Make a canvas
 
@@ -266,9 +302,53 @@ SPEC-cli closes A8 with `login --print-token` and `EASEL_TOKEN` (`c79d841`).
 | B8  | The agent sees a frame as a person sees it, with no browser of its own. | A picture of the frame looks as it does in a browser, at the scale that the agent asks for.           |
 | B9  | The agent can delete a frame. Its requests stay.                        | After the delete, each request of the frame is still there, marked "may be outdated" (N8).            |
 
+### E2.3 Arrange the frames
+
+- **Actor:** agent. The person reads the board.
+- **Need:** put the frames of a canvas in an order that a person reads with no help: the steps of a
+  flow from left to right, the states of one screen together, the groups with their names. The
+  agent says how the frames relate, not where each one goes.
+- **Trigger:** the agent adds, changes, removes or moves a frame.
+- **Success end:** the person sees each group and each flow in order, with no frame on another.
+- **Failure end:** the arrangement breaks a rule (two frames on each other, a frame out of its
+  group). The agent is told which frames and why, and nothing that the person sees gets worse.
+
+| ID  | Requirement                                                                                        | Fit criterion                                                                                                                 |
+| --- | -------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------- |
+| G1  | The agent places a frame by its relation to the other frames: after a frame, below it, in a group. | The agent puts 10 frames of a flow, and gives no position for any of them. The person sees them in the order of the flow.     |
+| G2  | A frame that grows or goes keeps the arrangement.                                                  | When a frame in a row gets 300 px wider, the frames after it move, and no two frames touch. When a frame goes, no hole stays. |
+| G3  | A group has a name, and its frames stay in it.                                                     | The person sees the name of each group above its frames. A move of the group moves each of its frames.                        |
+| G4  | The agent can still give an exact place when it must.                                              | A frame with an exact place stays there, and the frames placed by relation go around it.                                      |
+| G5  | The agent knows when an arrangement is wrong, before the person sees it.                           | The agent gets the list of frames that touch, and of frames out of their group, with each change.                             |
+| G6  | Two agents that arrange the same canvas lose no change.                                            | When the board changed after the agent read it, its change is refused and the agent reads again (B6).                         |
+
+### E2.4 Show an image
+
+- **Actor:** agent, or the person.
+- **Need:** show a screenshot or a picture on the board, or with a request, and let an agent look
+  at it.
+- **Trigger:** the agent or the person has an image.
+- **Success end:** the image is on the board or with the request, and an agent can look at it.
+- **Failure end:** the file is not an image, or is too large. Nothing is made, and the person or the
+  agent knows why.
+
+| ID  | Requirement                                              | Fit criterion                                                                                        |
+| --- | -------------------------------------------------------- | ---------------------------------------------------------------------------------------------------- |
+| I1  | The agent puts an image on a canvas as a frame.          | The frame has the size of the image, and has versions and requests as each other frame. Built.       |
+| I2  | The person adds a screenshot to a request.               | The person pastes it, or takes a part of the board. The agent that takes the request sees it. Built. |
+| I3  | The person drops or pastes an image on the board.        | Within 5 seconds, the image is a frame where the person dropped it.                                  |
+| I4  | An agent looks at each image that it gets, as a picture. | The agent says in its reply what the image shows. Built.                                             |
+
 Decided:
 
-- Deferred: moving a frame (Round 1). Add it when a team asks for it.
+- On 2026-11-24, the user moved the arrangement of the frames into the round: "arrangement is the
+  work for agent, but still need". The prior art is Excalidraw: its agent tools take the intent
+  (the frame of an element, a binding, a row or a grid), the server measures and places, a check
+  lists the overlaps and the elements out of their frame, and a write on an old scene is refused.
+  "not everything needed to be actual": only G4 gives an exact place.
+- On 2026-11-24, the user: "Image surely needed" (E2.4).
+- Deferred: a person moves a frame by hand. Add it when the person asks for it: the agents arrange
+  the frames.
 
 ## E3: Share and look
 
@@ -514,15 +594,18 @@ Decided:
 - **Failure end:** no way gets the request to an agent. The request waits in the queue, people see
   that it waits (F1), and the team lead sees why (D9).
 
-| ID  | Requirement                                                                                               | Fit criterion                                                                                                                            |
-| --- | --------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------- |
-| D1  | All requests wait in one queue until an agent takes them.                                                 | A request made when no agent is connected waits, and an agent that comes later gets it in the order of M1.                               |
-| D2  | An agent that asks for work gets it.                                                                      | M7 is true.                                                                                                                              |
-| D6  | A request gets to an agent that is not running, with no person to start it.                               | With no agent running and no person acting, an agent has a new request within 2 minutes.                                                 |
-| D7  | The team lead chooses the ways that requests get to the agents of the team: one way, or more at one time. | The team lead changes the ways, and the next request goes the new ways, with no new version of easel.                                    |
-| D8  | Each request is done one time only, also when it goes more than one way.                                  | With two ways on, each of 20 requests ends with one outcome, not two.                                                                    |
-| D9  | The team lead sees how each request got to an agent, and why one did not.                                 | On each request, a person sees the way that it went and when. When a way fails, the cause shows within 1 minute.                         |
-| D10 | A team whose agents work from GitHub gets each request there, and sees there when it ends.                | Within 1 minute of a new request, it shows in the GitHub repository that the team chose. When it ends in easel, it shows as ended there. |
+| ID  | Requirement                                                                                               | Fit criterion                                                                                                                                      |
+| --- | --------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------- |
+| D1  | All requests wait in one queue until an agent takes them.                                                 | A request made when no agent is connected waits, and an agent that comes later gets it in the order of M1.                                         |
+| D2  | An agent that asks for work gets it.                                                                      | M7 is true.                                                                                                                                        |
+| D6  | A request gets to an agent that is not running, with no person to start it.                               | With no agent running and no person acting, an agent has a new request within 2 minutes.                                                           |
+| D7  | The team lead chooses the ways that requests get to the agents of the team: one way, or more at one time. | The team lead changes the ways, and the next request goes the new ways, with no new version of easel.                                              |
+| D8  | Each request is done one time only, also when it goes more than one way.                                  | With two ways on, each of 20 requests ends with one outcome, not two.                                                                              |
+| D9  | The team lead sees how each request got to an agent, and why one did not.                                 | On each request, a person sees the way that it went and when. When a way fails, the cause shows within 1 minute.                                   |
+| D10 | A team whose agents work from GitHub gets each request there, and sees there when it ends.                | Within 1 minute of a new request, it shows in the GitHub repository that the team chose. When it ends in easel, it shows as ended there.           |
+| D11 | Only the person starts the work of an agent.                                                              | A request from a share link waits until the person agrees to it. A request of the person starts an agent with no other step.                       |
+| D12 | The work of the agents stays inside the limits that the person sets.                                      | The person sets the count of agents at the same time and in a day. Over a limit, a request waits, and the person sees that it waits for the limit. |
+| D13 | The person sees why a request did not start an agent.                                                     | On a request that waits for more than 2 minutes, the person sees the cause: a limit, a refusal, a failed start, or no agreement.                   |
 
 Decided:
 
@@ -537,6 +620,9 @@ Decided:
 - On 2026-11-23, Round 1 keeps one way: an agent that asks for work (D1, D2, D8), also through
   MCP. GitHub and the other ways (D6, D7, D9, D10) are deferred: see Round 1.
 - Deferred: a different way for each canvas. Add it when a team asks for it.
+- On 2026-11-24, the user: "yes, work on this, do the routine. Dispatcher needed". So D6, D9 and
+  D11 to D13 are in the round, for the one way that starts an agent on the machine of the person
+  ([design-loop](../SPEC-design-loop.md)). GitHub (D7, D10) stays deferred.
 
 #### Design changes that E4.5 needs
 
@@ -1001,3 +1087,50 @@ Decided:
 | X3  | A control can be a full tool, with its own state and icons. | A toolbar with a text field and buttons with icons works beside the frame as it does in a frame.                                                 |
 | X4  | A control does only what the frame lets it do.              | A control changes the frame only by the actions that the frame offers. A change that the frame refuses changes nothing, and says why.            |
 | X5  | The frame puts each control where it helps the review.      | Each control shows at the place that the frame gives it (above the frame, at one side, or in the panel), at the same size at each zoom.          |
+
+## E11: The design and the app agree
+
+| ID    | Journey                                 | Actor         | Design                                              | Review |
+| ----- | --------------------------------------- | ------------- | --------------------------------------------------- | ------ |
+| E11.1 | See the live app beside the design      | person        | [design-loop](../SPEC-design-loop.md) rule 3        | to do  |
+| E11.2 | An accepted design reaches the live app | agent, person | [design-loop](../SPEC-design-loop.md) rules 6-8, 13 | to do  |
+
+### E11.1 See the live app beside the design
+
+- **Actor:** the person.
+- **Need:** see each screen of easel as it is live, beside the screen as it was designed, so that
+  a difference shows at once.
+- **Trigger:** a new build of easel is live.
+- **Success end:** the person sees each live screen next to its design, for a phone and a
+  computer, in light and dark.
+- **Failure end:** a live screen cannot be taken. The person sees which screen and why, and the
+  last good screen stays.
+
+| ID  | Requirement                                             | Fit criterion                                                                                                   |
+| --- | ------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------- |
+| V1  | Each designed screen has its live screen beside it.     | Within 10 minutes of a deploy, each designed screen shows its live screen of that build, with the build number. |
+| V2  | Two looks at the same build give the same live screens. | Two takes of one build show no difference.                                                                      |
+| V3  | The person sees what changed between two builds.        | The live screen of the last build shows beside the one before, as Before and After.                             |
+
+### E11.2 An accepted design reaches the live app
+
+- **Actor:** agent. The person accepts.
+- **Need:** when the person accepts a design, the live app changes to match it, with no step by the
+  person.
+- **Trigger:** the person accepts a design of a screen, or of a part that more screens use.
+- **Success end:** the live screen matches the accepted design, and each screen that uses the
+  part shows the change.
+- **Failure end:** the agent cannot make the live screen match. The person sees why, and the
+  design stays accepted.
+
+| ID  | Requirement                                                          | Fit criterion                                                                                                             |
+| --- | -------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------- |
+| V4  | An accepted design starts the change of the app, with no other step. | Within 1 hour of the accept, the live screen matches the design, or the person sees why it does not.                      |
+| V5  | A change of a part reaches each screen that uses it.                 | After a change of the dock, each designed and each live screen with the dock shows the new dock.                          |
+| V6  | A live screen uses only the values of the design system.             | A check fails when a live screen uses a color, a size or a font that the design system does not have. The person sees it. |
+| V7  | The person sees the build that has the change.                       | The reply on the request names the build, and that build is live when the person reads it.                                |
+
+Decided:
+
+- On 2026-11-24, the user: "yes, please work on this" (E11). The accept of #1, #2 and #3 on
+  `product` changed three frame copies but not the live app: V4 and V5 come from that.
