@@ -65,7 +65,7 @@ echo "smoke: ok   live-todo ($((SECONDS - t0)) s)"
 
 flow=canvas
 t0=$SECONDS
-easel() { HOME="$out/home" "$dir/dist/server" "$@"; }
+easel() { HOME="$out/home" EASEL_CONFIG_HOME="$out/home/.config" XDG_CONFIG_HOME="$out/home/.config" "$dir/dist/server" "$@"; }
 mkdir -p "$out/home"
 code="$(grep -oE 'setup code: [^[:space:]]+' "$out/server.log" | head -1 | cut -d' ' -f3)"
 [[ -n "$code" ]] || fail "no setup code in the server log"
