@@ -4,6 +4,7 @@ import { z } from "zod";
 import { frames } from "@/frames";
 import { firstPage } from "@/frames/contract";
 
+import { openMenu } from "./overlays";
 import { stage } from "./stage";
 
 const pagesCanvas = tag<string>({ label: "viewer.pagesCanvas" });
@@ -16,8 +17,6 @@ export const pagePicked = data<{ canvas: string; page: string } | null>({
   label: "viewer.pagePicked",
   initial: null,
 });
-
-export const pagesOpen = data({ label: "viewer.pagesOpen", initial: false });
 
 export const addressPage = resource({
   label: "viewer.addressPage",
@@ -100,18 +99,12 @@ export const turnTo = operation({
   run: ({ picked }, { input }) => picked.set(input),
 });
 
-export const togglePages = operation({
-  label: "viewer.togglePages",
-  depends: { open: pagesOpen.controller },
-  run: ({ open }) => open.set(!open.get()),
-});
-
 export const pickPage = operation({
   label: "viewer.pickPage",
   input: z.object({ canvas: z.string(), page: z.string(), shown: z.string() }),
-  depends: { at: stage, open: pagesOpen.controller, turnTo },
-  run: ({ at, open, turnTo }, { input: { canvas, page, shown } }) => {
-    open.set(false);
+  depends: { at: stage, menu: openMenu.controller, turnTo },
+  run: ({ at, menu, turnTo }, { input: { canvas, page, shown } }) => {
+    menu.set(null);
     at.dropGoal();
     if (page === shown) return at.fit();
 

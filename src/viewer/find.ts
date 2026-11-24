@@ -67,25 +67,3 @@ export const findMatches = resource({
     };
   },
 });
-
-export const slashKey = resource({
-  label: "viewer.slashKey",
-  target: "scope",
-  depends: { open: findOpen.controller, toggleFind },
-  factory: ({ open, toggleFind }, ctx) => {
-    const onKey = (event: KeyboardEvent) => {
-      if (event.key !== "/" || open.get()) return;
-      const target = event.target;
-      if (target instanceof HTMLInputElement || target instanceof HTMLTextAreaElement) return;
-      if (target instanceof HTMLSelectElement) return;
-      if (target instanceof HTMLElement && target.isContentEditable) return;
-
-      event.preventDefault();
-      toggleFind.run();
-    };
-    window.addEventListener("keydown", onKey);
-    ctx.defer(() => window.removeEventListener("keydown", onKey));
-
-    return { listening: true };
-  },
-});

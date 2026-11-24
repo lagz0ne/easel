@@ -154,6 +154,7 @@ async function boot() {
 }
 
 async function tab(server: Scope.Handle, path: string) {
+  await page.viewport(1200, 800);
   const clock = makeTestClock();
   const scope = await createScope({
     clock,

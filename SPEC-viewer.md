@@ -38,6 +38,21 @@ this spec wins, and the screen gets a fix.
    While a request or an answer is typed, the bar says "Send your text first, then reload." in
    the place of `Reload`, so a reload loses no text. A server run from source names no page, and
    shows no bar. The chart is [viewer-version](docs/statecharts/viewer-version.md).
+5. The overlays never make a dead end (the user's report of 2026-11-24). The chart is
+   [viewer-overlays](docs/statecharts/viewer-overlays.md), and
+   [viewer-overlays-today](docs/statecharts/viewer-overlays-today.md) shows the page before.
+   - The menus `Pages`, `Open` or `Done`, and `More` are the Menu of
+     [Base UI](https://base-ui.com/react/components/menu), as shadcn and Radix menus behave. One
+     menu at most is open. A press out of it, Escape or a pick closes it. Escape gives the focus
+     back to its button. A menu stays in the view.
+   - The head of the list has the button `Close requests` (an X). Escape closes the card too.
+   - On a phone (a screen narrower than 640 px), the card has the full width, and it stops above
+     the dock, as a sheet in Linear and Figma on a phone. The dock stays in view, and its buttons
+     can be pressed. `Requests` closes `Find` and each menu, and `Find` closes the card, so the
+     two never show together.
+   - On a touch screen or a phone, the dock has no `Zoom out` and `Zoom in`: a pinch zooms. Each
+     of its buttons is 40 x 40 px at least, more than the 24 px of WCAG 2.5.8. A wide screen keeps
+     the dock as it is.
 
 ### Open the link
 

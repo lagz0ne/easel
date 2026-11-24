@@ -58,6 +58,8 @@ Each chart's page has the chart, its rules in plain words, and what the model le
 | [viewer-version](viewer-version.md)                   | viewer | A new version of the page: the bar, Reload, and no text lost                                        |
 | [viewer-pages](viewer-pages.md)                       | viewer | The pages of a canvas in a tab: a pick of a page, of a request, of Find, a move, a reload           |
 | [viewer-pages-old-page](viewer-pages-old-page.md)     | viewer | Why the pick of a request asks for its frame: the page of the request is old after a move           |
+| [viewer-overlays](viewer-overlays.md)                 | viewer | The menus, Find and the card Requests on a phone and a wide screen: one press closes the top        |
+| [viewer-overlays-today](viewer-overlays-today.md)     | viewer | Why the card stops above the dock on a phone: else the list covers the dock, a dead end             |
 | [kit-piece](kit-piece.md)                             | kit    | Two agents change one piece: the first change on a revision wins, the other gets `stale`            |
 | [kit-look](kit-look.md)                               | kit    | The look: a change, a refused unreadable look, one step back, and what a viewer saw                 |
 | [kit-look-unbound](kit-look-unbound.md)               | kit    | Why a request keeps its kit version: with the frame version only, its Before is wrong               |
@@ -77,10 +79,10 @@ Each chart's page has the chart, its rules in plain words, and what the model le
 | [board-switch-board-only](board-switch-board-only.md) | pieces | Why the address holds the frame values: else a reload loses them                                    |
 
 `queue-two-step`, `frames-writes-two-step`, `fixer-claim-unsafe`, `kit-look-unbound`,
-`kit-look-hello-once`, `kit-app-frame-no-close`, `kit-runtime-same-text`, `viewer-pages-old-page`, `design-change-unchecked` and `board-switch-board-only` break on purpose. Each shows the bug that a
+`kit-look-hello-once`, `kit-app-frame-no-close`, `kit-runtime-same-text`, `viewer-pages-old-page`, `viewer-overlays-today`, `design-change-unchecked` and `board-switch-board-only` break on purpose. Each shows the bug that a
 design prevents: one write for a claim or a save, the fixer's two guards (the process-group stop
 and the check again before the push), a request that keeps its kit version, a piece script that
-says hello until it gets a port, a page that posts `close` before it removes an app frame, a put that compares the runtime too, a pick of a request that asks for the frame, not for an old page, a `design.put` that checks the ready frames, and an address that holds the frame values. Its row in `charts.tsv` says `breaks`.
+says hello until it gets a port, a page that posts `close` before it removes an app frame, a put that compares the runtime too, a pick of a request that asks for the frame, not for an old page, a card with `Close` that stops above the dock on a phone, a `design.put` that checks the ready frames, and an address that holds the frame values. Its row in `charts.tsv` says `breaks`.
 
 ## Files
 

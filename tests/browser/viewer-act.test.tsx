@@ -440,6 +440,7 @@ async function tab(first: Scope.Handle) {
 
 const pin = (n: number) => page.getByRole("button", { name: `Request #${n}`, exact: true });
 const dialog = (n: number) => page.getByRole("region", { name: `Request #${n}` });
+const moreMenu = () => page.getByRole("menu", { name: "More" });
 const alertIn = (n: number) => dialog(n).getByRole("alert");
 const mark = (n: number) => dialog(n).element().querySelector(".e-sb")?.getAttribute("aria-label");
 
@@ -729,7 +730,10 @@ test("a result done with no answer: the step says it, only Open again shows, and
   await page.getByRole("button", { name: /^Requests/ }).click();
   const panel = page.getByRole("complementary", { name: "Requests" });
   await panel.getByRole("button", { name: "Open" }).click();
-  await panel.getByRole("menuitemradio", { name: /Done/ }).click();
+  await page
+    .getByRole("menu", { name: "Lists" })
+    .getByRole("menuitemradio", { name: /Done/ })
+    .click();
   await panel.getByRole("button", { name: /#1(?!\d)/ }).click();
   await expect.element(dialog(1)).toBeVisible();
 
@@ -888,24 +892,24 @@ test("More: Correct the request (Cancel, Save) while it waits, off with the hint
   expect(more.element()).toHaveAttribute("aria-haspopup", "menu");
   await more.click();
   const items = () =>
-    dialog(1)
+    moreMenu()
       .getByRole("menuitem")
       .elements()
       .map((i) => i.textContent);
   expect(items()).toEqual(["Correct the request", "Copy link", "Take back"]);
 
-  await dialog(1).getByRole("menuitem", { name: "Copy link" }).click();
+  await moreMenu().getByRole("menuitem", { name: "Copy link" }).click();
   expect(copied).toHaveBeenCalledWith(`${location.href.split("#")[0]}#request-1`);
 
   await more.click();
-  await dialog(1).getByRole("menuitem", { name: "Correct the request" }).click();
+  await moreMenu().getByRole("menuitem", { name: "Correct the request" }).click();
   const box = dialog(1).getByRole("textbox", { name: "Request" });
   await expect.element(box).toHaveValue("Add a short FAQ here.");
   await box.fill("Add a short FAQ here, with a short answer each.");
   await dialog(1).getByRole("button", { name: "Cancel" }).click();
   expect(box.elements()).toHaveLength(0);
   await more.click();
-  await dialog(1).getByRole("menuitem", { name: "Correct the request" }).click();
+  await moreMenu().getByRole("menuitem", { name: "Correct the request" }).click();
   await box.fill("Add a short FAQ here, with a short answer each.");
   await dialog(1).getByRole("button", { name: "Save" }).click();
   await expect.poll(() => lines(1).at(-1)).toBe("Mai corrected it · just now");
@@ -916,10 +920,10 @@ test("More: Correct the request (Cancel, Save) while it waits, off with the hint
   expect(mark(2)).toBe("claude-1");
   expect(lines(2).at(-1)).toBe("claude-1 took it · 20 min");
   await dialog(2).getByRole("button", { name: "More" }).click();
-  const correct = dialog(2).getByRole("menuitem", { name: /Correct the request/ });
+  const correct = moreMenu().getByRole("menuitem", { name: /Correct the request/ });
   expect(correct.element()).toHaveAttribute("aria-disabled", "true");
   expect(correct.element().textContent).toContain("Agent works");
-  await dialog(2).getByRole("menuitem", { name: "Take back" }).click();
+  await moreMenu().getByRole("menuitem", { name: "Take back" }).click();
   await expect.poll(() => mark(2)).toBe("Taken back");
   expect(lines(2).at(-1)).toBe("Mai took it back · just now");
 
@@ -927,12 +931,12 @@ test("More: Correct the request (Cancel, Save) while it waits, off with the hint
   await openIt(3);
   await dialog(3).getByRole("button", { name: "More" }).click();
   expect(
-    dialog(3)
+    moreMenu()
       .getByRole("menuitem")
       .elements()
       .map((i) => i.textContent),
   ).toEqual(["Correct the request", "Copy link", "Close request"]);
-  await dialog(3).getByRole("menuitem", { name: "Close request" }).click();
+  await moreMenu().getByRole("menuitem", { name: "Close request" }).click();
   await expect.poll(() => mark(3)).toBe("Closed");
 
   expect(calls()).toEqual([
@@ -1007,7 +1011,7 @@ test("another viewer acted first (wrongState): nothing is saved, the popover sho
   const copied = vi.spyOn(navigator.clipboard, "writeText").mockResolvedValue(undefined);
   await openIt(2);
   await dialog(2).getByRole("button", { name: "More" }).click();
-  await dialog(2).getByRole("menuitem", { name: "Correct the request" }).click();
+  await moreMenu().getByRole("menuitem", { name: "Correct the request" }).click();
   await dialog(2).getByRole("textbox", { name: "Request" }).fill("Use the blue of the logo.");
   store.plan.push({
     kind: "wrongState",

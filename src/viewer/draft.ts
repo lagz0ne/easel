@@ -4,10 +4,11 @@ import { z } from "zod";
 import { frames } from "@/frames";
 import { queue } from "@/queue";
 
-import { closeFind, findOpen } from "./find";
+import { closeFind, findOpen, toggleFind } from "./find";
 import type { Shown } from "./follow";
-import { controlsFor, listMenu, panelOpen } from "./follow";
+import { controlsFor, panelOpen } from "./follow";
 import { keepName, keptName } from "./gate";
+import { openMenu, screenSize } from "./overlays";
 
 const place = z.object({
   page: z.string(),
@@ -63,8 +64,6 @@ export type Acting = {
 
 export const acting = data<Acting | null>({ label: "viewer.acting", initial: null });
 
-export const moreMenu = data({ label: "viewer.moreMenu", initial: false });
-
 const heldDraft = z.object({ step: z.enum(["sending", "unknown"]) });
 
 const closeRequest = operation({
@@ -72,12 +71,12 @@ const closeRequest = operation({
   depends: {
     opened: openedRequest.controller,
     acts: acting.controller,
-    more: moreMenu.controller,
+    menu: openMenu.controller,
   },
-  run: ({ opened, acts, more }) => {
+  run: ({ opened, acts, menu }) => {
     opened.set(null);
     acts.set(null);
-    more.set(false);
+    menu.set(null);
   },
 });
 
@@ -105,10 +104,9 @@ export const backToList = operation({
 
 export const closeCard = operation({
   label: "viewer.closeCard",
-  depends: { panel: panelOpen.controller, menu: listMenu.controller, closeRequest },
-  run: ({ panel, menu, closeRequest }) => {
+  depends: { panel: panelOpen.controller, closeRequest },
+  run: ({ panel, closeRequest }) => {
     closeRequest.run();
-    menu.set(false);
     panel.set(false);
   },
 });
@@ -119,13 +117,61 @@ export const toggleCard = operation({
     panel: panelOpen.controller,
     opened: openedRequest.controller,
     ctl: controlsFor.controller,
+    menu: openMenu.controller,
+    closeFind,
     closeCard,
   },
-  run: ({ panel, opened, ctl, closeCard }) => {
+  run: ({ panel, opened, ctl, menu, closeFind, closeCard }) => {
     ctl.set(null);
     if (panel.get() || opened.get()) return closeCard.run();
 
+    closeFind.run();
+    menu.set(null);
     panel.set(true);
+  },
+});
+
+export const pressFind = operation({
+  label: "viewer.pressFind",
+  depends: {
+    find: findOpen,
+    menu: openMenu.controller,
+    ctl: controlsFor.controller,
+    screen: screenSize,
+    toggleFind,
+    closeCard,
+  },
+  run: ({ find, menu, ctl, screen, toggleFind, closeCard }) => {
+    if (find) return toggleFind.run();
+
+    menu.set(null);
+    if (screen.narrow()) {
+      ctl.set(null);
+      closeCard.run();
+    }
+    toggleFind.run();
+  },
+});
+
+export const slashKey = resource({
+  label: "viewer.slashKey",
+  target: "scope",
+  depends: { open: findOpen.controller, pressFind },
+  factory: ({ open, pressFind }, ctx) => {
+    const onKey = (event: KeyboardEvent) => {
+      if (event.key !== "/" || open.get()) return;
+      const target = event.target;
+      if (target instanceof HTMLInputElement || target instanceof HTMLTextAreaElement) return;
+      if (target instanceof HTMLSelectElement) return;
+      if (target instanceof HTMLElement && target.isContentEditable) return;
+
+      event.preventDefault();
+      pressFind.run();
+    };
+    window.addEventListener("keydown", onKey);
+    ctx.defer(() => window.removeEventListener("keydown", onKey));
+
+    return { listening: true };
   },
 });
 
@@ -389,7 +435,8 @@ export const escapeKey = resource({
   target: "scope",
   depends: { escape },
   factory: ({ escape }, ctx) => {
-    const onKey = (event: KeyboardEvent) => event.key === "Escape" && escape.run();
+    const onKey = (event: KeyboardEvent) =>
+      event.key === "Escape" && !event.defaultPrevented && escape.run();
     window.addEventListener("keydown", onKey);
     ctx.defer(() => window.removeEventListener("keydown", onKey));
 

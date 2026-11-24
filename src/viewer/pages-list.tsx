@@ -1,38 +1,36 @@
+import { Menu } from "@base-ui/react/menu";
 import { useData, useRun } from "@tinkered/react";
 
-import { pageList, pagesOpen, pickPage, togglePages } from "./pages";
+import { openMenu, setMenu } from "./overlays";
+import { pageList, pickPage } from "./pages";
 
 type PageProps = { canvas: string; page: string };
 
 export function PagesButton({ canvas, page }: PageProps) {
-  const open = useData(pagesOpen);
+  const open = useData(openMenu, (m) => m === "pages");
   const name = useData(pageList({ canvas })).find((p) => p.key === page)?.name;
-  const toggle = useRun(togglePages);
+  const set = useRun(setMenu);
 
   return (
-    <button
-      type="button"
-      className="e-dock-btn e-dock-page"
-      aria-label="Pages"
-      aria-haspopup="menu"
-      aria-expanded={open}
-      title="Pages"
-      onClick={() => toggle.run()}
+    <Menu.Root
+      modal={false}
+      open={open}
+      onOpenChange={(next) => set.run({ input: { menu: "pages", open: next } })}
     >
-      <svg className="e-icon" viewBox="0 0 24 24" aria-hidden="true">
-        <path d="M14 3H6a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V9z" />
-        <path d="M14 3v6h6" />
-      </svg>
-      <span className="e-dock-page-name">{name ?? page}</span>
-    </button>
+      <Menu.Trigger className="e-dock-btn e-dock-page" aria-label="Pages" title="Pages">
+        <svg className="e-icon" viewBox="0 0 24 24" aria-hidden="true">
+          <path d="M14 3H6a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V9z" />
+          <path d="M14 3v6h6" />
+        </svg>
+        <span className="e-dock-page-name">{name ?? page}</span>
+      </Menu.Trigger>
+      <Menu.Portal>
+        <Menu.Positioner className="e-menu-pos" side="top" sideOffset={8}>
+          <PagesMenu canvas={canvas} page={page} />
+        </Menu.Positioner>
+      </Menu.Portal>
+    </Menu.Root>
   );
-}
-
-export function PagesList({ canvas, page }: PageProps) {
-  const open = useData(pagesOpen);
-  if (!open) return null;
-
-  return <PagesMenu canvas={canvas} page={page} />;
 }
 
 function PagesMenu({ canvas, page }: PageProps) {
@@ -40,20 +38,20 @@ function PagesMenu({ canvas, page }: PageProps) {
   const pick = useRun(pickPage);
 
   return (
-    <div className="e-menu e-pages" role="menu" aria-label="Pages">
-      {all.map((p) => (
-        <button
-          key={p.key}
-          type="button"
-          role="menuitemradio"
-          aria-checked={p.key === page}
-          aria-label={`${p.name}, ${p.frames} ${p.frames === 1 ? "frame" : "frames"}`}
-          onClick={() => pick.run({ input: { canvas, page: p.key, shown: page } })}
-        >
-          <span className="e-pages-name">{p.name}</span>
-          <span className="e-menu-n">{p.frames}</span>
-        </button>
-      ))}
-    </div>
+    <Menu.Popup className="e-menu e-pages" aria-label="Pages">
+      <Menu.RadioGroup value={page}>
+        {all.map((p) => (
+          <Menu.RadioItem
+            key={p.key}
+            value={p.key}
+            aria-label={`${p.name}, ${p.frames} ${p.frames === 1 ? "frame" : "frames"}`}
+            onClick={() => pick.run({ input: { canvas, page: p.key, shown: page } })}
+          >
+            <span className="e-pages-name">{p.name}</span>
+            <span className="e-menu-n">{p.frames}</span>
+          </Menu.RadioItem>
+        ))}
+      </Menu.RadioGroup>
+    </Menu.Popup>
   );
 }

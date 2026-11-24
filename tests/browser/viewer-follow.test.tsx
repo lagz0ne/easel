@@ -288,6 +288,7 @@ type Tab = Awaited<ReturnType<typeof tab>>;
 
 const requestsButton = () => page.getByRole("button", { name: /^Requests/ });
 const panel = () => page.getByRole("complementary", { name: "Requests" });
+const listsMenu = () => page.getByRole("menu", { name: "Lists" });
 const group = (name: string) => panel().getByRole("region", { name });
 
 const row = (n: number) => panel().getByRole("button", { name: new RegExp(`#${n}(?!\\d)`) });
@@ -385,9 +386,9 @@ test("each state has its row in its list and group, newest first, with its own m
   const menuButton = panel().getByRole("button", { name: "Open" });
   expect(menuButton.element()).toHaveAttribute("aria-haspopup", "menu");
   await menuButton.click();
-  const items = panel().getByRole("menuitemradio");
+  const items = listsMenu().getByRole("menuitemradio");
   expect(items.elements().map((i) => i.textContent)).toEqual(["Open7", "Done3"]);
-  await panel().getByRole("menuitemradio", { name: /Done/ }).click();
+  await listsMenu().getByRole("menuitemradio", { name: /Done/ }).click();
   await expect.element(panel().getByRole("button", { name: "Done" })).toBeVisible();
   expect(rowsIn(panel().query())).toEqual([7, 8, 9]);
   expect([7, 8, 9].map((n) => markOf(n))).toEqual(["Done", "Closed", "Taken back"]);
@@ -649,8 +650,8 @@ test("a result that no viewer answers for 3 days moves to Done as Done, no answe
   expect(pin(1).elements()).toHaveLength(0);
 
   await panel().getByRole("button", { name: "Open" }).click();
-  await panel().getByRole("menuitemradio", { name: /Done/ }).click();
-  expect(rowsIn(panel().query())).toEqual([1]);
+  await listsMenu().getByRole("menuitemradio", { name: /Done/ }).click();
+  await expect.poll(() => rowsIn(panel().query())).toEqual([1]);
   expect(markOf(1)).toBe("Done, no answer");
   expect(JSON.stringify(board.get())).toBe(before);
 });

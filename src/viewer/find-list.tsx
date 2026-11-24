@@ -5,16 +5,8 @@ import { z } from "zod";
 
 import type { FrameInfo } from "@/frames/contract";
 
-import {
-  closeFind,
-  findMatches,
-  findOpen,
-  findPick,
-  findText,
-  movePick,
-  toggleFind,
-  typeFind,
-} from "./find";
+import { pressFind } from "./draft";
+import { closeFind, findMatches, findOpen, findPick, findText, movePick, typeFind } from "./find";
 import { pageList, showFrameOf } from "./pages";
 import { stage } from "./stage";
 
@@ -40,7 +32,7 @@ const keyMoves: Readonly<Record<string, number>> = { ArrowDown: 1, ArrowUp: -1 }
 
 export function FindButton() {
   const open = useData(findOpen);
-  const toggle = useRun(toggleFind);
+  const toggle = useRun(pressFind);
 
   return (
     <button

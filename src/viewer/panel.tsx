@@ -1,19 +1,19 @@
+import { Menu } from "@base-ui/react/menu";
 import { useData, useRun } from "@tinkered/react";
 
-import { openedRequest, toggleCard } from "./draft";
+import { closeCard, openedRequest, toggleCard } from "./draft";
 import {
   doneStates,
   forAViewer,
-  listMenu,
   panelList,
   panelOpen,
   pickList,
   requestStates,
   requestViews,
   serverTime,
-  toggleListMenu,
 } from "./follow";
 import type { Outdated, RequestView, Shown } from "./follow";
+import { openMenu, setMenu } from "./overlays";
 import { pageList } from "./pages";
 
 export const stateWords: Record<Exclude<Shown, "inWork">, string> = {
@@ -196,41 +196,62 @@ function Group({
 
 function ListMenu({ open, done }: { open: number; done: number }) {
   const shown = useData(panelList);
-  const menu = useData(listMenu);
-  const toggle = useRun(toggleListMenu);
+  const menu = useData(openMenu, (m) => m === "list");
+  const set = useRun(setMenu);
   const pick = useRun(pickList);
 
   return (
     <div className="e-menu-at">
-      <button
-        type="button"
-        className="e-ghost"
-        aria-haspopup="menu"
-        aria-expanded={menu}
-        onClick={() => toggle.run()}
+      <Menu.Root
+        modal={false}
+        open={menu}
+        onOpenChange={(next) => set.run({ input: { menu: "list", open: next } })}
       >
-        {shown === "open" ? "Open" : "Done"}
-        <svg className="e-icon" viewBox="0 0 24 24" aria-hidden="true">
-          <path d="m6 9 6 6 6-6" />
-        </svg>
-      </button>
-      {menu ? (
-        <div className="e-menu" role="menu" aria-label="Lists">
-          {(["open", "done"] as const).map((list) => (
-            <button
-              key={list}
-              type="button"
-              role="menuitemradio"
-              aria-checked={shown === list}
-              onClick={() => pick.run({ input: list })}
-            >
-              <span>{list === "open" ? "Open" : "Done"}</span>
-              <span className="e-menu-n">{list === "open" ? open : done}</span>
-            </button>
-          ))}
-        </div>
-      ) : null}
+        <Menu.Trigger className="e-ghost">
+          {shown === "open" ? "Open" : "Done"}
+          <svg className="e-icon" viewBox="0 0 24 24" aria-hidden="true">
+            <path d="m6 9 6 6 6-6" />
+          </svg>
+        </Menu.Trigger>
+        <Menu.Portal>
+          <Menu.Positioner className="e-menu-pos" align="end" sideOffset={4}>
+            <Menu.Popup className="e-menu" aria-label="Lists">
+              <Menu.RadioGroup value={shown}>
+                {(["open", "done"] as const).map((list) => (
+                  <Menu.RadioItem key={list} value={list} onClick={() => pick.run({ input: list })}>
+                    <span>{list === "open" ? "Open" : "Done"}</span>
+                    <span className="e-menu-n">{list === "open" ? open : done}</span>
+                  </Menu.RadioItem>
+                ))}
+              </Menu.RadioGroup>
+            </Menu.Popup>
+          </Menu.Positioner>
+        </Menu.Portal>
+      </Menu.Root>
     </div>
+  );
+}
+
+function CloseList() {
+  const close = useRun(closeCard);
+
+  return (
+    <button
+      type="button"
+      className="e-close"
+      aria-label="Close requests"
+      title="Close"
+      onClick={() => close.run()}
+    >
+      <svg width="14" height="14" viewBox="0 0 14 14" aria-hidden="true">
+        <path
+          d="M3.5 3.5l7 7M10.5 3.5l-7 7"
+          stroke="currentColor"
+          strokeWidth="1.5"
+          strokeLinecap="round"
+        />
+      </svg>
+    </button>
   );
 }
 
@@ -289,6 +310,7 @@ export function Panel({ canvas, onOpen }: { canvas: string; onOpen: (v: RequestV
         <h2>Requests</h2>
         {waits ? <Count n={waits} /> : null}
         <ListMenu open={views.length - done} done={done} />
+        <CloseList />
       </header>
       <div className="e-panel-body">
         <Lists views={views} canvas={canvas} onOpen={onOpen} />

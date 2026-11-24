@@ -22,8 +22,8 @@ import {
   pickPlace,
   requestMode,
   resendOnBack,
+  slashKey,
 } from "./draft";
-import { slashKey } from "./find";
 import { FindButton, FindList } from "./find-list";
 import {
   clockTicker,
@@ -35,7 +35,7 @@ import {
 } from "./follow";
 import type { RequestView } from "./follow";
 import { pageInAddress, pageList, shellBoxes, showRequest } from "./pages";
-import { PagesButton, PagesList } from "./pages-list";
+import { PagesButton } from "./pages-list";
 import { Panel, RequestsButton } from "./panel";
 import { FramePicture } from "./picture";
 import { Opened } from "./popover";
@@ -714,7 +714,7 @@ function Dock({ at, canvas, page }: { at: Stage; canvas: string; page: string })
       <span className="e-dock-sep" aria-hidden="true" />
       <button
         type="button"
-        className="e-dock-btn"
+        className="e-dock-btn e-dock-step"
         aria-label="Zoom out"
         title="Zoom out"
         onClick={() => at.zoomOut()}
@@ -724,7 +724,7 @@ function Dock({ at, canvas, page }: { at: Stage; canvas: string; page: string })
       <Zoom />
       <button
         type="button"
-        className="e-dock-btn"
+        className="e-dock-btn e-dock-step"
         aria-label="Zoom in"
         title="Zoom in"
         onClick={() => at.zoomIn()}
@@ -937,7 +937,6 @@ function CanvasPage({ canvas, page, opening }: CanvasProps & { page: string }) {
       </div>
       <Dock at={at} canvas={canvas} page={page} />
       <FindList canvas={canvas} page={page} list={list} />
-      <PagesList canvas={canvas} page={page} />
       <CardAt canvas={canvas} page={page} list={list} />
       <ControlsPanel list={list} />
     </main>

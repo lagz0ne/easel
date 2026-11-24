@@ -1,3 +1,4 @@
+import { Menu } from "@base-ui/react/menu";
 import { useData, useRun } from "@tinkered/react";
 
 import {
@@ -9,17 +10,17 @@ import {
   copyText,
   myName,
   openBox,
-  toggleMore,
   typeBox,
   typedName,
   typeName,
 } from "./act";
 import type { Act } from "./act";
 import { Compare } from "./compare";
-import { acting, backToList, closeCard, moreMenu } from "./draft";
+import { acting, backToList, closeCard } from "./draft";
 import type { ActBox as Box, Acting as Acts } from "./draft";
 import { seenWhileOpen } from "./follow";
 import type { Line, RequestView, Shown } from "./follow";
+import { openMenu, setMenu } from "./overlays";
 import { Age, Initial, OutdatedMark, Place, StateMark } from "./panel";
 
 const boxTexts = {
@@ -147,19 +148,32 @@ function Thread({ v, box }: { v: RequestView; box: Box | null }) {
   );
 }
 
-function CloseButton({ v, menu, always }: { v: RequestView; menu: boolean; always?: boolean }) {
+function CloseButton({ v, always }: { v: RequestView; always?: boolean }) {
   const run = useRun(actOn);
   const at = { canvas: v.r.canvas, n: v.r.n, now: v.shown };
 
   return (
     <button
       type="button"
-      role={menu ? "menuitem" : undefined}
-      className={menu ? "e-danger" : "e-ghost e-danger"}
+      className="e-ghost e-danger"
       onClick={() => run.run({ input: { ...at, act: { call: "close" } } })}
     >
       {always ? "Close request" : <CloseName author={v.r.author} />}
     </button>
+  );
+}
+
+function CloseItem({ v }: { v: RequestView }) {
+  const run = useRun(actOn);
+  const at = { canvas: v.r.canvas, n: v.r.n, now: v.shown };
+
+  return (
+    <Menu.Item
+      className="e-danger"
+      onClick={() => run.run({ input: { ...at, act: { call: "close" } } })}
+    >
+      <CloseName author={v.r.author} />
+    </Menu.Item>
   );
 }
 
@@ -226,7 +240,7 @@ function StartedActs({ v, here }: { v: RequestView; here: Acts }) {
       <button type="button" className="e-ghost" onClick={() => copy.run({ input: here.text })}>
         Copy text
       </button>
-      <CloseButton v={v} menu={false} />
+      <CloseButton v={v} />
     </div>
   );
 }
@@ -237,7 +251,7 @@ function BoxActs({ v, box, here }: { v: RequestView; box: Box; here: Acts }) {
   if (box === "clear") {
     return (
       <div className="e-acts">
-        <CloseButton v={v} menu={false} always />
+        <CloseButton v={v} always />
       </div>
     );
   }
@@ -387,7 +401,7 @@ function OutdatedActs({ v, here }: { v: RequestView; here: Acts }) {
     <>
       <Notice v={v} here={here} />
       <div className="e-acts">
-        <CloseButton v={v} menu={false} always />
+        <CloseButton v={v} always />
       </div>
     </>
   );
@@ -401,47 +415,43 @@ function MoreMenu({ v }: { v: RequestView }) {
   const correct = { canvas: r.canvas, n: r.n, box: "correct" as const, text: v.text, saw: v.shown };
 
   return (
-    <div className="e-menu" role="menu" aria-label="More">
+    <Menu.Popup className="e-menu e-menu-more" aria-label="More">
       {v.shown === "waiting" || working ? (
-        <button
-          type="button"
-          role="menuitem"
-          aria-disabled={working}
-          onClick={() => (working ? undefined : open.run({ input: correct }))}
-        >
+        <Menu.Item disabled={working} onClick={() => open.run({ input: correct })}>
           Correct the request
           {working ? <span className="e-menu-hint">Agent works</span> : null}
-        </button>
+        </Menu.Item>
       ) : null}
-      <button type="button" role="menuitem" onClick={() => copy.run({ input: r.n })}>
-        Copy link
-      </button>
-      {takeable.includes(v.shown) ? <CloseButton v={v} menu /> : null}
-    </div>
+      <Menu.Item onClick={() => copy.run({ input: r.n })}>Copy link</Menu.Item>
+      {takeable.includes(v.shown) ? <CloseItem v={v} /> : null}
+    </Menu.Popup>
   );
 }
 
 function More({ v }: { v: RequestView }) {
-  const open = useData(moreMenu);
-  const toggle = useRun(toggleMore);
+  const open = useData(openMenu, (m) => m === "more");
+  const set = useRun(setMenu);
 
   return (
     <div className="e-menu-at">
-      <button
-        type="button"
-        className="e-close"
-        aria-label="More"
-        aria-haspopup="menu"
-        aria-expanded={open}
-        onClick={() => toggle.run()}
+      <Menu.Root
+        modal={false}
+        open={open}
+        onOpenChange={(next) => set.run({ input: { menu: "more", open: next } })}
       >
-        <svg width="14" height="14" viewBox="0 0 14 14" aria-hidden="true">
-          <circle cx="3" cy="7" r="1.2" fill="currentColor" />
-          <circle cx="7" cy="7" r="1.2" fill="currentColor" />
-          <circle cx="11" cy="7" r="1.2" fill="currentColor" />
-        </svg>
-      </button>
-      {open ? <MoreMenu v={v} /> : null}
+        <Menu.Trigger className="e-close" aria-label="More">
+          <svg width="14" height="14" viewBox="0 0 14 14" aria-hidden="true">
+            <circle cx="3" cy="7" r="1.2" fill="currentColor" />
+            <circle cx="7" cy="7" r="1.2" fill="currentColor" />
+            <circle cx="11" cy="7" r="1.2" fill="currentColor" />
+          </svg>
+        </Menu.Trigger>
+        <Menu.Portal>
+          <Menu.Positioner className="e-menu-pos" align="end" sideOffset={4}>
+            <MoreMenu v={v} />
+          </Menu.Positioner>
+        </Menu.Portal>
+      </Menu.Root>
     </div>
   );
 }

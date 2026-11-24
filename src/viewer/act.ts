@@ -7,9 +7,10 @@ import { queue } from "@/queue";
 import { state } from "@/queue/contract";
 
 import type { Acting } from "./draft";
-import { actBox, acting, linkFault, moreMenu, nameFault, namePass, openRequest } from "./draft";
+import { actBox, acting, linkFault, nameFault, namePass, openRequest } from "./draft";
 import { panelOpen, shownStates } from "./follow";
 import { keptName } from "./gate";
+import { openMenu } from "./overlays";
 import { showRequest } from "./pages";
 
 export const act = z.discriminatedUnion("call", [
@@ -56,9 +57,9 @@ export const openBox = operation({
     text: z.string(),
     saw: z.enum(shownStates),
   }),
-  depends: { acts: acting.controller, more: moreMenu.controller },
-  run: ({ acts, more }, { input }) => {
-    more.set(false);
+  depends: { acts: acting.controller, menu: openMenu.controller },
+  run: ({ acts, menu }, { input }) => {
+    menu.set(null);
     acts.set({ ...input, step: "typing", why: "none" });
   },
 });
@@ -89,12 +90,6 @@ export const cancelBox = operation({
   run: ({ acts }) => acts.set(null),
 });
 
-export const toggleMore = operation({
-  label: "viewer.toggleMore",
-  depends: { more: moreMenu.controller },
-  run: ({ more }) => more.set(!more.get()),
-});
-
 export const typeName = operation({
   label: "viewer.typeName",
   input: z.string(),
@@ -113,9 +108,9 @@ export const requestHash = /^#request-(\d+)$/;
 export const copyLink = operation({
   label: "viewer.copyLink",
   input: z.number(),
-  depends: { more: moreMenu.controller, copyText },
-  run: ({ more, copyText }, { input: n }) => {
-    more.set(false);
+  depends: { menu: openMenu.controller, copyText },
+  run: ({ menu, copyText }, { input: n }) => {
+    menu.set(null);
     return copyText.run({ input: `${location.href.split("#")[0]}#request-${n}` });
   },
 });
@@ -291,8 +286,8 @@ const refusedWhy = operation({
 const showActAnswer = operation({
   label: "viewer.showActAnswer",
   input: z.object({ at: target, answer: z.union([saved, refusal]) }),
-  depends: { acts: acting.controller, more: moreMenu.controller, refusedWhy },
-  run: ({ acts, more, refusedWhy }, { input: { at, answer: a } }) => {
+  depends: { acts: acting.controller, menu: openMenu.controller, refusedWhy },
+  run: ({ acts, menu, refusedWhy }, { input: { at, answer: a } }) => {
     const here = acts.get();
     if (here === null || here.canvas !== at.canvas || here.n !== at.n) return a.kind;
     const refused = refusal.safeParse(a);
@@ -301,7 +296,7 @@ const showActAnswer = operation({
       return a.kind;
     }
 
-    more.set(false);
+    menu.set(null);
     acts.set(null);
     return a.kind;
   },

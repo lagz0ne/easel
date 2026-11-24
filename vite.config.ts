@@ -39,6 +39,7 @@ export default defineConfig({
         resolve: { alias },
         optimizeDeps: {
           include: [
+            "@base-ui/react/menu",
             "@tinkered/cli/test",
             "@tinkered/core",
             "@tinkered/core/testing",

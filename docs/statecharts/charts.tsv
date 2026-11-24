@@ -49,3 +49,5 @@ design-change	models/pieces/DesignChange.tla	models/pieces/DesignChange.cfg	mode
 design-change-unchecked	models/pieces/DesignChange.tla	models/pieces/DesignChangeUnchecked.cfg	models/pieces/DesignChange.view.mjs	breaks
 board-switch	models/pieces/BoardSwitch.tla	models/pieces/BoardSwitch.cfg	models/pieces/BoardSwitch.view.mjs	holds
 board-switch-board-only	models/pieces/BoardSwitch.tla	models/pieces/BoardSwitchBoardOnly.cfg	models/pieces/BoardSwitch.view.mjs	breaks
+viewer-overlays	models/viewer/ViewerOverlays.tla	models/viewer/ViewerOverlays.cfg	models/viewer/ViewerOverlays.view.mjs	holds
+viewer-overlays-today	models/viewer/ViewerOverlays.tla	models/viewer/ViewerOverlaysToday.cfg	models/viewer/ViewerOverlays.view.mjs	breaks

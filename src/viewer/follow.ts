@@ -6,6 +6,8 @@ import { message, request } from "@/queue/cells";
 import type { Message, Request } from "@/queue/cells";
 import { maxTries, stateOf } from "@/queue/contract";
 
+import { openMenu } from "./overlays";
+
 const canvasOf = tag<string>({ label: "viewer.followCanvas" });
 
 export const shownStates = [
@@ -762,20 +764,12 @@ export const controlsFor = data<string | null>({ label: "viewer.controlsFor", in
 
 export const panelList = data<"open" | "done">({ label: "viewer.panelList", initial: "open" });
 
-export const listMenu = data({ label: "viewer.listMenu", initial: false });
-
-export const toggleListMenu = operation({
-  label: "viewer.toggleListMenu",
-  depends: { menu: listMenu.controller },
-  run: ({ menu }) => menu.set(!menu.get()),
-});
-
 export const pickList = operation({
   label: "viewer.pickList",
   input: z.enum(["open", "done"]),
-  depends: { list: panelList.controller, menu: listMenu.controller },
+  depends: { list: panelList.controller, menu: openMenu.controller },
   run: ({ list, menu }, { input }) => {
     list.set(input);
-    menu.set(false);
+    menu.set(null);
   },
 });
