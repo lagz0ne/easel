@@ -272,10 +272,41 @@ const broken = operation({
   },
 });
 
-test("a failed call sends one error log line with its trace id; a call that ends well sends no line of its own", async () => {
+const step = operation({ label: "test.step", run: () => 2 });
+
+const outer = operation({
+  label: "test.outer",
+  depends: { step },
+  run: ({ step }) => step.run() + 1,
+});
+
+test("each call that ends well sends one info line with its trace id, span id, time and outcome; its steps send none", async () => {
   const at = await server();
 
-  at.live.run(last);
+  at.live.run(outer);
+  await at.wait(2000);
+
+  const call = at.spans().find((span) => span.name === "test.outer");
+  expect(at.spans().map((span) => span.name)).toContain("test.step");
+  expect(at.logs()).toEqual([
+    {
+      timeUnixNano: expect.stringMatching(/^\d+$/),
+      severityNumber: 9,
+      severityText: "INFO",
+      body: { stringValue: "test.outer" },
+      traceId: call?.traceId,
+      spanId: call?.spanId,
+      attributes: [
+        { key: "ms", value: { stringValue: "0" } },
+        { key: "outcome", value: { stringValue: '"ok"' } },
+      ],
+    },
+  ]);
+});
+
+test("a failed call sends one error line with its trace id, and no info line", async () => {
+  const at = await server();
+
   await Promise.resolve()
     .then(() => at.live.run(broken))
     .catch(() => undefined);
@@ -340,4 +371,54 @@ test("an uncaught error of the tab becomes an error log line of the tab", async 
       attributes: { name: '"Error"', message: '"load failed"' },
     }),
   ]);
+});
+
+test("thread: the worker sends the info line of each call and the error line of each failed call, with their trace ids", async () => {
+  const bodies: { path: string; body: string }[] = [];
+  const store = Bun.serve({
+    port: 0,
+    fetch: async (request) => {
+      bodies.push({ path: new URL(request.url).pathname, body: await request.text() });
+      return new Response(null, { status: 200 });
+    },
+  });
+  onTestFinished(async () => {
+    await store.stop();
+  });
+  const scope = createScope({
+    capsules: [
+      exits({ file: process.env.TINKER_EXITS }),
+      telemetry.thread({
+        service: "easel-thread-test",
+        tracesUrl: new URL(`${store.url}v1/traces`),
+        logsUrl: new URL(`${store.url}v1/logs`),
+        console: null,
+        worker: new URL("../cmds/telemetry-worker.ts", import.meta.url),
+      }),
+    ],
+  });
+  const live = await scope.ready;
+
+  live.run(outer);
+  await Promise.resolve()
+    .then(() => live.run(broken))
+    .catch(() => undefined);
+  await scope.close();
+
+  const spans = bodies
+    .filter((post) => post.path === "/v1/traces")
+    .flatMap((post): SpanGroup[] => JSON.parse(post.body).resourceSpans)
+    .flatMap((group) => group.scopeSpans.flatMap((one) => one.spans));
+  const logs = bodies
+    .filter((post) => post.path === "/v1/logs")
+    .flatMap((post): LogGroup[] => JSON.parse(post.body).resourceLogs)
+    .flatMap((group) => group.scopeLogs.flatMap((one) => one.logRecords));
+  const traceOf = (name: string) => spans.find((span) => span.name === name)?.traceId;
+  expect(logs.map((line) => [line.severityNumber, line.body.stringValue, line.traceId])).toEqual(
+    expect.arrayContaining([
+      [9, "test.outer", traceOf("test.outer")],
+      [17, "test.broken", traceOf("test.broken")],
+    ]),
+  );
+  expect(logs.filter((line) => line.body.stringValue === "test.step")).toEqual([]);
 });

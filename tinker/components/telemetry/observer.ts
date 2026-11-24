@@ -3,7 +3,7 @@ import type { Capsule, Observe } from "@tinkered/core";
 
 import { logConsole } from "./console";
 import { queue } from "./queue";
-import { encodeValue, quiet, spanBody } from "./records";
+import { encodeValue, interactionLine, quiet, spanBody } from "./records";
 import type { Telemetry } from "./records";
 import { logLevel, spanHistory, tabErrorSource, telemetryService, telemetrySide } from "./settings";
 
@@ -58,9 +58,10 @@ export const observer = resource({
     show: logConsole,
     encodeValue,
     spanBody,
+    interactionLine,
   },
   factory: (
-    { queue, service, side, level, history, show, encodeValue, spanBody },
+    { queue, service, side, level, history, show, encodeValue, spanBody, interactionLine },
     ctx,
   ): Observe.Config => ({
     history,
@@ -80,6 +81,13 @@ export const observer = resource({
       };
       if (side === "browser") show?.info(record);
       else queue.writeConsole(record);
+
+      const entry = span.parentId === undefined;
+      const line = interactionLine.run({
+        input: { span, entry: entry && side !== "browser", encoded: false, service, side },
+        ns: quiet,
+      });
+      if (line) queue.addLog(side, line);
 
       queue.publishQueued();
     },

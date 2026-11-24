@@ -193,8 +193,11 @@ A kind with no endpoint is not sent. The `VICTORIA_*` variables have no use now.
    trace of the tab span.
 4. A log line carries the trace id and the span id of the span that was open when it was written.
    An uncaught error of the tab is a log line `tab error` at level error.
-5. The `core.span` line of each span goes to stdout only. Tinker writes one error line for each
-   failed operation, so the logs have each failure once.
+5. Each interaction on the server (a root operation span: an rpc call, a watch, a route, a push)
+   gives one log line at level info: its name, `ms`, `outcome` and, when it has one, `exit` (the
+   answer kind). Tinker writes one error line for each failed operation, so a failed interaction
+   has that error line and no info line. A step inside an interaction gives no line. The
+   `core.span` line of each span goes to stdout only.
 6. A batch that the store refuses is dropped and counted in `dropped`. It does not stop the next
    batch, of the same kind or of the other kind.
 7. Before a record leaves the server, a redaction step changes its text. It removes the value of

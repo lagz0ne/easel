@@ -302,14 +302,15 @@ export const threadObserver = resource({
       level,
       export(span: Observe.Span) {
         const time = ctx.clock.currentTimeMillis();
+        const entry = span.parentId === undefined ? 1 : 0;
         if (owned.plainSpan(span)) {
           try {
-            thread.write(JSON.stringify(owned.spanLine(span, time, false)));
+            thread.write(JSON.stringify(owned.spanLine(span, time, false, entry)));
             return;
           } catch {}
         }
 
-        thread.write(JSON.stringify(owned.spanLine(span, time, true)));
+        thread.write(JSON.stringify(owned.spanLine(span, time, true, entry)));
       },
       log(entry: Observe.Log) {
         if (owned.plain(entry.attributes)) {
@@ -341,7 +342,7 @@ export const threadObserver = resource({
         for (const key in values) encoded[key] = encodeValue.run({ input: values[key], ns: quiet });
         return encoded;
       },
-      spanLine(span: Observe.Span, time: number, encoded: boolean): Telemetry.Wire {
+      spanLine(span: Observe.Span, time: number, encoded: boolean, entry: 0 | 1): Telemetry.Wire {
         return [
           "s",
           side,
@@ -359,6 +360,7 @@ export const threadObserver = resource({
           span.status === "failed" ? String(span.error) : null,
           encoded ? owned.encodeAll(span.attributes) : span.attributes,
           encoded ? span.events.map((event) => owned.encodedEvent(event)) : span.events,
+          entry,
         ];
       },
       encodedEvent(event: Observe.Event): Observe.Event {

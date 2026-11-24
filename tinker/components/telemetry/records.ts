@@ -1,4 +1,4 @@
-import { namespace, operation } from "@tinkered/core";
+import { LEVELS, namespace, operation } from "@tinkered/core";
 import type { Observe } from "@tinkered/core";
 import { z } from "zod";
 
@@ -59,6 +59,7 @@ export declare namespace Telemetry {
         error: string | null,
         attributes: { [key: string]: unknown },
         events: Observe.Event[],
+        entry: 0 | 1,
       ]
     | [
         tag: "l",
@@ -242,6 +243,43 @@ export const redactSpan = operation({
         span.status.message === undefined
           ? span.status
           : { ...span.status, message: redactText.run({ input: span.status.message }) },
+    };
+  },
+});
+
+export const interactionLine = operation({
+  label: "telemetry.interactionLine",
+  depends: { encodeValue },
+  input: z.custom<{
+    span: Telemetry.SpanFields;
+    entry: boolean;
+    encoded: boolean;
+    service: string;
+    side: Telemetry.Side;
+  }>(),
+  run: ({ encodeValue }, ctx): Telemetry.Log | undefined => {
+    const { span, entry, encoded, service, side } = ctx.input;
+    if (!entry || span.kind !== "operation" || span.status === "failed") return undefined;
+
+    const end = span.end ?? span.start;
+    const exit = span.attributes["tinker.exit"];
+    return {
+      level: LEVELS.info,
+      time: Math.trunc(end),
+      service,
+      side,
+      traceId: span.traceId,
+      spanId: span.spanId,
+      attributes: {
+        ms: encodeValue.run({ input: Math.round(end - span.start) }),
+        outcome: encodeValue.run({ input: "ok" }),
+        ...(exit === undefined
+          ? {}
+          : {
+              exit: encoded && typeof exit === "string" ? exit : encodeValue.run({ input: exit }),
+            }),
+      },
+      msg: span.name.slice(0, 2048),
     };
   },
 });

@@ -2,7 +2,7 @@ import { LEVELS, resource } from "@tinkered/core";
 
 import { exportHealth } from "./health";
 import { queue } from "./queue";
-import { encodeValue, quiet, spanBody } from "./records";
+import { encodeValue, interactionLine, quiet, spanBody } from "./records";
 import type { Telemetry } from "./records";
 import { telemetryService } from "./settings";
 
@@ -17,8 +17,9 @@ export const threadDrain = resource({
     health: exportHealth.controller,
     encodeValue,
     spanBody,
+    interactionLine,
   },
-  factory: ({ queue, service, health, encodeValue, spanBody }, ctx) => {
+  factory: ({ queue, service, health, encodeValue, spanBody, interactionLine }, ctx) => {
     let bad = 0;
     let changes = 0;
     let reported = -1;
@@ -67,7 +68,7 @@ export const threadDrain = resource({
       },
       span(wire: SpanLine) {
         const [, side, time, encoded, traceId, spanId, parentSpanId, sampled, name, kind] = wire;
-        const [, , , , , , , , , , start, end, status, error, attributes, events] = wire;
+        const [, , , , , , , , , , start, end, status, error, attributes, events, entry] = wire;
         const span: Telemetry.SpanFields = {
           traceId,
           spanId,
@@ -96,6 +97,11 @@ export const threadDrain = resource({
         };
         queue.writeConsole(record);
 
+        const line = interactionLine.run({
+          input: { span, entry: entry === 1, encoded: encoded === 1, service, side },
+          ns: quiet,
+        });
+        if (line) queue.addLog(side, line);
         queue.publishQueued();
       },
       log(wire: LogLine) {
