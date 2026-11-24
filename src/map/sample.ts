@@ -5,6 +5,7 @@ export const jsonSchema = z
   .object({
     const: z.unknown().optional(),
     enum: z.array(z.unknown()).optional(),
+    examples: z.array(z.unknown()).optional(),
     type: z.union([z.string(), z.array(z.string())]).optional(),
     pattern: z.string().optional(),
     minLength: z.number().optional(),
@@ -24,6 +25,7 @@ export const sampler = resource({
   factory: () => {
     const atom = /^(\\.|\[(?:\\.|[^\]])*\]|\(\?:|\(|\)|\||[^?*+{])(?:\{(\d+)(?:,\d*)?\}|([?*+]))?/;
     const firstInClass = /^\[\^?(\\.|.)/;
+    const listKeys = ["enum", "examples"] as const;
     const counts: Readonly<Record<string, number>> = { "": 1, "?": 0, "*": 0, "+": 1 };
     const letters: Readonly<Record<string, string>> = {
       "\\d": "0",
@@ -51,9 +53,16 @@ export const sampler = resource({
         return text;
       },
 
+      listedOf: (node: JsonSchema): { value: unknown } | null => {
+        const list = listKeys.map((key) => node[key] ?? []).find((each) => each.length > 0);
+        return list ? { value: list[0] } : null;
+      },
+
       fixedOf: (node: JsonSchema): { value: unknown } | null => {
         if ("const" in node) return { value: node.const };
-        if (node.enum?.length) return { value: node.enum[0] };
+
+        const listed = sampler.listedOf(node);
+        if (listed) return listed;
 
         const first = node.anyOf?.[0] ?? node.oneOf?.[0];
         return first === undefined ? null : { value: sampler.sampleOf(first) };

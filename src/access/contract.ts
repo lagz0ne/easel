@@ -62,7 +62,12 @@ export const openPath = "/open";
 
 const granted = z.object({ kind: z.literal("granted"), user });
 const taken = z.object({ kind: z.literal("taken") });
-const slow = z.object({ kind: z.literal("slow"), retryIn: z.number() });
+
+const slow = z.object({
+  kind: z.literal("slow"),
+  retryIn: z.number().meta({ examples: [30_000] }),
+});
+
 const gone = z.object({ kind: z.literal("gone") });
 const denied = z.object({ kind: z.literal("denied") });
 const single = z.object({ kind: z.literal("single") });
@@ -110,9 +115,9 @@ export const browserContracts = {
     output: z.discriminatedUnion("kind", [
       z.object({
         kind: z.literal("pending"),
-        code: z.string(),
+        code: z.string().meta({ examples: ["KDWB-RTQM"] }),
         request,
-        expiresAt: z.number(),
+        expiresAt: z.number().meta({ examples: [1795514700000] }),
       }),
       z.object({ kind: z.literal("name") }),
       slow,

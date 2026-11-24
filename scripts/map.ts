@@ -31,8 +31,15 @@ type Module = Readonly<Record<string, unknown>>;
 
 type Cell = { file: string; name: string; value: Data.Cell<unknown>; module: Module };
 
+type Offered = {
+  unit: unknown;
+  name: string;
+  file: string;
+  reads: ViewState["actions"][number]["reads"];
+};
+
 type Offers =
-  | { kind: "view"; states: Array<{ state: string; actions: unknown[] }> }
+  | { kind: "view"; states: Array<{ state: string; actions: Offered[] }> }
   | { kind: "all"; actions: unknown[] };
 
 function fieldOf(value: unknown, key: string): unknown {
@@ -136,12 +143,14 @@ async function contractsFrom(files: readonly string[]) {
 }
 
 async function actionsOf(file: string, state: ViewState, files: Set<string>) {
-  const actions: unknown[] = [];
+  const actions: Offered[] = [];
   for (const action of state.actions) {
     const from = resolveFrom(file, action.from);
     const unit = from ? (await load(from))[action.name] : undefined;
     if (from) files.add(from);
-    if (unit !== undefined) actions.push(unit);
+    if (from && unit !== undefined) {
+      actions.push({ unit, name: action.name, file: from, reads: action.reads });
+    }
   }
   return { state: state.state, actions };
 }
@@ -163,9 +172,35 @@ async function offersOf(
   return { view: view.file, files: [...files], offers: { kind: "view", states } };
 }
 
-async function mapOf(cell: Cell): Promise<MapJson> {
+export type Derived = {
+  map: MapJson;
+  cell: { file: string; name: string; value: Data.Cell<unknown> };
+  view: string | null;
+  contracts: Array<Record<string, unknown>>;
+  actions: Array<{ name: string; file: string; unit: unknown }>;
+};
+
+export async function deriveOf(label: string): Promise<Derived | null> {
+  const cell = await findCell(label);
+  if (!cell) return null;
+
   const { view, files, offers } = await offersOf(cell);
   const contracts = await contractsFrom(files);
+  const map = await mapOf(cell, view, offers, contracts);
+  const offered = offers.kind === "view" ? offers.states.flatMap((state) => state.actions) : [];
+  const actions = offered.filter(
+    (action, at) => offered.findIndex((other) => other.name === action.name) === at,
+  );
+  const { file, name, value } = cell;
+  return { map, cell: { file, name, value }, view, contracts, actions };
+}
+
+async function mapOf(
+  cell: Cell,
+  view: string | null,
+  offers: Offers,
+  contracts: Array<Record<string, unknown>>,
+): Promise<MapJson> {
   const scope = createScope();
   try {
     const found = await scope.run(deriveMap, { input: { cell: cell.value, offers, contracts } });
@@ -181,7 +216,8 @@ async function mapOf(cell: Cell): Promise<MapJson> {
       calls: found.calls,
       states: places.flatMap((place) => {
         const state = found.states.find((each) => each.state === place.state);
-        return state ? [{ ...place, sample: state.sample, actions: state.actions }] : [];
+        if (!state) return [];
+        return [{ ...place, sample: state.sample, actions: state.actions, run: state.run }];
       }),
       moves: found.moves.map(({ rank: _rank, ...move }) => move),
       stays: found.stays,
@@ -200,13 +236,13 @@ async function main(args: readonly string[]) {
     return 64;
   }
 
-  const cell = await findCell(label);
-  if (!cell) {
+  const derived = await deriveOf(label);
+  if (!derived) {
     process.stderr.write(`map: no cell ${label} in src/\n`);
     return 1;
   }
 
-  const map = await mapOf(cell);
+  const { map } = derived;
   const scope = createScope();
   const text = json ? JSON.stringify(map, null, 2) : scope.run(mapText, { input: map });
   await scope.close();
@@ -214,4 +250,4 @@ async function main(args: readonly string[]) {
   return 0;
 }
 
-process.exit(await main(process.argv.slice(2)));
+if (import.meta.main) process.exit(await main(process.argv.slice(2)));

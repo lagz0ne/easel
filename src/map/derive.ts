@@ -7,6 +7,8 @@ import { trials } from "./trial";
 import type { Answer, Choice, Trial } from "./trial";
 import { cellShape, unitReader } from "./units";
 import type { Action } from "./units";
+import { runStatuses } from "./units";
+import type { RunStatus } from "./units";
 
 export type Move = {
   from: string;
@@ -19,7 +21,11 @@ export type Move = {
 
 export type Stay = { state: string; action: string; answer: Answer | null; effects: string[] };
 
-type Known = { sample: unknown; actions: string[] };
+export type RunOf = { from: string; action: string; press: string; status: RunStatus };
+
+type Known = { sample: unknown; actions: string[]; run: RunOf | null };
+
+type Offered = { action: Action; press: string; reads: readonly RunStatus[] };
 
 type Book = {
   states: Map<string, Known>;
@@ -33,7 +39,14 @@ const unitList = z.array(z.unknown());
 const offers = z.discriminatedUnion("kind", [
   z.object({
     kind: z.literal("view"),
-    states: z.array(z.object({ state: z.string(), actions: unitList })),
+    states: z.array(
+      z.object({
+        state: z.string(),
+        actions: z.array(
+          z.object({ unit: z.unknown(), name: z.string(), reads: z.array(z.enum(runStatuses)) }),
+        ),
+      }),
+    ),
   }),
   z.object({ kind: z.literal("all"), actions: unitList }),
 ]);
@@ -50,6 +63,8 @@ export const mapBook = resource({
     );
     const kindShape = z.object({ kind: z.string() }).loose();
     const unranked = 0;
+    const runRank = 1000;
+    const pressed = "press";
 
     const book = {
       answersOf: (call: string, output: z.ZodType): Choice[] => {
@@ -73,16 +88,21 @@ export const mapBook = resource({
         return new Map(read.map(([call, { output }]) => [call, book.answersOf(call, output)]));
       },
 
-      actionsOf: (given: z.infer<typeof offers>, state: string, cell: unknown): Action[] => {
+      actionsOf: (given: z.infer<typeof offers>, state: string, cell: unknown): Offered[] => {
         const list =
           given.kind === "all"
-            ? given.actions
+            ? given.actions.map((unit) => ({ unit, name: units.labelOf(unit), reads: [] }))
             : (given.states.find((each) => each.state === state)?.actions ?? []);
-        return list.flatMap((unit) => units.actionOf(unit, cell) ?? []);
+        return list.flatMap(({ unit, name, reads }) => {
+          const action = units.actionOf(unit, cell);
+          return action ? [{ action, press: name, reads }] : [];
+        });
       },
 
       begin: (cell: Data.Cell<unknown>): Book => ({
-        states: new Map([[units.kindOf(cell.initial), { sample: cell.initial, actions: [] }]]),
+        states: new Map([
+          [units.kindOf(cell.initial), { sample: cell.initial, actions: [], run: null }],
+        ]),
         moves: new Map(),
         stays: new Map(),
         calls: new Map(),
@@ -102,7 +122,7 @@ export const mapBook = resource({
       ) => {
         for (const [at, change] of trial.changes.entries()) {
           if (!record.states.has(change.to)) {
-            record.states.set(change.to, { sample: change.value, actions: [] });
+            record.states.set(change.to, { sample: change.value, actions: [], run: null });
           }
 
           const answer = change.after?.answer ?? null;
@@ -113,6 +133,50 @@ export const mapBook = resource({
           const move = { from: change.from, to: change.to, action: action.label, answer, rank };
           record.moves.set(key, { ...move, effects: [...new Set([...before, ...effects])] });
         }
+      },
+
+      runOf: (offered: Offered, trial: Trial): RunStatus | null => {
+        const { action, reads } = offered;
+        if (action.run.kind !== pressed || trial.changes.length) return null;
+        const status = trial.outcome === "failed" ? "failed" : "done";
+        return trial.outcome !== null && reads.includes(status) ? status : null;
+      },
+
+      addRun: (
+        record: Book,
+        state: string,
+        order: number,
+        offered: Offered,
+        status: RunStatus,
+        said: { answer: Answer | null; effects: string[] },
+      ) => {
+        const { action, press } = offered;
+        const name = `${state} · ${action.label.split(".").at(-1) ?? action.label} ${status}`;
+        const from = record.states.get(state);
+        if (!record.states.has(name)) {
+          const run = { from: state, action: action.label, press, status };
+          record.states.set(name, { sample: from?.sample, actions: [], run });
+        }
+
+        const key = JSON.stringify([state, name, action.label, said.answer]);
+        const before = record.moves.get(key)?.effects ?? [];
+        const rank = [runRank, order, runStatuses.indexOf(status)];
+        const move = { from: state, to: name, action: action.label, answer: said.answer, rank };
+        record.moves.set(key, { ...move, effects: [...new Set([...before, ...said.effects])] });
+      },
+
+      addTrial: (record: Book, state: string, order: number, offered: Offered, trial: Trial) => {
+        const waits = offered.action.run.kind === pressed && trial.used.length > 0;
+        if (waits && offered.reads.includes("pending")) {
+          book.addRun(record, state, order, offered, "pending", { answer: null, effects: [] });
+        }
+
+        const status = book.runOf(offered, trial);
+        if (status === null) return false;
+
+        const answer = trial.used.at(-1)?.answer ?? null;
+        book.addRun(record, state, order, offered, status, { answer, effects: trial.effects });
+        return true;
       },
 
       addStay: (record: Book, state: string, action: Action, trial: Trial) => {
@@ -153,10 +217,12 @@ export const deriveMap = operation({
     const record = book.begin(cell);
 
     for (const [state, known] of record.states) {
-      const actions = book.actionsOf(input.offers, state, cell);
-      known.actions = actions.map((action) => action.label);
+      if (known.run) continue;
+      const offered = book.actionsOf(input.offers, state, cell);
+      known.actions = offered.map((each) => each.action.label);
 
-      for (const [order, action] of actions.entries()) {
+      for (const [order, each] of offered.entries()) {
+        const { action } = each;
         for (const call of action.calls) {
           record.calls.set(
             call,
@@ -169,7 +235,8 @@ export const deriveMap = operation({
           const trial = await trials.run(cell, { state, ...known }, action, answers, script);
           scripts.push(...trial.branches);
           book.addMoves(record, action, order, trial, answers);
-          book.addStay(record, state, action, trial);
+          const ran = book.addTrial(record, state, order, each, trial);
+          if (!ran) book.addStay(record, state, action, trial);
         }
       }
     }

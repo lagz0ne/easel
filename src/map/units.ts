@@ -2,6 +2,10 @@ import { resource } from "@tinkered/core";
 import type { Capsule, Data, Operation, Tag, transport } from "@tinkered/core";
 import { z } from "zod";
 
+export const runStatuses = ["pending", "failed", "done"] as const;
+
+export type RunStatus = (typeof runStatuses)[number];
+
 export type Remote = { call: transport.Call; watch: transport.Watch };
 
 export type Rpc = (config: { remote: Remote }) => Capsule.Installable;

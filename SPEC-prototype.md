@@ -181,6 +181,110 @@ issue that removes each:
    map, at the places of rule 11. `src/live/screens.ts` names the cells, not the steps.
 6. The maps of a canvas are in one list, with the first state and the count of states (J9).
 
+Built on 2026-11-24 (decisions 12 to 18 below). `bun scripts/map-screens.ts` puts each map of
+`src/live/screens.ts` on `product`; the job `screens` of `deploy.yml` runs it after the live
+screens. The map of `home.signInStep` now has 10 states:
+
+```
+                                step 0                          step 1                          step 2
+row 0                           name                            code                            in
+row 1                                                                                           denied
+row 2                                                                                           expired
+row 3                                                                                           code · copyApproveCommand done
+row 4                                                           slow
+row 5                                                           lost
+row 6                                                           name · askForCode pending
+row 7                                                           name · askForCode failed
+```
+
+The ship 1 stay "name, askForCode, browser.start fault link" is now the move to
+`name · askForCode failed`, and the stay "code, copyApproveCommand" is the move to
+`code · copyApproveCommand done`. Two stays are left: `browser.start name` from `name`, by
+`codeAtOnce` and by `askForCode`.
+
+#### The decisions of ship 2
+
+12. **A state of a run is a state of the screen.** The status of a press (`useRun`) is React
+    state, not a cell. But the person sees it: the sign-in shows `No answer. Try again.` when
+    `askForCode` fails. So the map has a **run state** `<state> · <action> <status>` when the view
+    reads that status:
+    - `.isPending` gives `pending`, `.error` or `.isError` gives `failed`, `.isSuccess` or `.data`
+      gives `done`. easel reads them with oxc, on the handle of the `useRun` (also a destructured
+      one), in the component of the hook, as it reads the `switch` (decision 4).
+    - A press that makes a call gives `pending`. A trial that changes no state gives `failed` when
+      the run throws, and `done` when it ends. Its move has the answer of the last call.
+    - A run state is a leaf: its moves are the moves of its first state, and the search runs no
+      action from it. Its moves rank after each answer of the contract, so it is never on the
+      main path.
+
+    Prior art: XState makes the error of an `invoke` a transition to a state, and
+    `@xstate/graph` counts it; Storybook has one story for each loading and error state; the
+    status of a React Query mutation is the model of `useRun`. Other ways: make the error a value
+    of the cell (it changes the product for the map), or leave it out (the map then hides a
+    screen that the person sees).
+
+13. **The pictures come from a page of their own, not from the server.** `cmds/map-show.html` is
+    built with `Bun.build` only by `scripts/map-screens.ts`, as Storybook builds
+    `storybook-static` apart from the app. It is never a route of the production server: the
+    server never runs the code of a team outside a sandbox (decision 2), the production bundle
+    and its checks stay the same, and the presets of `@tinkered/core/testing` stay out of it.
+    The job writes the module `map:units` for each map (the view, the cell, the actions, the plan
+    of each state), as Storybook writes the index of its stories. The page makes one scope:
+    - `preset(cell, sample)` of the state;
+    - each rpc capsule of the actions on the example backend of decision 8. The plan gives each
+      call its reply. A call with no reply waits, so a state stays as it is;
+    - each tag of the actions is a recorder that does nothing.
+
+    For a run state, the build marks each element that runs a press with `data-map-press` (oxc,
+    in this build only, as a test-id plugin of Babel does). The page fills each field of the form
+    with a sample of the input schema of the action and submits it, or clicks the element. Its
+    calls get the answer of the move (a fault for `failed`), or no answer (`pending`).
+    Each picture is 1024 × 768, light, with reduced motion, `en-US`, UTC, the clock of the page
+    fixed at 2026-11-24 10:00 UTC, and the caret hidden. The times on these screens come from the
+    samples.
+
+14. **A sample takes the example of the contract first.** A field with `examples` in its JSON
+    Schema (zod `.meta({ examples })`) gets the first example, as Prism and OpenAPI mocks do.
+    `browser.start` gives an example code, `expiresAt` and `retryIn`, so `code` shows
+    `KDWB-RTQM` and `slow` shows 30 s. An example is a part of the contract, not a fact beside it.
+15. **The map on the canvas: a section, one column for each step.** Each map has the page
+    `Map · <name>` and the section `<name>: the map of <cell>`. Each state is the image frame
+    `<name> · <state>`. The arrange tools of SPEC-arrange place them: the first state with
+    `--section`, the first state of each column `--after` the first state of the column before,
+    each other state `--below` the state above it. A column holds its states in the order of
+    their rows. A section column has no empty place (SPEC-arrange rule 6), so the canvas is the
+    form of a story map (Patton: the steps as the backbone, the details of each step under it, in
+    order). The fit criterion of J7 holds: the steps go from left to right, the main path is on
+    the top row, each other outcome is below it, and two runs give the same places. The text of
+    `bun scripts/map.ts` keeps the exact rows. Deferred to ship 4, with the arrows: a section
+    with empty places (as `grid-row` of CSS grid).
+16. **A second run changes only what changed.** The same pixels put nothing. Other pixels put a
+    new version of the same frame (`--id --base`). A frame of a state that the map does not have
+    now goes to the section `<name>: states that the map does not have now`; the job never
+    deletes a frame. When `easel layout` shows other columns, `easel move` puts each frame back by
+    its relation. Proven on a new local server: the second run put nothing and kept each id and
+    version; a frame moved by hand came back.
+17. **The moves are text under each picture, not arrows.** The viewer and SPEC-arrange have no
+    arrow. A strip under each picture has the state, then one line for each move out of it:
+    `askForCode · pending → code`, `askForCode · link fault → name · askForCode failed`,
+    `askForCode · approved → in (postForm)`. A run state says `the moves of <first state>`; a
+    state with no move says `no move: the end of the map`. The arrows come with the walk (ship 4),
+    where the viewer draws the moves of the shown state.
+18. **The list of maps (J9) is the frame `Maps` on the page `Live`.** It is an HTML frame with a
+    row for each map: its page, its cell, its first state and its count of states. Each map has
+    its own page, so the pages of the canvas list the maps too. The frame `Live · status` stays
+    the frame of the E11 job, so two writers never write one frame. The walk from the list in
+    one press comes with ship 4.
+
+The writer is `vibea-claude` (the `EASEL_TOKEN` of the E11 job). Ship 2 has no model: the job is a
+bounded run, and no person changes a state in it.
+
+The facts that a person adds by hand in ship 2, and what removes each:
+
+| Fact added by hand                                                                        | Removed by                                                   |
+| ----------------------------------------------------------------------------------------- | ------------------------------------------------------------ |
+| `src/live/screens.ts` `maps`: the name of the map, its cell, the exported view and props. | #58 names the view; the props become a fixture (SPEC-pieces) |
+
 ### Ship 3: the card (J11)
 
 7. Beside each row, a card from the code: the state, its actions, each answer of each action and
@@ -208,7 +312,7 @@ issue that removes each:
     designed frame. A new answer in the code is a finding, as a new exit with no test is a finding
     of `tinker check`. It replaces the model `flows-links`: no drawn link is left to break.
 
-## Contract (ship 1)
+## Contract (ship 1, ship 2)
 
 ```ts
 type Answer = { call: string; kind: string; fault: boolean }
@@ -217,7 +321,10 @@ type MapJson = {
   start: string
   view: string | null
   calls: { call: string; answers: string[] }[]
-  states: { state: string; column: number; row: number; sample: unknown; actions: string[] }[]
+  states: {
+    state: string; column: number; row: number; sample: unknown; actions: string[]
+    run: { from: string; action: string; press: string; status: "pending" | "failed" | "done" } | null
+  }[]
   moves: { from: string; to: string; action: string; answer: Answer | null; effects: string[] }[]
   stays: { state: string; action: string; answer: Answer | null; effects: string[] }[]
 }
@@ -226,6 +333,8 @@ type MapJson = {
 - `view` is the path of the view, or null when the search used the fallback of decision 4.
 - `answers` lists the answers in the order of the contract, then `link`.
 - `actions` of a state are in the order of the view.
+- `run` is null for a state of the cell. For a run state (decision 12) it names the first state,
+  the action, the import name of the press in the view, and the status.
 
 ## Models
 

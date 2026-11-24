@@ -41,3 +41,17 @@ export const notScreens: Readonly<Record<string, string>> = {
 export const livePage = { key: "live", name: "Live" } as const;
 
 export const statusName = "Live · status";
+
+export const maps = [
+  {
+    name: "sign-in",
+    cell: "home.signInStep",
+    view: { name: "SignIn", props: { site: { mode: "approve", project: null } } },
+  },
+] as const;
+
+export type MapEntry = (typeof maps)[number];
+
+export const mapShot = { width: 1024, height: 768, theme: "light" } as const;
+
+export const mapsName = "Maps";

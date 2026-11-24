@@ -1,6 +1,8 @@
 import { operation, resource } from "@tinkered/core";
 import { z } from "zod";
 
+import { runStatuses } from "./units";
+
 const answer = z.object({ call: z.string(), kind: z.string(), fault: z.boolean() }).nullable();
 
 type Said = { answer: z.infer<typeof answer>; effects: readonly string[] };
@@ -17,6 +19,14 @@ export const mapJson = z.object({
       row: z.number(),
       sample: z.unknown(),
       actions: z.array(z.string()),
+      run: z
+        .object({
+          from: z.string(),
+          action: z.string(),
+          press: z.string(),
+          status: z.enum(runStatuses),
+        })
+        .nullable(),
     }),
   ),
   moves: z.array(

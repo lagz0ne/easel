@@ -15,6 +15,7 @@ export type Trial = {
   branches: Choice[][];
   changes: Array<{ from: string; to: string; value: unknown; after: Choice | null }>;
   ended: boolean;
+  outcome: "done" | "failed" | null;
   parked: number;
   sleeping: number;
   now: string;
@@ -105,8 +106,10 @@ export const trials = resource({
         if (action.run.kind === "open") return scope.resolve(action.run.unit).watch(() => {});
 
         const input = action.run.unit.input ? noInput : undefined;
-        const end = () => void (record.ended = true);
-        Promise.resolve(scope.run(action.run.unit, { input })).then(end, end);
+        Promise.resolve(scope.run(action.run.unit, { input })).then(
+          () => Object.assign(record, { ended: true, outcome: "done" }),
+          () => Object.assign(record, { ended: true, outcome: "failed" }),
+        );
         return () => {};
       },
 
@@ -134,6 +137,7 @@ export const trials = resource({
           branches: [],
           changes: [],
           ended: false,
+          outcome: null,
           parked: 0,
           sleeping: 0,
           now: from.state,

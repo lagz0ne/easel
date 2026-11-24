@@ -94,6 +94,7 @@ link="$(easel share smoke 2>/dev/null)" || fail "easel share"
 "${AB[@]}" wait --fn 'document.querySelector("img.e-pic")?.complete && document.querySelector("img.e-pic").naturalWidth > 0' >/dev/null ||
   fail "the frame's shell never showed its picture"
 "${AB[@]}" click ".e-dock-zoom" >/dev/null || fail "no Zoom button"
+"${AB[@]}" wait --text "Zoom to fit" >/dev/null || fail "the Zoom menu never opened"
 "${AB[@]}" find text "Zoom to fit" click >/dev/null || fail "no Zoom to fit in the Zoom menu"
 "${AB[@]}" wait --fn 'document.querySelector("iframe[sandbox=\"allow-scripts\"]") !== null' >/dev/null ||
   fail "the frame's document never went live at rest"

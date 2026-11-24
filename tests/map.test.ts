@@ -10,7 +10,8 @@ import { placeMap } from "@/map/place";
 import { mapJson, mapText } from "@/map/text";
 import type { MapJson } from "@/map/text";
 import { answerOf, exampleCall, exampleWatch } from "@/map/trial";
-import { readView } from "@/map/view";
+import type { RunStatus } from "@/map/units";
+import { pressMarks, readView } from "@/map/view";
 
 const root = new URL("..", import.meta.url).pathname.replace(/\/$/, "");
 
@@ -27,6 +28,10 @@ async function scope() {
   }).ready;
   closers.push(() => app.close());
   return app;
+}
+
+function browserStart(kind: string) {
+  return { call: "browser.start", kind, fault: false };
 }
 
 async function mapOf(...args: string[]) {
@@ -117,9 +122,21 @@ test("the map of the sign-in has its 7 states, each in the place of the method",
     ["in", 2, 0],
     ["denied", 2, 1],
     ["expired", 2, 2],
-    ["slow", 1, 3],
-    ["lost", 1, 4],
+    ["code · copyApproveCommand done", 2, 3],
+    ["slow", 1, 4],
+    ["lost", 1, 5],
+    ["name · askForCode pending", 1, 6],
+    ["name · askForCode failed", 1, 7],
   ]);
+  expect(map.states.find((state) => state.state === "name · askForCode failed")).toEqual({
+    state: "name · askForCode failed",
+    column: 1,
+    row: 7,
+    sample: { kind: "name" },
+    actions: [],
+    run: { from: "name", action: "home.askForCode", press: "askForCode", status: "failed" },
+  });
+  expect(map.states.find((state) => state.state === "code")?.run).toBeNull();
   expect(map.states.find((state) => state.state === "name")?.actions).toEqual([
     "home.codeAtOnce",
     "home.askForCode",
@@ -144,12 +161,31 @@ test("the map of the sign-in has its 7 states, each in the place of the method",
     "name",
     "name",
   ]);
-  expect(map.stays).toContainEqual({
-    state: "code",
+  expect(map.moves).toContainEqual({
+    from: "name",
+    to: "name · askForCode failed",
+    action: "home.askForCode",
+    answer: { call: "browser.start", kind: "link", fault: true },
+    effects: [],
+  });
+  expect(map.moves).toContainEqual({
+    from: "name",
+    to: "name · askForCode pending",
+    action: "home.askForCode",
+    answer: null,
+    effects: [],
+  });
+  expect(map.moves).toContainEqual({
+    from: "code",
+    to: "code · copyApproveCommand done",
     action: "home.copyApproveCommand",
     answer: null,
     effects: ["home.writeClipboard"],
   });
+  expect(map.stays).toEqual([
+    { state: "name", action: "home.codeAtOnce", answer: browserStart("name"), effects: [] },
+    { state: "name", action: "home.askForCode", answer: browserStart("name"), effects: [] },
+  ]);
   expect(map.calls).toEqual([
     { call: "browser.start", answers: ["pending", "name", "slow", "link"] },
     { call: "browser.wait", answers: ["approved", "pending", "denied", "expired", "slow", "link"] },
@@ -159,18 +195,24 @@ test("the map of the sign-in has its 7 states, each in the place of the method",
 test("the map prints as text: the places, then each move, each stay and each call", async () => {
   const { code, out } = await mapOf("home.signInStep");
   expect(code).toBe(0);
-  expect(out.split("\n").slice(0, 9)).toEqual([
+  const wide = (text: string) => text.padEnd(32);
+  expect(out.split("\n").slice(0, 12)).toEqual([
     "map home.signInStep, start name, view src/home/home.tsx",
     "",
-    "         step 0   step 1   step 2",
-    "row 0    name     code     in",
-    "row 1                      denied",
-    "row 2                      expired",
-    "row 3             slow",
-    "row 4             lost",
+    ["", "step 0", "step 1", "step 2"].map(wide).join("").trimEnd(),
+    ["row 0", "name", "code", "in"].map(wide).join("").trimEnd(),
+    ["row 1", "", "", "denied"].map(wide).join("").trimEnd(),
+    ["row 2", "", "", "expired"].map(wide).join("").trimEnd(),
+    ["row 3", "", "", "code · copyApproveCommand done"].map(wide).join("").trimEnd(),
+    ["row 4", "", "slow"].map(wide).join("").trimEnd(),
+    ["row 5", "", "lost"].map(wide).join("").trimEnd(),
+    ["row 6", "", "name · askForCode pending"].map(wide).join("").trimEnd(),
+    ["row 7", "", "name · askForCode failed"].map(wide).join("").trimEnd(),
     "",
   ]);
-  expect(out).toContain("  name    -> lost     home.codeAtOnce, browser.start fault link\n");
+  expect(out).toMatch(
+    /\n {2}name +-> name · askForCode failed +home\.askForCode, browser\.start fault link\n/,
+  );
 });
 
 test("a label that no module of src/ has exits 1, and a wrong argument exits 64", async () => {
@@ -196,18 +238,102 @@ test("the view gives the actions of each state, in the order that it draws them"
       {
         state: "name",
         actions: [
-          { name: "codeAtOnce", from: "./signin", open: true },
-          { name: "askForCode", from: "./signin", open: false },
+          { name: "codeAtOnce", from: "./signin", open: true, reads: [] },
+          { name: "askForCode", from: "./signin", open: false, reads: ["pending", "failed"] },
         ],
       },
-      { state: "code", actions: [{ name: "copyApproveCommand", from: "./signin", open: false }] },
+      {
+        state: "code",
+        actions: [{ name: "copyApproveCommand", from: "./signin", open: false, reads: ["done"] }],
+      },
       ...["lost", "denied", "expired", "slow"].map((state) => ({
         state,
-        actions: [{ name: "askAgain", from: "./signin", open: false }],
+        actions: [{ name: "askAgain", from: "./signin", open: false, reads: [] }],
       })),
       { state: "in", actions: [] },
     ],
   });
+});
+
+test("a destructured run gives its reads, and a run that the view does not read gives none", async () => {
+  const app = await scope();
+  const source = `import { useData, useRun } from "@tinkered/react";
+import { go, stop, step } from "./step";
+function Go() {
+  const { run, isPending, data } = useRun(go);
+  const halt = useRun(stop);
+  return <button disabled={isPending} onClick={() => run()}>{data ? "Again" : "Go"}{halt.status}</button>;
+}
+export function Step() {
+  const now = useData(step);
+  switch (now.kind) {
+    case "idle":
+      return <Go />;
+  }
+}`;
+
+  expect(app.run(readView, { input: { file: "step.tsx", source, cell: "step" } })).toEqual({
+    kind: "found",
+    states: [
+      {
+        state: "idle",
+        actions: [
+          { name: "go", from: "./step", open: false, reads: ["pending", "done"] },
+          { name: "stop", from: "./step", open: false, reads: [] },
+        ],
+      },
+    ],
+  });
+});
+
+test("each press of the view gets a mark on the element that runs it, and no other change", async () => {
+  const app = await scope();
+  const file = join(root, "src/home/home.tsx");
+  const source = await Bun.file(file).text();
+
+  const marked = app.run(pressMarks, { input: { file, source } });
+  expect(marked).toContain('<form data-map-press="askForCode"\n        className="e-home-form"');
+  expect(marked).toContain('<button data-map-press="askForCode"\n        type="button"');
+  expect(marked).toContain('<button data-map-press="copyApproveCommand" type="button"');
+  expect(marked).toContain('<button data-map-press="askAgain" type="button"');
+  expect(marked.replaceAll(/ data-map-press="\w+"/g, "")).toBe(source);
+
+  const plain = "export function A() {\n  return <p>a</p>;\n}\n";
+  expect(app.run(pressMarks, { input: { file: "a.tsx", source: plain } })).toBe(plain);
+});
+
+test("a run of the view that fails, waits or ends with no move gives a state of its run", async () => {
+  const app = await scope();
+  const reads: RunStatus[] = ["pending", "failed"];
+  const offers = {
+    kind: "view" as const,
+    states: [{ state: "idle", actions: [{ unit: goWithTwo, name: "goWithTwo", reads }] }],
+  };
+
+  const found = await app.run(deriveMap, {
+    input: { cell: step, offers, contracts: [twoAnswers] },
+  });
+
+  expect(found.states.map((state) => [state.state, state.run])).toEqual([
+    ["idle", null],
+    ["done", null],
+    [
+      "idle · goWithTwo pending",
+      { from: "idle", action: "fixture.goWithTwo", press: "goWithTwo", status: "pending" },
+    ],
+    ["refused", null],
+    [
+      "idle · goWithTwo failed",
+      { from: "idle", action: "fixture.goWithTwo", press: "goWithTwo", status: "failed" },
+    ],
+  ]);
+  expect(found.stays).toEqual([]);
+  expect(found.moves.map((move) => [move.to, move.answer?.kind ?? null, move.rank])).toEqual([
+    ["done", "done", [0, 0]],
+    ["idle · goWithTwo pending", null, [1000, 0, 0]],
+    ["refused", "refused", [1, 0]],
+    ["idle · goWithTwo failed", "link", [1000, 0, 1]],
+  ]);
 });
 
 test("a view with no switch on the kind of the cell gives none", async () => {
@@ -277,6 +403,31 @@ test("a sample of an answer parses as its schema, with each pattern", async () =
   });
 });
 
+test("an example of the schema is the sample of its field, as Prism takes it", async () => {
+  const app = await scope();
+  const shown = {
+    "fixture.make": {
+      input: z.null(),
+      output: madeAnswers["fixture.make"].output.extend({
+        code: z
+          .string()
+          .regex(/^[BCDF]{4}-\d{2}$/)
+          .meta({ examples: ["DCBF-42"] }),
+      }),
+    },
+  };
+
+  const found = await app.run(deriveMap, {
+    input: { cell: made, offers: { kind: "all", actions: [goMade] }, contracts: [shown] },
+  });
+  expect(found.states[1]?.sample).toEqual({
+    kind: "made",
+    request: "0".repeat(32),
+    code: "DCBF-42",
+    n: 3,
+  });
+});
+
 test("the example backend gives each answer of its script, also each fault, and ends a watch", async () => {
   const faults = ["refused", "failed", "invalid", "encode", "decode", "missing", "link"] as const;
   const app = await createScope({
@@ -314,8 +465,15 @@ test("the text of a map with no view says that each action ran from each state",
     view: null,
     calls: [{ call: "fixture.go", answers: ["done", "link"] }],
     states: [
-      { state: "idle", column: 0, row: 0, sample: { kind: "idle" }, actions: ["fixture.go"] },
-      { state: "done", column: 1, row: 0, sample: { kind: "done" }, actions: [] },
+      {
+        state: "idle",
+        column: 0,
+        row: 0,
+        sample: { kind: "idle" },
+        actions: ["fixture.go"],
+        run: null,
+      },
+      { state: "done", column: 1, row: 0, sample: { kind: "done" }, actions: [], run: null },
     ],
     moves: [
       {
