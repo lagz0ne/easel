@@ -15,6 +15,6 @@
     "types": ["bun"],
     "paths": { "~/*": ["./tinker/*"], "@/*": ["./src/*"] }
   },
-  "include": ["src", "cmds", "tinker", "tests", "scripts"],
+  "include": ["src", "cmds", "tinker", "tests", "scripts", "services"],
   "exclude": ["tests/kit/frames"]
 }

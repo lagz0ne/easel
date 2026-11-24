@@ -75,10 +75,21 @@ Prior art:
    each message, it starts an agent in the easel workspace with `paseo run`, then acks the message.
    The prompt of the agent names the canvas and the number of the request, and tells it to claim
    the request with `easel next`. So the claim, the lease and the result stay in easel.
-   - The limit of agents at the same time is `max_ack_pending` of the consumer. A message over the
-     limit waits in the stream.
+   - The limit of agents at the same time is 2. The consumer has `max_ack_pending` 2, but the
+     adapter acks a message right after the start. So the adapter also asks Paseo for its running
+     agents (the label `easel-loop=design`), and fetches no message while 2 run. A message over
+     the limit waits in the stream.
+   - The limit of starts in a UTC day is 20. The adapter keeps the count in a state file. Over the
+     limit, it fetches no message until the next UTC day.
+   - The agent has the title `design <canvas>#<n>` and the label `easel-request=<canvas>:<n>`. If
+     an agent for the same request still runs, the adapter acks the message and starts no second
+     agent.
+   - If `paseo run` fails, the adapter naks the message with a delay of 60 s. A message that is
+     not a request gets a term and a log line.
    - A message that the adapter does not ack in time comes again (`ack_wait`). A request that no
      agent claims waits in easel, and its next waiting period publishes it again.
+   - The adapter is `services/paseo-adapter/` in the repository, and runs as the user unit
+     `easel-paseo-adapter.service` (its README has the unit and the environment).
 6. The agent changes the frame (a new version), or the code, or both. It resolves the request only
    when `/api/version` shows the build with the change.
 7. A change of the code that changes a screen writes its live screen again. The request says

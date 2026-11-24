@@ -831,8 +831,9 @@ images, and the proof (D9-8) comes last.
 
 ### D9-5: the Paseo adapter
 
-- [ ] A small Bun service in the repository: a durable pull consumer `paseo` (`max_ack_pending` 2) that starts an agent with `paseo run` in the easel workspace and acks; at most 20 agents in
+- [x] A small Bun service in the repository: a durable pull consumer `paseo` (`max_ack_pending` 2) that starts an agent with `paseo run` in the easel workspace and acks; at most 20 agents in
       a day; the prompt names the canvas and the number and says to claim with `easel next`.
+      (`services/paseo-adapter/`, tests in `tests/paseo-adapter.test.ts`.)
 - [ ] A hub request for its user unit, after hq-aob.
 
 **Dependencies:** D9-4, hq-aob. **Estimated scope:** M.

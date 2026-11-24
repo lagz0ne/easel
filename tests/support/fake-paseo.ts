@@ -1,0 +1,75 @@
+import { appendFileSync, existsSync, readFileSync, writeFileSync } from "node:fs";
+import { join } from "node:path";
+
+import { z } from "zod";
+
+const agent = z.object({
+  id: z.string(),
+  name: z.string(),
+  status: z.string(),
+  cwd: z.string(),
+  labels: z.record(z.string(), z.string()),
+});
+
+type Agent = z.infer<typeof agent>;
+
+const dir = process.env.FAKE_PASEO_DIR ?? "";
+const agentsFile = join(dir, "agents.json");
+const args = process.argv.slice(2);
+
+const agents = (): Agent[] =>
+  existsSync(agentsFile) ? z.array(agent).parse(JSON.parse(readFileSync(agentsFile, "utf8"))) : [];
+
+const valuesOf = (flag: string) =>
+  args.flatMap((arg, index) => (args[index - 1] === flag ? [arg] : []));
+
+const labelsOf = () =>
+  Object.fromEntries(
+    valuesOf("--label").map((label) => [
+      label.slice(0, label.indexOf("=")),
+      label.slice(label.indexOf("=") + 1),
+    ]),
+  );
+
+function list() {
+  const wanted = Object.entries(labelsOf());
+  const shown = agents()
+    .filter((one) => wanted.every(([key, value]) => one.labels[key] === value))
+    .map(({ id, name, status, cwd }) => ({ id, name, status, cwd }));
+  process.stdout.write(JSON.stringify(shown));
+}
+
+function run() {
+  if (existsSync(join(dir, "fail"))) {
+    process.stderr.write("Failed to create agent: the daemon is down\n");
+    process.exit(1);
+  }
+
+  const id = `agent-${agents().length + 1}`;
+  const title = valuesOf("--title")[0] ?? "";
+  const cwd = valuesOf("--cwd")[0] ?? "";
+  const made = { id, name: title, status: "running", cwd, labels: labelsOf() };
+  writeFileSync(agentsFile, JSON.stringify([...agents(), made]));
+  process.stdout.write(JSON.stringify({ agentId: id, status: "running", title, cwd }));
+}
+
+function workspaces() {
+  process.stdout.write(
+    JSON.stringify([
+      { workspaceId: "wks_other", cwd: "/elsewhere", isolation: "local", background: false },
+      {
+        workspaceId: "wks_easel",
+        cwd: process.env.FAKE_PASEO_WORKSPACE_DIR,
+        isolation: "local",
+        background: false,
+      },
+    ]),
+  );
+}
+
+appendFileSync(join(dir, "calls.jsonl"), `${JSON.stringify(args)}\n`);
+
+if (args[0] === "ls") list();
+else if (args[0] === "run") run();
+else if (args[0] === "workspace" && args[1] === "ls") workspaces();
+else process.exit(2);
