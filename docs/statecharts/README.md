@@ -30,6 +30,8 @@ Each chart's page has the chart, its rules in plain words, and what the model le
 | Chart                                                 | Module | What it shows                                                                                       |
 | ----------------------------------------------------- | ------ | --------------------------------------------------------------------------------------------------- |
 | [access-login](access-login.md)                       | access | Logging in: the setup code, a login code, approve, deny, revoke                                     |
+| [access-browser](access-browser.md)                   | access | A browser signs in: a code that an owner approves, a one-time link, a session that ends             |
+| [access-browser-two-step](access-browser-two-step.md) | access | Why a sign-in link is one write: a check then a write signs in two browsers                         |
 | [frames-writes](frames-writes.md)                     | frames | Two writers on one frame: the first write on a version wins, the other gets `stale`                 |
 | [frames-writes-two-step](frames-writes-two-step.md)   | frames | Why a save is one write: a check then a write saves on an old version                               |
 | [frames-pictures](frames-pictures.md)                 | frames | A frame's picture: rendered, current, old, and gone with its frame                                  |
@@ -80,10 +82,10 @@ Each chart's page has the chart, its rules in plain words, and what the model le
 | [board-switch-board-only](board-switch-board-only.md) | pieces | Why the address holds the frame values: else a reload loses them                                    |
 
 `queue-two-step`, `frames-writes-two-step`, `fixer-claim-unsafe`, `kit-look-unbound`,
-`kit-look-hello-once`, `kit-app-frame-no-close`, `kit-runtime-same-text`, `viewer-pages-old-page`, `viewer-overlays-today`, `design-change-unchecked` and `board-switch-board-only` break on purpose. Each shows the bug that a
+`kit-look-hello-once`, `kit-app-frame-no-close`, `kit-runtime-same-text`, `viewer-pages-old-page`, `viewer-overlays-today`, `design-change-unchecked`, `board-switch-board-only` and `access-browser-two-step` break on purpose. Each shows the bug that a
 design prevents: one write for a claim or a save, the fixer's two guards (the process-group stop
 and the check again before the push), a request that keeps its kit version, a piece script that
-says hello until it gets a port, a page that posts `close` before it removes an app frame, a put that compares the runtime too, a pick of a request that asks for the frame, not for an old page, a card with `Close` that stops above the dock on a phone, a `design.put` that checks the ready frames, and an address that holds the frame values. Its row in `charts.tsv` says `breaks`.
+says hello until it gets a port, a page that posts `close` before it removes an app frame, a put that compares the runtime too, a pick of a request that asks for the frame, not for an old page, a card with `Close` that stops above the dock on a phone, a `design.put` that checks the ready frames, an address that holds the frame values, and a sign-in link that one write checks and uses. Its row in `charts.tsv` says `breaks`.
 
 ## Files
 

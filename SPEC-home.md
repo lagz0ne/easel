@@ -92,6 +92,10 @@ that ends. So a TLA+ model and its chart come first (`access-browser`), with the
 - A sign-in link signs in at most one browser.
 - After a revoke, no browser of that user reads a canvas.
 
+The chart is [access-browser](docs/statecharts/access-browser.md). Its twin,
+[access-browser-two-step](docs/statecharts/access-browser-two-step.md), breaks on purpose: a link
+that one write checks and a second write uses signs in two browsers.
+
 ## Boundaries
 
 - Always: a session is a cookie that a script cannot read. The server keeps only its digest.
