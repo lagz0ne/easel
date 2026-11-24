@@ -7,6 +7,7 @@ export const composeKit = z.object({
   look: z.string(),
   css: z.string(),
   texts: z.record(z.string(), z.unknown()).optional(),
+  fixtures: z.record(z.string(), z.unknown()).optional(),
 });
 
 export const pieceScript = `<script>(()=>{let p=null;const s=(d)=>{if(!d||d.easel!=="kit"||typeof d.look!=="string"||typeof d.css!=="string")return;const l=document.getElementById("easel-look"),k=document.getElementById("easel-kit");if(l)l.textContent=d.look;if(k)k.textContent=d.css};const h=()=>{if(p)return;parent.postMessage({easel:"hello"},"*");setTimeout(h,50)};addEventListener("message",(e)=>{if(e.source!==parent||!e.ports[0])return;if(p)p.close();p=e.ports[0];p.onmessage=(m)=>s(m.data);s(e.data)});h()})()</script>`;
@@ -36,6 +37,7 @@ const scriptEnd = /<(\/script|!--)/gi;
 export const frameAxes = z.object({
   locale: z.string().optional(),
   config: z.record(z.string(), z.unknown()).optional(),
+  fixture: z.string().optional(),
 });
 
 export const composeApp = operation({
@@ -58,6 +60,7 @@ export const composeApp = operation({
     const map = JSON.stringify({ imports }).replaceAll("<", "\\u003c");
     const shown = JSON.stringify(axes ?? {}).replaceAll("<", "\\u003c");
     const texts = JSON.stringify(kit.texts ?? {}).replaceAll("<", "\\u003c");
+    const fixtures = JSON.stringify(kit.fixtures ?? {}).replaceAll("<", "\\u003c");
     const code = js.replace(scriptEnd, (_, end: string) =>
       end === "!--" ? "<\\!--" : "<\\/script",
     );
@@ -69,6 +72,7 @@ export const composeApp = operation({
       `<script type="importmap">${map}</script>\n` +
       `<script type="application/json" id="easel-axes">${shown}</script>\n` +
       `<script type="application/json" id="easel-texts">${texts}</script>\n` +
+      `<script type="application/json" id="easel-fixtures">${fixtures}</script>\n` +
       `<script type="module">\n${code}\n</script>\n`
     );
   },

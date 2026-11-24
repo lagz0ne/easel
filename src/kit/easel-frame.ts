@@ -3,6 +3,7 @@ import {
   createScope,
   type Data,
   type Operation,
+  parse,
   type Resource,
   type transport,
 } from "@tinkered/core";
@@ -64,7 +65,12 @@ export const framePanes = <const D extends FramePanes>(panes: D): D => panes;
 const axesShape = z.object({
   locale: z.enum(locales).default("en"),
   config: z.record(z.string(), z.unknown()).default({}),
+  fixture: z.string().optional(),
 });
+
+const fixturesShown = z.record(z.string(), z.record(z.string(), z.unknown()));
+
+export type FrameFixtures = Readonly<Record<string, Data.Cell<unknown>>>;
 
 const refusal = z.object({ kind: z.string(), payload: z.unknown() });
 
@@ -75,18 +81,26 @@ const kitPost = z.object({
   look: z.string(),
   css: z.string(),
   texts: teamShown.optional().catch(undefined),
+  fixtures: fixturesShown.optional().catch(undefined),
 });
 
 type FrameCapsule = Capsule.Installable &
   ((values: Record<string, unknown>) => Capsule.Installable);
 
 export type MountApp = (
-  | { View: ComponentType; frame?: undefined; part?: undefined; panes?: undefined }
+  | {
+      View: ComponentType;
+      frame?: undefined;
+      part?: undefined;
+      panes?: undefined;
+      fixtures?: undefined;
+    }
   | {
       View: Resource.Handle<ComponentType>;
       frame?: FrameCapsule;
       part?: FramePart;
       panes?: FramePanes;
+      fixtures?: FrameFixtures;
     }
 ) & { controls?: Readonly<Record<string, FrameControl>> };
 
@@ -108,7 +122,14 @@ const fieldOf = (unit: unknown, key: string): unknown =>
     ? Reflect.get(unit, key)
     : undefined;
 
-const offerOf = (frame: FrameCapsule | undefined) => {
+const fixtureNamesOf = (cells: FrameFixtures) => {
+  const named = document.getElementById("easel-fixtures")?.textContent;
+  const shown = fixturesShown.catch({}).parse(JSON.parse(named || "{}"));
+  const names = Object.values(cells).flatMap((cell) => Object.keys(shown[cell.label] ?? {}));
+  return [...new Set(names)];
+};
+
+const offerOf = (frame: FrameCapsule | undefined, cells: FrameFixtures) => {
   const config: Record<string, { values: unknown[]; default?: unknown; name?: string }> = {};
   const keys = z.record(z.string(), z.unknown()).catch({}).parse(fieldOf(frame, "config"));
   for (const [key, entry] of Object.entries(keys)) {
@@ -123,7 +144,8 @@ const offerOf = (frame: FrameCapsule | undefined) => {
       ? { values, default: fieldOf(tag, "def"), ...name }
       : { values, ...name };
   }
-  return { easel: "axes", locales: [...locales], config };
+  const fixtures = fixtureNamesOf(cells);
+  return { easel: "axes", locales: [...locales], config, fixtures };
 };
 
 const kindOfType = new Map([
@@ -176,11 +198,56 @@ const paneShape = z
   .pipe(z.object({ place: panePlace }));
 
 const axesNow = () => {
-  const told = document.getElementById("easel-axes")?.textContent;
-  const axes = axesShape.parse(JSON.parse(told || "{}"));
-  const given = document.getElementById("easel-texts")?.textContent;
-  const texts = teamShown.catch({}).parse(JSON.parse(given || "{}"));
-  return { ...axes, texts, css: document.getElementById("easel-kit")?.textContent ?? "" };
+  const [told, given, named] = ["easel-axes", "easel-texts", "easel-fixtures"].map((id) =>
+    JSON.parse(document.getElementById(id)?.textContent || "{}"),
+  );
+
+  const axes = axesShape.parse(told);
+  const texts = teamShown.catch({}).parse(given);
+  const fixtures = fixturesShown.catch({}).parse(named);
+  const css = document.getElementById("easel-kit")?.textContent ?? "";
+
+  return { ...axes, texts, fixtures, css };
+};
+
+const showKit = ({ look, css, texts, fixtures }: z.infer<typeof kitPost>) => {
+  const shown = [
+    ["easel-look", look],
+    ["easel-kit", css],
+    ["easel-texts", texts && JSON.stringify(texts)],
+    ["easel-fixtures", fixtures && JSON.stringify(fixtures)],
+  ] as const;
+  for (const [id, text] of shown) {
+    const place = document.getElementById(id);
+    if (place && text !== undefined) place.textContent = text;
+  }
+};
+
+const fixtureValue = (cell: Data.Cell<unknown>, name: string, raw: unknown) => {
+  try {
+    return cell.parse ? parse(cell.parse, raw) : raw;
+  } catch (error) {
+    const issues = fieldOf(error, "issues") ?? String(error);
+    throw Object.assign(new Error("FixtureInvalid"), {
+      kind: "FixtureInvalid",
+      payload: { cell: cell.label, fixture: name, issues },
+    });
+  }
+};
+
+const setFixtures = (
+  live: { controller: (cell: Data.Cell<unknown>) => { set: (value: unknown) => void } },
+  cells: FrameFixtures,
+  shown: { fixture?: string; fixtures: z.infer<typeof fixturesShown> },
+) => {
+  const name = shown.fixture;
+  if (name === undefined) return;
+
+  const found = Object.values(cells).flatMap((cell) => {
+    const raw = shown.fixtures[cell.label]?.[name];
+    return raw === undefined ? [] : [{ cell, raw }];
+  });
+  for (const { cell, raw } of found) live.controller(cell).set(fixtureValue(cell, name, raw));
 };
 
 const mountPane = (app: MountApp, place: PanePlace) => {
@@ -282,6 +349,7 @@ export const mount = (app: MountApp) => {
   let scope: Root = createScope();
   let steps = Promise.resolve();
   const controls = app.controls ?? {};
+  const fixtureCells = app.fixtures ?? {};
   const shownControls = controlsOf(controls);
   let watching: Array<() => void> = [];
   let started = false;
@@ -354,7 +422,7 @@ export const mount = (app: MountApp) => {
     const made: { scope: Root | null; live: boolean } = { scope: null, live: false };
     const shown = await Promise.resolve()
       .then(async () => {
-        const { css, texts, ...axes } = axesNow();
+        const { css, texts, fixtures, ...axes } = axesNow();
         const own = app.frame ? [app.frame(axes.config)] : [];
         const served = app.part
           ? [...app.part.serve(), portServer({ services: app.part.services })]
@@ -372,6 +440,7 @@ export const mount = (app: MountApp) => {
         made.scope = next;
 
         const live = await next.ready;
+        setFixtures(live, fixtureCells, { fixture: axes.fixture, fixtures });
         made.live = true;
         const children = createElement(typeof View === "function" ? View : live.resolve(View));
         return createElement(ScopeProvider, { scope: next, children });
@@ -397,13 +466,10 @@ export const mount = (app: MountApp) => {
       typeof data === "object" && data !== null ? Reflect.get(data, key) : undefined;
     const kit = kitPost.safeParse(data);
     if (kit.success) {
-      const { look, css, texts } = kit.data;
-      const [shown, made, said] = ["easel-look", "easel-kit", "easel-texts"].map((id) =>
-        document.getElementById(id),
-      );
-      if (shown) shown.textContent = look;
-      if (made) made.textContent = css;
-      if (said && texts) said.textContent = JSON.stringify(texts);
+      showKit(kit.data);
+      if (port && kit.data.fixtures && typeof app.View !== "function") {
+        port.postMessage(offerOf(app.frame, fixtureCells));
+      }
 
       steps = steps.then(draw);
     }
@@ -434,7 +500,7 @@ export const mount = (app: MountApp) => {
       });
       port.start();
 
-      if (typeof app.View !== "function") port.postMessage(offerOf(app.frame));
+      if (typeof app.View !== "function") port.postMessage(offerOf(app.frame, fixtureCells));
       if (shownControls.length) {
         port.postMessage({ easel: "controls", controls: shownControls });
         told();

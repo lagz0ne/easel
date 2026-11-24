@@ -104,6 +104,14 @@ cli.extendCall exits{value} reads{} writes{} calls{}
 cli.faultExit exits{value} reads{} writes{} calls{cli.faultOf,cli.refusal,cli.say}
 cli.faultOf exits{value} reads{} writes{} calls{}
 cli.fetchPicture exits{value} reads{} writes{} calls{}
+cli.fixtures exits{value} reads{} writes{} calls{cli.fixturesGet,cli.fixturesLs,cli.fixturesSet}
+cli.fixturesGet exits{value} reads{} writes{} calls{cli.fixturesRead,cli.say}
+cli.fixturesLs exits{value} reads{} writes{} calls{cli.fixturesRead,cli.fixturesTell,cli.lookExitOf,cli.say}
+cli.fixturesRead exits{value} reads{} writes{} calls{?,cli.lookDeadline,cli.lookFault}
+cli.fixturesReadSet exits{value} reads{} writes{} calls{cli.lookUsage,cli.readPatch}
+cli.fixturesSet exits{value} reads{} writes{} calls{?,cli.fixturesReadSet,cli.fixturesTellSet,cli.lookDeadline,cli.lookExitOf,cli.lookFault}
+cli.fixturesTell exits{value} reads{} writes{} calls{}
+cli.fixturesTellSet exits{value} reads{} writes{} calls{cli.say}
 cli.forget exits{value} reads{} writes{} calls{cli.hosts.save}
 cli.foundText exits{value} reads{} writes{} calls{cli.offKitText,cli.unsettledText}
 cli.frameCommand exits{value} reads{} writes{} calls{cli.explore,cli.get,cli.ls,cli.put,cli.ready,cli.rm,cli.shot}
@@ -130,6 +138,7 @@ cli.kitCapsules exits{value} reads{} writes{} calls{?,cli.kitCapsulesText,cli.lo
 cli.kitCapsulesText exits{value} reads{} writes{} calls{cli.kitExportText,cli.kitSchemaText}
 cli.kitCheck exits{value} reads{} writes{} calls{?,cli.kitTellCheck,cli.lookDeadline,cli.lookExitOf,cli.lookFault,cli.lookUsage,cli.readPatch}
 cli.kitExportText exits{value} reads{} writes{} calls{cli.kitSchemaText}
+cli.kitRun exits{value} reads{} writes{} calls{cli.fixtures,cli.look,cli.parts,cli.texts}
 cli.kitSchemaText exits{value} reads{} writes{} calls{}
 cli.kitTellCheck exits{value} reads{} writes{} calls{cli.say}
 cli.layout exits{value} reads{} writes{} calls{?,cli.framesDeadline,cli.framesExitOf,cli.framesFault,cli.layoutGoneText,cli.layoutLines,cli.say}
@@ -219,7 +228,7 @@ cli.requests exits{value} reads{} writes{} calls{?,cli.queueBadLine,cli.queueDea
 cli.resolveText exits{value} reads{} writes{} calls{}
 cli.revoke exits{value} reads{} writes{} calls{?,cli.deadline,cli.exitOf,cli.faultExit,cli.say}
 cli.rm exits{value} reads{} writes{} calls{?,cli.framesDeadline,cli.framesExitOf,cli.framesFault,cli.say}
-cli.run exits{value} reads{} writes{} calls{cli.canvasRun,cli.look,cli.mcp,cli.open,cli.parts,cli.shell,cli.texts,cli.workRun}
+cli.run exits{value} reads{} writes{} calls{cli.canvasRun,cli.kitRun,cli.mcp,cli.open,cli.shell,cli.workRun}
 cli.say exits{value} reads{} writes{} calls{}
 cli.sayPending exits{value} reads{} writes{} calls{cli.say}
 cli.section exits{value} reads{} writes{} calls{?,cli.framesDeadline,cli.framesExitOf,cli.framesFault,cli.framesUsage,cli.layoutFindings,cli.say,cli.sectionSent,cli.sectionText}
@@ -281,6 +290,9 @@ cli.writeFolder exits{value} reads{} writes{} calls{}
 cli.writtenOf exits{value} reads{} writes{} calls{}
 comment.add.do exits{added,gone} reads{issues.list.of} writes{issues.comments.set} calls{issues.inTeam}
 copy.textGaps exits{value} reads{} writes{} calls{texts.paramsOf}
+fixtures.change exits{merged,stale,tooBig} reads{} writes{} calls{kit.currentKit,kit.mergeFixtures}
+fixtures.list.do exits{found} reads{} writes{} calls{kit.currentKit}
+fixtures.set.do exits{stale,tooBig,unchanged,updated} reads{} writes{} calls{fixtures.change,kit.saveFixtures}
 frame.delete.do exits{deleted,gone} reads{} writes{} calls{?,frames.dropFrame}
 frame.explore.do exits{exploring,gone,unchanged} reads{} writes{} calls{frames.markFrame}
 frame.get.do exits{found,gone} reads{} writes{} calls{frames.readDoc,images.address}
@@ -462,6 +474,7 @@ kit.exportTold exits{value} reads{} writes{} calls{}
 kit.fillAt exits{value} reads{} writes{} calls{kit.designAt,kit.fillCopies}
 kit.fillCopies exits{value} reads{} writes{} calls{}
 kit.fillNow exits{value} reads{} writes{} calls{kit.designNow,kit.fillAt}
+kit.fixtureNames exits{value} reads{} writes{} calls{}
 kit.fontCss exits{value} reads{} writes{} calls{}
 kit.fontFaces exits{value} reads{} writes{} calls{}
 kit.fontRoute exits{value} reads{} writes{} calls{}
@@ -483,6 +496,7 @@ kit.mainsOf exits{value} reads{} writes{} calls{}
 kit.make exits{value} reads{} writes{} calls{}
 kit.makeApp exits{made,unparsed} reads{} writes{} calls{kit.appBundle,kit.checkApp,kit.make,kit.sources}
 kit.makeFrame exits{made,off} reads{} writes{} calls{kit.check,kit.make,kit.sources}
+kit.mergeFixtures exits{value} reads{} writes{} calls{}
 kit.mergeLook exits{value} reads{} writes{} calls{}
 kit.moduleFindings exits{value} reads{} writes{} calls{kit.importFindings,kit.shapeFindings,kit.stateFindings}
 kit.nearestColor exits{value} reads{} writes{} calls{kit.oklab}
@@ -518,6 +532,7 @@ kit.runtimeEntries exits{value} reads{} writes{} calls{}
 kit.runtimeNamesOf exits{value} reads{} writes{} calls{}
 kit.runtimeOf exits{value} reads{} writes{} calls{kit.easelRuntime}
 kit.runtimeRoute exits{value} reads{} writes{} calls{kit.storedFiles}
+kit.saveFixtures exits{stale,unchanged,updated} reads{} writes{} calls{kit.showNewest}
 kit.saveLook exits{stale,unchanged,updated} reads{} writes{} calls{kit.showNewest}
 kit.saveTexts exits{stale,unchanged,updated} reads{} writes{} calls{kit.showNewest,texts.json}
 kit.scan exits{value} reads{} writes{} calls{kit.sortElement}

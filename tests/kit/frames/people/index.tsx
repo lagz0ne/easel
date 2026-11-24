@@ -54,3 +54,5 @@ export const part = framePart({
 });
 
 export const panes = framePanes({ top: Toolbar, right: AddPanel });
+
+export const fixtures = { people };

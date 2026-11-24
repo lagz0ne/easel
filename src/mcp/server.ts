@@ -255,6 +255,8 @@ export const mcpCall = operation({
     "look.undo": kitApi["look.undo"],
     "texts.list": kitApi["texts.list"],
     "texts.set": kitApi["texts.set"],
+    "fixtures.list": kitApi["fixtures.list"],
+    "fixtures.set": kitApi["fixtures.set"],
     "texts.uses": wordsApi["texts.uses"],
     "parts.list": partsApi["parts.list"],
     "parts.publish": partsApi["parts.publish"],

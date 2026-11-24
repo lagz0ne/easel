@@ -31,12 +31,21 @@ const schemeDoc = (id: string) =>
 const plainDoc = (id: string) =>
   `<style>#t{color:#112233}</style><p id="t">${id}</p>${probeScript(id, colorRead)}`;
 
+const axesJs = (id: string, offer: string) =>
+  `const me=Math.random();let port=null;const hello=()=>{if(port)return;parent.postMessage({easel:"hello"},"*");setTimeout(hello,50)};addEventListener("message",(e)=>{if(e.source!==parent)return;if(e.ports[0]&&!port){port=e.ports[0];port.postMessage(${offer})}const d=e.data;if(d&&typeof d.probe==="number")parent.postMessage({probe:d.probe,id:${JSON.stringify(id)},me,color:document.getElementById("easel-axes").textContent},"*")});hello();`;
+
 const planJs = (id: string) =>
-  `const me=Math.random();let port=null;const hello=()=>{if(port)return;parent.postMessage({easel:"hello"},"*");setTimeout(hello,50)};addEventListener("message",(e)=>{if(e.source!==parent)return;if(e.ports[0]&&!port){port=e.ports[0];port.postMessage({easel:"axes",locales:[],config:{plan:{values:["free","pro"],default:"free",name:"billing.plan"}}})}const d=e.data;if(d&&typeof d.probe==="number")parent.postMessage({probe:d.probe,id:${JSON.stringify(id)},me,color:document.getElementById("easel-axes").textContent},"*")});hello();`;
+  axesJs(
+    id,
+    `{easel:"axes",locales:[],config:{plan:{values:["free","pro"],default:"free",name:"billing.plan"}}}`,
+  );
+
+const fixturesJs = (id: string) =>
+  axesJs(id, `{easel:"axes",locales:[],config:{},fixtures:["empty","many"]}`);
 
 const noRuntime = { address: "/api/runtime/1/none/", imports: {} };
 
-type Kind = "scheme" | "plain" | "plan";
+type Kind = "scheme" | "plain" | "plan" | "fixtures";
 
 type ServedDoc = {
   version: number;
@@ -57,9 +66,11 @@ const loadDocs = operation({
   },
 });
 
+const appJs = { plan: planJs, fixtures: fixturesJs };
+
 const docOfKind = (id: string, kind: Kind): ServedDoc =>
-  kind === "plan"
-    ? { version: 1, html: "", app: { js: planJs(id), kit: 1, runtime: noRuntime } }
+  kind === "plan" || kind === "fixtures"
+    ? { version: 1, html: "", app: { js: appJs[kind](id), kit: 1, runtime: noRuntime } }
     : { version: 1, html: kind === "scheme" ? schemeDoc(id) : plainDoc(id) };
 
 const put = operation({
@@ -67,7 +78,7 @@ const put = operation({
   input: z.object({
     id: z.string(),
     x: z.number(),
-    kind: z.enum(["scheme", "plain", "plan"]),
+    kind: z.enum(["scheme", "plain", "plan", "fixtures"]),
   }),
   depends: { cells: frameCells.controller, invalidate: framesBoard.invalidate },
   run: async ({ cells, invalidate }, { input: { id, x, kind } }) => {
@@ -311,6 +322,36 @@ test("X9 board-switch: a tag of the team in the config of an app frame gets its 
   expect(addressOf("billing.plan")).toBe("pro");
   expect(await frameStateOf("a", "billing.plan")).toEqual(["Use the board"]);
   expect(frameButton("a").element().hasAttribute("data-own")).toBe(false);
+});
+
+test("X10 board-switch: an app frame that names its fixtures gets the fixture switch, with initial first; a pick draws the frame again with the fixture in its axes", async () => {
+  address("");
+  const server = await boot([{ id: "a", x: 0, kind: "fixtures" }]);
+  const at = await tab(server);
+  await rested(at, 1);
+
+  await expect.element(statesButton()).toBeVisible();
+  expect(await colorOf("a")).toBe("{}");
+
+  await statesButton().click();
+  await expect
+    .poll(() =>
+      statesMenu()
+        .getByRole("menuitemradio")
+        .elements()
+        .map((item) => item.getAttribute("aria-label")),
+    )
+    .toEqual(["fixture initial", "fixture empty", "fixture many"]);
+  await statesMenu().getByRole("menuitemradio", { name: "fixture many" }).click();
+
+  await expect.poll(() => colorOf("a"), { timeout: 1000 }).toBe('{"fixture":"many","config":{}}');
+  expect(addressOf("fixture")).toBe("many");
+
+  await chooseFrameState("a", "fixture", "empty");
+  await expect.poll(() => colorOf("a")).toBe('{"fixture":"empty","config":{}}');
+
+  await chooseFrameState("a", "fixture", "initial");
+  await expect.poll(() => colorOf("a")).toBe("{}");
 });
 
 test("X7 X8 board-switch: a frame value wins over the board value; a link with the board value and a frame value opens each frame in that state", async () => {

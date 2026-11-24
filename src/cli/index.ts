@@ -5,6 +5,7 @@ import { code, name, sessionId } from "@/access/contract";
 import { build, fingerprint } from "@/ops/contract";
 
 import { channelCommand, channelRun } from "./channels";
+import { fixturesCommand, fixturesRun } from "./fixtures";
 import { framesCommand, framesRun, shareCommand, shareRun } from "./frames";
 import { entryOf, envToken, hostsPath, server } from "./hosts";
 import { login, waitLogin } from "./login";
@@ -85,15 +86,20 @@ const workCommand = z.discriminatedUnion("kind", [
   z.object({ kind: z.literal("starts"), act: startsCommand }),
 ]);
 
+const kitCommand = z.discriminatedUnion("kind", [
+  z.object({ kind: z.literal("look"), act: lookCommand }),
+  z.object({ kind: z.literal("texts"), act: textsCommand }),
+  z.object({ kind: z.literal("fixtures"), act: fixturesCommand }),
+  z.object({ kind: z.literal("parts"), act: partsCommand }),
+]);
+
 export const command = z.discriminatedUnion("kind", [
   ...shellCommand.options,
   z.object({ kind: z.literal("mcp") }),
   z.object({ kind: z.literal("open"), noBrowser: z.boolean() }),
   ...canvasCommand.options,
   ...workCommand.options,
-  z.object({ kind: z.literal("look"), act: lookCommand }),
-  z.object({ kind: z.literal("texts"), act: textsCommand }),
-  z.object({ kind: z.literal("parts"), act: partsCommand }),
+  ...kitCommand.options,
 ]);
 
 export type Command = z.infer<typeof command>;
@@ -198,20 +204,37 @@ const workRun = operation({
   },
 });
 
+const kitRun = operation({
+  label: "cli.kitRun",
+  input: kitCommand,
+  depends: { lookRun, textsRun, fixturesRun, partsRun },
+  run: (ops, { input }) => {
+    switch (input.kind) {
+      case "look":
+        return ops.lookRun.run({ input: input.act });
+      case "texts":
+        return ops.textsRun.run({ input: input.act });
+      case "fixtures":
+        return ops.fixturesRun.run({ input: input.act });
+      case "parts":
+        return ops.partsRun.run({ input: input.act });
+    }
+  },
+});
+
 const run = operation({
   label: "cli.run",
   input: command,
-  depends: { shell, canvasRun, workRun, lookRun, textsRun, partsRun, mcpRun, openBrowser },
+  depends: { shell, canvasRun, workRun, kitRun, mcpRun, openBrowser },
   run: (ops, { input }) => {
-    const { shell, canvasRun, workRun, lookRun, textsRun, mcpRun } = ops;
+    const { shell, canvasRun, workRun, kitRun, mcpRun } = ops;
     const onCanvas = canvasCommand.safeParse(input);
     if (onCanvas.success) return canvasRun.run({ input: onCanvas.data });
     const work = workCommand.safeParse(input);
     if (work.success) return workRun.run({ input: work.data });
+    const onKit = kitCommand.safeParse(input);
+    if (onKit.success) return kitRun.run({ input: onKit.data });
 
-    if (input.kind === "look") return lookRun.run({ input: input.act });
-    if (input.kind === "texts") return textsRun.run({ input: input.act });
-    if (input.kind === "parts") return ops.partsRun.run({ input: input.act });
     if (input.kind === "mcp") return mcpRun.run();
     if (input.kind === "open") return ops.openBrowser.run({ input });
     return shell.run({ input: shellCommand.parse(input) });

@@ -370,7 +370,7 @@ test("a put whose made CSS would be over 256 KiB answers tooBig and writes nothi
   });
 }, 30_000);
 
-test("the board's cell kit is set at scope: a second session sees it, for a canvas made in another session too", async () => {
+test("the board's cell kit is set at scope: a second session sees it, for a canvas made in another session too; it carries the fixtures of the kit version", async () => {
   const { srv, token, agent } = await easel();
   await agent.run(frames.api["canvas.create"], { input: { name: "later" } });
   const now = await srv.server.run(readKit);
@@ -388,6 +388,7 @@ test("the board's cell kit is set at scope: a second session sees it, for a canv
       css: now?.css,
       pieces: [],
       texts: now?.texts,
+      fixtures: {},
     });
   }
 });

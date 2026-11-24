@@ -12,6 +12,7 @@ import { BackBar } from "@/home/back";
 import { compose, composeApp, composeKit, frameAxes } from "@/kit/compose";
 import { paneScript } from "@/kit/controls";
 import type { ControlShown, PanePlace } from "@/kit/controls";
+import { fixtureSwitch } from "@/kit/fixtures";
 import { teamTexts } from "@/kit/texts";
 import { firstLocale, frameWords, wordsFor } from "@/words/frame-words";
 
@@ -194,15 +195,21 @@ export const axesFor = operation({
 
     const picked = appOffers.run({ input: offer }).flatMap((one) => {
       const value = frameValue.run({ input: { id, offer: one, picks } });
-      return value === one.default ? [] : [{ key: one.key, value }];
+      return value === one.default ? [] : [{ name: one.name, key: one.key, value }];
     });
-    const locale = picked.find((one) => one.key === undefined)?.value;
+    if (picked.length === 0) return null;
+
+    const [locale, fixture] = [localeSwitch, fixtureSwitch].map(
+      (name) => picked.find((one) => one.name === name)?.value,
+    );
     const config = Object.fromEntries(
       picked.flatMap((one) => (one.key ? [[one.key, one.value]] : [])),
     );
-    if (locale === undefined && picked.length === 0) return null;
-
-    return { ...(locale === undefined ? {} : { locale }), config };
+    return {
+      ...(locale === undefined ? {} : { locale }),
+      ...(fixture === undefined ? {} : { fixture }),
+      config,
+    };
   },
 });
 
@@ -337,8 +344,8 @@ const kitFeed = resource({
     const now = kit.get();
     if (!now) return null;
 
-    const { kit: version, look, css, texts } = now;
-    const message: KitMessage = { easel: "kit", kit: version, look, css, texts };
+    const { kit: version, look, css, texts, fixtures } = now;
+    const message: KitMessage = { easel: "kit", kit: version, look, css, texts, fixtures };
     at.sendKit(message);
     return now.kit;
   },

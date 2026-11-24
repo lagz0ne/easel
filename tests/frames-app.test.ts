@@ -270,7 +270,8 @@ test("the composed document of an app frame: the look, the CSS, the import map o
   expect(html).toContain('<script type="application/json" id="easel-axes">{}</script>');
   expect(html).toContain('import{mount}from"@easel/frame"');
   expect(html).toContain('<script type="application/json" id="easel-texts">{}</script>');
-  expect(html.match(/<\/script>/g)?.length).toBe(4);
+  expect(html).toContain('<script type="application/json" id="easel-fixtures">{}</script>');
+  expect(html.match(/<\/script>/g)?.length).toBe(5);
 
   const axes = srv.server.run(composeApp, {
     input: { js: "", css: "", kit, runtime: doc.app.runtime, axes: { locale: "</script>" } },
@@ -557,7 +558,7 @@ test(
 );
 
 test(
-  "a capsule frame in a folder draws in a scope of the kit's capsules, with the locale and the data state of its axes, before load; a refused start shows its kind; a kit message draws it in a new scope",
+  "a capsule frame in a folder draws in a scope of the kit's capsules, with the locale and the data state of its axes, before load; a refused start shows its kind; a kit message draws it in a new scope; the fixture of its axes fills its cell with the parse of the cell, and a fixture that does not parse refuses the start with FixtureInvalid",
   { timeout: 90_000 },
   async () => {
     const executablePath = localChromium();
@@ -574,13 +575,26 @@ test(
     const now = await srv.server.run(readKit);
     if (now === null) throw new Error("no kit");
     const app = doc.app;
-    const compose = (axes?: { locale?: string; config?: Record<string, unknown> }) =>
+    const fixtures = {
+      "people.list": {
+        two: [
+          { id: "d", name: "Dung" },
+          { id: "e", name: "Em" },
+        ],
+        bad: [{ id: 1 }],
+      },
+    };
+    const compose = (axes?: {
+      locale?: string;
+      config?: Record<string, unknown>;
+      fixture?: string;
+    }) =>
       atLoad +
       srv.server.run(composeApp, {
         input: {
           js: app.js,
           css: doc.css ?? "",
-          kit: { look: now.root, css: now.css },
+          kit: { look: now.root, css: now.css, fixtures },
           runtime: app.runtime,
           axes,
         },
@@ -590,6 +604,8 @@ test(
       compose({ locale: "vi", config: { sample: "one" } }),
       compose({ config: { sample: "bad" } }),
       compose({ config: { sample: "empty" } }),
+      compose({ fixture: "two" }),
+      compose({ fixture: "bad" }),
     ];
 
     const web = Bun.serve({
@@ -634,6 +650,7 @@ test(
             name: "people.sample",
           },
         },
+        fixtures: ["two", "bad"],
       });
     await frame.getByRole("button", { name: "Remove" }).first().click();
     await expect.poll(() => frame.getByText("2 people").count()).toBe(1);
@@ -686,6 +703,15 @@ test(
       .poll(() => frame.getByText("Nothing here yet").count(), { timeout: 20_000 })
       .toBe(1);
     expect(await frame.getByText("0 people").count()).toBe(1);
+
+    await page.goto(`http://127.0.0.1:${web.port}/?doc=4`);
+    await expect.poll(() => frame.getByText("2 people").count(), { timeout: 20_000 }).toBe(1);
+    expect(await frame.getByText("Dung").count()).toBe(1);
+
+    await page.goto(`http://127.0.0.1:${web.port}/?doc=5`);
+    await expect.poll(() => alert.count(), { timeout: 20_000 }).toBe(1);
+    expect(await alert.getAttribute("data-easel-refused")).toBe("FixtureInvalid");
+    expect(await alert.textContent()).toContain('"cell": "people.list"');
     expect(errors).toEqual([]);
   },
 );

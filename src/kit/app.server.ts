@@ -58,7 +58,7 @@ const stateFix =
   "keep each state in a Tinker cell of logic: data() and operation() in logic, useData() and useRun() in View; a text field that keeps each key uses defaultValue";
 
 const shapeFix =
-  "export function View() with export const logic = frameLogic({ cells, ops }), or a capsule frame: export const View = resource({ ... }) and, if the frame has its own capsule, export const frame = capsule({ ... }); for the viewer's panel, export const controls = frameControls({ ... }); for the panes of a capsule frame, export const part = framePart({ ... }) and export const panes = framePanes({ ... }); export no other name from the entry, and keep the other names in the file or in other files of the frame";
+  "export function View() with export const logic = frameLogic({ cells, ops }), or a capsule frame: export const View = resource({ ... }) and, if the frame has its own capsule, export const frame = capsule({ ... }); for the viewer's panel, export const controls = frameControls({ ... }); for the panes of a capsule frame, export const part = framePart({ ... }) and export const panes = framePanes({ ... }); for the fixture switch, export const fixtures = { cells } with the data cells that `easel fixtures set` fills; export no other name from the entry, and keep the other names in the file or in other files of the frame";
 
 const moduleShape = z.custom<EcmaScriptModule>();
 
@@ -87,7 +87,7 @@ export const appBundle = operation({
   run: async ({ localPath }, { input: files }) => {
     const entry =
       `import * as app from "./${entryFile}";\nimport { mount } from "@easel/frame";\n` +
-      "mount({ View: app.View, frame: app.frame, controls: app.controls, part: app.part, panes: app.panes });\n";
+      "mount({ View: app.View, frame: app.frame, controls: app.controls, part: app.part, panes: app.panes, fixtures: app.fixtures });\n";
 
     const paths = Object.keys(files);
     const inMemory = Object.fromEntries([
@@ -215,14 +215,14 @@ export const shapeFindings = operation({
       const name = entry.exportName.name ?? "";
       const shown =
         !entry.isType &&
-        ["logic", "View", "frame", "controls", "part", "panes"].includes(name) &&
+        ["logic", "View", "frame", "controls", "part", "panes", "fixtures"].includes(name) &&
         !exported.has(name);
       if (shown) {
         exported.add(name);
         continue;
       }
 
-      const what = `the frame exports ${exportTold.run({ input: entry })}: an app frame exports View, and logic or frame, and controls, part and panes, and no other name`;
+      const what = `the frame exports ${exportTold.run({ input: entry })}: an app frame exports View, and logic or frame, and controls, part, panes and fixtures, and no other name`;
       found.push({ at: entry.start, rule: "kit/shape", what, fix: shapeFix });
     }
 

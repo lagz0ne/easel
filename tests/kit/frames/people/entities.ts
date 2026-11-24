@@ -20,7 +20,11 @@ export const sample = tag({
   parse: z.enum(["empty", "one", "many", "bad"]),
 });
 
-export const people = data<Array<z.infer<typeof person>>>({ label: "people.list", initial: [] });
+export const people = data<Array<z.infer<typeof person>>>({
+  label: "people.list",
+  initial: [],
+  parse: z.array(person),
+});
 
 export const remove = operation({
   label: "people.remove",

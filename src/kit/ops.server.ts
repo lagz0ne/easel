@@ -8,6 +8,7 @@ import { kitCapsules } from "./capsules/list.server";
 import { check } from "./check.server";
 import { contrast } from "./compose";
 import { kitApi } from "./contract";
+import { maxFixturesBytes, mergeFixtures } from "./fixtures";
 import { lookValues, mergeLook, rootBlock } from "./look.server";
 import { runtimeNamesOf } from "./runtime.server";
 import { maxAppBytes, utf8Bytes } from "./schema";
@@ -16,6 +17,7 @@ import {
   frameKit,
   readKit,
   readKitAt,
+  saveFixtures,
   saveLook,
   saveTexts,
   undoLook,
@@ -174,6 +176,57 @@ export const textsSet = operation({
   },
 });
 
+export const fixturesList = operation({
+  label: "fixtures.list.do",
+  input: kitApi["fixtures.list"].input,
+  depends: { currentKit },
+  run: async ({ currentKit }) => {
+    const now = await currentKit.run();
+    const cells = Object.entries(now.fixtures).map(([label, named]) => ({
+      label,
+      names: Object.keys(named),
+    }));
+    const { version: kit, fixturesRev: rev, fixtures } = now;
+    return { kind: "found" as const, kit, rev, cells, fixtures };
+  },
+});
+
+const fixturesChange = operation({
+  label: "fixtures.change",
+  input: kitApi["fixtures.set"].input,
+  depends: { currentKit, mergeFixtures },
+  run: async ({ currentKit, mergeFixtures }, { input }) => {
+    const now = await currentKit.run();
+    if (input.base !== undefined && now.fixturesRev !== input.base) {
+      return { kind: "stale" as const, rev: now.fixturesRev, kit: now.version };
+    }
+
+    const merge = { now: now.fixtures, cell: input.cell, patch: input.fixtures };
+    const fixtures = mergeFixtures.run({ input: merge });
+    if (utf8Bytes.parse(JSON.stringify(fixtures)) > maxFixturesBytes) {
+      return { kind: "tooBig" as const, maxBytes: maxFixturesBytes };
+    }
+
+    return { kind: "merged" as const, fixtures, base: now.fixturesRev };
+  },
+});
+
+export const fixturesSet = operation({
+  label: "fixtures.set.do",
+  input: kitApi["fixtures.set"].input,
+  depends: { fixturesChange, saveFixtures },
+  run: async ({ fixturesChange, saveFixtures }, { input }) => {
+    for (let tries = 1; ; tries++) {
+      const change = await fixturesChange.run({ input });
+      if (change.kind !== "merged") return change;
+
+      const saved = await saveFixtures.run({ input: change });
+      const raced = saved.kind === "stale" && input.base === undefined && tries < textsTries;
+      if (!raced) return saved;
+    }
+  },
+});
+
 export const kitOps = {
   "kit.accept": kitAccept,
   "kit.capsules": listCapsules,
@@ -183,4 +236,6 @@ export const kitOps = {
   "look.undo": lookUndo,
   "texts.list": textsList,
   "texts.set": textsSet,
+  "fixtures.list": fixturesList,
+  "fixtures.set": fixturesSet,
 };

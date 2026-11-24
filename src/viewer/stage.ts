@@ -11,6 +11,7 @@ import {
   valuesPost,
 } from "@/kit/controls";
 import type { ControlShown, PanePlace } from "@/kit/controls";
+import { kitFixtures } from "@/kit/fixtures";
 import { teamTexts } from "@/kit/texts";
 
 export const liveCap = 12;
@@ -106,6 +107,7 @@ export const axesPost = z.object({
       name: z.string().optional(),
     }),
   ),
+  fixtures: z.array(z.string()).optional(),
 });
 
 export const offeredAxes = data<
@@ -139,6 +141,7 @@ export const kitMessage = z.object({
   look: z.string(),
   css: z.string(),
   texts: teamTexts,
+  fixtures: kitFixtures.optional(),
 });
 
 export type KitMessage = z.infer<typeof kitMessage>;
@@ -735,7 +738,8 @@ export const stage = resource({
 
         const version = Number(frame.dataset.version);
         const known = offered.get()[id];
-        if (known?.version === version) return;
+        const same = JSON.stringify(known?.fixtures) === JSON.stringify(read.data.fixtures);
+        if (known?.version === version && same) return;
         offered.set({ ...offered.get(), [id]: { ...read.data, version } });
       },
 

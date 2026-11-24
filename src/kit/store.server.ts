@@ -5,6 +5,7 @@ import { z } from "zod";
 import { uiTexts } from "./capsules/ui-texts";
 import { kit } from "./cells";
 import { contrast } from "./compose";
+import { kitFixtures } from "./fixtures";
 import { lookValues, rootBlock } from "./look.server";
 import { make } from "./make.server";
 import { easelRuntime } from "./runtime.server";
@@ -20,6 +21,10 @@ const textsColumn = z
 
 const textsRevColumn = "texts_rev INTEGER NOT NULL DEFAULT 1";
 
+const fixturesColumn = "fixtures TEXT NOT NULL DEFAULT '{}'";
+
+const fixturesRevColumn = "fixtures_rev INTEGER NOT NULL DEFAULT 1";
+
 const schemaWith = z.string().transform(
   (texts) => `
 CREATE TABLE IF NOT EXISTS kit_versions (
@@ -34,7 +39,9 @@ CREATE TABLE IF NOT EXISTS kit_versions (
   made INTEGER NOT NULL,
   runtime TEXT,
   ${texts},
-  ${textsRevColumn}
+  ${textsRevColumn},
+  ${fixturesColumn},
+  ${fixturesRevColumn}
 );
 CREATE TABLE IF NOT EXISTS kit_runtimes (
   sha TEXT PRIMARY KEY NOT NULL,
@@ -73,18 +80,21 @@ const versionRow = z
     pieces: jsonText.pipe(z.array(piece)),
     texts: jsonText.pipe(teamTexts),
     texts_rev: z.number(),
+    fixtures: jsonText.pipe(kitFixtures),
+    fixtures_rev: z.number(),
   })
-  .transform(({ look_rev, look_values, texts_rev, ...row }) => ({
+  .transform(({ look_rev, look_values, texts_rev, fixtures_rev, ...row }) => ({
     ...row,
     lookRev: look_rev,
     values: look_values,
     textsRev: texts_rev,
+    fixturesRev: fixtures_rev,
   }));
 
 export type KitVersion = z.infer<typeof versionRow>;
 
 export const kitColumns =
-  "version, look_rev, look, look_values, root, source, css, pieces, texts, texts_rev";
+  "version, look_rev, look, look_values, root, source, css, pieces, texts, texts_rev, fixtures, fixtures_rev";
 
 const columns = kitColumns;
 
@@ -126,6 +136,7 @@ export const showNewest = operation({
         css: row.css,
         pieces: row.pieces,
         texts: row.texts,
+        fixtures: row.fixtures,
       });
     }
   },
@@ -156,7 +167,8 @@ export const saveLook = operation({
     const wrote = db
       .query(
         `INSERT INTO kit_versions (${columns}, made, runtime)
-         SELECT version + 1, look_rev + 1, ?, ?, ?, source, css, pieces, texts, texts_rev, ?, runtime
+         SELECT version + 1, look_rev + 1, ?, ?, ?, source, css, pieces, texts, texts_rev,
+                fixtures, fixtures_rev, ?, runtime
          FROM kit_versions WHERE version = ${top} AND look_rev = ? AND look_values IS NOT ?
          RETURNING version AS kit, look_rev AS rev`,
       )
@@ -188,7 +200,8 @@ export const undoLook = operation({
       .query(
         `INSERT INTO kit_versions (${columns}, made, runtime)
          SELECT n.version + 1, n.look_rev + 1, p.look, p.look_values, p.root,
-                n.source, n.css, n.pieces, n.texts, n.texts_rev, ?, n.runtime
+                n.source, n.css, n.pieces, n.texts, n.texts_rev, n.fixtures, n.fixtures_rev,
+                ?, n.runtime
          FROM kit_versions n JOIN kit_versions p
            ON p.version = (SELECT MAX(version) FROM kit_versions WHERE look_rev = n.look_rev - 1)
          WHERE n.version = ${top} AND n.look_rev = ?
@@ -216,13 +229,42 @@ export const saveTexts = operation({
       .query(
         `INSERT INTO kit_versions (${columns}, made, runtime)
          SELECT version + 1, look_rev, look, look_values, root, source, css, pieces,
-                ?, texts_rev + 1, ?, runtime
+                ?, texts_rev + 1, fixtures, fixtures_rev, ?, runtime
          FROM kit_versions WHERE version = ${top} AND texts_rev = ? AND texts IS NOT ?
          RETURNING version AS kit, texts_rev AS rev`,
       )
       .get(texts, clock.currentTimeMillis(), input.base, texts);
     if (wrote === null) {
       const now = revRow.parse(db.query(newestTexts).get());
+      return { kind: now.rev === input.base ? ("unchanged" as const) : ("stale" as const), ...now };
+    }
+
+    await showNewest.run();
+    return { kind: "updated" as const, ...revRow.parse(wrote) };
+  },
+});
+
+const newestFixtures =
+  "SELECT version AS kit, fixtures_rev AS rev FROM kit_versions ORDER BY version DESC LIMIT 1";
+
+export const saveFixtures = operation({
+  label: "kit.saveFixtures",
+  input: z.object({ fixtures: kitFixtures, base: z.number() }),
+  depends: { connection: bunSqlite.connection, showNewest },
+  run: async ({ connection, showNewest }, { input, clock }) => {
+    const db = connection.db.$client;
+    const fixtures = JSON.stringify(input.fixtures);
+    const wrote = db
+      .query(
+        `INSERT INTO kit_versions (${columns}, made, runtime)
+         SELECT version + 1, look_rev, look, look_values, root, source, css, pieces,
+                texts, texts_rev, ?, fixtures_rev + 1, ?, runtime
+         FROM kit_versions WHERE version = ${top} AND fixtures_rev = ? AND fixtures IS NOT ?
+         RETURNING version AS kit, fixtures_rev AS rev`,
+      )
+      .get(fixtures, clock.currentTimeMillis(), input.base, fixtures);
+    if (wrote === null) {
+      const now = revRow.parse(db.query(newestFixtures).get());
       return { kind: now.rev === input.base ? ("unchanged" as const) : ("stale" as const), ...now };
     }
 
@@ -246,7 +288,7 @@ export const acceptRuntime = operation({
         .query(
           `INSERT INTO kit_versions (${columns}, made, runtime)
            SELECT version + 1, look_rev, look, look_values, root, source, css, pieces,
-                  texts, texts_rev, ?, ?
+                  texts, texts_rev, fixtures, fixtures_rev, ?, ?
            FROM kit_versions
            WHERE version = ${top} AND runtime IS NOT NULL AND runtime IS NOT ?
            RETURNING version AS kit, look_rev AS rev`,
@@ -296,7 +338,7 @@ export const seedKit = operation({
     const wrote = db
       .query(
         `INSERT INTO kit_versions (${columns}, made)
-         SELECT 1, 1, ?, ?, ?, ?, ?, '[]', ?, 1, ? WHERE NOT EXISTS (SELECT 1 FROM kit_versions)`,
+         SELECT 1, 1, ?, ?, ?, ?, ?, '[]', ?, 1, '{}', 1, ? WHERE NOT EXISTS (SELECT 1 FROM kit_versions)`,
       )
       .run(
         JSON.stringify(look),
@@ -328,6 +370,12 @@ export const kitStart = operation({
     if (!known.includes("texts")) db.exec(`ALTER TABLE kit_versions ADD COLUMN ${texts}`);
     if (!known.includes("texts_rev")) {
       db.exec(`ALTER TABLE kit_versions ADD COLUMN ${textsRevColumn}`);
+    }
+    if (!known.includes("fixtures")) {
+      db.exec(`ALTER TABLE kit_versions ADD COLUMN ${fixturesColumn}`);
+    }
+    if (!known.includes("fixtures_rev")) {
+      db.exec(`ALTER TABLE kit_versions ADD COLUMN ${fixturesRevColumn}`);
     }
 
     return seedKit.run();
@@ -367,6 +415,7 @@ export const showKit = operation({
         css: now.css,
         pieces: now.pieces,
         texts: now.texts,
+        fixtures: now.fixtures,
       });
     }
   },

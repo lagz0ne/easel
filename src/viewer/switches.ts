@@ -4,6 +4,7 @@ import { z } from "zod";
 import { frames as framesApi } from "@/frames";
 import { boardDoc } from "@/frames/contract";
 import { boardKit } from "@/kit/cells";
+import { fixtureSwitch, initialFixture } from "@/kit/fixtures";
 import { firstLocale } from "@/words/frame-words";
 
 import { pageParam } from "./pages";
@@ -178,9 +179,13 @@ export const frameValue = operation({
 export const appOffers = operation({
   label: "viewer.appOffers",
   input: axesPost.omit({ easel: true }),
-  run: (_, { input: { locales, config } }): SwitchOffer[] => {
+  run: (_, { input: { locales, config, fixtures } }): SwitchOffer[] => {
     const locale = locales.length
       ? [{ name: localeSwitch, values: locales, default: firstLocale }]
+      : [];
+    const named = fixtures?.length ? [initialFixture, ...fixtures] : [];
+    const fixture = named.length
+      ? [{ name: fixtureSwitch, values: named, default: initialFixture }]
       : [];
     const tags = Object.entries(config).flatMap(([key, axis]) => {
       const [first] = axis.values;
@@ -188,7 +193,7 @@ export const appOffers = operation({
 
       return [{ name: axis.name ?? key, key, values: axis.values, default: axis.default ?? first }];
     });
-    return [...locale, ...tags];
+    return [...locale, ...fixture, ...tags];
   },
 });
 

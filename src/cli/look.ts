@@ -42,6 +42,8 @@ const address = z.enum([
   "kit.accept",
   "texts.list",
   "texts.set",
+  "fixtures.list",
+  "fixtures.set",
 ] satisfies KitAddress[]);
 
 export const lookDeadline = operation({

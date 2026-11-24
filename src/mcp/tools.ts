@@ -189,6 +189,18 @@ export const tools = {
     description:
       'Write texts of the team by text key, as { "trial.start": { "en": "Start", "vi": "Bắt đầu" } }: a new text key needs `en`, and each change makes a new kit version. With `base`, a change on an older revision answers `stale`, and no call removes a text key.',
   },
+  list_fixtures: {
+    address: "fixtures.list",
+    annotations: readOnly,
+    description:
+      "List the fixtures (named example data) of the team: for each cell label, the names of its fixtures and their values; `rev` is the revision to give as `base`. A frame names the cells that take a fixture, and the `fixture` switch of the board picks one name for each frame.",
+  },
+  set_fixtures: {
+    address: "fixtures.set",
+    annotations: write,
+    description:
+      'Write fixtures of one cell by name, as { "cell": "people.list", "fixtures": { "empty": [], "one": [{ "id": "a", "name": "Ann" }] } }, where a null value removes a fixture, and each change makes a new kit version (with `base`, an older revision answers `stale`). The frame parses a fixture with the parse of its cell when it starts, and shows FixtureInvalid when it does not parse.',
+  },
   list_text_uses: {
     address: "texts.uses",
     annotations: readOnly,

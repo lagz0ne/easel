@@ -104,6 +104,11 @@ const help = `easel: the canvas CLI. Every command takes --json (one JSON value 
   easel texts set -f <file.json> [--base <rev>]    write texts from a file: {"<text key>": {"en": "...", "vi": "..."}}
   easel texts uses [--canvas <k>]                  each text of the team with the frames that use it, or not used; the
                                                    text keys with no vi text; the texts with no key (--json lists them)
+  easel fixtures ls                                the cells with fixtures (example data), the names of each, the revision
+  easel fixtures get <cell> [<name>]               the fixtures of a cell as JSON, or one of them
+  easel fixtures set <cell> <name> <file.json|-> [--base <rev>]
+                                                   write one fixture of a cell (null removes it); each live frame that
+                                                   names the cell shows it when the fixture switch picks <name>
   easel parts                                      the parts of the design system: revision, main, and the frames with
                                                    a copy, linked or edited
   easel parts publish <canvas>                     publish each main of the canvas as a part; each linked copy shows it
@@ -795,6 +800,45 @@ const textsInvocations = [
     })),
 ] as const;
 
+const fixturesInvocations = [
+  z
+    .object({
+      positionals: z.tuple([z.literal("fixtures"), z.literal("ls")]),
+      values: z.strictObject(common),
+    })
+    .transform(({ values }): unknown => ({
+      at: values.server,
+      command: { kind: "fixtures", act: { kind: "ls" } },
+    })),
+  z
+    .object({
+      positionals: z.union([
+        z.tuple([z.literal("fixtures"), z.literal("get"), z.string()]),
+        z.tuple([z.literal("fixtures"), z.literal("get"), z.string(), z.string()]),
+      ]),
+      values: z.strictObject(common),
+    })
+    .transform(({ positionals: [, , cell, name], values }): unknown => ({
+      at: values.server,
+      command: { kind: "fixtures", act: { kind: "get", cell, name } },
+    })),
+  z
+    .object({
+      positionals: z.tuple([
+        z.literal("fixtures"),
+        z.literal("set"),
+        z.string(),
+        z.string(),
+        z.string(),
+      ]),
+      values: z.strictObject({ ...common, base: z.string().optional() }),
+    })
+    .transform(({ positionals: [, , cell, name, file], values }): unknown => ({
+      at: values.server,
+      command: { kind: "fixtures", act: { kind: "set", cell, name, file, base: values.base } },
+    })),
+] as const;
+
 const partsInvocations = [
   z
     .object({ positionals: z.tuple([z.literal("parts")]), values: z.strictObject(common) })
@@ -1069,6 +1113,7 @@ const invocation = z.union([
   ...channelInvocations,
   ...lookInvocations,
   ...textsInvocations,
+  ...fixturesInvocations,
   ...partsInvocations,
 ]);
 

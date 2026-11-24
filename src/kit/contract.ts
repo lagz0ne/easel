@@ -3,6 +3,7 @@ import { z } from "zod";
 
 import { capsuleRow, startRow } from "./capsules/row";
 import { pair } from "./compose";
+import { cellLabel, fixturesPatch, kitFixtures } from "./fixtures";
 import { findingShape } from "./schema";
 import { lookPatch } from "./shape";
 import { teamTexts, textFinding, textKey, textsPatch } from "./texts";
@@ -37,6 +38,21 @@ export const textsSetOutput = z.discriminatedUnion("kind", [
   z.object({ kind: z.enum(["updated", "unchanged"]), ...revAndKit }),
   z.object({ kind: z.literal("stale"), ...revAndKit }),
   z.object({ kind: z.literal("invalid"), findings: z.array(textFinding) }),
+  z.object({ kind: z.literal("tooBig"), maxBytes: z.number() }),
+]);
+
+export const fixturesListOutput = z.discriminatedUnion("kind", [
+  z.object({
+    kind: z.literal("found"),
+    ...revAndKit,
+    cells: z.array(z.object({ label: cellLabel, names: z.array(z.string()) })),
+    fixtures: kitFixtures,
+  }),
+]);
+
+export const fixturesSetOutput = z.discriminatedUnion("kind", [
+  z.object({ kind: z.enum(["updated", "unchanged"]), ...revAndKit }),
+  z.object({ kind: z.literal("stale"), ...revAndKit }),
   z.object({ kind: z.literal("tooBig"), maxBytes: z.number() }),
 ]);
 
@@ -104,6 +120,14 @@ export const kitContracts = {
     input: z.object({ texts: textsPatch, base: kitVersion.optional() }),
     output: textsSetOutput,
   },
+  "fixtures.list": {
+    input: z.object({}),
+    output: fixturesListOutput,
+  },
+  "fixtures.set": {
+    input: z.object({ cell: cellLabel, fixtures: fixturesPatch, base: kitVersion.optional() }),
+    output: fixturesSetOutput,
+  },
 };
 
 export const kitApi = rpc(kitContracts);
@@ -126,4 +150,6 @@ export const kitSuccessKinds = {
   "look.undo": ["updated"],
   "texts.list": ["found"],
   "texts.set": ["updated", "unchanged"],
+  "fixtures.list": ["found"],
+  "fixtures.set": ["updated", "unchanged"],
 } as const satisfies { readonly [A in KitAddress]: readonly KindOf<A>[] };

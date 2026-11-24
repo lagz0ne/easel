@@ -1,6 +1,7 @@
 import { data } from "@tinkered/core";
 import { z } from "zod";
 
+import { kitFixtures } from "./fixtures";
 import { teamTexts } from "./texts";
 
 export const boardPiece = z.object({ name: z.string(), template: z.string() });
@@ -12,6 +13,7 @@ export const boardKit = z.object({
   css: z.string(),
   pieces: z.array(boardPiece),
   texts: teamTexts,
+  fixtures: kitFixtures.optional(),
 });
 
 export type BoardKit = z.infer<typeof boardKit>;
