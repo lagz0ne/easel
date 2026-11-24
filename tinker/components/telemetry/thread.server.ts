@@ -13,6 +13,8 @@ import type { Telemetry } from "./records";
 import {
   logLevel,
   logsUrl,
+  resourceAttributes,
+  serviceVersion,
   spanHistory,
   telemetryService,
   telemetrySide,
@@ -30,6 +32,8 @@ export type ThreadSettings = {
   logs: string | null;
   fd: number | null;
   relay: boolean;
+  version: string;
+  resource: [string, string][];
 };
 
 export type ThreadMessage =
@@ -140,9 +144,11 @@ export const telemetryThread = resource({
     logsUrl: logsUrl.optional,
     console: consoleOutput,
     health: exportHealth.controller,
+    version: serviceVersion,
+    resource: resourceAttributes,
   },
   factory: async (
-    { threads, ring, module, service, tracesUrl, logsUrl, console, health },
+    { threads, ring, module, service, tracesUrl, logsUrl, console, health, version, resource },
     ctx,
   ): Promise<ThreadWorker> => {
     const fd = typeof console?.fd === "number" ? console.fd : null;
@@ -153,6 +159,8 @@ export const telemetryThread = resource({
       logs: logsUrl.present ? logsUrl.value.href : null,
       fd,
       relay,
+      version,
+      resource,
     };
     const worker = new threads.Worker(module, {
       name: "telemetry",

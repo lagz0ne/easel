@@ -74,12 +74,21 @@ for (const [name, make] of Object.entries(sinks)) {
       ),
     );
     expect(spans).toEqual([]);
-    const logs = sent.logs
-      .join("\n")
-      .split("\n")
-      .filter(Boolean)
-      .map((line) => JSON.parse(line));
-    expect(logs.filter((line) => line.side === "server")).toEqual([]);
-    expect(logs.filter((line) => line.msg === "tab line")).toHaveLength(2);
+    const groups: {
+      resource: { attributes: { key: string; value: { stringValue: string } }[] };
+      scopeLogs: { logRecords: { body: { stringValue: string } }[] }[];
+    }[] = sent.logs.flatMap((body) => JSON.parse(body).resourceLogs);
+    const linesOf = (side: string) =>
+      groups
+        .filter((group) =>
+          group.resource.attributes.some(
+            (entry) => entry.key === "tinker.side" && entry.value.stringValue === side,
+          ),
+        )
+        .flatMap((group) => group.scopeLogs.flatMap((scope) => scope.logRecords));
+    expect(linesOf("server")).toEqual([]);
+    expect(linesOf("browser").filter((line) => line.body.stringValue === "tab line")).toHaveLength(
+      2,
+    );
   });
 }

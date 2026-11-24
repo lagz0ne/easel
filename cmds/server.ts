@@ -5,6 +5,7 @@ import { createScope } from "@tinkered/core";
 import { defineMain } from "~/base/main";
 import { health } from "~/components/health";
 import { routes } from "~/components/requests/index.server";
+import { telemetryEnv } from "~/components/telemetry/env.server";
 import { telemetry } from "~/components/telemetry/index.server";
 
 import { access } from "@/access";
@@ -65,12 +66,9 @@ export default defineMain(async ({ env, args, signal, stdout, stderr, exit }) =>
 
   const origin = env.PUBLIC_ORIGIN || undefined;
   const sends = {
+    ...telemetryEnv.parse(env),
     service: env.OTEL_SERVICE_NAME,
-    tracesUrl: env.VICTORIA_TRACES_URL === undefined ? undefined : new URL(env.VICTORIA_TRACES_URL),
-    logsUrl: env.VICTORIA_LOGS_URL === undefined ? undefined : new URL(env.VICTORIA_LOGS_URL),
     console: stdout,
-    level: env.LOG_LEVEL === undefined ? undefined : Number(env.LOG_LEVEL),
-    history: env.SPAN_HISTORY === undefined ? undefined : Number(env.SPAN_HISTORY),
     origin,
   };
   const { sink, tabs } =

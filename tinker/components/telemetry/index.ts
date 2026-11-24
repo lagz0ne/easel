@@ -1,8 +1,14 @@
 import { capsule } from "@tinkered/core";
 
 import { logConsole } from "./console";
-import { queueSink } from "./observer";
-import { firstSendMark, firstSendMaxMs, telemetryService, telemetrySide } from "./settings";
+import { tabSink } from "./observer";
+import {
+  firstSendMark,
+  firstSendMaxMs,
+  tabErrorSource,
+  telemetryService,
+  telemetrySide,
+} from "./settings";
 
 export type { Telemetry } from "./records";
 export { exportHealth } from "./health";
@@ -15,8 +21,9 @@ export const telemetry = {
       console: logConsole,
       firstSendMark,
       firstSendMaxMs,
+      errors: tabErrorSource,
     },
     tags: [telemetrySide("browser")],
-    hooks: queueSink,
+    hooks: tabSink,
   }),
 };

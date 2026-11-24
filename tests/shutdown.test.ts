@@ -57,8 +57,8 @@ async function run(port: string, env: Record<string, string>) {
     env: {
       PORT: port,
       OTEL_SERVICE_NAME: "shutdown-test",
-      VICTORIA_TRACES_URL: `${collector.url}traces`,
-      VICTORIA_LOGS_URL: `${collector.url}logs`,
+      OTEL_EXPORTER_OTLP_TRACES_ENDPOINT: `${collector.url}traces`,
+      OTEL_EXPORTER_OTLP_LOGS_ENDPOINT: `${collector.url}logs`,
       ...env,
     },
     args: [],

@@ -38,3 +38,20 @@ export const spanHistory = tag<number>({
   default: 80,
   parse: z.number().int().min(0),
 });
+
+export const serviceVersion = tag({
+  label: "telemetry.serviceVersion",
+  default: "",
+  parse: z.string(),
+});
+
+export const resourceAttributes = tag<[string, string][]>({
+  label: "telemetry.resourceAttributes",
+  default: [],
+  parse: z.array(z.tuple([z.string(), z.string()])),
+});
+
+export const tabErrorSource = tag<EventTarget | null>({
+  label: "telemetry.tabErrorSource",
+  default: null,
+});

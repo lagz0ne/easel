@@ -41,7 +41,7 @@ it. It adds no logging inside the operations.
 | `observeServerPanics` closes the server on an unhandled rejection                        | It also covers `uncaughtException`, and writes to the store   |
 | `tinker.health` answers `GET /api/health`                                                | `ops.ready` for `GET /api/ready`, and `ops.status`            |
 | The `release` capsule knows the commit                                                   | The build number, and the builds each error was seen on       |
-| Telemetry export to Victoria (needs its URLs today)                                      | A base change: export is off when its URLs are not given      |
+| Telemetry export over OTLP to the Victoria stack ([Telemetry export](#telemetry-export)) | A base change: export is off when its endpoints are not given |
 
 Other modules register with ops; ops does not depend on them. A module adds a named readiness check
 (frames: Chromium; the server: the database and free disk on `/data`) and its counters (queue:
@@ -156,6 +156,57 @@ from source. A tab compares it to see a new version of the page (SPEC-viewer.md 
    how to restore an easel from a copy off the host. A person of the company does a restore with
    only these steps before the first team starts (R5, H13).
 
+## Telemetry export
+
+Decided on 2026-11-24, for the user's ask: "Keep track of performance tracing and logging there for
+all interactions end to end". Prior art: the OpenTelemetry SDK environment variables and its batch
+processor, which drops a batch that the exporter cannot send. The hub's OpenTelemetry Collector
+(`otlp-ingest`) sends traces to VictoriaTraces and logs to VictoriaLogs.
+
+### Why the traces stopped and the logs never came (root cause)
+
+1. `VICTORIA_LOGS_URL` was `http://otlp-ingest:4318/v1/logs`, the OTLP logs path of the collector.
+   The server sent VictoriaLogs JSON lines there, so the collector refused each log batch.
+2. The export queue kept each refused record at its head. A batch takes the first 64 records, so
+   the refused logs filled each next batch, and then the queue cap of 512. After that, the queue
+   dropped each new span. Only the spans of the server start reached VictoriaTraces.
+
+### The env contract
+
+| Variable                             | Use                                                                     |
+| ------------------------------------ | ----------------------------------------------------------------------- |
+| `OTEL_SERVICE_NAME`                  | Required. The service name of the server (`easel`)                      |
+| `OTEL_EXPORTER_OTLP_ENDPOINT`        | The base URL. Traces go to `<base>/v1/traces`, logs to `<base>/v1/logs` |
+| `OTEL_EXPORTER_OTLP_TRACES_ENDPOINT` | The full traces URL, in place of the one from the base                  |
+| `OTEL_EXPORTER_OTLP_LOGS_ENDPOINT`   | The full logs URL, in place of the one from the base                    |
+| `OTEL_RESOURCE_ATTRIBUTES`           | `key=value` pairs with commas between them, on each span and log line   |
+| `GIT_SHA`                            | The commit. It is `service.version` on each span and log line           |
+
+A kind with no endpoint is not sent. The `VICTORIA_*` variables have no use now.
+
+### Rules of the export
+
+1. Both kinds go as OTLP/HTTP JSON, batched and sent from the telemetry worker thread.
+2. The tab sends its spans and logs to `POST /api/telemetry`. The server sends them with the
+   service name `<OTEL_SERVICE_NAME>-web` (`easel-web`) and its own version and resource attributes.
+3. A tab call over `/rpc` carries a W3C `traceparent`, so the server spans of the call are in the
+   trace of the tab span.
+4. A log line carries the trace id and the span id of the span that was open when it was written.
+   An uncaught error of the tab is a log line `tab error` at level error.
+5. The `core.span` line of each span goes to stdout only. Tinker writes one error line for each
+   failed operation, so the logs have each failure once.
+6. A batch that the store refuses is dropped and counted in `dropped`. It does not stop the next
+   batch, of the same kind or of the other kind.
+7. Before a record leaves the server, a redaction step changes its text. It removes the value of
+   an attribute whose name has `token`, `password`, `secret`, `key`, `authorization`, `cookie`,
+   `pass` or `share` in it. In each other value, the log message and the error text, it removes a
+   document (text from the first tag on), a bearer or basic credential, a `name=value` pair with
+   such a name, and each run of 20 or more token letters with a digit in it. That run covers share
+   link secrets, picture keys and tokens.
+8. The picture draws (`pictures.route`, `pictures.draw`, `pictures.render`, `pictures.drawPage`)
+   are spans with the answer kind in `tinker.exit`. A Chromium that does not answer shows as
+   `late` or as a failed span.
+
 ## Contract
 
 Each call lists its success kinds (SPEC.md, Success kinds). A call with no `kind` succeeds with its
@@ -206,7 +257,7 @@ CLI: `easel status`, `easel errors ls`, `easel errors show`, `easel errors resol
    next.
 3. The sink and `ops.resolveError` take time from the run's `clock`, and the build from the
    `release` capsule.
-4. The server starts without Victoria. Telemetry export is on only when its URLs are given.
+4. The server starts without Victoria. Telemetry export is on only when its OTLP endpoints are given.
 5. The panic path writes to the store before it calls `exit`.
 6. ops imports no later module; it depends only on access. Modules reach ops only through the
    checks and counters tag.

@@ -55,8 +55,8 @@ async function boot() {
     GIT_SHA: "c0ffee",
     PUBLIC_ORIGIN: "https://app.example",
     OTEL_SERVICE_NAME: "ops-cmd-test",
-    VICTORIA_TRACES_URL: `${collector.url}traces`,
-    VICTORIA_LOGS_URL: `${collector.url}logs`,
+    OTEL_EXPORTER_OTLP_TRACES_ENDPOINT: `${collector.url}traces`,
+    OTEL_EXPORTER_OTLP_LOGS_ENDPOINT: `${collector.url}logs`,
   });
   const { app } = started;
   if (!("resolve" in app)) throw new Error(`the server did not start: ${started.out.join("")}`);

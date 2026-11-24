@@ -47,13 +47,17 @@ bun --hot :3001   cmds/api.ts
   lives in its own module. A file that also
   exports the route tree reloads the page.
 
-`dev` and `start` need three telemetry keys:
+`dev` and `start` need `OTEL_SERVICE_NAME`.
+A missing one exits 78. Telemetry goes out
+over OTLP/HTTP JSON when one of these is set:
 
-- `OTEL_SERVICE_NAME`
-- `VICTORIA_TRACES_URL`
-- `VICTORIA_LOGS_URL`
+- `OTEL_EXPORTER_OTLP_ENDPOINT`
+- `OTEL_EXPORTER_OTLP_TRACES_ENDPOINT`
+- `OTEL_EXPORTER_OTLP_LOGS_ENDPOINT`
 
-A missing one exits 78.
+`OTEL_RESOURCE_ATTRIBUTES` and `GIT_SHA` go on
+each record. See SPEC-ops.md § Telemetry
+export.
 `.env.example` lists the safe defaults.
 
 A hang-up (SIGHUP) stops the host with exit

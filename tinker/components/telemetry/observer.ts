@@ -5,7 +5,7 @@ import { logConsole } from "./console";
 import { queue } from "./queue";
 import { encodeValue, quiet, spanBody } from "./records";
 import type { Telemetry } from "./records";
-import { logLevel, spanHistory, telemetryService, telemetrySide } from "./settings";
+import { logLevel, spanHistory, tabErrorSource, telemetryService, telemetrySide } from "./settings";
 
 export const ingestTelemetry = operation({
   label: "telemetry.ingest",
@@ -66,7 +66,7 @@ export const observer = resource({
     history,
     level,
     export(span) {
-      queue.add("trace", side, spanBody.run({ input: { span, encoded: false }, ns: quiet }));
+      queue.addSpan(side, spanBody.run({ input: { span, encoded: false }, ns: quiet }));
 
       const record: Telemetry.Log = {
         level: LEVELS.info,
@@ -78,9 +78,9 @@ export const observer = resource({
         attributes: undefined,
         msg: "core.span",
       };
-      const encoded = queue.add("log", side, record);
-      if (side !== "browser") queue.writeConsole(encoded, record);
-      else show?.info(record);
+      if (side === "browser") show?.info(record);
+      else queue.writeConsole(record);
+
       queue.publishQueued();
     },
     log(entry) {
@@ -99,8 +99,8 @@ export const observer = resource({
         ),
         msg: entry.message.slice(0, 2048),
       };
-      const encoded = queue.add("log", side, record);
-      if (side !== "browser") queue.writeConsole(encoded, record);
+      const clean = queue.addLog(side, record);
+      if (side !== "browser") queue.writeConsole(clean);
       else if (!show) {
       } else if (record.level >= LEVELS.error) show.error(record);
       else if (record.level >= LEVELS.warn) show.warn(record);
@@ -109,3 +109,62 @@ export const observer = resource({
     },
   }),
 });
+
+export const tabErrors = resource({
+  label: "telemetry.tabErrors",
+  target: "scope",
+  depends: { queue, source: tabErrorSource, service: telemetryService, encodeValue },
+  factory: ({ queue, source, service, encodeValue }, ctx) => {
+    if (!source) return;
+    const stop = new AbortController();
+    for (const type of ["error", "unhandledrejection"] as const) {
+      source.addEventListener(
+        type,
+        (event) => {
+          const thrown =
+            type === "error"
+              ? (Object(event).error ?? Object(event).message)
+              : Object(event).reason;
+          const plain = thrown instanceof Error;
+          const record: Telemetry.Log = {
+            level: LEVELS.error,
+            time: ctx.clock.currentTimeMillis(),
+            service,
+            side: "browser",
+            traceId: undefined,
+            spanId: undefined,
+            attributes: {
+              name: encodeValue.run({ input: plain ? thrown.name : "Error", ns: quiet }),
+              message: encodeValue.run({
+                input: plain ? thrown.message : String(thrown),
+                ns: quiet,
+              }),
+            },
+            msg: "tab error",
+          };
+          queue.addLog("browser", record);
+          queue.publishQueued();
+        },
+        { signal: stop.signal },
+      );
+    }
+    ctx.defer(() => stop.abort());
+  },
+});
+
+export const tabSink: Capsule.Hooks = {
+  ...queueSink,
+  async start(event) {
+    event.tap(
+      await event.load(observer, { role: "state", explain: "Queues each record" }, { ns: quiet }),
+    );
+    const owned = await event.load(queue, held, { ns: quiet });
+    owned.start(() => event.run(flushTelemetry, { ns: quiet }, sends));
+    await event.load(
+      tabErrors,
+      { role: "state", explain: "Queues each uncaught error of the tab" },
+      { ns: quiet },
+    );
+    await event.next();
+  },
+};

@@ -10,6 +10,8 @@ export declare namespace TelemetryWorker {
     logs: string | null;
     fd: number | null;
     relay: boolean;
+    version: string;
+    resource: [string, string][];
   };
   type Output = { writableNeedDrain: boolean; write(text: string): void };
   type Input = { settings: Settings; console: Output | null };

@@ -3,77 +3,97 @@ import { resource } from "@tinkered/core";
 import { httpBackend } from "~/components/http";
 
 import type { Telemetry } from "./records";
-import { logsUrl, telemetryService, telemetrySide, tracesUrl } from "./settings";
+import {
+  logsUrl,
+  resourceAttributes,
+  serviceVersion,
+  telemetryService,
+  telemetrySide,
+  tracesUrl,
+} from "./settings";
+
+type Batch = { url: string; body: string | undefined; contentType: string };
+
+const sides = ["server", "browser", "ssr", "worker"] as const;
+
+export const otlpResources = resource({
+  label: "telemetry.otlpResources",
+  target: "scope",
+  depends: { service: telemetryService, version: serviceVersion, attributes: resourceAttributes },
+  factory: ({ service, version, attributes }) => {
+    const shared = new Map(attributes);
+    if (version) shared.set("service.version", version);
+
+    return new Map(
+      sides.map((one) => {
+        const named = new Map(shared);
+        named.set("service.name", one === "browser" ? `${service}-web` : service);
+        named.set("tinker.side", one);
+        const list = [...named].map(([key, value]) => ({ key, value: { stringValue: value } }));
+        return [one, JSON.stringify({ attributes: list })];
+      }),
+    );
+  },
+});
+
+const scope = `{"name":"tinker"}`;
 
 export const delivery = resource({
   label: "telemetry.delivery",
   depends: {
     side: telemetrySide,
-    service: telemetryService,
+    backend: httpBackend,
+    resources: otlpResources,
     tracesUrl: tracesUrl.optional,
     logsUrl: logsUrl.optional,
-    backend: httpBackend,
   },
-  factory: ({ side, service, tracesUrl, logsUrl, backend }) => {
-    const server = side !== "browser";
-    const exported = { trace: server && tracesUrl.present, log: server && logsUrl.present };
-    const logs = new URL(logsUrl.present ? logsUrl.value : "http://unset.invalid/");
-    logs.searchParams.set("_time_field", "time");
-    logs.searchParams.set("_msg_field", "msg");
-    logs.searchParams.set("_stream_fields", "service,side");
-    const href = { trace: tracesUrl.present ? tracesUrl.value.href : "", log: logs.href };
+  factory: ({ side, backend, resources, tracesUrl, logsUrl }) => {
+    const browser = side === "browser";
+    const href = {
+      trace: tracesUrl.present ? tracesUrl.value.href : "",
+      log: logsUrl.present ? logsUrl.value.href : "",
+    };
 
-    return {
-      async send(records: Telemetry.Record[], signal: AbortSignal): Promise<Telemetry.Delivery> {
-        const browser = side === "browser";
-        let batches: { url: string; body: string | undefined; contentType: string }[];
-        if (browser) {
-          const traces = records
-            .filter((record) => record.kind === "trace")
-            .map((record) => `{"side":"${record.side}",${record.json.slice(1)}`);
-          const lines = records
-            .filter((record) => record.kind === "log")
-            .map((record) => record.json);
-          batches = [
-            {
-              url: "/api/telemetry",
-              body: `{"traces":[${traces.join(",")}],"logs":[${lines.join(",")}]}`,
-              contentType: "application/json",
-            },
-          ];
-        } else {
-          const sent = records.filter((record) => exported[record.kind]);
-          const groups = ["server", "browser", "ssr", "worker"].flatMap((side) => {
-            const spans = sent
-              .filter((record) => record.kind === "trace" && record.side === side)
-              .map((record) => record.json);
-            if (!spans.length) return [];
+    const owned = {
+      otlpBody(kind: Telemetry.Record["kind"], records: Telemetry.Record[]) {
+        const groups = sides.flatMap((one) => {
+          const items = records
+            .filter((record) => record.kind === kind && record.side === one)
+            .map((record) => record.json)
+            .join(",");
+          if (!items) return [];
+          const inner =
+            kind === "trace"
+              ? `"scopeSpans":[{"scope":${scope},"spans":[${items}]}]`
+              : `"scopeLogs":[{"scope":${scope},"logRecords":[${items}]}]`;
+          return [`{"resource":${resources.get(one)},${inner}}`];
+        });
 
-            const resource = JSON.stringify({
-              attributes: [
-                { key: "service.name", value: { stringValue: service } },
-                { key: "tinker.side", value: { stringValue: side } },
-              ],
-            });
-            return [
-              `{"resource":${resource},"scopeSpans":[{"scope":{"name":"tinker.start"},"spans":[${spans.join(",")}]}]}`,
-            ];
-          });
-          const lines = sent.filter((record) => record.kind === "log").map((record) => record.json);
-          batches = [
-            {
-              url: href.trace,
-              body: groups.length ? `{"resourceSpans":[${groups.join(",")}]}` : undefined,
-              contentType: "application/json",
-            },
-            {
-              url: href.log,
-              body: lines.length ? lines.join("\n") : undefined,
-              contentType: "application/stream+json",
-            },
-          ];
+        if (!groups.length) return undefined;
+        return kind === "trace"
+          ? `{"resourceSpans":[${groups.join(",")}]}`
+          : `{"resourceLogs":[${groups.join(",")}]}`;
+      },
+      batchesOf(records: Telemetry.Record[]): Batch[] {
+        if (!browser) {
+          return (["trace", "log"] as const).map((kind) => ({
+            url: href[kind],
+            body: href[kind] ? owned.otlpBody(kind, records) : undefined,
+            contentType: "application/json",
+          }));
         }
 
+        const traces = records
+          .filter((record) => record.kind === "trace")
+          .map((record) => `{"side":"${record.side}",${record.json.slice(1)}`);
+        const lines = records
+          .filter((record) => record.kind === "log")
+          .map((record) => record.json);
+        const body = `{"traces":[${traces.join(",")}],"logs":[${lines.join(",")}]}`;
+        return [{ url: "/api/telemetry", body, contentType: "application/json" }];
+      },
+      async send(records: Telemetry.Record[], signal: AbortSignal): Promise<Telemetry.Delivery> {
+        const batches = owned.batchesOf(records);
         const accepted = await Promise.all(
           batches.map(async ({ url, body, contentType }) => {
             if (body === undefined) return true;
@@ -96,5 +116,6 @@ export const delivery = resource({
         return { traces: accepted[0]!, logs: browser ? accepted[0]! : accepted[1]! };
       },
     };
+    return owned;
   },
 });

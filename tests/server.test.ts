@@ -19,8 +19,8 @@ const started = (await server.default({
   env: {
     PORT: "0",
     OTEL_SERVICE_NAME: "server-test",
-    VICTORIA_TRACES_URL: `${collector.url}traces`,
-    VICTORIA_LOGS_URL: `${collector.url}logs`,
+    OTEL_EXPORTER_OTLP_TRACES_ENDPOINT: `${collector.url}traces`,
+    OTEL_EXPORTER_OTLP_LOGS_ENDPOINT: `${collector.url}logs`,
     PUBLIC_ORIGIN: "https://app.example",
   },
   args: [],
@@ -87,8 +87,8 @@ test("an empty PUBLIC_ORIGIN counts as unset: rpc and telemetry take the request
     env: {
       PORT: "0",
       OTEL_SERVICE_NAME: "server-test",
-      VICTORIA_TRACES_URL: `${collector.url}traces`,
-      VICTORIA_LOGS_URL: `${collector.url}logs`,
+      OTEL_EXPORTER_OTLP_TRACES_ENDPOINT: `${collector.url}traces`,
+      OTEL_EXPORTER_OTLP_LOGS_ENDPOINT: `${collector.url}logs`,
       PUBLIC_ORIGIN: "",
     },
     args: [],

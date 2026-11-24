@@ -82,11 +82,7 @@ export const threadDrain = resource({
           attributes,
           events,
         };
-        queue.add(
-          "trace",
-          side,
-          spanBody.run({ input: { span, encoded: encoded === 1 }, ns: quiet }),
-        );
+        queue.addSpan(side, spanBody.run({ input: { span, encoded: encoded === 1 }, ns: quiet }));
 
         const record: Telemetry.Log = {
           level: LEVELS.info,
@@ -98,7 +94,7 @@ export const threadDrain = resource({
           attributes: undefined,
           msg: "core.span",
         };
-        queue.writeConsole(queue.add("log", side, record), record);
+        queue.writeConsole(record);
 
         queue.publishQueued();
       },
@@ -119,7 +115,7 @@ export const threadDrain = resource({
           ),
           msg: message.slice(0, 2048),
         };
-        queue.writeConsole(queue.add("log", side, record), record);
+        queue.writeConsole(queue.addLog(side, record));
 
         queue.publishQueued();
       },

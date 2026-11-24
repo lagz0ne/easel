@@ -12,6 +12,8 @@ const root = createScope({
       tracesUrl: settings.traces === null ? undefined : new URL(settings.traces),
       logsUrl: settings.logs === null ? undefined : new URL(settings.logs),
       console,
+      version: settings.version,
+      resource: settings.resource,
     }),
   ],
 });

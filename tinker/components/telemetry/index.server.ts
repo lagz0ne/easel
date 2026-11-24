@@ -9,6 +9,8 @@ import { quiet } from "./records";
 import {
   logLevel,
   logsUrl,
+  resourceAttributes,
+  serviceVersion,
   spanHistory,
   telemetryService,
   telemetrySide,
@@ -27,6 +29,8 @@ const sends = {
   tracesUrl: tracesUrl.optional,
   logsUrl: logsUrl.optional,
   console: consoleOutput,
+  version: serviceVersion,
+  resource: resourceAttributes,
 } as const;
 
 const records = { level: logLevel, history: spanHistory, origin: telemetryOrigin } as const;

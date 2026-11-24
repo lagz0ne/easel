@@ -5,6 +5,7 @@ import { abortReasons } from "~/components/errors";
 import { consoleOutput } from "./console";
 import { delivery } from "./delivery";
 import { exportHealth } from "./health";
+import { logBody, quiet, redactSpan, redactText } from "./records";
 import type { Telemetry } from "./records";
 import { firstSendMark, firstSendMaxMs, telemetrySide } from "./settings";
 
@@ -18,8 +19,14 @@ export const queue = resource({
     health: exportHealth.controller,
     delivery,
     console: consoleOutput,
+    redactSpan,
+    redactText,
+    logBody,
   },
-  factory: ({ side, mark, maxMs, health, delivery, console }, ctx) => {
+  factory: (
+    { side, mark, maxMs, health, delivery, console, redactSpan, redactText, logBody },
+    ctx,
+  ) => {
     const encoder = new TextEncoder();
     let records: Telemetry.Record[] = [];
     const browser = side === "browser";
@@ -59,53 +66,67 @@ export const queue = resource({
       ingest(batch: Telemetry.Batch) {
         for (let index = 0; index < batch.traces.length; index++) {
           const { side, ...value } = batch.traces[index]!;
-          owned.add("trace", side, value);
+          owned.addSpan(side, value);
         }
         for (let index = 0; index < batch.logs.length; index++) {
           const value = batch.logs[index]!;
-          owned.add("log", value.side, value);
+          owned.addLog(value.side, value);
         }
         if (batch.traces.length + batch.logs.length) owned.publishQueued();
       },
-      add(
-        kind: Telemetry.Record["kind"],
-        side: Telemetry.Side,
-        value: Telemetry.SpanBody | Telemetry.Log,
-      ) {
+      addSpan(side: Telemetry.Side, value: Telemetry.SpanBody) {
+        const body = browser ? value : redactSpan.run({ input: value, ns: quiet });
+        owned.keep("trace", side, JSON.stringify(body));
+      },
+      addLog(side: Telemetry.Side, value: Telemetry.Log): Telemetry.Log {
+        if (browser) {
+          owned.keep("log", side, JSON.stringify(value));
+          return value;
+        }
+        owned.keep("log", side, JSON.stringify(logBody.run({ input: value, ns: quiet })));
+        const attributes = value.attributes;
+        return {
+          ...value,
+          msg: redactText.run({ input: value.msg, ns: quiet }),
+          attributes:
+            attributes === undefined
+              ? undefined
+              : Object.fromEntries(
+                  Object.entries(attributes).map(([key, entry]) => [
+                    key,
+                    redactText.run({ input: entry, ns: quiet }),
+                  ]),
+                ),
+        };
+      },
+      keep(kind: Telemetry.Record["kind"], side: Telemetry.Side, json: string) {
         if (state === "closed" || records.length >= 512) {
           dropped++;
           return;
         }
 
-        const json = JSON.stringify(value);
         const { read, written } = encoder.encodeInto(json, scratch);
         const bytes = written + (kind === "trace" ? side.length + 10 : 0);
-        const record = { kind, side, json, bytes };
 
         if (read < json.length || bytes > recordLimit || queueBytes + bytes > 1_048_576) {
           dropped++;
         } else {
-          records.push(record);
+          records.push({ kind, side, json, bytes });
           queueBytes += bytes;
         }
-
-        return record;
       },
-      writeConsole(encoded: Telemetry.Record | undefined, value: Telemetry.Log) {
+      writeConsole(value: Telemetry.Log) {
         if (state === "closed" || consoleLines.length >= 512 || consoleBytes >= 48_000) {
           dropped++;
           return;
         }
-        if (!encoded) {
-          const json = JSON.stringify(value);
-          const size = encoder.encodeInto(json, scratch);
-          if (size.read < json.length) {
-            dropped++;
-            return;
-          }
-          encoded = { kind: "log", side: value.side, json, bytes: size.written };
+        const json = JSON.stringify(value);
+        const size = encoder.encodeInto(json, scratch);
+        if (size.read < json.length) {
+          dropped++;
+          return;
         }
-        owned.retainConsole(encoded);
+        owned.retainConsole({ kind: "log", side: value.side, json, bytes: size.written });
       },
       retainConsole(record: Telemetry.Record) {
         if (record.bytes + 1 > 48_000 - consoleBytes) {
@@ -179,6 +200,15 @@ export const queue = resource({
           }
         }));
       },
+      settle(retained: Telemetry.Record[], result: Telemetry.Delivery) {
+        const taken = new Set(retained);
+        records = records.filter((record) => !taken.has(record));
+        for (const record of retained) {
+          queueBytes -= record.bytes;
+          if (!(record.kind === "trace" ? result.traces : result.logs)) dropped++;
+        }
+        failed = !result.traces || !result.logs;
+      },
       async sendBatch() {
         const retained = owned.takeBatch();
         if (publishing) health.set({ kind: "sending", pending: records.length, dropped: dropped });
@@ -205,13 +235,7 @@ export const queue = resource({
           await alarm;
         }
 
-        const accepted = new Set(
-          retained.filter((record) => (record.kind === "trace" ? result.traces : result.logs)),
-        );
-        records = records.filter((record) => !accepted.has(record));
-        for (const record of accepted) queueBytes -= record.bytes;
-
-        failed = !result.traces || !result.logs;
+        owned.settle(retained, result);
         if (publishing) {
           health.set(
             !failed
