@@ -68,3 +68,5 @@ frames-arrange-rev	models/frames/ArrangeRev.tla	models/frames/ArrangeRev.cfg	mod
 frames-arrange-no-rev	models/frames/ArrangeRev.tla	models/frames/ArrangeNoRev.cfg	models/frames/ArrangeRev.view.mjs	breaks
 viewer-image-drop	models/viewer/ImageDrop.tla	models/viewer/ImageDrop.cfg	models/viewer/ImageDrop.view.mjs	holds
 viewer-image-drop-any-paste	models/viewer/ImageDrop.tla	models/viewer/ImageDropAnyPaste.cfg	models/viewer/ImageDrop.view.mjs	breaks
+words-frame	models/words/Words.tla	models/words/Words.cfg	models/words/Words.view.mjs	holds
+words-frame-no-rev	models/words/Words.tla	models/words/WordsNoRev.cfg	models/words/Words.view.mjs	breaks
