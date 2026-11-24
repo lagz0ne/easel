@@ -47,27 +47,56 @@ Prior art:
    Doop.
 2. A canvas `product` holds the screens of easel, one page for each epic (Read me, E3, E4, E8), at
    their places from Doop. The 3 open Doop comments become requests on it.
-3. A page `Live` on `product` shows the screens of easel as they are live. A deploy writes them
-   again. Each screen of a proposal has its live screen with the same name, so a person sees both.
+3. A page `Live` on `product` shows the screens of easel as they are live, as image frames
+   (§ Images). After each deploy, a job opens easel on a fixed fixture canvas in a browser, takes
+   each screen, and puts it again. Each screen of a proposal has its live screen with the same name, so a person sees both.
    The states, the sizes (phone 390×844, desktop 1440×900) and the themes (light, dark) are fixed,
    so two writes of the same build give the same pictures.
 
 ### The loop
 
-4. A request on a frame of `design-system` or `product` reaches an agent of easel's design. The
-   agent claims it within 5 minutes during the hours that the user sets.
-5. The agent changes the frame (a new version), or the code, or both. It resolves the request only
+4. The dispatcher of easel pushes each waiting request of `design-system` and `product` to a new
+   kind of channel, `webhook` (the user, 2026-11-24: "Dispatcher in easel to push to an adapter on
+   top of current paseo. Adapter will lead to spawning agent").
+   - A webhook delivery is an HTTP `POST` of the request (canvas, number, text, frame, page) to the
+     address of the channel. It is signed as the Standard Webhooks spec says (`webhook-id`,
+     `webhook-timestamp`, `webhook-signature`: HMAC-SHA-256 with the secret of the channel), as
+     Stripe and GitHub sign theirs. The retries, the `failed` state and `easel deliveries` are the
+     same as for a GitHub channel (SPEC-queue § The dispatcher).
+   - A channel can name canvases. It gets only the requests of those canvases.
+   - The secret of a channel is write-only, as the token of a GitHub channel.
+5. **The Paseo adapter** is a small service on the machine, beside the Paseo daemon. It checks the
+   signature and the time of each delivery, and refuses an old one or a repeat (`webhook-id`). For
+   a good one, it starts an agent in the easel workspace with `paseo run`. The prompt of the agent
+   names the canvas and the number of the request, and tells it to claim the request with
+   `easel next`. So the claim, the lease and the result stay in easel. A request that the agent
+   does not claim waits, and the next waiting period delivers it again.
+6. The agent changes the frame (a new version), or the code, or both. It resolves the request only
    when `/api/version` shows the build with the change.
-6. A change of the code that changes a screen writes its live screen again. The request says
+7. A change of the code that changes a screen writes its live screen again. The request says
    which build has it.
-7. A change of the design system (a value of the look, or a component) shows on each frame that
+8. A change of the design system (a value of the look, or a component) shows on each frame that
    uses it (SPEC-pieces, rule 18).
+
+### Images
+
+9. A frame can be an image (the user, 2026-11-24: "We should have image upload feature, can take
+   screenshot and analyze"). `easel put <canvas> shot.png` makes an image frame from a PNG, JPEG
+   or WebP file of 10 MB at most, at the size of the image. MCP `put_frame` takes an image too. A
+   person can drop or paste an image on the board of a member.
+10. A request can carry one screenshot: a person pastes it into the request, or picks a part of
+    the board to take one. The screenshot stays with the request, as its text does.
+11. An agent gets the image of an image frame, the screenshot of a request, and the picture of
+    any frame as MCP image content (`get_frame`, `next_request`, `shot_frame`), so it can look at
+    it and analyze it. easel itself runs no model on an image.
+12. An image frame has versions, requests and pages as each other frame. A put of a new image is a
+    new version.
 
 ### The proof
 
-8. `bun run design:proof` reads the canvases of easel, not Doop. It prints OK only if each rule of
-   its check holds: the contrast table, each screen of a proposal has its live screen, and no live
-   screen uses a value that is not in the design system.
+13. `bun run design:proof` reads the canvases of easel, not Doop. It prints OK only if each rule of
+    its check holds: the contrast table, each screen of a proposal has its live screen, and no live
+    screen uses a value that is not in the design system.
 
 ## Success criteria
 
@@ -82,6 +111,10 @@ Prior art:
    `Live` page shows the change. No step happens outside easel and the repository.
 5. **The proof.** `bun run design:proof` prints OK against the canvases of easel, and it fails if
    a live screen uses a color that is not in the design system.
+6. **The adapter.** A request on `product` starts a Paseo agent within 1 minute of the delivery.
+   A delivery with a wrong signature, an old time or a repeated id starts no agent.
+7. **An image.** `easel put product shot.png` makes an image frame. A person pastes a screenshot
+   into a request. The agent that claims it gets both images and says what it sees in its result.
 
 ## Boundaries
 
@@ -90,7 +123,9 @@ Prior art:
 - Always: a frame that a person marked ready changes only through a request.
 - Ask first: a change of the look of the design system (it changes each frame of the team).
 - Ask first: the hours when the design agent runs, and its cost limit.
+- Ask first: the address of the adapter on the machine (it is hub work, by a hub request).
 - Never: the loop deletes a frame or a canvas.
+- Never: the adapter is open to the internet. Only easel can reach it.
 
 ## Out of scope (deferred)
 
@@ -100,15 +135,16 @@ Prior art:
 - **An approval step before a change of code** (a person approves a proposal first). Add it when
   a change ships that the user did not want.
 
+## Decisions
+
+1. **The design agent** (the user, 2026-11-24): the dispatcher pushes to a Paseo adapter, and
+   the adapter starts the agent (§ The loop, rules 4-5).
+2. **The live screens** (the user, 2026-11-24): image frames, put by a job after each deploy
+   (§ Images).
+
 ## Open questions
 
-1. **Who runs the design agent?** I recommend a scheduled Paseo agent that runs `easel next
---canvas product --canvas design-system --wait` in its work hours. The GitHub channel is the
-   other way: each request becomes an issue, and an agent takes the issue. That adds one more
-   place to look, so I do not recommend it.
-2. **How does a live screen get on the board?** I recommend a job after each deploy. It opens
-   easel with a fixed fixture canvas in a browser, takes each state as a picture, and puts it as a
-   frame on `Live`. The other way is a frame that embeds the live page. A frame has no origin and
-   no login, so it cannot show the real page.
-3. **The canvas names.** I recommend `design-system` (it exists) and `product`. Doop had
+1. **The canvas names.** I recommend `design-system` (it exists) and `product`. Doop had
    `easel · Design system` and `easel · Product design`.
+2. **The hours and the cost limit of the design agents.** For example: at most 2 agents at the
+   same time, and at most 20 in a day. The adapter refuses more, and the request waits.
