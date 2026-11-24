@@ -85,6 +85,7 @@ const fixtureEnv = Object.fromEntries(
 
 const chromiumPath = localChromium() || chromium.executablePath();
 const work = mkdtempSync(join(tmpdir(), "easel-live-"));
+const fixtureHome = join(work, "home");
 const scope = createScope();
 const browser = await chromium.launch({ executablePath: chromiumPath });
 let server: ReturnType<typeof Bun.spawn> | undefined;
@@ -141,7 +142,7 @@ function setupLogin(url: string, log: string) {
   const code = /setup code: (\S+)/.exec(readFileSync(log, "utf8"))?.[1];
   if (!code) throw new Error(`live-screens: no setup code (log: ${log})`);
 
-  const home = join(work, "home");
+  const home = fixtureHome;
   const login = Bun.spawnSync([binary, "login", url, "--name", "claude-1", "--setup", code], {
     env: { ...fixtureEnv, HOME: home, XDG_CONFIG_HOME: join(home, ".config") },
   });
@@ -259,6 +260,14 @@ function tools(url: string, token: string) {
   };
 }
 
+function agree(key: string, n: number) {
+  const env = { ...fixtureEnv, HOME: fixtureHome, XDG_CONFIG_HOME: join(fixtureHome, ".config") };
+  const done = Bun.spawnSync([binary, "agree", key, String(n)], { env });
+  if (done.exitCode !== 0) {
+    throw new Error(`live-screens: easel agree ${n} failed: ${done.stdout}${done.stderr}`);
+  }
+}
+
 async function answer(mcp: ReturnType<typeof tools>, key: string, n: number, text: string) {
   const got = z.object({ claim: z.string() }).parse(await mcp("next_request", { canvas: key, n }));
   await mcp("resolve_request", { claim: got.claim, text });
@@ -281,6 +290,8 @@ async function markedOpen(tab: Page) {
 
 async function playFixture(page: Page, mcp: ReturnType<typeof tools>, key: string) {
   for (const one of fixtureAsks) await ask(page, one);
+
+  for (const one of fixtureAsks) agree(key, one.n);
 
   await answer(mcp, key, 1, "Done. The Team card has a blue border and a Most popular label.");
   await answer(mcp, key, 2, "Done. The Starter button uses the brand blue now.");
