@@ -1,7 +1,7 @@
 import { operation } from "@tinkered/core";
 import { z } from "zod";
 
-import { loginApi, ownerApi, successKinds, userApi } from "@/access/contract";
+import { loginApi, openApi, ownerApi, successKinds, userApi } from "@/access/contract";
 import { opsOwnerApi, opsSuccessKinds, opsUserApi } from "@/ops/contract";
 
 import { entryOf, envToken, saveEntry, server } from "./hosts";
@@ -29,6 +29,8 @@ const address = z.enum([
   "users.approve",
   "users.deny",
   "users.revoke",
+  "users.end",
+  "browser.link",
   "ops.status",
   "ops.errors",
   "ops.error",
@@ -94,6 +96,7 @@ const faultOf = operation({
     if (loginApi.fault.is(error) || userApi.fault.is(error) || ownerApi.fault.is(error)) {
       return error;
     }
+    if (openApi.fault.is(error)) return error;
     return opsUserApi.fault.is(error) || opsOwnerApi.fault.is(error) ? error : null;
   },
 });

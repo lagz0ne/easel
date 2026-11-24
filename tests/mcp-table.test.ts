@@ -2,7 +2,7 @@ import { exits } from "@tinkered/cli/test";
 import { createScope } from "@tinkered/core";
 import { expect, test } from "vite-plus/test";
 
-import { loginApi, ownerApi, userApi } from "@/access/contract";
+import { browserApi, loginApi, openApi, ownerApi, userApi } from "@/access/contract";
 import { framesApi } from "@/frames/contract";
 import { passApi, shareApi } from "@/frames/share";
 import { kitApi } from "@/kit/contract";
@@ -13,6 +13,8 @@ import { queueApi, requestApi } from "@/queue/contract";
 
 const easelApis = [
   loginApi,
+  browserApi,
+  openApi,
   userApi,
   ownerApi,
   opsUserApi,

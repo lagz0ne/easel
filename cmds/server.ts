@@ -9,8 +9,15 @@ import { telemetryEnv } from "~/components/telemetry/env.server";
 import { telemetry } from "~/components/telemetry/index.server";
 
 import { access } from "@/access";
+import {
+  browserOps,
+  openOps,
+  signInWithCode,
+  signInWithLink,
+  signOut,
+} from "@/access/browser.server";
 import { accessEnv } from "@/access/env.server";
-import { accessDoor, owner, user } from "@/access/guards.server";
+import { accessDoor, byToken, owner, user } from "@/access/guards.server";
 import { loginOps } from "@/access/login.server";
 import { accessServer } from "@/access/store.server";
 import { ownerOps, userOps } from "@/access/users.server";
@@ -89,6 +96,8 @@ export default defineMain(async ({ env, args, signal, stdout, stderr, exit }) =>
     path: "/rpc",
     services: [
       access.login,
+      access.browser,
+      access.open,
       access.user,
       access.owner,
       greet.api,
@@ -132,6 +141,9 @@ export default defineMain(async ({ env, args, signal, stdout, stderr, exit }) =>
     stop: signal,
     table: {
       "GET /api/health": health,
+      "POST /auth/code": signInWithCode,
+      "POST /auth/open": signInWithLink,
+      "POST /auth/out": signOut,
       "GET /api/version": release.version,
       "GET /install.sh": release.install,
       "GET /api/ready": ready,
@@ -159,7 +171,7 @@ export default defineMain(async ({ env, args, signal, stdout, stderr, exit }) =>
         pages,
         websocket: door,
         handlers: [table],
-        paths: ["/install.sh", "/mcp", "/.well-known/*", "/oauth/*"],
+        paths: ["/install.sh", "/mcp", "/.well-known/*", "/oauth/*", "/auth/*"],
         development: env.NODE_ENV !== "production",
         stdout,
       }),
@@ -173,6 +185,8 @@ export default defineMain(async ({ env, args, signal, stdout, stderr, exit }) =>
         durable: auth.durable,
       }),
       access.login({ implement: loginOps }),
+      access.browser({ implement: browserOps }),
+      access.open({ implement: openOps, onStart: [user, byToken] }),
       access.user({ implement: userOps, onStart: [user] }),
       access.owner({ implement: ownerOps, onStart: [user, owner] }),
       picturesServer({ chromium: env.EASEL_CHROMIUM, database: auth.file }),

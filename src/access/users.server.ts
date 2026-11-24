@@ -2,9 +2,9 @@ import { operation } from "@tinkered/core";
 import { z } from "zod";
 
 import { ownerApi, userApi } from "./contract";
-import { caller } from "./guards.server";
+import { caller, digestOf } from "./guards.server";
 import { inUse } from "./login.server";
-import { logins, store, users } from "./store.server";
+import { browserCodes, logins, secretBytes, sessions, store, users } from "./store.server";
 
 export const me = operation({
   label: "users.me.do",
@@ -30,17 +30,33 @@ export const add = operation({
 export const list = operation({
   label: "users.list.do",
   input: ownerApi["users.list"].input,
-  depends: { users: users.atScope.controller, logins: logins.atScope.controller },
-  run: ({ users, logins }, { clock }) => {
+  depends: {
+    users: users.atScope.controller,
+    logins: logins.atScope.controller,
+    codes: browserCodes.atScope.controller,
+    sessions: sessions.atScope.controller,
+  },
+  run: ({ users, logins, codes, sessions }, { clock }) => {
     const now = clock.currentTimeMillis();
+    const cli = logins.get().map((l) => ({ ...l, browser: false }));
+    const browser = codes.get().map((c) => ({ ...c, browser: true }));
 
     return {
       users: users.get().map(({ name, role, since }) => ({ name, role, since })),
-      requests: logins
-        .get()
+      requests: [...cli, ...browser]
         .filter((l) => l.state === "pending" && l.expiresAt > now)
         .toSorted((a, b) => a.since - b.since)
-        .map(({ code, name, since, expiresAt }) => ({ code, name, since, expiresAt })),
+        .map(({ code, name, since, expiresAt, browser }) => ({
+          code,
+          name,
+          since,
+          expiresAt,
+          browser,
+        })),
+      sessions: sessions
+        .get()
+        .toSorted((a, b) => b.used - a.used)
+        .map(({ id, name, browser, since, used }) => ({ id, name, browser, since, used })),
     };
   },
 });
@@ -56,13 +72,61 @@ const waiting = operation({
   },
 });
 
+const waitingBrowser = operation({
+  label: "access.waitingBrowser",
+  input: z.string(),
+  depends: { codes: browserCodes.atScope.controller },
+  run: ({ codes }, { input: code, clock }) => {
+    const now = clock.currentTimeMillis();
+
+    return codes.get().find((c) => c.code === code && c.state === "pending" && c.expiresAt > now);
+  },
+});
+
+const approveBrowser = operation({
+  label: "access.approveBrowser",
+  input: ownerApi["users.approve"].input,
+  depends: {
+    waitingBrowser,
+    store,
+    users: users.atScope.controller,
+    bytes: secretBytes,
+    digestOf,
+  },
+  run: async ({ waitingBrowser, store, users, bytes, digestOf }, { input, clock }) => {
+    const code = waitingBrowser.run({ input: input.code });
+    if (!code) return { kind: "gone" as const };
+
+    const held = users.of({ name: code.name }).get();
+    if (held) {
+      store.write({ codes: [{ ...code, state: "approved" }] });
+      return {
+        kind: "approved" as const,
+        user: { name: held.name, role: held.role, since: held.since },
+      };
+    }
+
+    const user = {
+      name: code.name,
+      role: input.owner ? ("owner" as const) : ("member" as const),
+      since: clock.currentTimeMillis(),
+    };
+    const unusable = digestOf.run({ input: Buffer.from(bytes.run({ input: 32 })).toString("hex") });
+    store.write({
+      users: [{ ...user, digest: unusable }],
+      codes: [{ ...code, state: "approved" }],
+    });
+    return { kind: "approved" as const, user };
+  },
+});
+
 export const approve = operation({
   label: "users.approve.do",
   input: ownerApi["users.approve"].input,
-  depends: { waiting, store },
-  run: async ({ waiting, store }, { input, clock }) => {
+  depends: { waiting, approveBrowser, store },
+  run: async ({ waiting, approveBrowser, store }, { input, clock }) => {
     const login = waiting.run({ input: input.code });
-    if (!login) return { kind: "gone" as const };
+    if (!login) return approveBrowser.run({ input });
 
     const user = {
       name: login.name,
@@ -80,21 +144,43 @@ export const approve = operation({
 export const deny = operation({
   label: "users.deny.do",
   input: ownerApi["users.deny"].input,
-  depends: { waiting, store },
-  run: async ({ waiting, store }, { input }) => {
+  depends: { waiting, waitingBrowser, store },
+  run: async ({ waiting, waitingBrowser, store }, { input }) => {
     const login = waiting.run({ input: input.code });
-    if (!login) return { kind: "gone" as const };
+    const code = waitingBrowser.run({ input: input.code });
+    if (!login && !code) return { kind: "gone" as const };
 
-    store.write({ logins: [{ ...login, state: "denied" }] });
+    store.write({
+      logins: login ? [{ ...login, state: "denied" }] : [],
+      codes: code ? [{ ...code, state: "denied" }] : [],
+    });
     return { kind: "denied" as const };
+  },
+});
+
+export const endSession = operation({
+  label: "users.end.do",
+  input: ownerApi["users.end"].input,
+  depends: { sessions: sessions.atScope.controller, store },
+  run: async ({ sessions, store }, { input }) => {
+    const row = sessions.get().find((s) => s.id === input.session);
+    if (!row) return { kind: "gone" as const };
+
+    store.write({ endSessions: [row.id] });
+    return { kind: "ended" as const };
   },
 });
 
 const remove = operation({
   label: "access.remove",
   input: z.string(),
-  depends: { users: users.atScope.controller, logins: logins.atScope.controller, store },
-  run: async ({ users, logins, store }, { input: name, clock }) => {
+  depends: {
+    users: users.atScope.controller,
+    logins: logins.atScope.controller,
+    codes: browserCodes.atScope.controller,
+    store,
+  },
+  run: async ({ users, logins, codes, store }, { input: name, clock }) => {
     const row = users.of({ name }).get();
     if (!row) return { kind: "gone" as const };
 
@@ -107,7 +193,11 @@ const remove = operation({
       .filter((l) => l.name === row.name)
       .filter((l) => l.state === "approved" || (l.state === "pending" && l.expiresAt > now))
       .map((l) => ({ ...l, state: "denied" as const }));
-    store.write({ drop: [row.name], logins: ended });
+    const endedCodes = codes
+      .get()
+      .filter((c) => c.name === row.name && (c.state === "approved" || c.state === "pending"))
+      .map((c) => ({ ...c, state: "denied" as const }));
+    store.write({ drop: [row.name], logins: ended, codes: endedCodes });
     return { kind: "removed" as const };
   },
 });
@@ -142,4 +232,5 @@ export const ownerOps = {
   "users.approve": approve,
   "users.deny": deny,
   "users.revoke": revoke,
+  "users.end": endSession,
 } as const;

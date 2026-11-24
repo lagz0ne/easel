@@ -6,7 +6,16 @@ import { z } from "zod";
 
 import { loginApi } from "./contract";
 import { clientAddress } from "./guards.server";
-import { logins, mode, newCode, newRequest, setupCode, store, users } from "./store.server";
+import {
+  browserCodes,
+  logins,
+  mode,
+  newCode,
+  newRequest,
+  setupCode,
+  store,
+  users,
+} from "./store.server";
 
 const minute = 60_000;
 
@@ -14,7 +23,13 @@ export const codeLife = 10 * minute;
 
 export const waitMax = 50_000;
 
-export const limits = { "login.start": 5, "login.setup": 5, "login.wait": 30 } as const;
+export const limits = {
+  "login.start": 5,
+  "login.setup": 5,
+  "login.wait": 30,
+  "browser.start": 5,
+  "browser.wait": 30,
+} as const;
 
 export const maxPending = { all: 20, address: 3 } as const;
 
@@ -73,9 +88,9 @@ export const addressKey = operation({
   },
 });
 
-const admit = operation({
+export const admit = operation({
   label: "access.admit",
-  input: z.enum(["login.start", "login.setup", "login.wait"]),
+  input: z.enum(["login.start", "login.setup", "login.wait", "browser.start", "browser.wait"]),
   depends: { limiter, clientAddress, addressKey },
   run: ({ limiter, clientAddress, addressKey }, { input, clock }) => {
     const retryIn = limiter.hit(
@@ -101,13 +116,15 @@ export const inUse = operation({
   },
 });
 
-const room = operation({
+export const room = operation({
   label: "access.room",
   input: z.string(),
-  depends: { logins: logins.atScope.controller },
-  run: ({ logins }, { input: address, clock }) => {
+  depends: { logins: logins.atScope.controller, codes: browserCodes.atScope.controller },
+  run: ({ logins, codes }, { input: address, clock }) => {
     const now = clock.currentTimeMillis();
-    const waiting = logins.get().filter((l) => l.state === "pending" && l.expiresAt > now);
+    const waiting = [...logins.get(), ...codes.get()].filter(
+      (l) => l.state === "pending" && l.expiresAt > now,
+    );
     const mine = waiting.filter((l) => l.address === address);
     const full =
       waiting.length >= maxPending.all ? waiting : mine.length >= maxPending.address ? mine : [];
@@ -117,16 +134,13 @@ const room = operation({
   },
 });
 
-const freshCode = operation({
+export const freshCode = operation({
   label: "access.freshCode",
-  depends: { logins: logins.atScope.controller, newCode },
-  run: ({ logins, newCode }, { clock }) => {
+  depends: { logins: logins.atScope.controller, codes: browserCodes.atScope.controller, newCode },
+  run: ({ logins, codes, newCode }, { clock }) => {
     const now = clock.currentTimeMillis();
     const live = new Set(
-      logins
-        .get()
-        .filter((l) => l.expiresAt > now)
-        .map((l) => l.code),
+      [...logins.get(), ...codes.get()].filter((l) => l.expiresAt > now).map((l) => l.code),
     );
     let code = newCode.run();
     while (live.has(code)) code = newCode.run();

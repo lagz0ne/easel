@@ -218,7 +218,8 @@ export const tools = {
   list_users: {
     address: "users.list",
     annotations: readOnly,
-    description: "List the users, and the login codes that wait (owner only).",
+    description:
+      "List the users, the login codes that wait (of a CLI or of a browser), and the browser sessions (owner only).",
   },
   approve_user: {
     address: "users.approve",
@@ -268,6 +269,10 @@ export const noTool = {
   "login.wait": "a token comes from `easel login`",
   "users.me": "the CLI's session: `easel whoami`",
   "login.end": "the CLI's session: `easel logout`",
+  "browser.start": "a browser's sign-in page asks for its code",
+  "browser.wait": "a browser's sign-in page waits for the approval of its code",
+  "browser.link": "a person signs a browser in with `easel open`",
+  "users.end": "an owner ends a browser session: `easel users end`",
   "users.add": "its token is a secret, shown one time to an owner: `easel users add`",
   "request.add": "a viewer's call, from the page",
   "request.answer": "a viewer's call, from the page",

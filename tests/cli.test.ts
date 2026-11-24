@@ -12,14 +12,15 @@ import { dirname, join } from "node:path";
 
 import { bunSqlite } from "@tinkered/bun/sqlite";
 import { exits } from "@tinkered/cli/test";
-import { createScope, operation } from "@tinkered/core";
+import { createScope, operation, transport } from "@tinkered/core";
 import { makeTestClock, memory } from "@tinkered/core/testing";
 import { afterEach, expect, test, vi } from "vite-plus/test";
 import { z } from "zod";
 
 import { access } from "@/access";
-import { request } from "@/access/contract";
-import { owner, user } from "@/access/guards.server";
+import { browserOps, openOps, signInWithLink } from "@/access/browser.server";
+import { request, sessionCookie } from "@/access/contract";
+import { byToken, owner, user } from "@/access/guards.server";
 import { codeLife, loginOps, waitMax } from "@/access/login.server";
 import { accessServer } from "@/access/store.server";
 import { ownerOps, userOps } from "@/access/users.server";
@@ -27,6 +28,7 @@ import { cli } from "@/cli";
 import type { Command } from "@/cli";
 import { faultExit } from "@/cli/exit";
 import { relinkAfter } from "@/cli/login";
+import { browserOpener } from "@/cli/open";
 
 vi.setConfig({ testTimeout: 30_000, hookTimeout: 30_000 });
 
@@ -41,7 +43,7 @@ const tick = (ms = 20) => new Promise((done) => setTimeout(done, ms));
 const origin = "https://easel.test";
 
 async function boot(
-  serve = [access.login, access.user, access.owner],
+  serve = [access.login, access.browser, access.open, access.user, access.owner],
   listOp = ownerOps["users.list"],
 ) {
   const clock = makeTestClock({ now: 1_800_000_000_000 });
@@ -66,6 +68,8 @@ async function boot(
         durable: false,
       }),
       access.login({ implement: { ...loginOps, "login.wait": counted } }),
+      access.browser({ implement: browserOps }),
+      access.open({ implement: openOps, onStart: [user, byToken] }),
       access.user({ implement: userOps, onStart: [user] }),
       access.owner({ implement: { ...ownerOps, "users.list": listOp }, onStart: [user, owner] }),
       memory.server({ services: serve }),
@@ -88,7 +92,13 @@ function home() {
   return join(dir, "easel", "hosts.json");
 }
 
-type Options = { peer?: string; json?: boolean; path?: string; token?: string };
+type Options = {
+  peer?: string;
+  json?: boolean;
+  path?: string;
+  token?: string;
+  opener?: (url: string) => Promise<boolean>;
+};
 
 async function easel(srv: Srv, options: Options = {}) {
   const path = options.path ?? home();
@@ -97,6 +107,7 @@ async function easel(srv: Srv, options: Options = {}) {
   const stop = new AbortController();
   const app = createScope({
     clock: srv.clock,
+    tags: options.opener ? [browserOpener(options.opener)] : [],
     capsules: [
       exits({ file: process.env.TINKER_EXITS }),
       memory.client({
@@ -105,6 +116,7 @@ async function easel(srv: Srv, options: Options = {}) {
         meta: cli.bearer,
       }),
       access.login({ remote: memory.client }),
+      access.open({ remote: memory.client }),
       access.user({ remote: memory.client }),
       access.owner({ remote: memory.client }),
       cli({
@@ -504,7 +516,8 @@ test("users: the list (always 0); approve, deny and revoke answer gone or last w
   expect(a.lines()).toEqual([
     {
       users: [expect.objectContaining({ name: "ann", role: "owner" })],
-      requests: [expect.objectContaining({ code, name: "agent" })],
+      requests: [expect.objectContaining({ code, name: "agent", browser: false })],
+      sessions: [],
     },
   ]);
   expect(await a.run(users({ kind: "deny", code }))).toBe(0);
@@ -710,4 +723,86 @@ test("login --print-token without --json: stdout holds only the token; the code 
   expect(token).toMatch(/^[\w-]{43}$/);
   expect(lead.err.join("")).toContain("EASEL_TOKEN");
   expect(lead.err.join("")).not.toContain(String(token));
+});
+
+test("easel open: prints a one-time sign-in link of the server, with the link after #, and opens it in the browser when it can", async () => {
+  const srv = await boot();
+  const opened: string[] = [];
+  const a = await easel(srv, {
+    peer: "198.51.100.1",
+    opener: async (url) => (opened.push(url), true),
+  });
+  expect(await a.run(login("ann", { setup: srv.setupCode() }))).toBe(0);
+  a.lines();
+
+  expect(await a.run({ kind: "open", noBrowser: false })).toBe(0);
+  const [line] = a.lines();
+  expect(line).toEqual({
+    kind: "link",
+    url: expect.stringMatching(new RegExp(`^${origin}/open#[0-9a-f]{64}$`)),
+    expiresAt: srv.clock.currentTimeMillis() + 5 * 60_000,
+    opened: true,
+  });
+  expect(opened).toEqual([line.url]);
+  expect(String(line.url)).not.toContain(a.hosts().user.token);
+
+  expect(await a.run({ kind: "open", noBrowser: true })).toBe(0);
+  expect(a.lines()[0]).toMatchObject({ opened: false });
+  expect(opened).toHaveLength(1);
+});
+
+test("easel open with no browser to open says to open the link; a link of a revoked token is refused with exit 2", async () => {
+  const srv = await boot();
+  const a = await easel(srv, { peer: "198.51.100.1", json: false });
+  expect(await a.run(login("ann", { setup: srv.setupCode() }))).toBe(0);
+  a.out.splice(0);
+
+  expect(await a.run({ kind: "open", noBrowser: false })).toBe(0);
+  expect(a.out.join("")).toMatch(
+    /^open it in a browser\. It signs in one browser as you, one time, until .+:\nhttps:\/\/easel\.test\/open#[0-9a-f]{64}\n$/,
+  );
+
+  const stranger = await easel(srv, { token: "not-a-token", json: false });
+  expect(await stranger.run({ kind: "open", noBrowser: true })).toBe(2);
+});
+
+test("easel users lists each browser session; easel users end ends it (0), then answers gone (1)", async () => {
+  const srv = await boot();
+  const a = await ann(srv);
+  expect(await a.run({ kind: "open", noBrowser: true })).toBe(0);
+  const url = String(a.lines()[0]?.url);
+  const link = url.slice(url.indexOf("#") + 1);
+  const body = new URLSearchParams({ link }).toString();
+  const posted = new Request(`${origin}/auth/open`, {
+    method: "POST",
+    headers: {
+      origin,
+      "content-length": String(body.length),
+      "user-agent": "Firefox/133.0 (X11; Linux)",
+    },
+    body,
+  });
+  const session = srv.server.createSession({ tags: [transport.request(posted)] });
+  const reply = await session.run(signInWithLink);
+  await session.close();
+  expect(reply instanceof Response && reply.headers.get("set-cookie")).toMatch(
+    new RegExp(`^${sessionCookie}=`),
+  );
+
+  expect(await a.run(users({ kind: "ls" }))).toBe(0);
+  const [listed] = a.lines();
+  expect(listed.sessions).toEqual([
+    expect.objectContaining({ name: "ann", browser: "Firefox on Linux" }),
+  ]);
+  const id = String(listed.sessions[0].id);
+
+  const text = await easel(srv, { token: a.hosts().user.token, path: a.path, json: false });
+  expect(await text.run(users({ kind: "ls" }))).toBe(0);
+  expect(text.out.join("")).toContain(
+    `browser sessions (end one with \`easel users end <session>\`):\n  ${id}\tann\tFirefox on Linux\t`,
+  );
+
+  expect(await a.run(users({ kind: "end", session: id }))).toBe(0);
+  expect(await a.run(users({ kind: "end", session: id }))).toBe(1);
+  expect(a.lines()).toEqual([{ kind: "ended" }, { kind: "gone" }]);
 });

@@ -13,6 +13,7 @@ import { cli, command } from "@/cli";
 import type { Command } from "@/cli";
 import { pictureFetch, stdinText } from "@/cli/frames";
 import { hostsAt } from "@/cli/hosts";
+import { browserOpener } from "@/cli/open";
 import { since } from "@/cli/ops";
 import { frames } from "@/frames";
 import { kit } from "@/kit";
@@ -32,11 +33,14 @@ const help = `easel: the canvas CLI. Every command takes --json (one JSON value 
   easel logout                                     end this user on the server, then forget its token
   easel mcp                                        serve each command as an MCP tool on stdio, with this
                                                    user's token: \`claude mcp add easel -- easel mcp\`
-  easel users                                      the users, and the codes that wait (owner)
+  easel users                                      the users, the codes that wait, the browser sessions (owner)
   easel users add <name> [--owner]                 make a user and print its token one time, for an app such as Claude (owner)
   easel users approve <code> [--owner]             approve a code; --owner makes an owner (owner)
   easel users deny <code>                          deny a code (owner)
-  easel users revoke <name>                        end a user and its token (owner)
+  easel users revoke <name>                        end a user, its token and its browser sessions (owner)
+  easel users end <session>                        end one browser session; \`easel users\` lists them (owner)
+  easel open [--no-browser]                        sign a browser in as you: a link for one browser, one time,
+                                                   for 5 minutes; easel opens it when it can
   easel status                                     the build, the checks, the counters, the errors and the fixer's tick
   easel errors [ls] [--open] [--side server|browser] [--since 2h]
                                                    the error groups; --open is the work list (owner)
@@ -114,6 +118,7 @@ const options = {
   name: { type: "string" },
   setup: { type: "string" },
   "no-wait": { type: "boolean" },
+  "no-browser": { type: "boolean" },
   "print-token": { type: "boolean" },
   resume: { type: "boolean" },
   owner: { type: "boolean" },
@@ -799,6 +804,24 @@ const invocation = z.union([
     })),
   z
     .object({
+      positionals: z.tuple([z.literal("users"), z.literal("end"), z.string()]),
+      values: z.strictObject(common),
+    })
+    .transform(({ positionals: [, , session], values }): unknown => ({
+      at: values.server,
+      command: { kind: "users", act: { kind: "end", session } },
+    })),
+  z
+    .object({
+      positionals: z.tuple([z.literal("open")]),
+      values: z.strictObject({ ...common, "no-browser": z.boolean().optional() }),
+    })
+    .transform(({ values }): unknown => ({
+      at: values.server,
+      command: { kind: "open", noBrowser: !!values["no-browser"] },
+    })),
+  z
+    .object({
       positionals: z.tuple([z.literal("users"), z.enum(["deny", "revoke"]), z.string()]),
       values: z.strictObject(common),
     })
@@ -929,6 +952,18 @@ const main = defineMain(async (ctx) => {
     tags: [
       stdinText(() => Bun.stdin.text()),
       pictureFetch((request) => fetch(request)),
+      browserOpener(async (url) => {
+        const desktop = process.platform !== "linux" || !!(env.DISPLAY || env.WAYLAND_DISPLAY);
+        const command = process.platform === "darwin" ? "open" : "xdg-open";
+        if (!desktop || !Bun.which(command)) return false;
+
+        const opened = Bun.spawn([command, url], {
+          stdin: "ignore",
+          stdout: "ignore",
+          stderr: "ignore",
+        });
+        return (await opened.exited) === 0;
+      }),
       mcpLink(async () => {
         const { StdioServerTransport } = await import("@modelcontextprotocol/sdk/server/stdio.js");
         return new StdioServerTransport();
@@ -937,6 +972,7 @@ const main = defineMain(async (ctx) => {
     capsules: [
       ws.client({ url: `${planned.server.replace(/^http/, "ws")}/rpc`, meta: cli.bearer }),
       access.login({ remote: ws.client }),
+      access.open({ remote: ws.client }),
       access.user({ remote: ws.client }),
       access.owner({ remote: ws.client }),
       ops.user({ remote: ws.client }),

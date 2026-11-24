@@ -1,7 +1,7 @@
 import { capsule, operation } from "@tinkered/core";
 import { z } from "zod";
 
-import { code, name } from "@/access/contract";
+import { code, name, sessionId } from "@/access/contract";
 import { build, fingerprint } from "@/ops/contract";
 
 import { channelCommand, channelRun } from "./channels";
@@ -10,6 +10,7 @@ import { entryOf, envToken, hostsPath, server } from "./hosts";
 import { login, waitLogin } from "./login";
 import { lookCommand, lookRun } from "./look";
 import { mcpRun } from "./mcp";
+import { openBrowser } from "./open";
 import {
   errorsHandOff,
   errorsLs,
@@ -24,7 +25,16 @@ import { json, stderr, stdout } from "./output";
 import { pagesCommand, pagesRun } from "./pages";
 import { queueCommand, queueRun } from "./queue";
 import { textsCommand, textsRun } from "./texts";
-import { addUser, approveUser, denyUser, listUsers, logout, revokeUser, whoami } from "./users";
+import {
+  addUser,
+  approveUser,
+  denyUser,
+  endSession,
+  listUsers,
+  logout,
+  revokeUser,
+  whoami,
+} from "./users";
 
 const usersCommand = z.discriminatedUnion("kind", [
   z.object({ kind: z.literal("ls") }),
@@ -32,6 +42,7 @@ const usersCommand = z.discriminatedUnion("kind", [
   z.object({ kind: z.literal("approve"), code, owner: z.boolean() }),
   z.object({ kind: z.literal("deny"), code }),
   z.object({ kind: z.literal("revoke"), name }),
+  z.object({ kind: z.literal("end"), session: sessionId }),
 ]);
 
 const errorsCommand = z.discriminatedUnion("kind", [
@@ -67,6 +78,7 @@ const canvasCommand = z.discriminatedUnion("kind", [
 export const command = z.discriminatedUnion("kind", [
   ...shellCommand.options,
   z.object({ kind: z.literal("mcp") }),
+  z.object({ kind: z.literal("open"), noBrowser: z.boolean() }),
   ...canvasCommand.options,
   z.object({ kind: z.literal("queue"), act: queueCommand }),
   z.object({ kind: z.literal("channel"), act: channelCommand }),
@@ -79,7 +91,7 @@ export type Command = z.infer<typeof command>;
 const users = operation({
   label: "cli.usersCommand",
   input: usersCommand,
-  depends: { listUsers, addUser, approveUser, denyUser, revokeUser },
+  depends: { listUsers, addUser, approveUser, denyUser, revokeUser, endSession },
   run: (ops, { input }) => {
     switch (input.kind) {
       case "ls":
@@ -92,6 +104,8 @@ const users = operation({
         return ops.denyUser.run({ input });
       case "revoke":
         return ops.revokeUser.run({ input });
+      case "end":
+        return ops.endSession.run({ input });
     }
   },
 });
@@ -159,7 +173,7 @@ const canvasRun = operation({
 const run = operation({
   label: "cli.run",
   input: command,
-  depends: { shell, canvasRun, queueRun, channelRun, lookRun, textsRun, mcpRun },
+  depends: { shell, canvasRun, queueRun, channelRun, lookRun, textsRun, mcpRun, openBrowser },
   run: (ops, { input }) => {
     const { shell, canvasRun, queueRun, channelRun, lookRun, textsRun, mcpRun } = ops;
     const onCanvas = canvasCommand.safeParse(input);
@@ -170,6 +184,7 @@ const run = operation({
     if (input.kind === "look") return lookRun.run({ input: input.act });
     if (input.kind === "texts") return textsRun.run({ input: input.act });
     if (input.kind === "mcp") return mcpRun.run();
+    if (input.kind === "open") return ops.openBrowser.run({ input });
     return shell.run({ input: shellCommand.parse(input) });
   },
 });

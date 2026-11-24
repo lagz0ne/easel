@@ -2,7 +2,7 @@ import { operation } from "@tinkered/core";
 import { z } from "zod";
 
 import { access } from "@/access";
-import { code, name } from "@/access/contract";
+import { code, name, sessionId } from "@/access/contract";
 
 import { deadline, exitOf, exits, faultExit } from "./exit";
 import { entryOf, envToken, saveEntry, server } from "./hosts";
@@ -94,14 +94,21 @@ export const listUsers = operation({
     if (reply.status === "cancelled") return faultExit.run({ input: reply.reason });
     if (reply.status === "failed") return faultExit.run({ input: reply.error });
 
-    const { users, requests } = reply.value;
+    const { users, requests, sessions } = reply.value;
     const text = [
       "users:",
       ...users.map((u) => `  ${u.name}\t${u.role}\tsince ${new Date(u.since).toISOString()}`),
       requests.length ? "waiting for approval:" : "no code waits for approval",
       ...requests.map(
         (r) =>
-          `  ${r.code}\t${r.name}\tcame ${new Date(r.since).toISOString()}\truns out ${new Date(r.expiresAt).toISOString()}`,
+          `  ${r.code}\t${r.name}\t${r.browser ? "browser" : "CLI"}\tcame ${new Date(r.since).toISOString()}\truns out ${new Date(r.expiresAt).toISOString()}`,
+      ),
+      sessions.length
+        ? "browser sessions (end one with `easel users end <session>`):"
+        : "no browser session",
+      ...sessions.map(
+        (b) =>
+          `  ${b.id}\t${b.name}\t${b.browser}\tsince ${new Date(b.since).toISOString()}\tlast used ${new Date(b.used).toISOString()}`,
       ),
     ].join("\n");
     say.run({ input: { json: reply.value, text } });
@@ -239,5 +246,36 @@ export const revokeUser = operation({
     }
 
     return exitOf.run({ input: { address: "users.revoke", kind: answer.kind } });
+  },
+});
+
+export const endSession = operation({
+  label: "cli.endSession",
+  input: z.object({ session: sessionId }),
+  depends: { say, exitOf, faultExit, deadline, end: access.owner["users.end"] },
+  run: async ({ say, exitOf, faultExit, deadline, end }, { input }) => {
+    const stop = deadline.run({ input: "users.end" });
+    const reply = await end.settle({ input, signal: stop.signal });
+    stop.abort();
+    if (reply.status === "cancelled") return faultExit.run({ input: reply.reason });
+    if (reply.status === "failed") return faultExit.run({ input: reply.error });
+
+    const answer = reply.value;
+    switch (answer.kind) {
+      case "ended":
+        say.run({ input: { json: answer, text: `ended session ${input.session}` } });
+        break;
+      case "gone":
+        say.run({
+          input: {
+            json: answer,
+            text: `no session ${input.session}: it ended, or it is wrong; see \`easel users\``,
+            error: true,
+          },
+        });
+        break;
+    }
+
+    return exitOf.run({ input: { address: "users.end", kind: answer.kind } });
   },
 });

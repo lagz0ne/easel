@@ -6,8 +6,8 @@ import type { Capsule, Scope } from "@tinkered/core";
 import type { Server, ServerWebSocket, WebSocketHandler } from "bun";
 import { z } from "zod";
 
-import { roles } from "./contract";
-import { trusted, users } from "./store.server";
+import { roles, sessionCookie, sessionSecret } from "./contract";
+import { sessions, store, trusted, users } from "./store.server";
 
 export const caller = tag<{ readonly name: string; readonly role: (typeof roles)[number] }>({
   label: "access.caller",
@@ -19,24 +19,85 @@ export const digestOf = operation({
   run: (_, { input }) => createHash("sha256").update(input).digest("hex"),
 });
 
+export const viaSession = tag<string>({ label: "access.viaSession" });
+
+export const idleLife = 30 * 24 * 60 * 60_000;
+
+export const usedStep = 60 * 60_000;
+
 const bearer = z.object({ authorization: z.string().regex(/^Bearer \S+$/) });
+
+export const cookieSecret = operation({
+  label: "access.cookieSecret",
+  input: z.string().nullable(),
+  run: (_, { input: header }) => {
+    const pairs = (header ?? "").split(";").map((pair) => pair.trim().split("="));
+    const mine = pairs.filter(([key]) => key === sessionCookie).map(([, value]) => value);
+
+    return mine.length === 1 ? (sessionSecret.safeParse(mine[0]).data ?? null) : null;
+  },
+});
+
+const sessionUser = operation({
+  label: "access.sessionUser",
+  depends: {
+    req: transport.request.optional,
+    all: users.atScope.controller,
+    held: sessions.atScope.controller,
+    store,
+    digestOf,
+    cookieSecret,
+  },
+  run: async ({ req, all, held, store, digestOf, cookieSecret }, { clock }) => {
+    const secret = cookieSecret.run({
+      input: req.present ? req.value.headers.get("cookie") : null,
+    });
+    if (secret === null) return null;
+
+    const row = held.of({ digest: digestOf.run({ input: secret }) }).get();
+    const owner = row ? all.of({ name: row.name }).get() : undefined;
+    if (!row || !owner) return null;
+
+    const now = clock.currentTimeMillis();
+    if (now - row.used > idleLife) {
+      store.write({ endSessions: [row.id] });
+      return null;
+    }
+    if (now - row.used >= usedStep) store.write({ sessions: [{ ...row, used: now }] });
+
+    return { caller: { name: owner.name, role: owner.role }, session: row.id };
+  },
+});
 
 export const user = operation({
   label: "access.user",
   input: transport.hook.start,
-  depends: { all: users.atScope.controller, digestOf },
-  run: ({ all, digestOf }, { input }) => {
+  depends: { all: users.atScope.controller, digestOf, sessionUser },
+  run: async ({ all, digestOf, sessionUser }, { input }) => {
     const sent = bearer.safeParse(input.meta).data?.authorization.slice("Bearer ".length);
-    const mine = Buffer.from(digestOf.run({ input: sent ?? "" }));
+    if (!sent) {
+      const browser = await sessionUser.run();
+      return browser
+        ? { tags: [caller(browser.caller), viaSession(browser.session)] }
+        : input.refuse({ signIn: true });
+    }
+    const mine = Buffer.from(digestOf.run({ input: sent }));
 
     let found: { name: string; role: (typeof roles)[number] } | undefined;
     for (const row of all.get()) {
       const same = timingSafeEqual(mine, Buffer.from(row.digest));
-      if (same && sent) found = { name: row.name, role: row.role };
+      if (same) found = { name: row.name, role: row.role };
     }
 
     return found ? { tags: [caller(found)] } : input.refuse({ signIn: true });
   },
+});
+
+export const byToken = operation({
+  label: "access.byToken",
+  input: transport.hook.start,
+  depends: { session: viaSession.optional },
+  run: ({ session }, { input }) => (session.present ? input.refuse({ token: true }) : undefined),
 });
 
 export const owner = operation({
@@ -121,6 +182,41 @@ const doorState = resource({
   factory: (): DoorState => ({ sockets: new Set(), server: null, stopping: false }),
 });
 
+const socketRequest = z.object({ req: z.instanceof(Request) });
+
+export const socketDigest = operation({
+  label: "accessDoor.socketDigest",
+  input: z.unknown(),
+  depends: { cookieSecret, digestOf },
+  run: ({ cookieSecret, digestOf }, { input }) => {
+    const req = socketRequest.safeParse(input).data?.req;
+    const secret = req ? cookieSecret.run({ input: req.headers.get("cookie") }) : null;
+
+    return secret === null ? null : digestOf.run({ input: secret });
+  },
+});
+
+const closeEnded = resource({
+  label: "accessDoor.closeEnded",
+  target: "scope",
+  depends: { held: sessions.atScope.controller, state: doorState, socketDigest },
+  factory: ({ held, state, socketDigest }, ctx) => {
+    const unwatch = held.watch((next, prev) => {
+      const live = new Set(next.map((row) => row.digest));
+      const ended = new Set(prev.map((row) => row.digest).filter((digest) => !live.has(digest)));
+      if (!ended.size) return;
+
+      for (const ws of state.sockets) {
+        const digest = socketDigest.run({ input: ws.data });
+        if (digest !== null && ended.has(digest)) ws.close(4401, "session ended");
+      }
+    });
+    ctx.defer(() => unwatch());
+
+    return { watching: true };
+  },
+});
+
 export const accessDoor = capsule({
   label: "accessDoor",
   config: { inner: inner.required, loopbackOnly, grace },
@@ -144,6 +240,10 @@ export const accessDoor = capsule({
       };
 
       const held = await load(doorState, { role: "state", explain: "The door's live sockets" });
+      await load(closeEnded, {
+        role: "state",
+        explain: "Closes the sockets of a session that ended",
+      });
       const inbound = door.websocket;
 
       return {
