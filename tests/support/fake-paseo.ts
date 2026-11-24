@@ -1,4 +1,4 @@
-import { appendFileSync, existsSync, readFileSync, writeFileSync } from "node:fs";
+import { appendFileSync, existsSync, readFileSync, renameSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 
 import { z } from "zod";
@@ -16,6 +16,12 @@ type Agent = z.infer<typeof agent>;
 const dir = process.env.FAKE_PASEO_DIR ?? "";
 const agentsFile = join(dir, "agents.json");
 const args = process.argv.slice(2);
+
+const writeWhole = (file: string, text: string) => {
+  const part = `${file}.${process.pid}.part`;
+  writeFileSync(part, text);
+  renameSync(part, file);
+};
 
 const agents = (): Agent[] =>
   existsSync(agentsFile) ? z.array(agent).parse(JSON.parse(readFileSync(agentsFile, "utf8"))) : [];
@@ -49,7 +55,7 @@ function run() {
   const title = valuesOf("--title")[0] ?? "";
   const cwd = valuesOf("--cwd")[0] ?? "";
   const made = { id, name: title, status: "running", cwd, labels: labelsOf() };
-  writeFileSync(agentsFile, JSON.stringify([...agents(), made]));
+  writeWhole(agentsFile, JSON.stringify([...agents(), made]));
   process.stdout.write(JSON.stringify({ agentId: id, status: "running", title, cwd }));
 }
 
@@ -94,7 +100,7 @@ function deny() {
     process.exit(1);
   }
 
-  writeFileSync(
+  writeWhole(
     permitsFile,
     JSON.stringify(permits().filter((one) => one !== found && one.id !== id)),
   );

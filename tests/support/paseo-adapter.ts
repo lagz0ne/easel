@@ -1,4 +1,12 @@
-import { mkdirSync, mkdtempSync, readFileSync, readdirSync, rmSync, writeFileSync } from "node:fs";
+import {
+  mkdirSync,
+  mkdtempSync,
+  readFileSync,
+  readdirSync,
+  renameSync,
+  rmSync,
+  writeFileSync,
+} from "node:fs";
 import { existsSync } from "node:fs";
 import { homedir, tmpdir } from "node:os";
 import { join } from "node:path";
@@ -128,6 +136,14 @@ export async function hubNats() {
 
 export type HubNats = Awaited<ReturnType<typeof hubNats>>;
 
+const completeLines = (file: string) => readFileSync(file, "utf8").split("\n").slice(0, -1);
+
+const writeWhole = (file: string, text: string) => {
+  const part = `${file}.${process.pid}.part`;
+  writeFileSync(part, text);
+  renameSync(part, file);
+};
+
 const fakeAgent = z.object({
   id: z.string(),
   name: z.string(),
@@ -156,20 +172,17 @@ export function fakePaseo() {
   const calls = (): string[][] => {
     const file = join(dir, "calls.jsonl");
     if (!existsSync(file)) return [];
-    return readFileSync(file, "utf8")
-      .trim()
-      .split("\n")
-      .map((line) => z.array(z.string()).parse(JSON.parse(line)));
+    return completeLines(file).map((line) => z.array(z.string()).parse(JSON.parse(line)));
   };
   const agents = () => {
     const file = join(dir, "agents.json");
     return existsSync(file) ? z.array(fakeAgent).parse(JSON.parse(readFileSync(file, "utf8"))) : [];
   };
   const setAgents = (list: z.infer<typeof fakeAgent>[]) =>
-    writeFileSync(join(dir, "agents.json"), JSON.stringify(list));
+    writeWhole(join(dir, "agents.json"), JSON.stringify(list));
   const setPermits = (
     list: Array<{ id: string; agentId: string; name: string; description: string }>,
-  ) => writeFileSync(join(dir, "permits.json"), JSON.stringify(list));
+  ) => writeWhole(join(dir, "permits.json"), JSON.stringify(list));
   const permits = () => {
     const file = join(dir, "permits.json");
     return existsSync(file)
@@ -182,13 +195,10 @@ export function fakePaseo() {
   const easelCalls = () => {
     const file = join(dir, "easel-calls.jsonl");
     if (!existsSync(file)) return [];
-    return readFileSync(file, "utf8")
-      .trim()
-      .split("\n")
-      .map((line) => easelCall.parse(JSON.parse(line)));
+    return completeLines(file).map((line) => easelCall.parse(JSON.parse(line)));
   };
   const setLimits = (limits: { running: number; perDay: number }) =>
-    writeFileSync(join(dir, "easel-limits.json"), JSON.stringify(limits));
+    writeWhole(join(dir, "easel-limits.json"), JSON.stringify(limits));
   const failEasel = (on: boolean) =>
     on
       ? writeFileSync(join(dir, "easel-fail"), "")
