@@ -62,32 +62,45 @@ copies, but the live app did not change, and nothing showed the difference. Afte
 
 5. **The `Live` page of `product`.** The job makes the page `Live` when it is not there. Each
    screen has one row. The row starts with a picture of the designed frame, then each take has two
-   image frames, Before and After. A status frame `Live · build <n>` is at the top left. The
-   frames have the name of the designed frame first, so Find (S15) shows the design and its live
-   screens together:
-   - `<design name> · design v<version>`: a picture of the designed frame;
-   - `<design name> · live · <take> · build <n>`: the After;
-   - `<design name> · before · <take> · build <m>`: the Before.
+   image frames, Before and After. The status frame `Live · status` is at the top left. The frames
+   have the name of the designed frame first, so Find (S15) shows the design and its live screens
+   together:
+   - `<design name> · design`: a picture of the designed frame;
+   - `<design name> · live · <take>`: the After;
+   - `<design name> · before · <take>`: the Before.
+
+   easel cannot give a frame a new name, and a frame for each build would fill the page. So the
+   names stay, and each image has a strip of 40 px under it with its build and its take
+   (`build 280 · desktop light`), or the version of the design (`design v4`).
+
 6. **A take, and what the job puts.** For each take of build `n`, the job finds the After of that
-   take by its name:
-   - No After: it puts the take as the After.
-   - The After is of a build before `n`: it puts the image of that After as a new version of the
-     Before, then the take as a new version of the After (V3).
+   take by its name, and its build in the status frame:
+   - No After: it puts the take as the After (`new`).
+   - The After is of another build: it puts the image of that After as a new version of the
+     Before, then the take as a new version of the After (`next`, V3).
    - The After is of build `n`: it compares the pixels. The same pixels: it puts nothing, and the
      status says `same` (V2). Other pixels: it puts nothing, and the status says `differs`. That
      is a finding, because two takes of one build must be the same.
    - The take fails: it puts nothing, so the last good After stays, and the status names the screen
-     and the reason. The job ends red.
+     and the reason. The job ends red, and keeps a picture of the page in the run.
+
+   Each take of a screen starts from the share link, in a new browser context, with the size, the
+   theme, `prefers-reduced-motion` and the text caret off. A request opens by its link
+   (`#request-<n>`). The four takes of a screen run at the same time, so each age on the screen
+   stays `just now`.
+
 7. **The values of a live screen (V6).** During each take, the page reads the computed style of
    each element of easel's own page that shows (not of a frame's document): the colors (text,
-   background, border, outline, SVG fill and stroke), the font size and the first font family.
-   The look of the design system is the token block of the frame `Foundations` on
-   `design-system` (`--e-*`, light and dark). A value that is not a token value is a finding: in
-   the status frame, and in `bun run design:proof`. A transparent color is not a value.
-8. **The status frame.** `Live · build <n>` is an HTML frame. It shows the build, its commit, each
-   screen with each take (`new`, `changed`, `same`, `differs`, `failed: <why>`), and each value
-   outside the design system with its screen. It also holds the same data as JSON in
-   `<script type="application/json" id="easel-live">`, for the proof.
+   background, border, outline, SVG fill and stroke), the font size and the font family. The look
+   of the design system is the token blocks of the frames on `design-system` (`--e-*`, light and
+   dark). A value that is not a token value is a finding, with the element where it shows: in the
+   status frame, and in `bun run design:proof`. A transparent color is not a value. The job
+   gives a warning for it and does not end red: the proof is the check that fails.
+8. **The status frame.** `Live · status` is an HTML frame. It shows the build, its commit, each
+   screen with each take (`new`, `next`, `same`, `differs`, `failed: <why>`), the build of each
+   After and Before, and each value outside the design system. It also holds the same data as
+   JSON in `<script type="application/json" id="easel-live">`: the job reads it on its next run,
+   and the proof reads it.
 9. **An accept starts the change of the app (V4).** A viewer accepts the result of a request on a
    canvas that a `nats` channel covers. Then easel adds one build request on the same frame: its
    author is `easel`, its text starts with `Build:` and names the accepted request and the frame
@@ -132,7 +145,7 @@ copies, but the live app did not change, and nothing showed the difference. Afte
 ## Success criteria
 
 1. **V1.** Within 10 minutes of a deploy, `Live` on `product` has the After of each take of each
-   screen, with the build number of `/api/version` in its name.
+   screen, and its strip and the status frame name the build of `/api/version`.
 2. **V2.** A second run of the job on the same build puts nothing, and its status says `same` for
    each take.
 3. **V3.** After a second build, each take has a Before of the first build beside its After.

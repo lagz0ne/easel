@@ -13,9 +13,9 @@ fields with a real edge, Inter, a calm neutral grey. The values and the `--e-*` 
 own. Blue (`--e-accent`) means only selected, live, or "waits for you", never "go". See
 [docs/decisions/design-system-look.md](docs/decisions/design-system-look.md).
 
-The source of the system is the Doop library canvas `easel · Design system` (`zPdfXgdRrQ`): its
-tokens and its components. The screens are on `easel · Product design` (`xFJSTXA-v5`). See
-[docs/design-canvas.md](docs/design-canvas.md).
+The source of the system is the easel canvas `design-system` on https://easel.vibea.dev: its
+tokens and its components. The screens are on the easel canvas `product`. Doop is not a source
+any more (D9-8, 2026-11-24). See [docs/design-canvas.md](docs/design-canvas.md).
 `src/design` follows it. Status: `src/design/tokens.css` has the values of the library canvas,
 light and dark, and `tests/design-tokens.test.ts` checks the contrast table (2026-11-23). The binary
 holds Inter 5.3.0 and the page loads it (`@font-face` in `tokens.css`, `font-display: swap`).
@@ -52,7 +52,7 @@ Prior art, as ideas only:
     12, 13, 15, 20 px), `--e-leading-1` to `--e-leading-4` (16, 20, 24, 28 px), weights 400, 500,
     600; and motion.
 - The controls the viewer needs, as React components on native elements. Each one is first a
-  component on the Doop canvas, with the same name: `Button` (with a pressed state), `TextField`,
+  component on the canvas `design-system`, with the same name: `Button` (with a pressed state), `TextField`,
   `Checkbox`, `Segmented`, `Tabs`, `Chip`, `Avatar`, `Toast`, `Dialog`, `EmptyState`, `Panel`
   (complementary), `Toolbar`, `Dock` (the canvas tools, docked at the bottom), `Status` (live
   region), `Alert`, `Pin`, `Card`.
@@ -122,10 +122,14 @@ Prior art, as ideas only:
 ## Design on the canvas
 
 - A draft frame is an exploration: it may break any rule.
-- A frame that asks for sign-off (`needs_review`, `ready_for_dev`) uses the system. So do the E4
-  frames on `easel · Product design` and every frame on the pages 1 to 4 of `easel · Design system`.
-  `bun run design:proof` checks them (S1 to S13, T1) and finds them through the Doop MCP. S13: the
-  product canvas has the same tokens as the library.
+- A frame that asks for sign-off (status `ready`) uses the system. So do the E3 and E4 frames on
+  `product` and each frame on the pages 1 to 4 of `design-system`. `bun run design:proof` checks
+  them (S1 to S14, T1). It reads the canvases through the easel MCP as the member `vibea-claude`
+  (`EASEL_CONFIG_HOME=~/.config/easel-agent`). S13: the frames on `product` have the same tokens
+  as `design-system`.
+- The proof also reads the page Live of `product` (SPEC-live-screens.md): each designed screen
+  has its live screens of the build that the site serves (V1), no take differs (V2), and each
+  value of a live screen is in the look of `design-system` (V6).
 - A new need becomes a token or a component on the canvas first; then a frame uses it.
 
 ## Out of Scope (Deferred)

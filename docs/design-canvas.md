@@ -1,56 +1,62 @@
 # The design canvases
 
-How easel keeps its design material on Doop: which canvas holds what, how the pages are named, and
-how a part or a screen moves from draft to done. The reason for this structure is in
+How easel keeps its design material on easel itself (https://easel.vibea.dev): which canvas holds
+what, how the pages are named, and how a part or a screen moves from draft to done. The reason for this structure is in
 [decisions/design-canvases.md](decisions/design-canvases.md).
 
-Status: **in use** (2026-11-20). The migration is done; its record is at the end.
+Status: **in use**. Since 2026-11-24 (D9-8) the canvases on easel are the only source. The Doop
+canvases are not read any more. The record of the first migration (on Doop, 2026-11-20) is at the
+end.
 
-## One workspace, two canvases, one archive
+## Two canvases
 
-All easel design material is in the Doop workspace **easel** (`wEwPhtO4I6`). The workspace has one library canvas
-and one product canvas. Each has its own reader and its own lifecycle.
+All easel design material is on the easel https://easel.vibea.dev. It has one library canvas and
+one product canvas. Each has its own reader and its own lifecycle.
 
-| Canvas                                         | Holds                                                   | Who changes it                 |
-| ---------------------------------------------- | ------------------------------------------------------- | ------------------------------ |
-| **easel · Design system** (`zPdfXgdRrQ`)       | The tokens, the component mains, Foundations, the guide | Only a change to the system    |
-| **easel · Product design** (`xFJSTXA-v5`)      | The screens and state sheets of each epic               | Each design of an epic         |
-| **easel · Archive · viewer v0** (`3Io4CqJYjF`) | The first viewer design (old parts, old screens)        | Nobody. Read it for reference. |
+| Canvas              | Holds                                                        | Who changes it              |
+| ------------------- | ------------------------------------------------------------ | --------------------------- |
+| **`design-system`** | The tokens, the component mains, Foundations                 | Only a change to the system |
+| **`product`**       | The screens and state sheets of each epic, and the page Live | Each design of an epic      |
 
-- The Design system canvas is the **workspace library**. The Product design canvas uses its parts
-  by their names: `<doop-use component="RequestRow">`. A part is never drawn again on a screen.
-- A screen does not change while a part is in review. A part goes to the screens only when it is
-  published and the Product design canvas pulls it.
+- An agent reads and writes the two canvases with the easel CLI or the easel MCP, as the member
+  `vibea-claude` (`EASEL_CONFIG_HOME=~/.config/easel-agent`). Never delete a frame or a canvas.
+- A screen on `product` holds a copy of each part that it uses. The copy keeps the ID of its main
+  in `data-doop-instance` and its revision in `data-doop-rev`. A part is never drawn again on a
+  screen.
+- A copy does not follow its main by itself yet. That is V5 of E11, deferred to
+  [SPEC-pieces](../SPEC-pieces.md). Until then, change each copy by hand (see "Change a part"). The
+  proof counts the parts whose copies differ.
 - Do not start a new canvas for a round or for an epic. An epic gets a page.
-- **Tokens are copied.** Doop does not share tokens through a library. The Product design canvas
-  has a copy of the library tokens. A token changes on the library first, then on the copy. The
-  proof (S13) finds a token that is not the same on the two canvases.
-- Each canvas has the guide `easel-system`, with the same text. Change it on both.
+- **Tokens are copied.** Each frame on `product` has a copy of the tokens of `design-system` in its
+  `<style data-doop-tokens>` block. A token changes on `design-system` first, then on each copy.
+  The proof (S13) finds a token that is not the same on the two canvases.
+- The page Live of `product` is the job's page, not a design page (SPEC-live-screens.md). Do not
+  put a design there.
 
 ## The pages
 
-### easel · Design system
+### `design-system`
 
-| Page              | What is on it                                                                         |
-| ----------------- | ------------------------------------------------------------------------------------- |
-| `0 · Read me`     | What this canvas is, its pages, how to change a part. Start here.                     |
-| `1 · Foundations` | The Foundations frame: tokens and the rules S1 to S12 and T1.                         |
-| `2 · Primitives`  | One element, no other part inside: Button, Count, StateBadge, Pin, Status, Avatar ... |
-| `3 · Patterns`    | Parts that do one job and hold primitives: Card, RequestRow, Message, Composer ...    |
-| `4 · Layout`      | Regions of a screen: Toolbar, Dock, Sidebar.                                          |
-| `Archive`         | Retired parts, for reference only.                                                    |
+| Page (key)            | What is on it                                                                         |
+| --------------------- | ------------------------------------------------------------------------------------- |
+| `Read me` (`read-me`) | What this canvas is, its pages, how to change a part. Start here.                     |
+| `Foundations`         | The Foundations frame: tokens and the rules S1 to S12 and T1.                         |
+| `Primitives`          | One element, no other part inside: Button, Count, StateBadge, Pin, Status, Avatar ... |
+| `Patterns`            | Parts that do one job and hold primitives: Card, RequestRow, Message, Composer ...    |
+| `Layout`              | Regions of a screen: Toolbar, Dock, Sidebar.                                          |
 
-The three levels are the ones that the guide `easel-system` already uses. Each part's description
-starts with its level: `Primitive.`, `Pattern.` or `Layout.`
+The proof reads the pages `foundations`, `primitives`, `patterns` and `layout`. Each part's
+description starts with its level: `Primitive.`, `Pattern.` or `Layout.`
 
-### easel · Product design
+### `product`
 
-| Page                                      | What is on it                                                 |
-| ----------------------------------------- | ------------------------------------------------------------- |
-| `0 · Read me`                             | What this canvas is, the pages, how to start a design.        |
-| `Work · E<n> <epic title>`                | One page for each epic in design. See "An epic page" below.   |
-| `Work · E<n> · click-path copies`         | Copies of a screen that only the prototype needs (see below). |
-| `Archive · E<n> <epic title> (concluded)` | The concluded design of an epic. Explorations are deleted.    |
+| Page                                      | What is on it                                                     |
+| ----------------------------------------- | ----------------------------------------------------------------- |
+| `0 · Read me`                             | What this canvas is, the pages, how to start a design.            |
+| `Work · E<n> <epic title>`                | One page for each epic in design. See "An epic page" below.       |
+| `Work · E<n> · click-path copies`         | Copies of a screen that only the prototype needs (see below).     |
+| `Archive · E<n> <epic title> (concluded)` | The concluded design of an epic. Explorations are deleted.        |
+| `Live`                                    | The live screens of each build beside their designs (E11, V1-V3). |
 
 Example: `Work · E4 Comment and get a change`.
 
@@ -58,7 +64,7 @@ Example: `Work · E4 Comment and get a change`.
 
 A person reads the page from the top left, without help. This follows the create canvas
 (`create · Product design`: a sheet first, one page for each epic) and Figma sections (a title
-over a group of frames). Doop has no sections, and each frame is a full HTML document, so a group
+over a group of frames). easel has no sections, and each frame is a full HTML document, so a group
 is shown by a small **header frame** above its screens and by space, never by a frame behind them.
 
 1. **The sheet** `E<n>.00 Requirements and review`, at x 0, y 0. It is the traceability matrix:
@@ -71,20 +77,19 @@ is shown by a small **header frame** above its screens and by space, never by a 
    is one short path: 1 to 5 screens in click order, left to right. Its **header** (at most 2560
    px wide, as tall as its text) has the number, the title, one or two sentences that say what
    happens, and the IDs that the screens prove. Groups wrap into rows of at most 10,400 px.
-4. **Click-path copies** go to `Work · E<n> · click-path copies`, in the same layout. A Doop link
+4. **Click-path copies** go to `Work · E<n> · click-path copies`, in the same layout. A link
    always opens a frame at its top, so a screen with a tab (Before or After) needs one copy for each
    tab. People read the screen on the epic page; only the prototype needs the copies. A prototype
    link works across pages. Change a copy when you change its screen.
 
-**No frame behind a screen.** Doop draws each frame as a picture, and up close as a live page.
-Frames behind the screens made the E4 page 3 to 5 times slower to open, zoom and pan (doop's
-maintainer measured it, 2026-11-21: 260 Mpx of backdrop under 50 Mpx of screens). Headers and
-titles are about a third of the screens' area. If a page needs a colour, use the page background
-(`set_page_background`), not a frame.
+**No frame behind a screen.** The canvas draws each frame as a picture, and up close as a live
+page. Frames behind the screens made the E4 page 3 to 5 times slower to open, zoom and pan (Doop's
+maintainer measured it on Doop, 2026-11-21: 260 Mpx of backdrop under 50 Mpx of screens). Headers
+and titles are about a third of the screens' area. Do not use a frame for a colour.
 
 **Space shows the groups.** 120 px between screens in a group, 400 px between groups side by side,
-600 px between rows, 900 px between journeys, and 220 px between a header and its screens. Doop
-draws frame names at one size on the screen, so at low zoom a name covers more of the canvas above
+600 px between rows, 900 px between journeys, and 220 px between a header and its screens. The
+canvas draws frame names at one size on the screen, so at low zoom a name covers more of the canvas above
 its frame.
 
 **No endless animation in a canvas frame.** A live frame with an endless animation paints all the
@@ -109,21 +114,23 @@ as a frame.
 ## Lifecycle
 
 - **Draft is free.** A draft frame may break any rule. The proof counts it and does not check it.
-- **Review is strict.** A frame that asks for sign-off (`needs_review`, `ready_for_dev`) uses the
-  system only. `bun run design:proof` must print `design proof: OK` before you ask for review.
-- **Only the human marks Ready for dev.** Only Ready-for-dev frames go to code.
+- **Review is strict.** A frame that asks for sign-off (status `ready`) uses the system only.
+  `bun run design:proof` must print `design proof: OK` before you ask for review.
+- **Only the human marks a frame ready.** An accepted request also starts the change of the app
+  (E11 V4, SPEC-live-screens.md).
 - **Concluded.** When the epic's design is concluded, its page becomes
   `Archive · E<n> <epic title> (concluded)`. Delete the explorations on that page.
 
 ## Change a part
 
-1. Change the main on **easel · Design system** (`update_component`). A new part goes on the page
-   of its level, with a description that says when to use it and when to use another part.
-2. A new value is a token first (`create_tokens`, light and dark, contrast checked), then the part
-   uses it. Copy the token to **easel · Product design** too (S13).
-3. Run `bun run design:proof`. It checks the mains on the library pages.
-4. Publish the library (`publish_library`). Then pull it into the Product design canvas
-   (`sync_component`). Each screen that uses the part follows.
+1. Change the main on **`design-system`** (`easel put` or `put_frame`). A new part goes on the
+   page of its level, with a description that says when to use it and when to use another part.
+2. A new value is a token first (light and dark, contrast checked), then the part uses it. Ask the
+   user before you change a value of the look. Copy the token to the frames of **`product`** too
+   (S13).
+3. Change each copy of the part on `product`, and give it the revision of the main.
+4. Run `bun run design:proof`. It checks the mains, the copies (S5) and the page Live (V1, V2,
+   V6).
 5. In the same ship, update `src/design` if the change is in code, and the proof's list of parts.
 
 ## Start a design for an epic
@@ -132,14 +139,18 @@ as a frame.
    (`writing-requirements`).
 2. Find two or three products that solve the same job (Figma, Linear, Vercel, Liveblocks). Name
    them on the sheet.
-3. Make the page `Work · E<n> <epic title>` on **easel · Product design**.
+3. Make the page `Work · E<n> <epic title>` on **`product`** (`easel page new`).
 4. Compose each screen from the library: layout parts first, then patterns, then primitives. Write
    new CSS only for the page grid. A missing part is made on the library first (see above).
 5. Add the sheet `E<n>.00` and the headers, and put the screens in their groups (see "An epic
-   page"). Add the frames and the IDs to `scripts/design-proof.ts` in the same ship.
+   page"). Add the page key to `EPIC_PAGES` in `scripts/design-proof.ts`
+   in the same ship. The proof finds the screens (1280 × 800) and the sheets on that page.
 6. Prove the design round by round with `epic-flow`, until each ID is proven.
 
-## Migration (done, 2026-11-20)
+## Migration on Doop (done, 2026-11-20)
+
+This record is history. The canvases moved to easel after it; D9-8 (2026-11-24) ended the reads
+of Doop.
 
 The E4 fix pass on `zPdfXgdRrQ` ended first (easel-5f, after `0a7e313`).
 

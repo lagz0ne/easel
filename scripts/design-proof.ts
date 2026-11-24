@@ -1,134 +1,50 @@
-import { Client } from "@modelcontextprotocol/sdk/client/index.js";
-import { StreamableHTTPClientTransport } from "@modelcontextprotocol/sdk/client/streamableHttp.js";
+import { readFileSync } from "node:fs";
+import { join } from "node:path";
+
 import { createScope } from "@tinkered/core";
 import type { Scope as TinkerScope } from "@tinkered/core";
+import { z } from "zod";
 
 import { contrast } from "@/kit/compose";
+import { liveName } from "@/live/plan";
+import { livePage, notScreens, screens, statusName, takeKeys } from "@/live/screens";
+import { liveStatusRead } from "@/live/status";
+import type { LiveStatus } from "@/live/status";
+import { liveColor, liveFindings, liveLook } from "@/live/values";
 
-const LIBRARY = "zPdfXgdRrQ";
-const PRODUCT = "xFJSTXA-v5";
-const API = "https://doop.vibea.dev/api/frames";
-const MCP = "https://doop.vibea.dev/mcp";
+const LIBRARY = "design-system";
+const PRODUCT = "product";
 
 type Kind = "screen" | "page" | "sheet" | "main" | "ready";
 
-const E4: ReadonlyArray<{ id: string; kind: Kind }> = [
-  { id: "h4pczpz7sn", kind: "screen" },
-  { id: "A5Gv6NBxJU", kind: "screen" },
-  { id: "xZxKRBPG59", kind: "screen" },
-  { id: "xVgR-qmTi6", kind: "screen" },
-  { id: "AWhtNkav_w", kind: "screen" },
-  { id: "RHg6J4OJp3", kind: "screen" },
-  { id: "czHEZgeUB1", kind: "sheet" },
-  { id: "vfw3zMtZR4", kind: "sheet" },
-  { id: "snNDeRWYP3", kind: "sheet" },
-  { id: "nc_QkyELZE", kind: "sheet" },
-  { id: "tIYPbqSQkj", kind: "screen" },
-  { id: "7PFY_lefFv", kind: "screen" },
-  { id: "jPg3fYFw8R", kind: "screen" },
-  { id: "Y_94t0smk6", kind: "screen" },
-  { id: "tf3-PO3uCH", kind: "screen" },
-  { id: "tV-Ko4AjFL", kind: "screen" },
-  { id: "1md0B8cdTb", kind: "screen" },
-  { id: "7zyVq308w8", kind: "screen" },
-  { id: "zbNPXgvOW-", kind: "screen" },
-  { id: "OQZFSPFTui", kind: "screen" },
-  { id: "sS3Ix9Y5vs", kind: "screen" },
-  { id: "S4gcCpF73f", kind: "screen" },
-  { id: "Mzqv7HAKR8", kind: "screen" },
-  { id: "pBOtrmvs4W", kind: "screen" },
-  { id: "rTAw-XG1pV", kind: "screen" },
-  { id: "aE2GhLnZ8x", kind: "screen" },
-  { id: "0OkmCW7OTg", kind: "screen" },
-  { id: "RR-ctugYtw", kind: "screen" },
-  { id: "dFdmACrCPG", kind: "screen" },
-  { id: "TK-RtepvlT", kind: "screen" },
-  { id: "l2D2FqgLFN", kind: "screen" },
-  { id: "pAaVNuVTKy", kind: "screen" },
-  { id: "r1vkBzmXNV", kind: "screen" },
-  { id: "ySB315qncO", kind: "screen" },
-  { id: "nqNh5qABon", kind: "screen" },
-  { id: "7WI3TZNtD3", kind: "screen" },
-  { id: "HxBtW0AHEq", kind: "screen" },
-  { id: "ks9bzBk8Ut", kind: "screen" },
-  { id: "Utx1i4WktI", kind: "screen" },
-  { id: "88Ax6X-gQO", kind: "screen" },
-  { id: "NLclOIm3ni", kind: "screen" },
-  { id: "Z7AnSVnDlr", kind: "screen" },
-  { id: "WDhJwEN8xL", kind: "screen" },
-  { id: "CM3vB_SZp2", kind: "screen" },
-  { id: "dZIcF14b_K", kind: "screen" },
-  { id: "z-6nielbSo", kind: "screen" },
-  { id: "nBkSw9ApCe", kind: "screen" },
-  { id: "4_WvadZ-ZE", kind: "screen" },
-  { id: "q7tIF9WFmx", kind: "screen" },
-  { id: "TH2sKAN3Nj", kind: "screen" },
-  { id: "t20k2oDI-R", kind: "screen" },
-  { id: "JXZ7jpq-sd", kind: "screen" },
-  { id: "BLQBCn2xPM", kind: "screen" },
-  { id: "c3xVyfPx-7", kind: "screen" },
-  { id: "O0OPorV-n6", kind: "screen" },
-  { id: "Ut3zYCeY3v", kind: "screen" },
-  { id: "u9nZm8jKuD", kind: "screen" },
-  { id: "AhuGpdJlUf", kind: "screen" },
-  { id: "5TBFxBzFCB", kind: "screen" },
-  { id: "Q84YFf2dBZ", kind: "screen" },
-  { id: "CNPmZmpFht", kind: "screen" },
-  { id: "fZryd9EGNx", kind: "screen" },
-];
+const EPIC_PAGES: Readonly<Record<string, string>> = {
+  "work-e3-share-and-look": "E3",
+  "work-e4-comment-and-get-a-change": "E4",
+  "work-e4-click-path-copies": "E4",
+};
 
-const E3: ReadonlyArray<{ id: string; kind: Kind }> = [
-  { id: "t1khXPEL09", kind: "sheet" },
-  { id: "-Ck-zZRXd-", kind: "page" },
-  { id: "Iy-yjtexBr", kind: "page" },
-  { id: "sCPZfGyx4f", kind: "page" },
-  { id: "bGzmRU6QGr", kind: "page" },
-  { id: "MF5lt4IJuW", kind: "page" },
-  { id: "Bt6ELgTB-h", kind: "screen" },
-  { id: "C37B_BYpYM", kind: "screen" },
-  { id: "UEKzhvtyYt", kind: "page" },
-  { id: "sPQSIcxr6o", kind: "screen" },
-  { id: "L3QURfp8mv", kind: "page" },
-  { id: "sHgPqffmWn", kind: "screen" },
-  { id: "6_MTPksuJG", kind: "sheet" },
-  { id: "xpeMsam50t", kind: "page" },
-  { id: "U-GpX2Ahvg", kind: "screen" },
-  { id: "rq2XCe9U5r", kind: "screen" },
-  { id: "VxKFjgLy3w", kind: "screen" },
-  { id: "XQpw70VuH-", kind: "screen" },
-  { id: "-SQRkwRPgf", kind: "screen" },
-  { id: "dRXlfnNKR3", kind: "page" },
-  { id: "k57fxBGG06", kind: "screen" },
-  { id: "snGUZR-mMv", kind: "screen" },
-  { id: "lY0qbt9UOG", kind: "page" },
-  { id: "1JwTBweA0t", kind: "screen" },
-  { id: "bubjKGKm3E", kind: "screen" },
-  { id: "2IGMQX4YlS", kind: "screen" },
-  { id: "mCNt_6ka2d", kind: "screen" },
-  { id: "j-WeeGzI9M", kind: "screen" },
-  { id: "pz6YsbPa7n", kind: "screen" },
-  { id: "Nwm_CGisSj", kind: "screen" },
-  { id: "46csKF-KM-", kind: "screen" },
-];
+const EPICS: ReadonlyArray<{ epic: string }> = [{ epic: "E3" }, { epic: "E4" }];
 
-const EPICS: ReadonlyArray<{ epic: string; frames: ReadonlyArray<{ id: string; kind: Kind }> }> = [
-  { epic: "E3", frames: E3 },
-  { epic: "E4", frames: E4 },
-];
+const E8_PAGE = "work-e8-one-look-fast";
 
-const DESIGN: Array<Frame> = EPICS.flatMap((e) => e.frames.map((f) => ({ ...f, epic: e.epic })));
+const E8_KIT = /^E8\.W0\d /;
 
-const E8_KIT: ReadonlyArray<string> = [
-  "2ChgqgBBcK",
-  "x_s2rZXTvo",
-  "Pwreopoa3W",
-  "0ck0qcqhX-",
-  "9hPIX7B-4t",
-];
+const SYSTEM_PAGES = new Set(["foundations", "primitives", "patterns", "layout"]);
 
-const SYSTEM_PAGES = new Set(["1 · Foundations", "2 · Primitives", "3 · Patterns", "4 · Layout"]);
+const READY = new Set(["ready"]);
 
-const READY = new Set(["ready_for_dev", "needs_review"]);
+const GATE_PAGES = new Set([
+  "92ffa216152c",
+  "8057f74d0b28",
+  "69dcb0267245",
+  "1bf47f73177a",
+  "7567aff1ede6",
+  "4173189a5406",
+  "0c4db7d0a698",
+  "8e794de3670e",
+  "5ae48f92fadf",
+  "25aa7d7c4776",
+]);
 
 const COMPONENTS: Readonly<Record<string, string>> = {
   cywze40i6e: "Button",
@@ -180,6 +96,9 @@ const NOT_SHOWN: Readonly<Record<string, string>> = {
   D8: "one outcome for each request: queue-dispatch chart",
   D9: "the way and its cause: SPEC-queue, easel deliveries",
   D10: "GitHub issues follow requests: SPEC-queue, queue-dispatch chart",
+  D11: "only the person starts the work of an agent: SPEC-starts, starts chart",
+  D12: "the limits of the agents: SPEC-starts, starts chart",
+  D13: "the cause of a wait or a failed start: SPEC-starts, starts chart",
   S11: "200 frames stay smooth: tests/browser/viewer-canvas.test.tsx (p95 handler time)",
 };
 
@@ -198,7 +117,7 @@ const CARD = "cwm37u9iup";
 const COUNT = "cw8rv3bcji";
 const BADGE = "chn7831wg0";
 
-type Frame = { id: string; kind: Kind; epic?: string };
+type Frame = { id: string; kind: Kind; canvas: string; epic?: string };
 
 type Instance = {
   frame: string;
@@ -227,12 +146,54 @@ const report = (frame: string, rule: string, what: string): void => {
   findings.push({ frame, rule, what });
 };
 
-const readKey = async (): Promise<string> => {
-  const fromEnv = process.env.DOOP_KEY;
-  if (fromEnv !== undefined && fromEnv !== "") return fromEnv;
+const hostsFile = z.object({
+  default: z.string(),
+  hosts: z.record(
+    z.string(),
+    z.object({ user: z.object({ name: z.string(), token: z.string() }) }),
+  ),
+});
 
-  const file = Bun.file(`${process.env.HOME ?? ""}/.config/secrets/doop-agent-key`);
-  return (await file.text()).trim();
+type Login = { server: string; token: string; name: string };
+
+const readLogin = (): Login => {
+  const home = process.env.EASEL_CONFIG_HOME || join(process.env.HOME ?? "", ".config/easel-agent");
+  const hosts = hostsFile.parse(JSON.parse(readFileSync(join(home, "easel/hosts.json"), "utf8")));
+  const user = hosts.hosts[hosts.default]?.user;
+  if (!user) throw new Error(`design proof: no login for ${hosts.default} in ${home}`);
+  return { server: hosts.default, token: user.token, name: user.name };
+};
+
+let calls = 0;
+
+const callTool = async (
+  login: Login,
+  name: string,
+  args: Record<string, unknown>,
+): Promise<unknown> => {
+  const res = await fetch(`${login.server}/mcp`, {
+    method: "POST",
+    headers: {
+      authorization: `Bearer ${login.token}`,
+      "content-type": "application/json",
+      accept: "application/json, text/event-stream",
+    },
+    body: JSON.stringify({
+      jsonrpc: "2.0",
+      id: ++calls,
+      method: "tools/call",
+      params: { name, arguments: args },
+    }),
+  });
+
+  const body: unknown = await res.json();
+  const result = isRecord(body) ? body.result : undefined;
+  const text = listOf(result, "content")
+    .map((c) => field(c, "text"))
+    .join("");
+  if (!res.ok || text === "") throw new Error(`design proof: ${name} failed (HTTP ${res.status})`);
+
+  return JSON.parse(text);
 };
 
 const decode = (s: string): string =>
@@ -415,17 +376,33 @@ const parseFrame = async (frame: string, html: string): Promise<Parsed> => {
   return s.parsed;
 };
 
-const loadFrame = async (f: Frame, key: string): Promise<Parsed | undefined> => {
-  const res = await fetch(`${API}/${f.id}/html`, { headers: { Authorization: `Bearer ${key}` } });
-  if (!res.ok) {
-    report(f.id, "IO", `GET ${res.status}`);
+const htmlOf = async (login: Login, canvas: string, id: string): Promise<string | undefined> => {
+  const got = await callTool(login, "get_frame", { canvas, id });
+  const html = isRecord(got) ? field(got.frame, "html") : "";
+  return html === "" ? undefined : html;
+};
+
+const loadFrame = async (f: Frame, login: Login): Promise<Parsed | undefined> => {
+  const html = await htmlOf(login, f.canvas, f.id);
+  if (html === undefined) {
+    report(f.id, "IO", "the frame has no document");
     return undefined;
   }
 
-  return parseFrame(f.id, await res.text());
+  noteTokens(f.id, html);
+  return parseFrame(f.id, html);
 };
 
-type CanvasFrame = { canvas: string; id: string; name: string; page: string; status: string };
+type CanvasFrame = {
+  canvas: string;
+  id: string;
+  name: string;
+  page: string;
+  status: string;
+  w: number;
+  h: number;
+  version: number;
+};
 
 const isRecord = (v: unknown): v is Record<string, unknown> => typeof v === "object" && v !== null;
 
@@ -435,98 +412,91 @@ const field = (v: unknown, k: string): string => {
   return typeof out === "string" ? out : "";
 };
 
+const count = (v: unknown, k: string): number => {
+  if (!isRecord(v)) return 0;
+  const out = v[k];
+  return typeof out === "number" ? out : 0;
+};
+
 const listOf = (v: unknown, k: string): Array<unknown> => {
   if (!isRecord(v)) return [];
   const out: unknown = v[k];
   return Array.isArray(out) ? out : [];
 };
 
-const scalar = (v: unknown): string =>
-  typeof v === "string" || typeof v === "number" ? String(v) : "";
+type Themed = { light?: string; dark?: string };
 
-const tokenLine = (t: unknown): string => {
-  const themes = isRecord(t) ? t.themes : undefined;
-  const byTheme = isRecord(themes)
-    ? Object.entries(themes)
-        .map(([k, v]) => `${k}=${scalar(v)}`)
-        .sort()
-        .join(" ")
-    : "";
-  return `${field(t, "type")} ${isRecord(t) ? scalar(t.value) : ""} ${byTheme}`.trim();
+const tokenBlocks = new Map<string, Map<string, Themed>>();
+
+const tokenPairs = (body: string): Array<[string, string]> =>
+  body
+    .split(";")
+    .map((d) => [
+      d.slice(0, Math.max(d.indexOf(":"), 0)).trim(),
+      d.slice(d.indexOf(":") + 1).trim(),
+    ])
+    .filter((pair): pair is [string, string] => pair[0] !== "");
+
+const noteTokens = (frame: string, html: string): void => {
+  const own = new Map<string, Themed>();
+  const css = [...html.matchAll(/<style data-doop-tokens>([\s\S]*?)<\/style>/g)]
+    .map((block) => block[1] ?? "")
+    .join("\n");
+  for (const rule of css.matchAll(/([^{}]+)\{([^{}]*)\}/g)) {
+    const theme = (rule[1] ?? "").includes("dark") ? "dark" : "light";
+    for (const [name, value] of tokenPairs(rule[2] ?? "")) {
+      own.set(name, { ...own.get(name), [theme]: value });
+    }
+  }
+
+  tokenBlocks.set(frame, own);
 };
 
-type Doop = {
-  frames: Array<CanvasFrame>;
-  tokens: { library: Map<string, string>; product: Map<string, string> };
-};
-
-const callTool = async (
-  client: Client,
-  name: string,
-  args: Record<string, string>,
-): Promise<unknown> => {
-  const res = await client.callTool({ name, arguments: args });
-  const parts = listOf(res, "content").map((c) => field(c, "text"));
-  return JSON.parse(parts.join(""));
-};
-
-const framesOf = async (client: Client, canvas: string): Promise<Array<CanvasFrame>> => {
-  const body = await callTool(client, "get_canvas", { canvas_id: canvas });
-  const pages = new Map(listOf(body, "pages").map((p) => [field(p, "id"), field(p, "name")]));
+const framesOf = async (login: Login, canvas: string): Promise<Array<CanvasFrame>> => {
+  const body = await callTool(login, "list_frames", { canvas });
   return listOf(body, "frames").map((f) => ({
     canvas,
     id: field(f, "id"),
     name: field(f, "name"),
-    page: pages.get(field(f, "pageId")) ?? "",
-    status: field(f, "approvalStatus"),
+    page: field(f, "page"),
+    status: field(f, "status"),
+    w: count(f, "w"),
+    h: count(f, "h"),
+    version: count(f, "version"),
   }));
 };
 
-const tokensOf = async (client: Client, canvas: string): Promise<Map<string, string>> => {
-  const body = await callTool(client, "get_tokens", { canvas_id: canvas, format: "json" });
-  return new Map(listOf(body, "tokens").map((t) => [field(t, "name"), tokenLine(t)]));
+type Scope = { frames: Array<Frame>; ready: number; drafts: number; epics: Map<string, number> };
+
+const epicKind = (f: CanvasFrame): Kind | undefined => {
+  if (f.name.includes(" states: ")) return "sheet";
+  if (GATE_PAGES.has(f.id)) return "page";
+
+  return f.w === 1280 && f.h === 800 ? "screen" : undefined;
 };
-
-const readDoop = async (key: string): Promise<Doop> => {
-  const client = new Client({ name: "easel-design-proof", version: "1" });
-  const transport = new StreamableHTTPClientTransport(new URL(MCP), {
-    requestInit: { headers: { Authorization: `Bearer ${key}` } },
-  });
-  await client.connect(transport);
-
-  try {
-    const frames = [...(await framesOf(client, LIBRARY)), ...(await framesOf(client, PRODUCT))];
-    const tokens = {
-      library: await tokensOf(client, LIBRARY),
-      product: await tokensOf(client, PRODUCT),
-    };
-    return { frames, tokens };
-  } finally {
-    await client.close();
-  }
-};
-
-type Scope = { frames: Array<Frame>; ready: number; drafts: number };
 
 const kindOf = (f: CanvasFrame): Kind | undefined => {
-  if (f.canvas === LIBRARY && SYSTEM_PAGES.has(f.page)) return "main";
-  return READY.has(f.status) ? "ready" : undefined;
+  if (f.canvas === LIBRARY) return SYSTEM_PAGES.has(f.page) ? "main" : undefined;
+
+  const kind = EPIC_PAGES[f.page] === undefined ? undefined : epicKind(f);
+
+  return kind ?? (READY.has(f.status) ? "ready" : undefined);
 };
 
 const chooseFrames = (canvas: Array<CanvasFrame>): Scope => {
-  const scope: Scope = { frames: [], ready: 0, drafts: 0 };
-  const onProduct = new Set(canvas.filter((f) => f.canvas === PRODUCT).map((f) => f.id));
-  for (const f of DESIGN) {
-    if (onProduct.has(f.id)) scope.frames.push(f);
-    else report(f.id, "IO", `an ${f.epic ?? ""} frame is not on the product canvas`);
-  }
-
-  const design = new Set([...DESIGN.map((f) => f.id), ...E8_KIT]);
-  for (const f of canvas.filter((c) => !design.has(c.id))) {
+  const scope: Scope = { frames: [], ready: 0, drafts: 0, epics: new Map() };
+  for (const f of canvas.filter((c) => c.page !== livePage.key && c.page !== E8_PAGE)) {
     const kind = kindOf(f);
+    const epic = EPIC_PAGES[f.page];
     if (kind === "ready") scope.ready += 1;
-    if (kind === undefined) scope.drafts += 1;
-    else scope.frames.push({ id: f.id, kind });
+
+    if (kind === undefined) {
+      scope.drafts += 1;
+      continue;
+    }
+    scope.frames.push({ id: f.id, kind, canvas: f.canvas, ...(epic ? { epic } : {}) });
+
+    if (epic) scope.epics.set(epic, (scope.epics.get(epic) ?? 0) + 1);
   }
   return scope;
 };
@@ -547,13 +517,6 @@ const CONTRAST_PAIRS: ReadonlyArray<readonly [string, string]> = [
   ["--e-on-primary", "--e-primary"],
 ];
 
-const colourIn = (line: string | undefined, theme: string): string | undefined => {
-  if (line === undefined) return undefined;
-  const parts = line.split(" ");
-  const own = parts.find((p) => p.startsWith(`${theme}=`));
-  return own === undefined ? parts[1] : own.slice(theme.length + 1);
-};
-
 const luminance = (hex: string): number | undefined => {
   const m = /^#([0-9a-f]{2})([0-9a-f]{2})([0-9a-f]{2})$/i.exec(hex);
   if (m === null) return undefined;
@@ -564,38 +527,84 @@ const luminance = (hex: string): number | undefined => {
   return 0.2126 * lin(m[1]) + 0.7152 * lin(m[2]) + 0.0722 * lin(m[3]);
 };
 
-const checkContrast = (tokens: Map<string, string>): void => {
-  for (const theme of ["light", "dark"]) {
-    for (const [fg, bg] of CONTRAST_PAIRS) {
-      const a = luminance(colourIn(tokens.get(fg), theme) ?? "");
-      const b = luminance(colourIn(tokens.get(bg), theme) ?? "");
-      if (a === undefined || b === undefined) {
-        report(LIBRARY, "S14", `${fg} on ${bg} (${theme}) is not a #rrggbb colour`);
-        continue;
-      }
-      const ratio = (Math.max(a, b) + 0.05) / (Math.min(a, b) + 0.05);
-      if (ratio < 4.5) {
-        report(LIBRARY, "S14", `${fg} on ${bg} (${theme}) is ${ratio.toFixed(2)}:1, under 4.5:1`);
-      }
+const libraryTokens = (canvas: Array<CanvasFrame>): Map<string, Themed> => {
+  const out = new Map<string, Themed>();
+  for (const f of canvas.filter((c) => c.canvas === LIBRARY)) {
+    for (const [name, themed] of tokenBlocks.get(f.id) ?? []) {
+      out.set(name, { ...out.get(name), ...themed });
+    }
+  }
+  return out;
+};
+
+const contrastFinding = (
+  tokens: Map<string, Themed>,
+  [fg, bg]: readonly [string, string],
+  theme: "light" | "dark",
+): string | null => {
+  const a = luminance(tokens.get(fg)?.[theme] ?? "");
+  const b = luminance(tokens.get(bg)?.[theme] ?? "");
+  if (a === undefined || b === undefined) {
+    return `${fg} on ${bg} (${theme}) is not a #rrggbb colour`;
+  }
+
+  const ratio = (Math.max(a, b) + 0.05) / (Math.min(a, b) + 0.05);
+
+  return ratio < 4.5 ? `${fg} on ${bg} (${theme}) is ${ratio.toFixed(2)}:1, under 4.5:1` : null;
+};
+
+const checkContrast = (tokens: Map<string, Themed>): void => {
+  for (const theme of ["light", "dark"] as const) {
+    for (const pair of CONTRAST_PAIRS) {
+      const found = contrastFinding(tokens, pair, theme);
+      if (found !== null) report(LIBRARY, "S14", found);
     }
   }
 };
 
-const checkTokens = (tokens: Doop["tokens"]): void => {
-  for (const [name, line] of tokens.library) {
-    const copy = tokens.product.get(name);
-    if (copy === undefined) report(PRODUCT, "S13", `${name} is not on the product canvas`);
-    else if (copy !== line) report(PRODUCT, "S13", `${name} is ${copy}, the library has ${line}`);
+const sameValue = (scope: TinkerScope.Handle, a: string, b: string): boolean => {
+  const x = scope.run(liveColor, { input: a });
+  const y = scope.run(liveColor, { input: b });
+  if (x.kind === "color" && y.kind === "color") return x.key === y.key;
+  return a.replace(/\s+/g, " ") === b.replace(/\s+/g, " ");
+};
+
+const checkToken = (
+  scope: TinkerScope.Handle,
+  name: string,
+  themed: Themed,
+  own: Themed | undefined,
+): void => {
+  if (own === undefined) {
+    report(PRODUCT, "S13", `${name} is not in the design system`);
+    return;
   }
-  for (const name of tokens.product.keys()) {
-    if (!tokens.library.has(name)) report(PRODUCT, "S13", `${name} is not in the library`);
+
+  for (const theme of ["light", "dark"] as const) {
+    const copy = themed[theme] ?? "";
+    const main = own[theme] ?? "";
+    if (copy !== "" && main !== "" && !sameValue(scope, copy, main)) {
+      report(PRODUCT, "S13", `${name} (${theme}) is ${copy}, the design system has ${main}`);
+    }
   }
 };
 
-const printScope = (scope: Scope): void => {
+const checkTokens = (
+  scope: TinkerScope.Handle,
+  library: Map<string, Themed>,
+  frames: Array<Frame>,
+): void => {
+  for (const f of frames.filter((one) => one.canvas === PRODUCT)) {
+    for (const [name, themed] of tokenBlocks.get(f.id) ?? []) {
+      checkToken(scope, name, themed, library.get(name));
+    }
+  }
+};
+
+const printScope = (scope: Scope, e8: number): void => {
   const mains = scope.frames.filter((f) => f.kind === "main").length;
   console.log(
-    `scope: ${EPICS.map((e) => `${e.frames.length} ${e.epic} frames`).join(", ")}, ${E8_KIT.length} E8 kit frames, ${mains} system frames, ${scope.ready} frames that ask for sign-off; ${scope.drafts} drafts not checked\n`,
+    `scope: ${EPICS.map((e) => `${scope.epics.get(e.epic) ?? 0} ${e.epic} frames`).join(", ")}, ${e8} E8 kit frames, ${mains} system frames, ${scope.ready} frames that ask for sign-off; ${scope.drafts} drafts not checked\n`,
   );
 };
 
@@ -980,25 +989,139 @@ const checkE8Pairs = (scope: TinkerScope.Handle, id: string, html: string): void
   }
 };
 
-const checkE8 = async (canvas: Array<CanvasFrame>, key: string): Promise<void> => {
+const checkE8 = async (
+  scope: TinkerScope.Handle,
+  canvas: Array<CanvasFrame>,
+  login: Login,
+): Promise<number> => {
   const ids = await readE8Ids();
-  const byId = new Map(canvas.filter((f) => f.canvas === PRODUCT).map((f) => [f.id, f]));
-  const scope = createScope({});
-
-  for (const id of E8_KIT) {
-    const f = byId.get(id);
-    const res = await fetch(`${API}/${id}/html`, { headers: { Authorization: `Bearer ${key}` } });
-    if (f === undefined || !res.ok) {
-      report(
-        id,
-        "IO",
-        f === undefined ? "an E8 frame is not on the product canvas" : `GET ${res.status}`,
-      );
+  const kit = canvas.filter((f) => f.page === E8_PAGE && E8_KIT.test(f.name));
+  for (const f of kit) {
+    const html = await htmlOf(login, PRODUCT, f.id);
+    if (html === undefined) {
+      report(f.id, "IO", "an E8 frame has no document");
       continue;
     }
     checkE8Name(f, ids);
-    checkE8Pairs(scope, id, await res.text());
+    checkE8Pairs(scope, f.id, html);
   }
+  return kit.length;
+};
+
+const liveBuild = async (login: Login): Promise<number> => {
+  const res = await fetch(`${login.server}/api/version`);
+  const body: unknown = await res.json();
+  return count(body, "build");
+};
+
+const checkLiveNames = (
+  scope: TinkerScope.Handle,
+  onProduct: Array<CanvasFrame>,
+  onLive: Map<string, CanvasFrame>,
+): void => {
+  for (const s of screens) {
+    const designed = onProduct.find((f) => f.id === s.design.id);
+    if (designed?.name !== s.design.name) {
+      report(
+        s.design.id,
+        "V1",
+        `the screen ${s.key} names "${s.design.name}", not a frame of product`,
+      );
+    }
+
+    for (const take of takeKeys) {
+      const name = scope.run(liveName, { input: { role: "live", design: s.design.name, take } });
+      if (!onLive.has(name)) report(PRODUCT, "V1", `no live screen "${name}" on the page Live`);
+    }
+  }
+};
+
+const checkAccepted = async (login: Login): Promise<void> => {
+  const listed = new Set<string>(screens.map((s) => s.design.id));
+  const accepted = await callTool(login, "list_requests", { canvas: PRODUCT, state: "accepted" });
+  const missing = listOf(accepted, "requests").filter((r) => {
+    const frame = field(r, "frameId");
+    return frame !== "" && !listed.has(frame) && notScreens[frame] === undefined;
+  });
+
+  for (const r of missing) {
+    report(
+      field(r, "frameId"),
+      "V1",
+      `#${count(r, "n")} accepted a design of this frame, and no live screen has it`,
+    );
+  }
+};
+
+const checkTakes = (status: LiveStatus, build: number): void => {
+  console.log(`live: the page Live has build ${status.build}, the site serves build ${build}`);
+  if (status.build !== build) {
+    report(
+      PRODUCT,
+      "V1",
+      `the page Live has build ${status.build}, the site serves build ${build}`,
+    );
+  }
+
+  for (const t of status.takes.filter((one) => one.word === "differs" || one.word === "failed")) {
+    const rule = t.word === "differs" ? "V2" : "V1";
+    report(PRODUCT, rule, `${t.screen} ${t.take}: ${t.word}${t.why ? `: ${t.why}` : ""}`);
+  }
+};
+
+const checkValues = (
+  scope: TinkerScope.Handle,
+  status: LiveStatus,
+  library: Map<string, Themed>,
+): void => {
+  const css = [...library]
+    .map(([name, themed]) => {
+      const light = themed.light ?? themed.dark ?? "";
+      const dark = themed.dark ?? themed.light ?? "";
+      return `${name}:${light};${name}:${dark};`;
+    })
+    .join("");
+  const look = scope.run(liveLook, { input: css });
+
+  for (const f of scope.run(liveFindings, { input: { look, values: status.values } })) {
+    const where = f.where ? ` (${f.where})` : "";
+    report(
+      PRODUCT,
+      "V6",
+      `${f.screen} ${f.take}: the ${f.kind} ${f.value} is not in the design system${where}`,
+    );
+  }
+};
+
+const checkLive = async (
+  scope: TinkerScope.Handle,
+  canvas: Array<CanvasFrame>,
+  library: Map<string, Themed>,
+  login: Login,
+): Promise<void> => {
+  const onProduct = canvas.filter((f) => f.canvas === PRODUCT);
+  const onLive = new Map(onProduct.filter((f) => f.page === livePage.key).map((f) => [f.name, f]));
+  checkLiveNames(scope, onProduct, onLive);
+  await checkAccepted(login);
+
+  const statusFrame = onLive.get(statusName);
+  const html = statusFrame ? await htmlOf(login, PRODUCT, statusFrame.id) : undefined;
+  const read = scope.run(liveStatusRead, { input: html ?? "" });
+  if (read.kind !== "read") {
+    report(PRODUCT, "V1", `no data in "${statusName}" on the page Live`);
+    return;
+  }
+
+  checkTakes(read.status, await liveBuild(login));
+  checkValues(scope, read.status, library);
+};
+
+const partDrift = (proof: Proof): void => {
+  const behind = [...proof.revs.entries()].filter(([, byRev]) => byRev.size > 1);
+  const parts = behind.map(([name, byRev]) => `${name} (${byRev.size} copies)`).join(", ");
+  console.log(
+    `parts: ${behind.length === 0 ? "each copy of a part on product is the same" : `copies of a part differ: ${parts}`}. A change of a part reaches the designed frames with SPEC-pieces (V5, deferred).`,
+  );
 };
 
 const readEpicIds = async (): Promise<Map<string, string>> => {
@@ -1074,12 +1197,15 @@ const printReport = (proof: Proof): number => {
     return 0;
   }
 
-  console.log(`\ndesign proof: ${lines.length} findings. Fix each in Doop, then run it again.`);
+  console.log(
+    `\ndesign proof: ${lines.length} findings. Fix each in easel or in the code, then run it again.`,
+  );
   return 1;
 };
 
 const main = async (): Promise<number> => {
-  const key = await readKey();
+  const login = readLogin();
+  console.log(`easel: ${login.server} as ${login.name}\n`);
   const proof: Proof = {
     epic: await readEpicIds(),
     shown: new Map(),
@@ -1088,21 +1214,26 @@ const main = async (): Promise<number> => {
     badgeCss: "",
   };
 
-  const doop = await readDoop(key);
-  const scope = chooseFrames(doop.frames);
-  printScope(scope);
-  checkTokens(doop.tokens);
-  checkContrast(doop.tokens.library);
+  const canvas = [...(await framesOf(login, LIBRARY)), ...(await framesOf(login, PRODUCT))];
+  const scope = chooseFrames(canvas);
+  const tinker = createScope({});
 
   const frames = await Promise.all(
-    scope.frames.map(async (f) => ({ f, parsed: await loadFrame(f, key) })),
+    scope.frames.map(async (f) => ({ f, parsed: await loadFrame(f, login) })),
   );
+  const library = libraryTokens(canvas);
+  checkTokens(tinker, library, scope.frames);
+  checkContrast(library);
   for (const { f, parsed } of frames) if (parsed !== undefined) checkFrame(proof, f, parsed);
 
-  await checkE8(doop.frames, key);
+  const e8 = await checkE8(tinker, canvas, login);
+  printScope(scope, e8);
   checkTrace(proof);
   checkF1(proof);
   checkRevs(proof);
+  await checkLive(tinker, canvas, library, login);
+  partDrift(proof);
+  await tinker.close();
   return printReport(proof);
 };
 

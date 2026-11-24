@@ -43,6 +43,11 @@ jobs:
         run: npm install --global --allow-scripts=bun bun@1.4.4
       - run: bun install --frozen-lockfile
       - run: bun run build
+      - uses: actions/upload-artifact@v4
+        with:
+          name: server-${{ github.sha }}
+          path: dist/server
+          retention-days: 1
       - uses: imjasonh/setup-crane@v0.4
       - id: base
         run: |
@@ -111,6 +116,45 @@ jobs:
           done
           echo "::error::$SITE/api/version did not reach build $BUILD in 5 minutes (it says ${live:-nothing})"
           exit 1
+
+  screens:
+    needs: [deploy, live]
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    container:
+      image: mcr.microsoft.com/playwright:v1.63.0-noble
+    concurrency:
+      group: screens-main
+      cancel-in-progress: true
+    environment:
+      name: production
+      url: https://easel.vibea.dev
+    env:
+      HOOK: ${{ secrets.DOKPLOY_DEPLOY_HOOK }}
+      EASEL_TOKEN: ${{ secrets.EASEL_TOKEN }}
+      EASEL_SERVER: https://easel.vibea.dev
+      BUILD: ${{ needs.deploy.outputs.build }}
+      GIT_SHA: ${{ github.sha }}
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+      - name: Bun 1.4.4
+        run: npm install --global --allow-scripts=bun bun@1.4.4
+      - run: bun install --frozen-lockfile
+      - uses: actions/download-artifact@v4
+        with:
+          name: server-${{ github.sha }}
+          path: dist
+      - name: The live screens of this build on the page Live of product
+        if: env.HOOK != '' && env.EASEL_TOKEN != ''
+        run: |
+          chmod +x dist/server
+          bun scripts/live-screens.ts --binary dist/server --build "$BUILD" --commit "$GIT_SHA"
+      - uses: actions/upload-artifact@v4
+        if: failure()
+        with:
+          name: screens-${{ github.sha }}
+          path: ${{ runner.temp }}/easel-live-*.png
+          if-no-files-found: ignore
 
   binaries:
     runs-on: ubuntu-latest
