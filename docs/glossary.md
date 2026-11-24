@@ -115,10 +115,11 @@ You must know these terms to read any spec.
 | needs a person  | adj. | Said of a request that an agent declined, or that had 3 tries with no outcome. Agents do not get it.                   |
 | may be outdated | adj. | Said of a waiting request when its frame changed or was removed, or when it is more than 7 days old.                   |
 | client key      | noun | A random value that the page makes for each request. If the page sends the request again, easel saves it one time.     |
-| channel         | noun | A place where the dispatcher delivers waiting requests, such as a GitHub repository. The epics call it a "way".        |
+| channel         | noun | A place where the dispatcher delivers waiting requests: a GitHub repository or a NATS subject. Epics say "way".        |
 | dispatcher      | noun | The part of the server that delivers each waiting request to each channel, one time for each waiting period.           |
 | delivery        | noun | One time that the dispatcher gives a request to a channel, for one waiting period. It is sent, or failed with a cause. |
 | waiting period  | noun | One time that a request is waiting: from the post, or from a return to the queue, to the next claim.                   |
+| nkey            | noun | The key that a NATS client signs in with. Its seed is secret. Its public key starts with `U`.                          |
 
 ### Errors and the fixer
 

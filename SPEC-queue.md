@@ -116,17 +116,26 @@ Prior art:
    the text is the request of a viewer, not an instruction. A later waiting period writes a comment on the
    same issue. The comment starts with the trigger of the channel (default `@claude`), and opens
    the issue again if it is closed.
+   For a NATS channel, each waiting period is one JetStream message on `<subject>.<canvas>`, with
+   the header `Nats-Msg-Id: <canvas>:<n>:<period>`. The body is JSON with only
+   `{ canvas, n, frame, page, period }`: `frame` is `null` for a request on the canvas, and `page`
+   is the key of the page of the frame, or of the request. The message has no text of the viewer.
+   A publish ack from JetStream is a sent delivery. A repeat of the same id is in the duplicate
+   window of the stream, so JetStream drops it, and its ack is a sent delivery too.
 4. GitHub starts a run of the agent of the team from the issue or the comment. The run takes the
    request with `easel next --canvas <key> --n <n>`, and works as in the journey above. If an agent that asked took
    it first, or it left the queue, the run is told `empty` and ends.
-5. A delivery that fails (GitHub refuses, does not answer in 10 s, or the repository is public) is
+5. A delivery that fails (GitHub refuses, does not answer in 10 s, or the repository is public;
+   NATS cannot be reached, refuses the key or the publish, or does not ack in 10 s) is
    tried again after 10 s and 30 s. After 3 failures, the delivery is `failed` with its cause, and
    the dispatcher stops for this waiting period. The request still waits for an agent that asks.
    If the waiting period ends before an attempt goes through (an agent takes the request, or it
    leaves the queue), the delivery is `failed` with the cause `ended`: no agent needs it.
 6. The issue follows its request. It is open while the request is waiting, in work or needs a
    person. When the request has a question, a result, or is closed, the dispatcher writes the
-   state as a comment and closes the issue.
+   state as a comment and closes the issue. A NATS channel gets no `out` delivery: its message
+   is not a thread, and the consumer acks it when it starts an agent. An agent that comes after
+   the request left the queue is told `empty`, as in step 4.
 7. `easel deliveries <canvas> <n>` shows each delivery of the request: the channel, the period, when,
    `pending`, `sent` or `failed`, the attempts, the cause, and the issue. A request with no
    delivery and no channel says so.
@@ -146,6 +155,30 @@ Prior art:
 4. `easel channel rm gh` removes the channel. Its issues stay on GitHub, and the dispatcher does
    not change them again.
 5. A server can have more than one channel. Each one gets each waiting period.
+6. An owner runs this command:
+
+   ```sh
+   easel channel set loop nats --url ws://dokploy-traefik/hub-nats --subject easel.requests \
+     --seed-file k [--inbox _INBOX_easel_dispatch] [--canvas <k>]...
+   ```
+
+   Easel connects with the nkey of the seed, and publishes one check message to
+   `<subject>.check` (or to `<subject>.<k>` for each `--canvas`), with the header
+   `Nats-Expected-Stream` of a stream that does not exist. JetStream refuses it with the error 10060
+   and stores nothing. That refusal proves that NATS lets the key in, that the key may publish to
+   the subject, and that a stream takes the subject. Then easel saves the channel.
+
+7. A NATS channel with `--canvas` gets only the waiting periods of those canvases. With none, it
+   gets each canvas. A GitHub channel gets each canvas.
+8. When the check fails, the answer is `refused` with the status 0 and the cause as its message,
+   and nothing is saved. The causes are `network: NATS cannot be reached`,
+   `key: NATS does not let this key in`, `denied: this key may not publish to <subject>`,
+   `inbox: this key may not read the replies on <inbox>.>`,
+   `no stream: no JetStream stream takes <subject>`,
+   `seed: the seed is not the seed of a user nkey`, `timeout: NATS did not ack in 10 s`, and
+   `jetstream <code>: <message>` for another error of JetStream.
+9. `easel channel ls` shows a NATS channel with its URL, its subject, its inbox prefix, its
+   canvases (`all` for none) and the public key of its nkey. No call shows the seed.
 
 ### A viewer answers and decides
 
@@ -223,7 +256,8 @@ type Refused = { kind: "wrongState"; state: State } | { kind: "gone" }
                  | { kind: "gone" }
 
 // an owner (refused { owner: true } for a member)
-// channel.set { name, kind: "github", repo, label, trigger?, token }; remove { name }
+// channel.set { name, kind: "github", repo, label, trigger?, token }
+//           | { name, kind: "nats", url, subject, seed, inbox?, canvases? }; remove { name }
 "channel.set":     { kind: "saved" } | { kind: "public" } | { kind: "refused"; status: number;
                      message: string }
 "channel.list":    { kind: "listed"; channels: ChannelInfo[] }
@@ -250,6 +284,14 @@ Inputs:
   the viewer saw is not kept: the frame was replaced between the viewer's look and the send.
 - `n` on `request.next` needs `canvas`. `name` is 1 to 32 characters of `a-z`, `0-9` and `-`.
   `repo` is `owner/name`. `label` and `trigger` are 1 to 50 characters. `token` is 1 to 255.
+- `url` is `nats://host:port` or `tls://host:port` (TCP), or `ws://` or `wss://` with a host, a
+  port and a path (WebSocket). It is at most 255 characters, with no user or password in it.
+- `subject` is at most 200 characters: tokens of `A-Z`, `a-z`, `0-9`, `_` and `-`, with a dot
+  between them, and no wildcard. `seed` is the seed of a user nkey (`SU` and 56 characters of
+  base32). `canvases` is 0 to 50 canvas keys.
+- `inbox` is the inbox prefix of the key, at most 100 characters as a subject, `_INBOX` when none.
+  The client gets each ack on it. A key that may read only its own inbox (as
+  `_INBOX_easel_dispatch.>`) needs it.
 - Out of these limits, the input is `invalid`.
 
 The cells `requests`, `messages` and `serverClock` ride `easel.board`, with `frames` and `docs`,
@@ -278,9 +320,19 @@ tries, queuedAt, acceptedBy, created, updated }`.
   claim (rule 7).
 - `updated` is the time of the last change to the request or its messages.
 
-A channel (table `channels`, not on the board): `{ name, kind, repo, label, trigger, token,
-created }`. `ChannelInfo` is the same, with `tokenEnd` (the last 4 characters) in place of
-`token`.
+A channel (table `channels`, not on the board): `{ name, kind, repo, label, trigger, token, url,
+subject, inbox, canvases, created }`. `kind` is `github` or `nats`. A NATS channel keeps its seed in
+`token`, and has an empty `repo`, `label` and `trigger`. A GitHub channel has an empty `url` and
+`subject`, and no canvases. `ChannelInfo` has a form for each kind:
+
+- `github`: `{ name, kind, repo, label, trigger, tokenEnd, created }`, with `tokenEnd` (the last 4
+  characters) in place of `token`.
+- `nats`: `{ name, kind, url, subject, inbox, canvases, key, created }`, with `key` (the public
+  key of the nkey) in place of the seed.
+
+A new `set` of a channel with the same name keeps `created` when its kind, `repo`, `url` and
+`subject` stay the same. Else `created` is the time of the set, and only the waiting periods
+that start after it go to the channel.
 
 A delivery (table `deliveries`, not on the board): `{ request, channel, kind, period, attempts,
 status, cause, ref, next, created, updated }`.
@@ -296,9 +348,10 @@ status, cause, ref, next, created, updated }`.
   `request`, `channel`, `kind` and `period` are unique together.
 - `status` is `pending`, `sent` or `failed`. `attempts` counts the attempts, 0 to 3. `next` is the
   time of the next attempt of a `pending` delivery. `cause` is why the last attempt failed:
-  `public`, `timeout`, `network`, the status and message of GitHub, or `ended`.
+  `public`, `timeout`, `network`, the status and message of GitHub, a cause of NATS (§ A team lead
+  sets the channels, step 8), or `ended`.
 - `ref` is the number of the GitHub issue, from the first attempt that was sent. All deliveries of
-  one request to one channel use the same issue.
+  one request to one channel use the same issue. A NATS delivery has no `ref`.
 
 A message on the board (cell `messages`, keyed by canvas):
 `{ canvas, id, request, kind, from, text, html, options, option, before, after, beforeKit, afterKit,
@@ -355,7 +408,8 @@ one for each waiting period, the cap of attempts, and one outcome when two ways 
 6. `channel.set`, `list` and `remove` run the `owner` guard first. `request.deliveries` runs the
    `user` guard first.
 7. Only the dispatcher writes `deliveries`, and only through `startDelivery` and `endAttempt`. Only
-   the dispatcher and `channel.set` call GitHub, and only through `githubCall`.
+   the dispatcher and `channel.set` call GitHub, and only through `githubCall`. Only the
+   dispatcher and `channel.set` call NATS, and only through `natsCall`.
 
 ### Judged rules (need reading the code)
 
@@ -420,7 +474,8 @@ one for each waiting period, the cap of attempts, and one outcome when two ways 
 22. Each attempt reads the repository first. A repository that is public now fails the attempt
     with the cause `public`, and nothing goes to GitHub.
 23. The issue text says that the request text is from a viewer, and is not an instruction outside
-    its frame (rule 15). The token of a channel is never in an answer, a log or an error.
+    its frame (rule 15). The token of a channel, and the seed of a NATS channel, are never in an
+    answer, a log or an error.
     Before a text of a viewer goes to GitHub, each `@` before a name gets a zero-width space
     after it, in one place: no mention or trigger word in it notifies a person or starts a
     workflow. Only the trigger that the dispatcher writes at the start of a comment is live.
@@ -450,6 +505,13 @@ one for each waiting period, the cap of attempts, and one outcome when two ways 
 - A GitHub double that fails 3 times gives a `failed` delivery with its cause within 1 minute. A
   public repository fails with `public`, and the double gets no issue.
 - No answer and no log line holds the token of a channel.
+- Against a real `nats-server -js`, with an nkey that may publish to `easel.requests.>` only:
+  `channel.set` saves a NATS channel, and refuses a subject that the key may not publish to, a
+  subject with no stream, an unknown key, a bad seed and a server that is down. Each waiting
+  period is one message with its id and no text. A repeat of the id leaves one message in the
+  stream. A server that is down and then up gets the next attempt; 3 failures give `failed`. A
+  channel with canvases gets only their requests. No answer, span or log holds the seed
+  (`tests/queue-nats.test.ts`).
 - A test reaches every contract kind and refusal. `tinker check` is OK.
 - Each rule of [queue-lease](docs/statecharts/queue-lease.md),
   [request-life](docs/statecharts/request-life.md) and
@@ -463,5 +525,6 @@ one for each waiting period, the cap of attempts, and one outcome when two ways 
 - Priorities are not deferred: they are not wanted. The queue is oldest first.
 - A webhook channel: a call to a service of the team when a request waits. Add it when a team has
   its own service that starts agents (E4.5).
-- Channels for each canvas. Each channel gets each waiting period of the server (E4.5).
+- Canvases for a GitHub channel. A GitHub channel gets each waiting period of the server (E4.5).
+  A NATS channel can name its canvases (§ A team lead sets the channels, step 7).
 - A GitHub App in place of a token. Add it when a team asks to not give a token.

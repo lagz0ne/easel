@@ -6,9 +6,10 @@ import { quiet } from "~/components/telemetry/records";
 
 import { requestStatus } from "./cells";
 import { delivery, deliveryKind } from "./channels";
-import { makeDispatchTables, storedChannel } from "./channels.server";
+import { channelColumns, channelRow, makeDispatchTables, storedChannel } from "./channels.server";
 import { maxTries, queueApi, stateOf } from "./contract";
 import { githubBase, githubCall, githubFetch, githubMessage, scrub } from "./github.server";
+import { natsCall } from "./nats.server";
 
 export const roundMs = 1000;
 
@@ -31,13 +32,14 @@ const waitingSql = `r.status = 'open' AND (r.claimed_until IS NULL OR r.claimed_
 
 const newPeriods = `SELECT r.id AS request, c.name AS channel, 'waiting' AS kind, ${periodSql} AS period
   FROM queue_requests r JOIN queue_channels c ON ${periodSql} >= c.created
+    AND (c.canvases = '[]' OR EXISTS (SELECT 1 FROM json_each(c.canvases) WHERE value = r.canvas))
   WHERE ${waitingSql} AND NOT EXISTS (SELECT 1 FROM queue_deliveries d
     WHERE d.request = r.id AND d.channel = c.name AND d.kind = 'waiting' AND d.period = ${periodSql})`;
 
 const newOuts = `WITH last AS (
     SELECT d.request, d.channel, MAX(d.period) AS period FROM queue_deliveries d
     JOIN queue_requests r ON r.id = d.request
-    JOIN queue_channels c ON c.name = d.channel AND d.created >= c.created
+    JOIN queue_channels c ON c.name = d.channel AND d.created >= c.created AND c.kind = 'github'
     WHERE d.kind = 'waiting' AND d.status = 'sent' AND r.status IN ('asking', 'resolved', 'closed')
     GROUP BY d.request, d.channel)
   SELECT request, channel, 'out' AS kind, period FROM last WHERE NOT EXISTS (
@@ -93,6 +95,7 @@ const attemptRow = z.object({
   canvas: z.string(),
   n: z.number(),
   frameId: z.string().nullable(),
+  page: z.string().nullable(),
   status: requestStatus,
   claimedUntil: z.number().nullable(),
   tries: z.number(),
@@ -121,14 +124,15 @@ const channelNow = operation({
   input: due,
   depends: { connection: bunSqlite.connection },
   run: async ({ connection }, { input }) =>
-    storedChannel.nullable().parse(
-      connection.db.$client
-        .query(
-          `SELECT name, kind, repo, label, trigger, token, created FROM queue_channels
-           WHERE name = $name AND created <= $made`,
-        )
-        .get({ $name: input.channel, $made: input.created }),
-    ),
+    channelRow
+      .nullable()
+      .parse(
+        connection.db.$client
+          .query(
+            `SELECT ${channelColumns} FROM queue_channels WHERE name = $name AND created <= $made`,
+          )
+          .get({ $name: input.channel, $made: input.created }),
+      ),
 });
 
 const requestNow = operation({
@@ -140,7 +144,12 @@ const requestNow = operation({
     const row = attemptRow.nullable().parse(
       db
         .query(
-          `SELECT id, canvas, n, frame_id AS frameId, status, claimed_until AS claimedUntil, tries,
+          `SELECT id, canvas, n, frame_id AS frameId,
+             COALESCE(
+               (SELECT f.page FROM frames_frames f WHERE f.canvas = r.canvas AND f.id = r.frame_id),
+               (SELECT x.page FROM frames_removed x WHERE x.canvas = r.canvas AND x.id = r.frame_id),
+               r.page) AS page,
+             status, claimed_until AS claimedUntil, tries,
              accepted_by AS acceptedBy, updated,
              (SELECT m.text FROM queue_messages m WHERE m.request = r.id AND m.kind IN ('ask', 'edit')
                ORDER BY m.created DESC, m.rowid DESC LIMIT 1) AS text
@@ -378,6 +387,55 @@ const attemptOnGithub = operation({
   },
 });
 
+const attemptOnNats = operation({
+  label: "queue.attemptOnNats",
+  input: z.object({ channel: storedChannel, row: attemptRow, period: z.number() }),
+  depends: { natsCall },
+  run: async ({ natsCall }, { input: { channel, row, period } }) => {
+    const body = { canvas: row.canvas, n: row.n, frame: row.frameId, page: row.page, period };
+    const tried = await natsCall.run({
+      input: {
+        url: channel.url,
+        seed: channel.token,
+        subject: `${channel.subject}.${row.canvas}`,
+        inbox: channel.inbox,
+        body: JSON.stringify(body),
+        id: `${row.canvas}:${row.n}:${period}`,
+      },
+    });
+    switch (tried.kind) {
+      case "acked":
+        return { kind: "sent" as const, ref: null };
+      case "rejected":
+        return { kind: "failed" as const, cause: `jetstream ${tried.code}: ${tried.message}` };
+      case "failed":
+        return tried;
+    }
+  },
+});
+
+const attemptOnChannel = operation({
+  label: "queue.attemptOnChannel",
+  input: z.object({
+    kind: deliveryKind,
+    channel: storedChannel,
+    row: attemptRow,
+    state: z.string(),
+    ref: z.number().nullable(),
+    period: z.number(),
+  }),
+  depends: { attemptOnGithub, attemptOnNats },
+  run: async ({ attemptOnGithub, attemptOnNats }, { input }) => {
+    const { period, ...rest } = input;
+    switch (input.channel.kind) {
+      case "github":
+        return attemptOnGithub.run({ input: rest });
+      case "nats":
+        return attemptOnNats.run({ input: { channel: input.channel, row: input.row, period } });
+    }
+  },
+});
+
 const outcome = z.discriminatedUnion("kind", [
   z.object({ kind: z.literal("sent"), ref: z.number().nullable() }),
   z.object({ kind: z.literal("failed"), cause: z.string() }),
@@ -428,8 +486,8 @@ export const endAttempt = operation({
 const attemptDelivery = operation({
   label: "queue.attemptDelivery",
   input: due,
-  depends: { readAttempt, attemptOnGithub, endAttempt, scrub },
-  run: async ({ readAttempt, attemptOnGithub, endAttempt, scrub }, { input, clock }) => {
+  depends: { readAttempt, attemptOnChannel, endAttempt, scrub },
+  run: async ({ readAttempt, attemptOnChannel, endAttempt, scrub }, { input, clock }) => {
     const read = await readAttempt.run({ input });
     if (read.kind === "ended") {
       await endAttempt.run({
@@ -438,7 +496,9 @@ const attemptDelivery = operation({
       return;
     }
 
-    const tried = await attemptOnGithub.run({ input: { ...read, kind: input.kind } });
+    const tried = await attemptOnChannel.run({
+      input: { ...read, kind: input.kind, period: input.period },
+    });
     const token = read.channel.token;
     const end =
       tried.kind === "sent"

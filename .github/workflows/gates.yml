@@ -45,6 +45,19 @@ jobs:
           echo "$RUNNER_TEMP/no-node" >> "$GITHUB_PATH"
       - name: node is blocked
         run: "! node --version"
+      - name: nats-server 2.15.3 for the tests of the NATS channel
+        shell: bash
+        env:
+          NATS_TAR: https://github.com/nats-io/nats-server/releases/download/v2.15.3/nats-server-v2.15.3-linux-amd64.tar.gz
+          NATS_SHA256: 32e18c1e78d7ef4f86e483070eef3abb2647c3d4d67e29668077c7ad81da0797
+        run: |
+          dir="$RUNNER_TEMP/nats"
+          mkdir -p "$dir"
+          OUT="$dir/nats.tar.gz" bun -e 'await Bun.write(process.env.OUT, await fetch(process.env.NATS_TAR))'
+          echo "$NATS_SHA256  $dir/nats.tar.gz" | sha256sum -c -
+          tar -xzf "$dir/nats.tar.gz" -C "$dir" --strip-components=1
+          "$dir/nats-server" --version
+          echo "NATS_SERVER=$dir/nats-server" >> "$GITHUB_ENV"
       - run: bun run check:plain
 
   style:

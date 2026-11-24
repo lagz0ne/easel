@@ -20,6 +20,11 @@ export const channelCommand = z.discriminatedUnion("kind", [
     label: z.string().optional(),
     trigger: z.string().optional(),
     tokenFile: z.string().optional(),
+    url: z.string().optional(),
+    subject: z.string().optional(),
+    seedFile: z.string().optional(),
+    inbox: z.string().optional(),
+    canvases: z.array(z.string()).optional(),
   }),
   z.object({ kind: z.literal("ls") }),
   z.object({ kind: z.literal("rm"), name: z.string() }),
@@ -64,12 +69,40 @@ const tokenOf = operation({
   },
 });
 
-const setCall = operation({
-  label: "cli.channelSetCall",
+const natsSetCall = operation({
+  label: "cli.channelNatsSetCall",
   input: channelCommand.options[0],
   depends: { tokenOf },
   run: ({ tokenOf }, { input }) => {
-    if (input.channel !== "github") return { bad: "the kind of a channel is github" };
+    if (input.url === undefined) {
+      return { bad: "--url takes the address of NATS, as nats://host:4222" };
+    }
+    if (input.subject === undefined) {
+      return { bad: "--subject takes the subject before the canvas, as easel.requests" };
+    }
+    if (input.seedFile === undefined) {
+      return { bad: "--seed-file takes the path of a file that holds the seed of the nkey" };
+    }
+    const seed = tokenOf.run({ input: input.seedFile });
+    if (seed === null) return { bad: "--seed-file takes the path of a file that can be read" };
+
+    const { name, url, subject, canvases, inbox } = input;
+    const more = {
+      ...(canvases === undefined ? {} : { canvases }),
+      ...(inbox === undefined ? {} : { inbox }),
+    };
+
+    return { bad: null, call: { name, kind: "nats" as const, url, subject, seed, ...more } };
+  },
+});
+
+const setCall = operation({
+  label: "cli.channelSetCall",
+  input: channelCommand.options[0],
+  depends: { tokenOf, natsSetCall },
+  run: ({ tokenOf, natsSetCall }, { input }) => {
+    if (input.channel === "nats") return natsSetCall.run({ input });
+    if (input.channel !== "github") return { bad: "the kind of a channel is github or nats" };
     if (input.repo === undefined) return { bad: "--repo takes the repository, as acme/design" };
     if (input.label === undefined) return { bad: "--label takes the label of the issues" };
     if (input.tokenFile === undefined) {
@@ -82,6 +115,28 @@ const setCall = operation({
     const more = trigger === undefined ? {} : { trigger };
 
     return { bad: null, call: { name, kind: input.channel, repo, label, ...more, token } };
+  },
+});
+
+const natsSetText = operation({
+  label: "cli.channelNatsSetText",
+  input: z.object({
+    answer: channelContracts["channel.set"].output,
+    name: z.string(),
+    subject: z.string(),
+  }),
+  run: (_, { input: { answer, name, subject } }) => {
+    switch (answer.kind) {
+      case "saved":
+        return {
+          text: `saved: channel ${name} gets each waiting period of a request, as a JetStream message on ${subject}.<canvas>`,
+          error: false,
+        };
+      case "public":
+        return { text: "public: Nothing was saved.", error: true };
+      case "refused":
+        return { text: `refused: ${answer.message}. Nothing was saved.`, error: true };
+    }
   },
 });
 
@@ -122,13 +177,15 @@ const channelSet = operation({
     invalid,
     setCall,
     setText,
+    natsSetText,
     exitOf: queueExitOf,
     queueFault,
     deadline: queueDeadline,
     set: queue.channels["channel.set"],
   },
   run: async (deps, { input }) => {
-    const { say, usage, invalid, setCall, setText, exitOf, queueFault, deadline, set } = deps;
+    const { say, usage, invalid, setCall, setText, natsSetText } = deps;
+    const { exitOf, queueFault, deadline, set } = deps;
     const read = setCall.run({ input });
     if (read.bad !== null) return usage.run({ input: read.bad });
 
@@ -142,7 +199,11 @@ const channelSet = operation({
     if (reply.status === "failed") return queueFault.run({ input: reply.error });
 
     const answer = reply.value;
-    const told = setText.run({ input: { answer, name: parsed.data.name, repo: parsed.data.repo } });
+    const asked = parsed.data;
+    const told =
+      asked.kind === "github"
+        ? setText.run({ input: { answer, name: asked.name, repo: asked.repo } })
+        : natsSetText.run({ input: { answer, name: asked.name, subject: asked.subject } });
     say.run({ input: { json: answer, ...told } });
 
     return exitOf.run({ input: { address: "channel.set", kind: answer.kind } });
@@ -166,9 +227,10 @@ const channelLs = operation({
     if (reply.status === "failed") return queueFault.run({ input: reply.error });
 
     const answer = reply.value;
-    const lines = answer.channels.map(
-      (c) =>
-        `${c.name}\t${c.kind}\t${c.repo}\tlabel ${c.label}\ttrigger ${c.trigger}\ttoken …${c.tokenEnd}`,
+    const lines = answer.channels.map((c) =>
+      c.kind === "github"
+        ? `${c.name}\t${c.kind}\t${c.repo}\tlabel ${c.label}\ttrigger ${c.trigger}\ttoken …${c.tokenEnd}`
+        : `${c.name}\t${c.kind}\t${c.url}\tsubject ${c.subject}\tinbox ${c.inbox}\tcanvases ${c.canvases.join(",") || "all"}\tkey ${c.key}`,
     );
     say.run({ input: { json: answer, text: lines.join("\n") || "no channel" } });
 

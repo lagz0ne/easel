@@ -24,6 +24,8 @@ import type { Command } from "@/cli";
 import { frames } from "@/frames";
 import { maxDocBytes } from "@/frames/contract";
 
+import { inbox, natsServer } from "./support/nats";
+
 type Cmd = typeof import("../cmds/server");
 
 const server: Cmd = await import(new URL("../cmds/server.ts", import.meta.url).href);
@@ -659,5 +661,43 @@ test(
       out: `github (member) on ${srv.origin}\n`,
     });
     expect(readdirSync(run)).toEqual([]);
+  },
+);
+
+test(
+  "channel set nats on the real cmds takes --url, --subject, --seed-file and a repeated --canvas; next takes one --canvas only",
+  slow,
+  async () => {
+    const srv = await serve();
+    const nats = await natsServer();
+    closers.push(() => nats.close());
+    const ann = home();
+    await easel(ann, "login", srv.origin, "--name", "ann", "--setup", srv.setupCode());
+    const seedFile = join(ann, "seed");
+    writeFileSync(seedFile, nats.seed);
+
+    const flags = ["--url", nats.wsUrl, "--subject", "easel.requests", "--seed-file", seedFile];
+    flags.push("--inbox", inbox);
+    const canvases = ["--canvas", "product", "--canvas", "design-system"];
+    const set = await easel(ann, "channel", "set", "loop", "nats", ...flags, ...canvases, "--json");
+    expect(set).toMatchObject({ code: 0, json: [{ kind: "saved" }] });
+    const listed = await easel(ann, "channel", "ls", "--json");
+    expect(listed.json[0].channels).toMatchObject([
+      {
+        name: "loop",
+        kind: "nats",
+        url: nats.wsUrl,
+        inbox,
+        canvases: ["product", "design-system"],
+        key: nats.publicKey,
+      },
+    ]);
+    expect(listed.out).not.toContain(nats.seed);
+
+    expect(await easel(ann, "next", "--canvas", "flow", "--json")).toMatchObject({
+      code: 0,
+      json: [{ kind: "empty" }],
+    });
+    expect(await easel(ann, "next", "--canvas", "a", "--canvas", "b")).toMatchObject({ code: 64 });
   },
 );

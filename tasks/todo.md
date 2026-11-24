@@ -819,12 +819,13 @@ images, and the proof (D9-8) comes last.
 
 ### D9-4: the NATS channel
 
-- [ ] `easel channel set <name> nats --url <u> --subject easel.requests --seed-file <f>
+- [x] `easel channel set <name> nats --url <u> --subject easel.requests --seed-file <f>
 [--canvas <k>]...`; the seed is write-only.
-- [ ] The dispatcher publishes each waiting period to `easel.requests.<canvas>` with
+- [x] The dispatcher publishes each waiting period to `easel.requests.<canvas>` with
       `Nats-Msg-Id` `<canvas>:<n>:<period>`; the message has no text. Retries, `failed` and
       `easel deliveries` as for GitHub.
-- [ ] Tests against a local `nats-server` with JetStream.
+- [x] Tests against a local `nats-server` with JetStream (`tests/queue-nats.test.ts`; CI gets
+      nats-server 2.15.3 in `gates.yml`).
 
 **Estimated scope:** M.
 

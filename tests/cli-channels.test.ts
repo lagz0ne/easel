@@ -15,6 +15,7 @@ import { frames } from "@/frames";
 import { queue } from "@/queue";
 
 import { githubDouble } from "./support/github";
+import { inbox, natsServer } from "./support/nats";
 import { boot, closers, rounds, viewer } from "./support/queue";
 import type { Server } from "./support/queue";
 
@@ -142,7 +143,7 @@ test("channel set on a public repository exits 1, public; on one that GitHub doe
 test("channel set with a bad flag exits 64 before it calls, and a name that the contract refuses exits 65", async () => {
   const e = await easel();
   const cases: Array<[Partial<Extract<ChannelCommand, { kind: "set" }>>, string]> = [
-    [{ channel: "webhook" }, "the kind of a channel is github"],
+    [{ channel: "webhook" }, "the kind of a channel is github or nats"],
     [{ repo: undefined }, "--repo takes the repository"],
     [{ label: undefined }, "--label takes the label"],
     [{ tokenFile: undefined }, "--token-file takes the path of a file that holds the token"],
@@ -232,4 +233,76 @@ test("each channel command on a server that is gone exits 69, unreachable", asyn
     expect(await e.run(command)).toBe(69);
     expect(JSON.parse(e.text())).toEqual({ unreachable: origin });
   }
+});
+
+async function withNats(e: Easel) {
+  const nats = await natsServer();
+  closers.push(() => nats.close());
+  const seedFile = join(e.dir, "seed");
+  writeFileSync(seedFile, `${nats.seed}\n`);
+  const setNats = (more: Partial<Extract<ChannelCommand, { kind: "set" }>> = {}) =>
+    e.run({
+      kind: "set",
+      name: "loop",
+      channel: "nats",
+      url: nats.url,
+      subject: "easel.requests",
+      seedFile,
+      inbox,
+      ...more,
+    });
+
+  return { nats, seedFile, setNats };
+}
+
+test("channel set of a nats channel saves it and exits 0; channel ls shows the url, the subject, the canvases and the public key, and no output holds the seed", async () => {
+  const e = await easel();
+  const { nats, setNats } = await withNats(e);
+
+  expect(await setNats({ canvases: ["product", "design-system"] })).toBe(0);
+  expect(e.text()).toBe(
+    "saved: channel loop gets each waiting period of a request, as a JetStream message on easel.requests.<canvas>\n",
+  );
+  expect(await setNats({ name: "all" })).toBe(0);
+  e.text();
+  expect(await e.run({ kind: "ls" })).toBe(0);
+  const listed = e.text();
+  expect(listed).toBe(
+    [
+      `all\tnats\t${nats.url}\tsubject easel.requests\tinbox ${inbox}\tcanvases all\tkey ${nats.publicKey}`,
+      `loop\tnats\t${nats.url}\tsubject easel.requests\tinbox ${inbox}\tcanvases product,design-system\tkey ${nats.publicKey}`,
+      "",
+    ].join("\n"),
+  );
+  expect(listed).not.toContain(nats.seed);
+});
+
+test("channel set of a nats channel that NATS refuses exits 1 with the cause, and saves nothing", async () => {
+  const e = await easel();
+  const { setNats } = await withNats(e);
+
+  expect(await setNats({ subject: "easel.other" })).toBe(1);
+  expect(e.text()).toBe(
+    "refused: denied: this key may not publish to easel.other.check. Nothing was saved.\n",
+  );
+  expect(await e.run({ kind: "ls" })).toBe(0);
+  expect(e.text()).toBe("no channel\n");
+});
+
+test("channel set nats with a missing flag exits 64 before it calls, and a url that the contract refuses exits 65", async () => {
+  const e = await easel();
+  const { setNats, seedFile } = await withNats(e);
+  const cases: Array<[Partial<Extract<ChannelCommand, { kind: "set" }>>, string]> = [
+    [{ url: undefined }, "--url takes the address of NATS"],
+    [{ subject: undefined }, "--subject takes the subject before the canvas"],
+    [{ seedFile: undefined }, "--seed-file takes the path of a file that holds the seed"],
+    [{ seedFile: join(e.dir, "none") }, "--seed-file takes the path of a file that can be read"],
+  ];
+  for (const [more, line] of cases) {
+    expect(await setNats(more)).toBe(64);
+    expect(e.text()).toContain(line);
+  }
+
+  expect(await setNats({ url: "http://127.0.0.1:4222", seedFile })).toBe(65);
+  expect(e.text()).toMatch(/^the input is wrong: url: /);
 });

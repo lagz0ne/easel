@@ -1,6 +1,8 @@
 import { rpc } from "@tinkered/core";
 import { z } from "zod";
 
+import { canvasKey } from "@/frames/contract";
+
 export const defaultTrigger = "@claude";
 
 export const channelName = z
@@ -18,17 +20,54 @@ const word = z
 
 export const channelToken = z.string().min(1).max(255);
 
-export const channelKind = z.enum(["github"]);
+export const channelKind = z.enum(["github", "nats"]);
 
-export const channelInfo = z.object({
+export const natsUrl = z
+  .string()
+  .max(255)
+  .regex(
+    /^((nats|tls):\/\/[A-Za-z0-9.-]+(:\d{1,5})?|wss?:\/\/[A-Za-z0-9.-]+(:\d{1,5})?(\/[A-Za-z0-9._~-]+)*\/?)$/,
+    "nats://host:port, tls://host:port, or ws:// or wss:// with a host and a path, with no user in it",
+  );
+
+export const natsSubject = z
+  .string()
+  .max(200)
+  .regex(/^[A-Za-z0-9_-]+(\.[A-Za-z0-9_-]+)*$/, "tokens of A-Z, a-z, 0-9, _ and -, with dots");
+
+export const natsInbox = z
+  .string()
+  .max(100)
+  .regex(/^[A-Za-z0-9_-]+(\.[A-Za-z0-9_-]+)*$/, "an inbox prefix, as _INBOX_easel_dispatch");
+
+export const defaultInbox = "_INBOX";
+
+export const natsSeed = z.string().regex(/^SU[A-Z2-7]{56}$/, "the seed of a user nkey: SU…");
+
+export const maxChannelCanvases = 50;
+
+export const githubInfo = z.object({
   name: z.string(),
-  kind: channelKind,
+  kind: z.literal("github"),
   repo: z.string(),
   label: z.string(),
   trigger: z.string(),
   tokenEnd: z.string(),
   created: z.number(),
 });
+
+export const natsInfo = z.object({
+  name: z.string(),
+  kind: z.literal("nats"),
+  url: z.string(),
+  subject: z.string(),
+  inbox: z.string(),
+  canvases: z.array(z.string()),
+  key: z.string(),
+  created: z.number(),
+});
+
+export const channelInfo = z.discriminatedUnion("kind", [githubInfo, natsInfo]);
 
 export type ChannelInfo = z.infer<typeof channelInfo>;
 
@@ -52,16 +91,28 @@ export const delivery = z.object({
 
 export type Delivery = z.infer<typeof delivery>;
 
+export const githubChannelSet = z.strictObject({
+  name: channelName,
+  kind: z.literal("github"),
+  repo: repoName,
+  label: word,
+  trigger: word.optional(),
+  token: channelToken,
+});
+
+export const natsChannelSet = z.strictObject({
+  name: channelName,
+  kind: z.literal("nats"),
+  url: natsUrl,
+  subject: natsSubject,
+  seed: natsSeed,
+  inbox: natsInbox.optional(),
+  canvases: z.array(canvasKey).max(maxChannelCanvases).optional(),
+});
+
 export const channelContracts = {
   "channel.set": {
-    input: z.strictObject({
-      name: channelName,
-      kind: channelKind,
-      repo: repoName,
-      label: word,
-      trigger: word.optional(),
-      token: channelToken,
-    }),
+    input: z.discriminatedUnion("kind", [githubChannelSet, natsChannelSet]),
     output: z.discriminatedUnion("kind", [
       z.object({ kind: z.literal("saved") }),
       z.object({ kind: z.literal("public") }),

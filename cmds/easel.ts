@@ -95,7 +95,11 @@ const help = `easel: the canvas CLI. Every command takes --json (one JSON value 
   easel deliveries <canvas> <n>                    each delivery of a request to the channels
   easel channel set <name> github --repo <o/n> --label <l> [--trigger <t>] --token-file <f>
                                                    deliver each waiting request to a private GitHub repository (owner)
-  easel channel ls                                 the channels; the last 4 characters of each token (owner)
+  easel channel set <name> nats --url <u> --subject <s> --seed-file <f> [--inbox <p>] [--canvas <k>]...
+                                                   publish each waiting request to JetStream on <s>.<canvas>;
+                                                   <u> is nats://, tls://, ws:// or wss://; --inbox: the inbox
+                                                   prefix of the key (_INBOX when none); --canvas: only these (owner)
+  easel channel ls                                 the channels; the last 4 characters of each token, the public key of each nkey (owner)
   easel channel rm <name>                          remove a channel; its issues stay on GitHub (owner)
 
 With EASEL_TOKEN set, the CLI sends that token to EASEL_SERVER, and reads and writes no hosts file.
@@ -128,7 +132,7 @@ const options = {
   "no-password": { type: "boolean" },
   scale: { type: "string" },
   region: { type: "string" },
-  canvas: { type: "string" },
+  canvas: { type: "string", multiple: true },
   n: { type: "string" },
   wait: { type: "string" },
   lease: { type: "string" },
@@ -140,6 +144,10 @@ const options = {
   label: { type: "string" },
   trigger: { type: "string" },
   "token-file": { type: "string" },
+  url: { type: "string" },
+  subject: { type: "string" },
+  "seed-file": { type: "string" },
+  inbox: { type: "string" },
   at: { type: "string" },
   page: { type: "string" },
   file: { type: "string", short: "f" },
@@ -148,6 +156,12 @@ const options = {
 } as const;
 
 const common = { json: z.boolean().optional(), server: z.string().optional() };
+
+const oneCanvas = z
+  .array(z.string())
+  .max(1)
+  .optional()
+  .transform((named) => named?.[0]);
 
 const buildFlag = z
   .string()
@@ -452,7 +466,7 @@ const queueInvocations = [
       positionals: z.tuple([z.literal("next")]),
       values: z.strictObject({
         ...common,
-        canvas: z.string().optional(),
+        canvas: oneCanvas,
         n: z.string().optional(),
         wait: z.string().optional(),
         lease: z.string().optional(),
@@ -514,7 +528,7 @@ const queueInvocations = [
       positionals: z.tuple([z.literal("requests")]),
       values: z.strictObject({
         ...common,
-        canvas: z.string().optional(),
+        canvas: oneCanvas,
         state: z.string().optional(),
       }),
     })
@@ -649,6 +663,11 @@ const channelInvocations = [
         label: z.string().optional(),
         trigger: z.string().optional(),
         "token-file": z.string().optional(),
+        url: z.string().optional(),
+        subject: z.string().optional(),
+        "seed-file": z.string().optional(),
+        inbox: z.string().optional(),
+        canvas: z.array(z.string()).optional(),
       }),
     })
     .transform(({ positionals: [, , name, channel], values }): unknown => ({
@@ -663,6 +682,11 @@ const channelInvocations = [
           label: values.label,
           trigger: values.trigger,
           tokenFile: values["token-file"],
+          url: values.url,
+          subject: values.subject,
+          seedFile: values["seed-file"],
+          inbox: values.inbox,
+          canvases: values.canvas,
         },
       },
     })),
