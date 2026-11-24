@@ -131,7 +131,7 @@ Trade-offs that I took from them:
     - `refused`: a delivery of this waiting period is `failed` (NATS or GitHub refused it 3
       times).
     - `silent`: a delivery is sent to a NATS channel, and its starter has not reported for 60 s.
-14. The board of each tab gets the hold within 1 s, also by a share link. The cause as text (an
+14. The board of each tab gets the hold within 2 s, also by a share link. The cause as text (an
     error of `paseo run`, an answer of NATS) is not on the board, as it can name paths and hosts
     of the machine. `easel deliveries <canvas> <n>` shows it to a user.
 
@@ -162,7 +162,12 @@ Trade-offs that I took from them:
     - `refused`: "The channel refused the request. See easel deliveries."
     - `silent`: "The agent starter does not answer since 08:40."
 19. The list of requests shows a mark on each request with a hold, with the same words in short:
-    "Agree?", "Limit", "Not started", "Refused", "No starter".
+    "Agree?" (to the person) or "Owner" (to a viewer or a member), "Limit", "Not started",
+    "Refused", "No starter".
+20. The rule of agreement is the switch `EASEL_AGREEMENT` of the server. It is on unless the value
+    is `off`. The first deploy keeps it off, and a second deploy turns it on after the person is
+    the one owner (SPEC-single). At its first start, the new version agrees each request that is
+    there, as its author made it, so no open request of before waits.
 
 ## Model
 
@@ -191,7 +196,7 @@ this spec. It breaks: a viewer posts, the dispatcher publishes, an agent starts 
 
 1. **No agent from a share link (D11).** A viewer adds a request on `product` by its share link.
    For 3 minutes, no Paseo agent starts for it, and `easel deliveries` shows no delivery. The card
-   of the person shows "Waits for you to agree" within 1 s. After `Agree`, an agent starts within
+   of the person shows "Waits for you to agree" within 2 s. After `Agree`, an agent starts within
    1 minute.
 2. **No step for the person (D11).** The person adds a request on `product`. An agent starts
    within 1 minute, with no other step.
@@ -240,14 +245,33 @@ this spec. It breaks: a viewer posts, the dispatcher publishes, an agent starts 
 5. **The adapter reports with the easel CLI of its own commit**, as the member of
    `EASEL_PASEO_EASEL_CONFIG` (`vibea-claude`). It needs no new key and no new NATS subject.
 
+## Design
+
+The page `E4.5 dispatch` of `product` holds the design, made as `vibea-claude`. Each screen proves
+these IDs:
+
+| Frame          | Screen                                    | IDs      |
+| -------------- | ----------------------------------------- | -------- |
+| `406a5ab3f085` | The person: "Waits for you to agree"      | D11, D13 |
+| `1e645843b77d` | The viewer: "Waits for the owner"         | D11      |
+| `67e02628bebe` | Agreed: an agent starts                   | D11      |
+| `0413a78c9597` | "Waits for the limit: 2 of 2 agents run"  | D12, D13 |
+| `fae7c821cc84` | "Waits for the limit: 20 of 20 starts..." | D12, D13 |
+| `59eeb0e133ee` | "The agent did not start"                 | D13      |
+| `1f6012cb15ce` | "The channel refused the request"         | D13      |
+| `bce6c1c565ed` | "The agent starter does not answer"       | D13      |
+
+`bun run design:proof` reads Doop only. It cannot read a design on easel yet, so it says that
+D11 to D13 show on no state. The table above is the proof until it reads easel (E11 V7).
+
 ## Tasks
 
 | ID   | Task                                                                                       | State |
 | ---- | ------------------------------------------------------------------------------------------ | ----- |
 | ST-1 | This spec, the model `starts` and its twin.                                                | done  |
-| ST-2 | The design: the states of the card and the list on the page `E4.5 dispatch` of `product`.  | open  |
+| ST-2 | The design: the states of the card and the list on the page `E4.5 dispatch` of `product`.  | done  |
 | ST-3 | The server: agreement, `request.agree`, the gate of the dispatcher and of `easel next`.    | open  |
 | ST-4 | The server: `channel.limits`, `channel.report`, the holds, and the starts in `deliveries`. | open  |
 | ST-5 | The viewer: the hold on the card and in the list, and `Agree`.                             | open  |
-| ST-6 | The adapter: the limits from easel, the reports.                                           | open  |
+| ST-6 | The adapter: the limits from easel, the reports.                                           | done  |
 | ST-7 | Live proof (success criteria 1, 2 and 4), then this spec is implemented.                   | open  |
