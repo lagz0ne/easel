@@ -64,6 +64,7 @@ export default defineConfig({
           root: at("."),
           include: ["tests/browser/**/*.test.tsx"],
           setupFiles: ["tests/browser/exits.setup.ts"],
+          expect: { poll: { timeout: 5_000 } },
           api: { host: "127.0.0.1", strictPort: false },
           browser: {
             enabled: true,
