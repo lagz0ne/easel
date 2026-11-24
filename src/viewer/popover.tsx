@@ -477,7 +477,7 @@ export function Opened({ v }: { v: RequestView }) {
 
   return (
     <section className="e-pop e-req" aria-label={`Request #${r.n}`}>
-      <button type="button" className="e-back" onClick={() => back.run()}>
+      <button type="button" className="e-req-back" onClick={() => back.run()}>
         <svg width="14" height="14" viewBox="0 0 14 14" aria-hidden="true">
           <path
             d="M8.5 3.5 5 7l3.5 3.5"

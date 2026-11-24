@@ -948,7 +948,7 @@
   flex: 1;
 }
 
-.e-back {
+.e-req-back {
   display: flex;
   flex: none;
   gap: var(--e-1);
@@ -967,7 +967,7 @@
 }
 
 @media (hover: hover) and (pointer: fine) {
-  .e-back:hover {
+  .e-req-back:hover {
     color: var(--e-text);
     background-color: var(--e-hover);
   }
