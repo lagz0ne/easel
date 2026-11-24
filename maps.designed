@@ -1,0 +1,23 @@
+sign-in: answer browser.start fault link
+sign-in: answer browser.start name
+sign-in: answer browser.start pending
+sign-in: answer browser.start slow
+sign-in: answer browser.wait approved
+sign-in: answer browser.wait denied
+sign-in: answer browser.wait expired
+sign-in: answer browser.wait fault link
+sign-in: answer browser.wait pending
+sign-in: answer browser.wait slow
+sign-in: answer home.askAgain no answer
+sign-in: answer home.askForCode no answer
+sign-in: answer home.copyApproveCommand no answer
+sign-in: state code
+sign-in: state code · copyApproveCommand done
+sign-in: state denied
+sign-in: state expired
+sign-in: state in
+sign-in: state lost
+sign-in: state name
+sign-in: state name · askForCode failed
+sign-in: state name · askForCode pending
+sign-in: state slow

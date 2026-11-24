@@ -25,17 +25,20 @@ import {
 import type { Relation } from "@/map/canvas";
 import { mapCard, mapCardHtml, mapGraph } from "@/map/card";
 import type { MapGraph } from "@/map/card";
+import { designedFile, mapCheck, mapsListHtml } from "@/map/check";
+import type { MapFinding } from "@/map/check";
 import { showPlans, shownMark, walkReplies } from "@/map/show";
 import type { ShowPlan } from "@/map/show";
 import type { MapJson } from "@/map/text";
 import { pressMarks } from "@/map/view";
 import type { WalkData } from "@/map/walk";
-import { walkAttribute, walkDocument, walkFrameName, walkPageName } from "@/map/walk";
+import { walkDocument, walkFrameName, walkPageName } from "@/map/walk";
 
 import { deriveOf } from "./map";
 import type { Derived } from "./map";
+import { readDesigned } from "./map-check";
 
-const usage = `bun scripts/map-screens.ts [--binary <file>] [--dry <dir>] [--map <name>]
+const usage = `bun scripts/map-screens.ts [--binary <file>] [--dry <dir>] [--map <name>] [--designed <file>]
 
 Puts each map of src/live/screens.ts on product (SPEC-prototype ship 2). For each map it derives
 the map of its cell (bun scripts/map.ts), builds the page cmds/map-show.html with the view of the
@@ -49,8 +52,10 @@ frame "<name> · walk" (SPEC-prototype ship 4) is one HTML document with the rea
 and the actions, and the map as JSON: the viewer walks the map in it. A picture with the same
 pixels, and a card or a walk with the same text, put nothing; a changed one puts a new version of
 the same frame. The frame "Maps" on the page Live lists each map with its first state, its count
-of states, and a button that starts its walk.
+of states, the check of the map (SPEC-prototype rule 11), and a button that starts its walk. The
+card of each state that a finding of the check names gets the section Check.
 --dry <dir> writes the pictures, the cards, the walks and the list there, and puts nothing.
+--designed <file> checks the maps against that file in place of ${designedFile}.
 
 The writes go to EASEL_SERVER with EASEL_TOKEN when both are set, else to the hosts file of
 EASEL_CONFIG_HOME (~/.config/easel-agent when not set): the member vibea-claude.
@@ -76,6 +81,7 @@ const argOf = (flag: string) => {
 const binary = resolve(argOf("--binary") ?? join(root, "dist/server"));
 const dryDir = argOf("--dry");
 const onlyMap = argOf("--map");
+const designed = resolve(argOf("--designed") ?? join(root, designedFile));
 const scope = createScope();
 mkdirSync(join(root, "dist"), { recursive: true });
 const work = mkdtempSync(join(root, "dist", "map-show-"));
@@ -605,30 +611,25 @@ async function putMap(browser: Browser, done: Done) {
   return { page, words: board.words };
 }
 
-function cardsOf(entry: MapEntry, map: MapJson, graph: MapGraph): Card[] {
+function cardsOf(
+  entry: MapEntry,
+  map: MapJson,
+  graph: MapGraph,
+  findings: readonly MapFinding[],
+): Card[] {
   return map.states.map(({ state }) => {
-    const card = scope.run(mapCard, { input: { map, name: entry.name, state, graph } });
+    const plain = scope.run(mapCard, { input: { map, name: entry.name, state, graph } });
+    const named = findings.filter((finding) => finding.states.includes(state));
+    const check = named.length
+      ? [{ head: "Check", lines: named.flatMap((finding) => finding.lines) }]
+      : [];
+    const card = { ...plain, sections: [...plain.sections, ...check] };
+
     const lines = scope.run(mapCaption, { input: { map, state } }).length;
     const least = scope.run(mapPictureHeight, { input: { screen: mapShot.height, lines } });
     const name = `${scope.run(mapFrameName, { input: { map: entry.name, state } })} · ${cardMark}`;
     return { state, name, ...scope.run(mapCardHtml, { input: { card, least } }) };
   });
-}
-
-const listClasses = {
-  main: "box-border h-full m-0 bg-background font-sans text-foreground",
-  about: "text-muted-foreground",
-  walk: "cursor-pointer rounded-md border border-border bg-background px-3 py-1 font-medium shadow-xs hover:bg-accent",
-} as const;
-
-function listHtml(rows: Array<{ entry: MapEntry; map: MapJson; page: string }>) {
-  const cells = rows
-    .map(
-      ({ entry, map }) =>
-        `<tr><td>${entry.name}</td><td>Map · ${entry.name}</td><td>${map.cell}</td><td>${map.start}</td><td>${map.states.length}</td><td><button type="button" ${walkAttribute}="${entry.name}" class="${listClasses.walk}">Walk ${entry.name}</button></td></tr>`,
-    )
-    .join("");
-  return `<main class="${listClasses.main}" style="padding:32px"><h1 style="margin:0 0 8px">Maps</h1><p class="${listClasses.about}" style="margin:0 0 16px">Each map of the product: its page, its cell, its first state and its count of states. bun scripts/map-screens.ts puts them after each deploy. A press on Walk starts the walk of the map.</p><table style="border-collapse:collapse;width:100%"><thead><tr><th align="left">Map</th><th align="left">Page</th><th align="left">Cell</th><th align="left">First state</th><th align="left">States</th><th align="left">Walk</th></tr></thead><tbody>${cells}</tbody></table></main>`;
 }
 
 function putList(html: string) {
@@ -660,7 +661,23 @@ function writeDry(dir: string, { entry, shots, cards, walk }: Done) {
   writeFileSync(join(dir, `${scope.run(walkFrameName, { input: entry.name })}.html`), walk);
 }
 
-type Done = { entry: MapEntry; map: MapJson; shots: Shot[]; cards: Card[]; walk: string };
+type Done = {
+  entry: MapEntry;
+  map: MapJson;
+  shots: Shot[];
+  cards: Card[];
+  walk: string;
+  findings: MapFinding[];
+};
+
+function findingsOf(entries: ReadonlyArray<{ entry: MapEntry; map: MapJson }>) {
+  const chosen = new Set<string>(entries.map(({ entry }) => entry.name));
+  const input = {
+    maps: entries.map(({ entry, map }) => ({ name: entry.name, map })),
+    designed: readDesigned(designed),
+  };
+  return scope.run(mapCheck, { input }).filter((finding) => chosen.has(finding.map));
+}
 
 async function mapOne(
   browser: Browser,
@@ -670,6 +687,7 @@ async function mapOne(
 ): Promise<Done> {
   const derived = await deriveOf(entry.cell);
   if (!derived?.view) throw new Error(`map-screens: no view of ${entry.cell} in src/`);
+  const findings = findingsOf([{ entry, map: derived.map }]);
 
   const inputs = Object.fromEntries(
     derived.actions.flatMap(({ name, unit }) => {
@@ -695,7 +713,8 @@ async function mapOne(
         })),
       ),
     );
-    return { entry, map: derived.map, shots, cards: cardsOf(entry, derived.map, graph), walk };
+    const cards = cardsOf(entry, derived.map, graph, findings);
+    return { entry, map: derived.map, shots, cards, walk, findings };
   } finally {
     await server.stop(true);
   }
@@ -720,20 +739,31 @@ try {
   let failed = 0;
   const rows = [];
   for (const each of done) {
-    const { entry, map, shots } = each;
+    const { entry, map, shots, findings } = each;
     failed += shots.filter((shot) => !shot.png).length;
+    for (const finding of findings) {
+      console.log(`map-screens: check: ${finding.rule} ${finding.what}`);
+    }
     if (dryDir) {
       writeDry(dryDir, each);
-      rows.push({ entry, map, page: scope.run(walkPageName, { input: entry.name }) });
+      rows.push({ entry, map, findings });
       continue;
     }
 
     const put = await putMap(browser, each);
     for (const word of put.words) console.log(`map-screens: ${word}`);
-    rows.push({ entry, map, page: put.page });
+    rows.push({ entry, map, findings });
   }
 
-  const html = listHtml(rows);
+  const html = scope.run(mapsListHtml, {
+    input: rows.map(({ entry, map, findings }) => ({
+      name: entry.name,
+      cell: map.cell,
+      start: map.start,
+      states: map.states.length,
+      findings,
+    })),
+  });
   if (dryDir) writeFileSync(join(dryDir, "maps.html"), html);
   else if (rows.length) console.log(`map-screens: ${mapsName}: ${putList(html)}`);
 

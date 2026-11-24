@@ -579,6 +579,14 @@ decision 34; the bar of the walk has the group `Answers`. The proofs are
     designed frame. A new answer in the code is a finding, as a new exit with no test is a finding
     of `tinker check`. It replaces the model `flows-links`: no drawn link is left to break.
 
+Built on 2026-11-24 (decisions 40 to 45 below). `src/map/check.ts` makes the lines of the file and
+the findings; `bun scripts/map-check.ts` prints them, and `--write` writes `maps.designed`.
+`bun scripts/map-screens.ts` marks the frame `Maps` and the cards. The proofs are
+`tests/map-check.test.ts`: one more answer of a fixture is one finding, and with the answer removed
+the check is OK (J8); the maps of easel are OK. Proven on a new local server: with one answer less
+in the file, the frame `Maps` showed `1 finding` and the card of `denied` the section `Check`; with
+`maps.designed`, `OK` and no section.
+
 #### The decisions of ship 6
 
 Prior art for the check: the graph stage of `tinker check` (the graph of the code must be the
@@ -626,18 +634,19 @@ have).
     - `map/answer`: an answer that the file does not have. The line is the answer in its contract
       (or the call, for the fault), or the label of the action. The text names each state that the
       answer leads to. A state that the file does not have is said in the same finding
-      (`a state with no designed frame`), so one new answer gives one finding.
+      (`The state denied has no designed frame.`), so one new answer gives one finding.
     - `map/state`: a state that the file does not have, which no new answer reaches: a new first
       state, or an old answer that now leads to a new state. The line is the kind in the cell, or
       the press in the view for a run state.
     - `map/gone`: a line of the file that the code does not have now. The line is in
       `maps.designed`, as `tinker/graph` says `in tinker.graph, not in the code`.
 
-    A fix shows once for each rule, and the last two lines say the result and what to do next:
-    `map check: failed, <n> findings.`, then `Next: fix each finding, then run
-bun scripts/map-check.ts again.` With no finding it prints
-    `map check: OK (<n> maps, <n> states, <n> answers)`. Exit 0 when OK, 1 with a finding, 64 on a
-    wrong argument.
+    A fix shows once. A later finding with the same fix says `fix: as above`, as in
+    `tinker check`. The last two lines say the result and what to do next:
+    `map check: failed, <n> findings.` and the line `Next:` with the command to run again. With no
+    finding it prints `map check: OK (<n> maps, <n> states, <n> answers)`. Exit 0 when OK, 1 with a
+    finding, 64 on a wrong argument. The card of a state gets the finding as short lines: the
+    answer, each move to the state, and the state with no designed frame.
 
 43. **The check runs in the tests, and the job marks the map.**
     - `tests/map-check.test.ts` runs `bun scripts/map-check.ts` on the maps of

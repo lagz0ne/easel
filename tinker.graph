@@ -600,12 +600,16 @@ map.caption exits{value} reads{} writes{} calls{}
 map.captionParts exits{value} reads{} writes{} calls{}
 map.card exits{value} reads{} writes{} calls{}
 map.cardHtml exits{value} reads{} writes{} calls{}
+map.check exits{value} reads{} writes{} calls{}
+map.checkText exits{value} reads{} writes{} calls{}
 map.columns exits{value} reads{} writes{} calls{}
 map.derive exits{value} reads{} writes{} calls{?}
+map.designLines exits{value} reads{} writes{} calls{}
 map.exampleCall exits{decode,encode,failed,invalid,link,missing,refused,value} reads{} writes{} calls{}
 map.exampleWatch exits{value} reads{} writes{} calls{}
 map.frameName exits{value} reads{} writes{} calls{}
 map.graph exits{value} reads{} writes{} calls{}
+map.listHtml exits{value} reads{} writes{} calls{}
 map.order exits{value} reads{} writes{} calls{}
 map.pictureHeight exits{value} reads{} writes{} calls{}
 map.place exits{value} reads{} writes{} calls{}
