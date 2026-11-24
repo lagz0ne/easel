@@ -468,8 +468,6 @@ kit.currentKit exits{value} reads{} writes{} calls{kit.readKit}
 kit.designAt exits{value} reads{} writes{} calls{kit.partRevisions}
 kit.designNow exits{value} reads{} writes{} calls{kit.designAt}
 kit.easelRuntime exits{value} reads{} writes{} calls{kit.buildRuntime}
-kit.editDistance exits{value} reads{} writes{} calls{kit.editRow}
-kit.editRow exits{value} reads{} writes{} calls{}
 kit.exportTold exits{value} reads{} writes{} calls{}
 kit.fillAt exits{value} reads{} writes{} calls{kit.designAt,kit.fillCopies}
 kit.fillCopies exits{value} reads{} writes{} calls{}
@@ -499,7 +497,7 @@ kit.mergeFixtures exits{value} reads{} writes{} calls{}
 kit.mergeLook exits{value} reads{} writes{} calls{}
 kit.moduleFindings exits{value} reads{} writes{} calls{kit.importFindings,kit.shapeFindings,kit.stateFindings}
 kit.nearestColor exits{value} reads{} writes{} calls{kit.oklab}
-kit.nearestName exits{value} reads{} writes{} calls{kit.editDistance}
+kit.nearestName exits{value} reads{} writes{} calls{}
 kit.offsetIn exits{value} reads{} writes{} calls{}
 kit.oklab exits{value} reads{} writes{} calls{kit.rgbToOklab,kit.srgbOf}
 kit.ownFindings exits{value} reads{} writes{} calls{}

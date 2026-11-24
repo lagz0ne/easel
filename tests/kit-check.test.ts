@@ -1,5 +1,5 @@
 import { exits } from "@tinkered/cli/test";
-import { createScope } from "@tinkered/core";
+import { capsule, createScope } from "@tinkered/core";
 import { afterEach, expect, test } from "vite-plus/test";
 
 import { check } from "@/kit/check.server";
@@ -166,4 +166,31 @@ test("the design system is made one time for each kit version", async () => {
     kind: "checked",
     findings: [{ rule: "kit/class", line: 1, col: 11 }],
   });
+});
+
+test("a check of 25 classes that are not in the kit runs few operations: each run is a span and a line of the exits file, so a near name is one run, not one for each name and letter", async () => {
+  const runs = { n: 0 };
+  const counted = capsule({
+    label: "test.countRuns",
+    hooks: {
+      run(event) {
+        runs.n++;
+        return event.next();
+      },
+    },
+  });
+  const scope = await createScope({
+    capsules: [exits({ file: process.env.TINKER_EXITS }), counted({})],
+  }).ready;
+  scopes.push(scope);
+  const kit = await testKit();
+  await scope.run(check, { input: { html: "<p>a</p>", kit } });
+  const before = runs.n;
+
+  const many = Array.from({ length: 25 }, (_, i) => `<p class="text-red-${i + 1}00">a</p>`);
+  const got = await scope.run(check, { input: { html: many.join("\n"), kit } });
+  if (got.kind !== "checked") throw new Error(`not checked: ${got.kind}`);
+
+  expect(got.findings).toHaveLength(25);
+  expect(runs.n - before).toBeLessThan(25 * 20);
 });
