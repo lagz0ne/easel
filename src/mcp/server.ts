@@ -8,6 +8,7 @@ import { ownerApi } from "@/access/contract";
 import { framesApi, maxImagePixels } from "@/frames/contract";
 import { kitApi } from "@/kit/contract";
 import { opsOwnerApi, opsUserApi } from "@/ops/contract";
+import { partsApi } from "@/parts/contract";
 import { queueApi } from "@/queue/contract";
 import { wordsApi } from "@/words/contract";
 
@@ -179,7 +180,16 @@ export const faultResult = operation({
       return { isError: true, content: [{ type: "text", text: issuesText.parse(error.payload) }] };
     }
 
-    const apis = [framesApi, kitApi, wordsApi, queueApi, ownerApi, opsUserApi, opsOwnerApi];
+    const apis = [
+      framesApi,
+      kitApi,
+      wordsApi,
+      partsApi,
+      queueApi,
+      ownerApi,
+      opsUserApi,
+      opsOwnerApi,
+    ];
     if (!apis.some((api) => api.fault.is(error))) throw error;
 
     const { fault, address, payload, traceId, execution } = rpcFault.parse(error);
@@ -246,6 +256,9 @@ export const mcpCall = operation({
     "texts.list": kitApi["texts.list"],
     "texts.set": kitApi["texts.set"],
     "texts.uses": wordsApi["texts.uses"],
+    "parts.list": partsApi["parts.list"],
+    "parts.publish": partsApi["parts.publish"],
+    "parts.show": partsApi["parts.show"],
     "request.next": queueApi["request.next"],
     "request.extend": queueApi["request.extend"],
     "request.release": queueApi["request.release"],

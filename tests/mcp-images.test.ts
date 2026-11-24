@@ -28,6 +28,7 @@ import { framesServer } from "@/frames/store.server";
 import { kit } from "@/kit";
 import { agentSide, mcpLink } from "@/mcp/server";
 import { ops } from "@/ops";
+import { parts } from "@/parts";
 import { queue } from "@/queue";
 import { words } from "@/words";
 
@@ -99,6 +100,7 @@ async function agent(srv: Srv, send: (request: Request) => Promise<Response> = s
       frames.api({ remote: memory.client }),
       kit.api({ remote: memory.client }),
       words.api({ remote: memory.client }),
+      parts.api({ remote: memory.client }),
       queue.api({ remote: memory.client }),
       ops.user({ remote: memory.client }),
       ops.owner({ remote: memory.client }),

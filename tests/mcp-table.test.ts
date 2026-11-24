@@ -8,6 +8,7 @@ import { passApi, shareApi } from "@/frames/share";
 import { kitApi } from "@/kit/contract";
 import { noTool, tableGaps, tools } from "@/mcp/tools";
 import { opsOwnerApi, opsUserApi } from "@/ops/contract";
+import { partsApi } from "@/parts/contract";
 import { channelApi } from "@/queue/channels";
 import { queueApi, requestApi } from "@/queue/contract";
 import { wordsApi } from "@/words/contract";
@@ -25,6 +26,7 @@ const easelApis = [
   passApi,
   kitApi,
   wordsApi,
+  partsApi,
   queueApi,
   requestApi,
   channelApi,
@@ -41,7 +43,7 @@ async function gaps(list: string[], lists: { tooled?: string[]; skipped?: string
 
 test("each call of easel's contracts is a tool or on the no-tool list, and none is both", async () => {
   expect(await gaps(addresses)).toEqual({ missing: [], both: [] });
-  expect(Object.keys(tools)).toHaveLength(42);
+  expect(Object.keys(tools)).toHaveLength(45);
 });
 
 test("the check finds a call that is in neither list, and one that is in both", async () => {

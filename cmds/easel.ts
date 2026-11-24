@@ -19,6 +19,7 @@ import { frames } from "@/frames";
 import { kit } from "@/kit";
 import { mcpLink } from "@/mcp/server";
 import { ops } from "@/ops";
+import { parts } from "@/parts";
 import { queue } from "@/queue";
 import { words } from "@/words";
 
@@ -103,6 +104,10 @@ const help = `easel: the canvas CLI. Every command takes --json (one JSON value 
   easel texts set -f <file.json> [--base <rev>]    write texts from a file: {"<text key>": {"en": "...", "vi": "..."}}
   easel texts uses [--canvas <k>]                  each text of the team with the frames that use it, or not used; the
                                                    text keys with no vi text; the texts with no key (--json lists them)
+  easel parts                                      the parts of the design system: revision, main, and the frames with
+                                                   a copy, linked or edited
+  easel parts publish <canvas>                     publish each main of the canvas as a part; each linked copy shows it
+  easel parts show <canvas> <id> [-o <file>]       the document of a frame as a tab gets it, with its parts
   easel next [--canvas <k>] [--n <n>] [--wait <s>] [--lease <s>]
                                                    claim the oldest waiting request; prints it and its claim
   easel extend <claim> [--lease <s>]               start the lease again (30 to 3600 s, 300 when none)
@@ -790,6 +795,33 @@ const textsInvocations = [
     })),
 ] as const;
 
+const partsInvocations = [
+  z
+    .object({ positionals: z.tuple([z.literal("parts")]), values: z.strictObject(common) })
+    .transform(({ values }): unknown => ({
+      at: values.server,
+      command: { kind: "parts", act: { kind: "ls" } },
+    })),
+  z
+    .object({
+      positionals: z.tuple([z.literal("parts"), z.literal("publish"), z.string()]),
+      values: z.strictObject(common),
+    })
+    .transform(({ positionals: [, , canvas], values }): unknown => ({
+      at: values.server,
+      command: { kind: "parts", act: { kind: "publish", canvas } },
+    })),
+  z
+    .object({
+      positionals: z.tuple([z.literal("parts"), z.literal("show"), z.string(), z.string()]),
+      values: z.strictObject({ ...common, out: z.string().optional() }),
+    })
+    .transform(({ positionals: [, , canvas, id], values }): unknown => ({
+      at: values.server,
+      command: { kind: "parts", act: { kind: "show", canvas, id, out: values.out } },
+    })),
+] as const;
+
 const channelInvocations = [
   z
     .object({
@@ -1037,6 +1069,7 @@ const invocation = z.union([
   ...channelInvocations,
   ...lookInvocations,
   ...textsInvocations,
+  ...partsInvocations,
 ]);
 
 const argv = z
@@ -1188,6 +1221,7 @@ const main = defineMain(async (ctx) => {
       frames.api({ remote: ws.client }),
       kit.api({ remote: ws.client }),
       words.api({ remote: ws.client }),
+      parts.api({ remote: ws.client }),
       queue.api({ remote: ws.client }),
       queue.viewer({ remote: ws.client }),
       queue.channels({ remote: ws.client }),

@@ -5,6 +5,7 @@ import { ownerContracts, successKinds } from "@/access/contract";
 import { framesContracts, framesSuccessKinds } from "@/frames/contract";
 import { kitContracts, kitSuccessKinds } from "@/kit/contract";
 import { opsOwnerContracts, opsSuccessKinds, opsUserContracts } from "@/ops/contract";
+import { partsContracts, partsSuccessKinds } from "@/parts/contract";
 import { queueContracts, queueSuccessKinds } from "@/queue/contract";
 import { wordsContracts, wordsSuccessKinds } from "@/words/contract";
 
@@ -12,6 +13,7 @@ export const contracts = {
   ...framesContracts,
   ...kitContracts,
   ...wordsContracts,
+  ...partsContracts,
   ...queueContracts,
   ...ownerContracts,
   ...opsUserContracts,
@@ -22,6 +24,7 @@ export const successLists = {
   ...framesSuccessKinds,
   ...kitSuccessKinds,
   ...wordsSuccessKinds,
+  ...partsSuccessKinds,
   ...queueSuccessKinds,
   ...successKinds,
   ...opsSuccessKinds,
@@ -191,6 +194,24 @@ export const tools = {
     annotations: readOnly,
     description:
       "List each text of the team with the frames that use it (`uses: []` is not used), the text keys that frames use and the team does not have, each text with no key, and `missing.vi`, the text keys with no vi text. Give `canvas` to read the frames of one canvas only.",
+  },
+  list_parts: {
+    address: "parts.list",
+    annotations: readOnly,
+    description:
+      "List the parts of the design system: each part with its revision, its main (the source frame), and each frame that has a copy of it, with its count of linked and of edited copies. An edited copy does not follow its part: put it again as a copy with its props and overrides.",
+  },
+  publish_parts: {
+    address: "parts.publish",
+    annotations: idempotent,
+    description:
+      "Publish each main (`data-doop-component`) of the frames of a canvas as a part in a new kit version; after it, a put of a main publishes it, and each linked copy (`data-doop-instance`) on each canvas shows the part with no new frame version. `unchanged`: each main is the same as its part.",
+  },
+  show_frame_parts: {
+    address: "parts.show",
+    annotations: readOnly,
+    description:
+      "Get the document of the current version of a frame as a tab shows it: each linked copy has its part of the current kit version. `get_frame` gives the document as it was put.",
   },
   next_request: {
     address: "request.next",

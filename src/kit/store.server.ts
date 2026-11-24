@@ -83,7 +83,10 @@ const versionRow = z
 
 export type KitVersion = z.infer<typeof versionRow>;
 
-const columns = "version, look_rev, look, look_values, root, source, css, pieces, texts, texts_rev";
+export const kitColumns =
+  "version, look_rev, look, look_values, root, source, css, pieces, texts, texts_rev";
+
+const columns = kitColumns;
 
 export const readKit = operation({
   label: "kit.readKit",
@@ -108,7 +111,7 @@ export const readKitAt = operation({
   },
 });
 
-const showNewest = operation({
+export const showNewest = operation({
   label: "kit.showNewest",
   depends: { cells: kit.atScope.controller, readKit },
   run: async ({ cells, readKit }) => {

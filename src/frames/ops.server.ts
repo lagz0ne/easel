@@ -4,6 +4,7 @@ import { z } from "zod";
 import { user } from "@/access/guards.server";
 import { checkApp } from "@/kit/app.server";
 import { makeApp, makeFrame } from "@/kit/make.server";
+import { fillNow } from "@/kit/parts.server";
 import { runtimeAddress, runtimeOf } from "@/kit/runtime.server";
 import {
   entryFile,
@@ -17,6 +18,7 @@ import {
   utf8Bytes,
 } from "@/kit/schema";
 import { frameKit } from "@/kit/store.server";
+import { publishFrom } from "@/parts/ops.server";
 import { loadShots } from "@/queue/shots.server";
 import { releaseClient } from "@/release";
 
@@ -91,8 +93,8 @@ const appOf = operation({
 export const loadDocs = operation({
   label: "frames.loadDocs",
   input: z.object({ canvas: z.string(), id: z.string() }),
-  depends: { readDoc, appOf, imageAddress, imageDoc },
-  run: async ({ readDoc, appOf, imageAddress, imageDoc }, { input }) => {
+  depends: { readDoc, appOf, imageAddress, imageDoc, fillNow },
+  run: async ({ readDoc, appOf, imageAddress, imageDoc, fillNow }, { input }) => {
     const row = await readDoc.run({ input });
     if (!row) return [];
     if (row.image) {
@@ -103,8 +105,12 @@ export const loadDocs = operation({
     }
 
     const app = await appOf.run({ input: { js: row.js, kit: row.kit } });
-    const { canvas, id, version, html, css } = row;
-    return [{ canvas, id, version, html, css, app }];
+    const { canvas, id, version, css } = row;
+    if (app !== null) return [{ canvas, id, version, html: row.html, css, app }];
+
+    const filled = await fillNow.run({ input: row.html });
+    const parts = filled.linked.length > 0 ? { parts: filled.kit } : {};
+    return [{ canvas, id, version, html: filled.html, css, app, ...parts }];
   },
 });
 
@@ -343,8 +349,8 @@ const madeOf = operation({
 const savePut = operation({
   label: "frames.savePut",
   input: frameWrite,
-  depends: { saveFrame, invalidate: framesBoard.invalidate },
-  run: async ({ saveFrame, invalidate }, { input: write }) => {
+  depends: { saveFrame, publishFrom, invalidate: framesBoard.invalidate },
+  run: async ({ saveFrame, publishFrom, invalidate }, { input: write }) => {
     const answer = await saveFrame.run({ input: write });
     switch (answer.kind) {
       case "stale":
@@ -356,6 +362,7 @@ const savePut = operation({
       case "created":
       case "updated":
         await invalidate.run({ input: { docs: { canvas: write.canvas, id: answer.id } } });
+        await publishFrom.run({ input: { canvas: write.canvas, id: answer.id } });
         return answer;
     }
   },

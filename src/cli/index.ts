@@ -23,6 +23,7 @@ import {
 } from "./ops";
 import { json, stderr, stdout } from "./output";
 import { pagesCommand, pagesRun } from "./pages";
+import { partsCommand, partsRun } from "./parts";
 import { queueCommand, queueRun } from "./queue";
 import { startsCommand, startsRun } from "./starts";
 import { textsCommand, textsRun } from "./texts";
@@ -92,6 +93,7 @@ export const command = z.discriminatedUnion("kind", [
   ...workCommand.options,
   z.object({ kind: z.literal("look"), act: lookCommand }),
   z.object({ kind: z.literal("texts"), act: textsCommand }),
+  z.object({ kind: z.literal("parts"), act: partsCommand }),
 ]);
 
 export type Command = z.infer<typeof command>;
@@ -199,7 +201,7 @@ const workRun = operation({
 const run = operation({
   label: "cli.run",
   input: command,
-  depends: { shell, canvasRun, workRun, lookRun, textsRun, mcpRun, openBrowser },
+  depends: { shell, canvasRun, workRun, lookRun, textsRun, partsRun, mcpRun, openBrowser },
   run: (ops, { input }) => {
     const { shell, canvasRun, workRun, lookRun, textsRun, mcpRun } = ops;
     const onCanvas = canvasCommand.safeParse(input);
@@ -209,6 +211,7 @@ const run = operation({
 
     if (input.kind === "look") return lookRun.run({ input: input.act });
     if (input.kind === "texts") return textsRun.run({ input: input.act });
+    if (input.kind === "parts") return ops.partsRun.run({ input: input.act });
     if (input.kind === "mcp") return mcpRun.run();
     if (input.kind === "open") return ops.openBrowser.run({ input });
     return shell.run({ input: shellCommand.parse(input) });

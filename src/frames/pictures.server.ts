@@ -9,6 +9,7 @@ import { z } from "zod";
 
 import { compose, composeApp, composeKit } from "@/kit/compose";
 import { inlineFonts } from "@/kit/fonts.server";
+import { fillAt } from "@/kit/parts.server";
 import { runtimeAddress, runtimeOf, storedFiles } from "@/kit/runtime.server";
 import { readKit, readKitAt } from "@/kit/store.server";
 import { readiness } from "@/ops/registry";
@@ -601,16 +602,20 @@ const readRow = z.object({
 const placePicture = operation({
   label: "pictures.place",
   input: routeInput.extend({ asked: z.number(), kit: z.number().nullable(), row: readRow }),
-  depends: { viewLook, pictureKey, pictureAddress, refusal },
-  run: async ({ viewLook, pictureKey, pictureAddress, refusal }, { input }) => {
+  depends: { viewLook, pictureKey, pictureAddress, refusal, fillAt },
+  run: async ({ viewLook, pictureKey, pictureAddress, refusal, fillAt }, { input }) => {
     const { asked, row, ...at } = input;
     const { current, doc, gen } = row;
     const view = await viewLook.run({
       input: { canvas: at.canvas, id: at.id, version: asked, current, kit: at.kit },
     });
     if (doc && view.look) {
-      const { root: look, css: kitCss, texts } = view.look;
-      return { ...doc, look, kitCss, texts, gen, version: asked };
+      const { root: look, css: kitCss, texts, version: kit } = view.look;
+      const html =
+        doc.js === null && doc.image === null
+          ? (await fillAt.run({ input: { html: doc.html, kit } })).html
+          : doc.html;
+      return { ...doc, html, look, kitCss, texts, gen, version: asked };
     }
     if (current === null || asked > current) return refusal.run({ input: 404 });
 

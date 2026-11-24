@@ -304,7 +304,7 @@ const liveDoc = resource({
     }
 
     const axes = axesFor.run({ input: { id, version: at.version, offer: offered[id], picked } });
-    const key = `${at.version}:${JSON.stringify(axes)}`;
+    const key = `${at.version}:${String(at.parts)}:${JSON.stringify(axes)}`;
     const words = wordsFor.run({
       input: { html: at.html, app: Boolean(at.app), axes, picked: picked.locale, kit: look },
     });

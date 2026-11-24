@@ -46,6 +46,8 @@ import { ops } from "@/ops";
 import { opsOwnerOps, opsServer, opsUserOps, ready } from "@/ops/ops.server";
 import { observePanics } from "@/ops/panic.server";
 import { opsTelemetryRoute, opsThreadRoute } from "@/ops/sink.server";
+import { parts } from "@/parts";
+import { partsOps, partsServer } from "@/parts/ops.server";
 import { queue } from "@/queue";
 import { channelOps } from "@/queue/channels.server";
 import { dispatchServer } from "@/queue/dispatch.server";
@@ -124,6 +126,7 @@ export default defineMain(async ({ env, args, signal, stdout, stderr, exit }) =>
       frames.pass,
       kit.api,
       words.api,
+      parts.api,
       queue.api,
       queue.viewer,
       queue.channels,
@@ -143,6 +146,7 @@ export default defineMain(async ({ env, args, signal, stdout, stderr, exit }) =>
     frames.api,
     kit.api,
     words.api,
+    parts.api,
     queue.api,
   ];
   const mcpChannel = new MessageChannel();
@@ -222,6 +226,8 @@ export default defineMain(async ({ env, args, signal, stdout, stderr, exit }) =>
       frames.pass({ implement: passOps, onStart: [mayName] }),
       kit.api({ implement: kitOps, onStart: [user] }),
       words.api({ implement: wordsOps, onStart: [user] }),
+      partsServer,
+      parts.api({ implement: partsOps, onStart: [user] }),
       queueServer({ stdout }),
       queue.api({ implement: queueOps, onStart: [user] }),
       queue.viewer({ implement: requestOps, onStart: [mayAct] }),

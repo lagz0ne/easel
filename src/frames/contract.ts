@@ -164,6 +164,7 @@ export const boardDoc = z.object({
   html: z.string(),
   css: z.string().nullable(),
   app: boardApp.nullable().optional(),
+  parts: z.number().optional(),
 });
 
 export const frames = data({

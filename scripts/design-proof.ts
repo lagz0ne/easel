@@ -377,8 +377,8 @@ const parseFrame = async (frame: string, html: string): Promise<Parsed> => {
 };
 
 const htmlOf = async (login: Login, canvas: string, id: string): Promise<string | undefined> => {
-  const got = await callTool(login, "get_frame", { canvas, id });
-  const html = isRecord(got) ? field(got.frame, "html") : "";
+  const got = await callTool(login, "show_frame_parts", { canvas, id });
+  const html = field(got, "html");
   return html === "" ? undefined : html;
 };
 
@@ -1120,8 +1120,22 @@ const partDrift = (proof: Proof): void => {
   const behind = [...proof.revs.entries()].filter(([, byRev]) => byRev.size > 1);
   const parts = behind.map(([name, byRev]) => `${name} (${byRev.size} copies)`).join(", ");
   console.log(
-    `parts: ${behind.length === 0 ? "each copy of a part on product is the same" : `copies of a part differ: ${parts}`}. A change of a part reaches the designed frames with SPEC-pieces (V5, deferred).`,
+    `parts: ${behind.length === 0 ? "each copy of a part on product shows one revision" : `copies of a part differ: ${parts}`}. The frames are read as a tab shows them: each linked copy has the part of the current kit version (SPEC-pieces-base, V5).`,
   );
+};
+
+const checkEdited = async (login: Login, checked: ReadonlySet<string>): Promise<void> => {
+  const listed = await callTool(login, "list_parts", {});
+  for (const part of listOf(listed, "parts")) {
+    for (const copy of listOf(part, "copies")) {
+      const edited = count(copy, "edited");
+      if (field(copy, "canvas") !== PRODUCT || edited === 0 || !checked.has(field(copy, "id"))) {
+        continue;
+      }
+      const what = `${field(part, "name")}: ${edited} edited copies do not follow the part; put them again as copies, with props and overrides`;
+      report(field(copy, "id"), "S5", what);
+    }
+  }
 };
 
 const readEpicIds = async (): Promise<Map<string, string>> => {
@@ -1231,6 +1245,7 @@ const main = async (): Promise<number> => {
   checkTrace(proof);
   checkF1(proof);
   checkRevs(proof);
+  await checkEdited(login, new Set(scope.frames.map((f) => f.id)));
   await checkLive(tinker, canvas, library, login);
   partDrift(proof);
   await tinker.close();

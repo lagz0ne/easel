@@ -19,6 +19,7 @@ import { portClient, portServer } from "@/kit/port-link";
 import { mcpHttp, mcpMeta } from "@/mcp/http.server";
 import { mcpLink } from "@/mcp/server";
 import { ops } from "@/ops";
+import { parts } from "@/parts";
 import { queue } from "@/queue";
 import { words } from "@/words";
 
@@ -37,6 +38,7 @@ const apis = [
   frames.api,
   kit.api,
   words.api,
+  parts.api,
   queue.api,
   ops.user,
   ops.owner,
