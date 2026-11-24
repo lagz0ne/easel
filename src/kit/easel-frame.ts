@@ -5,6 +5,8 @@ import {
   type Operation,
   parse,
   type Resource,
+  tag,
+  type Tag,
   type transport,
 } from "@tinkered/core";
 import { ScopeProvider } from "@tinkered/react";
@@ -26,6 +28,7 @@ import {
   panePlace,
   linkPost,
 } from "./controls";
+import { fixtureSwitch, initialFixture } from "./fixtures";
 import { portClient, portServer } from "./port-link";
 import { teamText } from "./texts";
 
@@ -87,6 +90,21 @@ const kitPost = z.object({
 type FrameCapsule = Capsule.Installable &
   ((values: Record<string, unknown>) => Capsule.Installable);
 
+export const theme = tag({
+  label: "theme",
+  default: "light",
+  parse: z.enum(["light", "dark"]),
+});
+
+export type FrameMatrix = {
+  by: Readonly<Record<string, Tag.Handle<string>>>;
+  fixture?: boolean;
+};
+
+export const frameMatrix = <const M extends FrameMatrix>(matrix: M): M => matrix;
+
+const maxMatrixCells = 36;
+
 export type MountApp = (
   | {
       View: ComponentType;
@@ -94,6 +112,7 @@ export type MountApp = (
       part?: undefined;
       panes?: undefined;
       fixtures?: undefined;
+      matrix?: undefined;
     }
   | {
       View: Resource.Handle<ComponentType>;
@@ -101,6 +120,7 @@ export type MountApp = (
       part?: FramePart;
       panes?: FramePanes;
       fixtures?: FrameFixtures;
+      matrix?: FrameMatrix;
     }
 ) & { controls?: Readonly<Record<string, FrameControl>> };
 
@@ -129,14 +149,52 @@ const fixtureNamesOf = (cells: FrameFixtures) => {
   return [...new Set(names)];
 };
 
+const tagValues = (one: unknown) => {
+  const parse = fieldOf(one, "parse");
+  const values = fieldOf(parse instanceof z.ZodType ? z.toJSONSchema(parse) : null, "enum");
+  return z.array(z.string()).catch([]).parse(values);
+};
+
+type MatrixPick = {
+  kind: "config" | "fixture";
+  key: string;
+  label: string;
+  value: string;
+};
+
+const matrixPicks = (matrix: FrameMatrix, fixtureNames: readonly string[]) => {
+  const lists = Object.entries(matrix.by).map(([key, one]) => ({
+    kind: "config" as const,
+    key,
+    label: one.label,
+    values: tagValues(one),
+  }));
+  const named = [initialFixture, ...fixtureNames];
+  const fixture = {
+    kind: "fixture" as const,
+    key: fixtureSwitch,
+    label: fixtureSwitch,
+  };
+  const all = matrix.fixture ? [...lists, { ...fixture, values: named }] : lists;
+  return all.reduce<MatrixPick[][]>(
+    (grid, one) =>
+      grid.flatMap((picks) =>
+        one.values.map((value) => [
+          ...picks,
+          { kind: one.kind, key: one.key, label: one.label, value },
+        ]),
+      ),
+    [[]],
+  );
+};
+
 const offerOf = (frame: FrameCapsule | undefined, cells: FrameFixtures) => {
   const config: Record<string, { values: unknown[]; default?: unknown; name?: string }> = {};
   const keys = z.record(z.string(), z.unknown()).catch({}).parse(fieldOf(frame, "config"));
   for (const [key, entry] of Object.entries(keys)) {
     const tag = fieldOf(entry, "kind") === undefined ? entry : fieldOf(entry, "target");
-    const parse = fieldOf(tag, "parse");
-    const values = fieldOf(parse instanceof z.ZodType ? z.toJSONSchema(parse) : null, "enum");
-    if (!Array.isArray(values)) continue;
+    const values = tagValues(tag);
+    if (!values.length) continue;
 
     const label = fieldOf(tag, "label");
     const name = typeof label === "string" ? { name: label } : {};
@@ -350,6 +408,10 @@ export const mount = (app: MountApp) => {
   let steps = Promise.resolve();
   const controls = app.controls ?? {};
   const fixtureCells = app.fixtures ?? {};
+  let matrixScopes: Root[] = [];
+  const configKeys = Object.keys(
+    z.record(z.string(), z.unknown()).catch({}).parse(fieldOf(app.frame, "config")),
+  );
   const shownControls = controlsOf(controls);
   let watching: Array<() => void> = [];
   let started = false;
@@ -415,37 +477,110 @@ export const mount = (app: MountApp) => {
     told();
   };
 
-  const draw = async () => {
+  const drawScope = async (
+    made: { scope: Root | null; live: boolean },
+    shown: ReturnType<typeof axesNow>,
+    serve: boolean,
+  ) => {
     const View = app.View;
+    const { css, texts, fixtures, ...axes } = shown;
+    const own = app.frame ? [app.frame(axes.config)] : [];
+    const served =
+      serve && app.part ? [...app.part.serve(), portServer({ services: app.part.services })] : [];
+
+    const next = createScope({
+      capsules: [
+        look({ values: values(), css }),
+        copy({ locale: axes.locale, team: texts }),
+        ui(),
+        ...own,
+        ...served,
+      ],
+    });
+    made.scope = next;
+
+    const live = await next.ready;
+    setFixtures(live, fixtureCells, { fixture: axes.fixture, fixtures });
+    made.live = true;
+    const children = createElement(typeof View === "function" ? View : live.resolve(View));
+    return createElement(ScopeProvider, { scope: next, children });
+  };
+
+  const drawCell = async (picks: MatrixPick[], now: ReturnType<typeof axesNow>) => {
+    const made: { scope: Root | null; live: boolean } = {
+      scope: null,
+      live: false,
+    };
+    const taken = picks.filter((one) => one.kind === "config" && configKeys.includes(one.key));
+    const config = taken.map((one) => [one.key, one.value]);
+    const fixture = picks.find((one) => one.kind === "fixture")?.value ?? now.fixture;
+    const axes = {
+      ...now,
+      config: { ...now.config, ...Object.fromEntries(config) },
+      fixture,
+    };
+    const shown = await drawScope(made, axes, false).catch(refused);
+
+    const label = picks.map((one) => `${one.label} ${one.value}`).join(" · ");
+    const scheme = picks.find((one) => one.label === theme.label)?.value;
+    const style = {
+      colorScheme: scheme,
+      display: "grid",
+      gap: "8px",
+      alignContent: "start",
+    };
+    const named = createElement("p", { style: { margin: 0, font: "12px system-ui" } }, label);
+    const cell = createElement(
+      "section",
+      { key: label, "aria-label": label, "data-easel-matrix": "", style },
+      named,
+      shown,
+    );
+    return { cell, scope: made.scope };
+  };
+
+  const drawMatrix = async (matrix: FrameMatrix) => {
+    const now = axesNow();
+    const grid = matrixPicks(matrix, fixtureNamesOf(fixtureCells));
+    const tooBig = {
+      kind: "MatrixTooBig",
+      payload: { cells: grid.length, max: maxMatrixCells },
+    };
+    const drawn =
+      grid.length > maxMatrixCells
+        ? []
+        : await Promise.all(grid.map((picks) => drawCell(picks, now)));
+    if (closing) {
+      await Promise.all(drawn.map((one) => one.scope?.close()));
+      return;
+    }
+
+    const style = {
+      display: "flex",
+      flexWrap: "wrap",
+      gap: "24px",
+      padding: "16px",
+    };
+    const cells = drawn.map((one) => one.cell);
+    const shown = drawn.length ? createElement("div", { style }, ...cells) : refused(tooBig);
+    const before = [scope, ...matrixScopes];
+    matrixScopes = drawn.flatMap((one) => (one.scope ? [one.scope] : []));
+    scope = createScope();
+    flushSync(() => root.render(shown));
+    watch(false);
+    unlink();
+    await Promise.all(before.map((one) => one.close()));
+  };
+
+  const draw = async () => {
     if (closing) return;
+    if (app.matrix) return drawMatrix(app.matrix);
 
-    const made: { scope: Root | null; live: boolean } = { scope: null, live: false };
-    const shown = await Promise.resolve()
-      .then(async () => {
-        const { css, texts, fixtures, ...axes } = axesNow();
-        const own = app.frame ? [app.frame(axes.config)] : [];
-        const served = app.part
-          ? [...app.part.serve(), portServer({ services: app.part.services })]
-          : [];
-
-        const next = createScope({
-          capsules: [
-            look({ values: values(), css }),
-            copy({ locale: axes.locale, team: texts }),
-            ui(),
-            ...own,
-            ...served,
-          ],
-        });
-        made.scope = next;
-
-        const live = await next.ready;
-        setFixtures(live, fixtureCells, { fixture: axes.fixture, fixtures });
-        made.live = true;
-        const children = createElement(typeof View === "function" ? View : live.resolve(View));
-        return createElement(ScopeProvider, { scope: next, children });
-      })
-      .catch(refused);
+    const made: { scope: Root | null; live: boolean } = {
+      scope: null,
+      live: false,
+    };
+    const shown = await drawScope(made, axesNow(), true).catch(refused);
     const next = made.scope ?? createScope();
     if (closing) {
       await next.close();
@@ -481,7 +616,7 @@ export const mount = (app: MountApp) => {
         watch(false);
         unlink();
         root.unmount();
-        return scope.close();
+        return Promise.all([scope, ...matrixScopes].map((one) => one.close()));
       })
       .then(closed, closed);
   };

@@ -303,7 +303,7 @@ test("the usual app frame passes the check of its module with the names of the r
   expect(got.js).not.toContain("type Period");
   expect(got.js).not.toMatch(/\bexport\b/);
   expect(got.js).toMatch(
-    /mount\(\{View(:\w+)?,frame:undefined,controls:undefined,part:undefined,panes:undefined,fixtures:undefined\}\);\s*$/,
+    /mount\(\{View(:\w+)?,frame:undefined,controls:undefined,part:undefined,panes:undefined,fixtures:undefined,matrix:undefined\}\);\s*$/,
   );
 });
 
@@ -368,7 +368,7 @@ test("logic, View and frame can be exported by another name, or from another fil
 
   expect(got.findings.map((f) => f.what)).toEqual([
     'the frame imports "./parts": no file of the frame has this path',
-    'the frame exports all the names of "./more": an app frame exports View, and logic or frame, and controls, part, panes and fixtures, and no other name',
+    'the frame exports all the names of "./more": an app frame exports View, and logic or frame, and controls, part, panes, fixtures and matrix, and no other name',
     'the frame imports "./more": no file of the frame has this path',
   ]);
 });

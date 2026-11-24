@@ -178,6 +178,17 @@ that change them for that story only; the matrix of Chromatic (one story in each
     frame that shows one component in each value of the switches and props that it names, side by
     side, with a label for each (the Chromatic matrix). A page of the design system is a frame of
     matrices. The same works for a frame: `matrix({ of: RequestsView, by: { fixture } })`.
+    - Built in ship 4 as an export of the frame, as `controls` and `panes`:
+      `export const matrix = frameMatrix({ by: { sample, theme }, fixture: true })`. The `of` is
+      the View of the frame. Each key of `by` is a tag: its values come from its parse, so a new
+      value shows with no change to the frame (X11). `fixture: true` adds `initial` and each
+      fixture name of the cells of the frame. `@easel/frame` exports the `theme` tag.
+    - Each cell is its own scope, as a frame is: a refusal (`SampleInvalid`, `FixtureInvalid`)
+      shows in its cell only, and a click in one cell does not change another. The cell sets its
+      `color-scheme`, so a `light-dark()` color follows the theme of the cell. A
+      `prefers-color-scheme` block does not: it reads the document, and the cells share one.
+    - 36 cells at most; more refuses the start with `MatrixTooBig`. A frame of several matrices
+      waits for a real case (rule of the smallest scope).
 
 The switches land in small ships, each green and live (E10.2):
 

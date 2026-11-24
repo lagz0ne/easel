@@ -717,6 +717,116 @@ test(
 );
 
 test(
+  "kit-matrix: a frame that exports a matrix shows its View once for each value of the switches it names, side by side, each with its label and in its own scope; a value that refuses the start shows its refusal in its own cell only",
+  { timeout: 90_000 },
+  async () => {
+    const executablePath = localChromium();
+    if (executablePath === null) {
+      throw new Error("no local Chromium: run `bunx playwright install chromium`");
+    }
+
+    const srv = await boot({ runtime: null });
+    const ann = await annOn(srv);
+    const files = await people();
+    const index = files["index.tsx"] ?? "";
+    const matrixIndex =
+      index.replace(
+        'import { frameControls, framePanes, framePart } from "@easel/frame";',
+        'import { frameControls, frameMatrix, framePanes, framePart, theme } from "@easel/frame";',
+      ) + "\nexport const matrix = frameMatrix({ by: { sample, theme }, fixture: true });\n";
+    const made = await ann.put({ canvas: "flow", files: { ...files, "index.tsx": matrixIndex } });
+    if (made.kind !== "created") throw new Error(`not created: ${made.kind}`);
+    const [doc] = await srv.server.run(loadDocs, { input: { canvas: "flow", id: made.id } });
+    if (!doc?.app) throw new Error("no app");
+    const now = await srv.server.run(readKit);
+    if (now === null) throw new Error("no kit");
+    const fixtures = {
+      "people.list": {
+        two: [
+          { id: "d", name: "Dung" },
+          { id: "e", name: "Em" },
+        ],
+      },
+    };
+    const html =
+      atLoad +
+      srv.server.run(composeApp, {
+        input: {
+          js: doc.app.js,
+          css: doc.css ?? "",
+          kit: { look: now.root, css: now.css, fixtures },
+          runtime: doc.app.runtime,
+        },
+      });
+
+    const web = Bun.serve({
+      port: 0,
+      hostname: "127.0.0.1",
+      routes: {
+        "/api/runtime/:kit/:sha/:file": (request) =>
+          srv.server.run(runtimeRoute, { input: request.params }),
+        "/api/fonts/:dir/:file": (request) => srv.server.run(fontRoute, { input: request.params }),
+      },
+      fetch: () =>
+        new Response(parentPage(html), { headers: { "Content-Type": "text/html; charset=utf-8" } }),
+    });
+    closers.push(() => web.stop(true));
+    const browser = await chromium.launch({ executablePath });
+    closers.push(() => browser.close());
+    const page = await browser.newPage();
+    const errors: string[] = [];
+    page.on("pageerror", (error) => errors.push(error.message));
+    await page.goto(`http://127.0.0.1:${web.port}/`);
+    const frame = page.frameLocator("iframe");
+    const cells = frame.locator("[data-easel-matrix]");
+
+    await expect.poll(() => cells.count(), { timeout: 20_000 }).toBe(16);
+    const labels = await cells.evaluateAll((all) =>
+      all.map((one) => one.getAttribute("aria-label")),
+    );
+    expect(labels.slice(0, 4)).toEqual([
+      "people.sample empty · theme light · fixture initial",
+      "people.sample empty · theme light · fixture two",
+      "people.sample empty · theme dark · fixture initial",
+      "people.sample empty · theme dark · fixture two",
+    ]);
+    const cell = (label: string) => frame.getByRole("region", { name: label });
+    await expect
+      .poll(() =>
+        cell("people.sample one · theme light · fixture initial").getByText("1 person").count(),
+      )
+      .toBe(1);
+    expect(
+      await cell("people.sample many · theme dark · fixture initial").getByText("3 people").count(),
+    ).toBe(1);
+    expect(
+      await cell("people.sample one · theme light · fixture two").getByText("Dung").count(),
+    ).toBe(1);
+    const scheme = await cell("people.sample many · theme dark · fixture initial").evaluate(
+      (one) => getComputedStyle(one).colorScheme,
+    );
+    expect(scheme).toBe("dark");
+    const bad = cell("people.sample bad · theme light · fixture initial").getByRole("alert");
+    expect(await bad.getAttribute("data-easel-refused")).toBe("SampleInvalid");
+    expect(await frame.getByRole("alert").count()).toBe(4);
+
+    await cell("people.sample many · theme light · fixture initial")
+      .getByRole("button", { name: "Remove" })
+      .first()
+      .click();
+    await expect
+      .poll(() =>
+        cell("people.sample many · theme light · fixture initial").getByText("2 people").count(),
+      )
+      .toBe(1);
+    expect(
+      await cell("people.sample many · theme dark · fixture initial").getByText("3 people").count(),
+    ).toBe(1);
+    expect(errors).toEqual([]);
+  },
+);
+
+test(
   "kit-control-link: each pane of a capsule frame draws in its own scope; it reads the frame's cells live, and changes the frame only with its calls; a new scope of the frame gives each pane a new link",
   { timeout: 90_000 },
   async () => {
