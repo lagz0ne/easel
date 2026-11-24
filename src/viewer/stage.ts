@@ -1102,6 +1102,7 @@ export const stage = resource({
 
       zoomIn: () => at.zoomAt(view.w / 2, view.h / 2, zoomFactor),
       zoomOut: () => at.zoomAt(view.w / 2, view.h / 2, 1 / zoomFactor),
+      zoomActual: () => at.zoomAt(view.w / 2, view.h / 2, 1 / cam.z),
     };
 
     ctx.defer(() => {

@@ -668,7 +668,7 @@ async function zoomTo(page: Page, pct: number) {
   const zoom = page.getByRole("status", { name: "Zoom" });
   for (let i = 0; i < 60; i++) {
     if (Number.parseFloat((await zoom.textContent()) ?? "0") >= pct) break;
-    await page.getByRole("button", { name: "Zoom in" }).click();
+    await page.keyboard.press("Control+Equal");
   }
   await page.waitForFunction(() => document.querySelector(".e-card[hidden]") !== null, null, {
     timeout: 10_000,

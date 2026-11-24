@@ -64,6 +64,7 @@ import {
   zoomShown,
 } from "./stage";
 import type { KitMessage } from "./stage";
+import { zoomItems, zoomKeys, zoomStep } from "./zoom";
 
 type Stage = ReturnType<typeof stage.factory>;
 
@@ -107,12 +108,41 @@ function Empty({ canvas, page, ready, lost }: EmptyProps) {
   return <p className="e-empty">{`This ${many ? "page" : "canvas"} has no frames yet.`}</p>;
 }
 
-function Zoom() {
+function ZoomPick() {
   const pct = useData(zoomShown);
+  const open = useData(openMenu, (m) => m === "zoom");
+  const set = useRun(setMenu);
+  const step = useRun(zoomStep);
+
   return (
-    <output className="e-dock-zoom" aria-label="Zoom">
-      {pct}%
-    </output>
+    <Menu.Root
+      modal={false}
+      open={open}
+      onOpenChange={(next) => set.run({ input: { menu: "zoom", open: next } })}
+    >
+      <Menu.Trigger
+        className="e-dock-btn e-dock-zoom"
+        aria-label={`Zoom ${pct}%`}
+        title="Pinch to zoom. Click for the zoom steps."
+      >
+        <output aria-label="Zoom">{pct}%</output>
+        <svg className="e-icon e-dock-zoom-arrow" viewBox="0 0 24 24" aria-hidden="true">
+          <path d="m18 15-6-6-6 6" />
+        </svg>
+      </Menu.Trigger>
+      <Menu.Portal>
+        <Menu.Positioner className="e-menu-pos" side="top" align="end" sideOffset={8}>
+          <Menu.Popup className="e-menu" aria-label="Zoom">
+            {zoomItems.map((item) => (
+              <Menu.Item key={item.step} onClick={() => step.run({ input: item.step })}>
+                <span className="e-pages-name">{item.name}</span>
+                <kbd className="e-menu-hint">{item.keys}</kbd>
+              </Menu.Item>
+            ))}
+          </Menu.Popup>
+        </Menu.Positioner>
+      </Menu.Portal>
+    </Menu.Root>
   );
 }
 
@@ -786,16 +816,13 @@ export function Icon({ d }: { d: string }) {
 }
 
 const icons = {
-  zoomOut: "M5 12h14",
-  zoomIn: "M5 12h14M12 5v14",
-  fit: "M3 7V5a2 2 0 0 1 2-2h2M17 3h2a2 2 0 0 1 2 2v2M21 17v2a2 2 0 0 1-2 2h-2M7 21H5a2 2 0 0 1-2-2v-2",
   controls: "M21 4h-7M10 4H3M21 12h-9M8 12H3M21 20h-5M12 20H3M14 2v4M8 10v4M16 18v4",
   close: "M18 6 6 18M6 6l12 12",
   locale:
     "M12 21a9 9 0 1 0 0-18 9 9 0 0 0 0 18zM3 12h18M12 3a14 14 0 0 1 0 18M12 3a14 14 0 0 0 0 18",
 } as const;
 
-function Dock({ at, canvas, page }: { at: Stage; canvas: string; page: string }) {
+function Dock({ canvas, page }: { canvas: string; page: string }) {
   return (
     <div className="e-dock" role="toolbar" aria-label="Canvas">
       <RequestButton />
@@ -804,34 +831,7 @@ function Dock({ at, canvas, page }: { at: Stage; canvas: string; page: string })
       <PagesButton canvas={canvas} page={page} />
       <LocalePick />
       <span className="e-dock-sep" aria-hidden="true" />
-      <button
-        type="button"
-        className="e-dock-btn e-dock-step"
-        aria-label="Zoom out"
-        title="Zoom out"
-        onClick={() => at.zoomOut()}
-      >
-        <Icon d={icons.zoomOut} />
-      </button>
-      <Zoom />
-      <button
-        type="button"
-        className="e-dock-btn e-dock-step"
-        aria-label="Zoom in"
-        title="Zoom in"
-        onClick={() => at.zoomIn()}
-      >
-        <Icon d={icons.zoomIn} />
-      </button>
-      <button
-        type="button"
-        className="e-dock-btn"
-        aria-label="Fit"
-        title="Fit"
-        onClick={() => at.fit()}
-      >
-        <Icon d={icons.fit} />
-      </button>
+      <ZoomPick />
     </div>
   );
 }
@@ -1014,6 +1014,7 @@ function CanvasPage({ canvas, page, opening, signedIn }: PageProps) {
   useResource(resendOnBack);
   useResource(escapeKey);
   useResource(slashKey);
+  useResource(zoomKeys);
   const pick = useRun(pickPlace);
   const asking = useData(requestMode);
   const drafting = useData(drafts, (d) => d?.canvas === canvas);
@@ -1090,7 +1091,7 @@ function CanvasPage({ canvas, page, opening, signedIn }: PageProps) {
         <NewVersion canvas={canvas} />
         <DropStatus canvas={canvas} page={page} shown={signedIn.name !== ""} />
       </div>
-      <Dock at={at} canvas={canvas} page={page} />
+      <Dock canvas={canvas} page={page} />
       <FindList canvas={canvas} page={page} list={list} />
       <CardAt canvas={canvas} page={page} list={list} />
       <ControlsPanel list={list} />

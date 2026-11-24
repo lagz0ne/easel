@@ -486,7 +486,7 @@ test("the first Send asks the name; share.name names the pass, the browser keeps
   await expect.poll(() => pin(1).elements().length).toBe(2);
 });
 
-test("the dock at the bottom centre holds the canvas tools as icons, named: Request (Ask for a change), Requests, Find, Pages, Zoom out, the zoom, Zoom in and Fit; Request shows pressed while request mode is on (The page 2)", async () => {
+test("the dock at the bottom centre holds the canvas tools, named: Request (Ask for a change), Requests, Find, Pages, and Zoom with the zoom in it; Request shows pressed while request mode is on (The page 2)", async () => {
   const server = await boot();
   await tab(server);
 
@@ -495,7 +495,7 @@ test("the dock at the bottom centre holds the canvas tools as icons, named: Requ
     .getByRole("button")
     .elements()
     .map((b) => b.getAttribute("aria-label"));
-  expect(names).toEqual(["Request", "Requests", "Find", "Pages", "Zoom out", "Zoom in", "Fit"]);
+  expect(names).toEqual(["Request", "Requests", "Find", "Pages", "Zoom 100%"]);
   expect(dock.getByRole("status", { name: "Zoom" }).elements()).toHaveLength(1);
   expect(requestButton().element()).toHaveAttribute("title", "Ask for a change");
   expect(requestButton().element().querySelector("svg")).not.toBeNull();

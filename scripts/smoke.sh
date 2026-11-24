@@ -93,7 +93,8 @@ link="$(easel share smoke 2>/dev/null)" || fail "easel share"
 "${AB[@]}" wait --text "Smoke one" >/dev/null || fail "the frame's shell never showed"
 "${AB[@]}" wait --fn 'document.querySelector("img.e-pic")?.complete && document.querySelector("img.e-pic").naturalWidth > 0' >/dev/null ||
   fail "the frame's shell never showed its picture"
-"${AB[@]}" find role button click --name "Fit" >/dev/null || fail "no Fit button"
+"${AB[@]}" click ".e-dock-zoom" >/dev/null || fail "no Zoom button"
+"${AB[@]}" find text "Zoom to fit" click >/dev/null || fail "no Zoom to fit in the Zoom menu"
 "${AB[@]}" wait --fn 'document.querySelector("iframe[sandbox=\"allow-scripts\"]") !== null' >/dev/null ||
   fail "the frame's document never went live at rest"
 "${AB[@]}" wait --fn 'document.querySelector("iframe[sandbox=\"allow-scripts\"]")?.srcdoc.includes("<style id=\"easel-look\">@font-face {\n  font-family: \"Geist\";")' >/dev/null ||
@@ -101,8 +102,8 @@ link="$(easel share smoke 2>/dev/null)" || fail "easel share"
 zoom='document.querySelector("output[aria-label=Zoom]")?.textContent'
 world='document.querySelector(".e-world")?.style.transform'
 "${AB[@]}" eval "window.smokeZoom = $zoom" >/dev/null || fail "no Zoom status"
-"${AB[@]}" find role button click --name "Zoom in" >/dev/null || fail "no Zoom in button"
-"${AB[@]}" wait --fn "$zoom !== window.smokeZoom" >/dev/null || fail "Zoom in did not change the Zoom status"
+"${AB[@]}" press "Control+=" >/dev/null || fail "no key press"
+"${AB[@]}" wait --fn "$zoom !== window.smokeZoom" >/dev/null || fail "Ctrl + did not change the Zoom status"
 "${AB[@]}" eval "window.smokeWorld = $world" >/dev/null || fail "no world to move"
 "${AB[@]}" mouse move 400 300 >/dev/null && "${AB[@]}" mouse down >/dev/null &&
   "${AB[@]}" mouse move 520 360 >/dev/null && "${AB[@]}" mouse up >/dev/null || fail "the drag"

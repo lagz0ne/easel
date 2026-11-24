@@ -217,16 +217,8 @@ function expectCanvasControlsOnly() {
   const buttons = page
     .getByRole("button")
     .elements()
-    .map((b) => b.getAttribute("aria-label") ?? b.textContent);
-  expect(buttons.toSorted()).toEqual([
-    "Find",
-    "Fit",
-    "Pages",
-    "Request",
-    "Requests",
-    "Zoom in",
-    "Zoom out",
-  ]);
+    .map((b) => (b.getAttribute("aria-label") ?? b.textContent)?.replace(/ \d+%$/, ""));
+  expect(buttons.toSorted()).toEqual(["Find", "Pages", "Request", "Requests", "Zoom"]);
 }
 
 const frameList = () => page.getByRole("region", { name: "Frames" });

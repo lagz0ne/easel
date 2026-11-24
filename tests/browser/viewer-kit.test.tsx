@@ -439,13 +439,13 @@ test("viewer-overlays Locale on a phone (390 x 844): the dock with Locale fits, 
     .getByRole("button")
     .elements()
     .filter((b) => boxOf(b).width > 0);
-  expect(shown.map((b) => b.getAttribute("aria-label"))).toEqual([
+  expect(shown.map((b) => b.getAttribute("aria-label")?.replace(/ \d+%$/, ""))).toEqual([
     "Request",
     "Requests",
     "Find",
     "Pages",
     "Locale",
-    "Fit",
+    "Zoom",
   ]);
   for (const one of shown) {
     const box = boxOf(one);
@@ -769,7 +769,8 @@ test("X5 kit-frame-controls places: the frame places each control in its label r
   const before = placed.map(sizeOf);
   const zoom = page.getByRole("status", { name: "Zoom" });
   const zoomBefore = zoom.element().textContent;
-  await page.getByRole("button", { name: "Zoom in" }).click();
+  await page.getByRole("button", { name: /^Zoom \d/ }).click();
+  await page.getByRole("menuitem", { name: /^Zoom in/ }).click();
   await expect.poll(() => zoom.element().textContent).not.toBe(zoomBefore);
   await expect
     .poll(() => shellOf(long).getBoundingClientRect().width)

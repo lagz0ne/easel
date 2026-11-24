@@ -397,6 +397,25 @@ test("each state has its row in its list and group, newest first, with its own m
   await expect.poll(() => panel().elements().length).toBe(0);
 });
 
+test("the count of Requests on the dock is a dot of 8 px with a ring of 2 px at the top right of its icon and no number; the number stays in its name and in the header of the list (product#3)", async () => {
+  const server = await boot(everyState);
+  await tab(server);
+
+  await expect.element(requestsButton()).toHaveAccessibleName("Requests, 4 wait for you");
+  const dot = requestsButton().element().querySelector(".e-count");
+  if (!(dot instanceof HTMLElement)) throw new Error("Requests shows no count");
+  const box = dot.getBoundingClientRect();
+  const button = requestsButton().element().getBoundingClientRect();
+  expect([box.width, box.height]).toEqual([8, 8]);
+  expect(dot.textContent).toBe("");
+  expect(getComputedStyle(dot).boxShadow).toContain("0px 0px 0px 2px");
+  expect([button.right - box.right, box.top - button.top]).toEqual([6, 6]);
+
+  await requestsButton().click();
+  await expect.element(panel()).toBeVisible();
+  expect(panel().element().querySelector(".e-panel-head .e-count")?.textContent).toBe("4");
+});
+
 test("a canvas with no requests says so in the list Open, and how to ask for one; Requests has no count", async () => {
   const server = await boot();
   await tab(server);
@@ -857,10 +876,10 @@ test("a request in the card has the look of the design system: a 40 px head with
     "999px",
   ]);
   expect(agent?.borderTopLeftRadius).toBe("6px");
-  const count = document.querySelector(".e-dock-btn .e-count");
-  if (!count) throw new Error("no count");
-  const drawn = count.getBoundingClientRect();
-  expect([drawn.width, drawn.height, getComputedStyle(count).fontSize]).toEqual([16, 16, "11px"]);
+  const dot = document.querySelector(".e-dock-btn .e-count");
+  if (!dot) throw new Error("no count");
+  const drawn = dot.getBoundingClientRect();
+  expect([drawn.width, drawn.height, dot.textContent]).toEqual([8, 8, ""]);
   for (const label of ["All requests", "More", "Close"]) {
     const button = dialog.getByRole("button", { name: label, exact: true }).element();
     expect(button.querySelector("svg")).not.toBeNull();

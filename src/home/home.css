@@ -265,9 +265,10 @@
   display: flex;
   gap: var(--e-1);
   align-items: center;
-  max-width: calc(100vw - 2 * var(--e-3));
+  max-width: calc(100vw - 2 * var(--e-4));
+  height: 40px;
   margin-bottom: var(--e-2);
-  padding: var(--e-0) var(--e-3) var(--e-0) var(--e-0);
+  padding: 0 var(--e-3) 0 var(--e-0);
   box-sizing: border-box;
   font-family: var(--e-font);
   background-color: var(--e-surface);

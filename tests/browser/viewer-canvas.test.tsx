@@ -238,12 +238,20 @@ function wheel(init: WheelEventInit) {
   );
 }
 
-function press(name: string) {
-  const button = page.getByRole("button", { name }).element();
-  if (button instanceof HTMLElement) button.click();
+const zoomKeys = {
+  "Zoom in": { key: "=", code: "Equal", ctrlKey: true },
+  "Zoom out": { key: "-", code: "Minus", ctrlKey: true },
+  "Zoom to 100%": { key: ")", code: "Digit0", shiftKey: true },
+  Fit: { key: "!", code: "Digit1", shiftKey: true },
+} as const;
+
+function press(name: keyof typeof zoomKeys) {
+  const key = new KeyboardEvent("keydown", { ...zoomKeys[name], bubbles: true, cancelable: true });
+  window.dispatchEvent(key);
+  return key.defaultPrevented;
 }
 
-function pressTimes(name: string, times: number) {
+function pressTimes(name: keyof typeof zoomKeys, times: number) {
   for (let i = 0; i < times; i++) press(name);
 }
 
@@ -486,6 +494,49 @@ test("Zoom in and Zoom out zoom around the centre by 1.25; Ctrl+wheel around the
   one.release();
   two.release();
   expect(box().width).toBeCloseTo(before * 2, 0);
+});
+
+test("the dock has one zoom button with the zoom in it; it opens a menu of Zoom in (Ctrl +), Zoom out (Ctrl −), Zoom to 100% (Shift 0) and Zoom to fit (Shift 1); each item and each key does its step, and the browser does not zoom the page (product#1)", async () => {
+  const server = await boot([frame("a", 0, 0, { w: 4000, h: 3000 })]);
+  const at = await tab(server);
+  await opened(at, 1);
+  const width = () => shellOf("a")?.getBoundingClientRect().width ?? 0;
+  const fitted = width();
+  expect(fitted).toBeLessThan(4000);
+  const dock = page.getByRole("toolbar", { name: "Canvas" });
+  const zoom = dock.getByRole("button", { name: /^Zoom/ });
+  expect(zoom.elements()).toHaveLength(1);
+  expect(zoom.element()).toHaveAttribute("aria-haspopup", "menu");
+  expect(zoom.element().textContent).toBe(zoomText());
+
+  await zoom.click();
+  const menu = page.getByRole("menu", { name: "Zoom" });
+  await expect.element(menu).toBeVisible();
+  const items = menu.getByRole("menuitem").elements();
+  expect(items.map((i) => i.textContent)).toEqual([
+    "Zoom inCtrl +",
+    "Zoom outCtrl −",
+    "Zoom to 100%Shift 0",
+    "Zoom to fitShift 1",
+  ]);
+  await menu.getByRole("menuitem", { name: /^Zoom in/ }).click();
+  expect(width()).toBeCloseTo(fitted * 1.25, 0);
+  await expect.poll(() => menu.elements().length).toBe(0);
+  await zoom.click();
+  await menu.getByRole("menuitem", { name: /^Zoom to 100%/ }).click();
+  expect(width()).toBeCloseTo(4000, 0);
+  await zoom.click();
+  await menu.getByRole("menuitem", { name: /^Zoom to fit/ }).click();
+  expect(width()).toBeCloseTo(fitted, 0);
+
+  expect(press("Zoom out")).toBe(true);
+  expect(width()).toBeCloseTo(fitted * 0.8, 0);
+  expect(press("Zoom in")).toBe(true);
+  expect(width()).toBeCloseTo(fitted, 0);
+  expect(press("Zoom to 100%")).toBe(true);
+  expect(width()).toBeCloseTo(4000, 0);
+  expect(press("Fit")).toBe(true);
+  expect(width()).toBeCloseTo(fitted, 0);
 });
 
 test("in a dark system theme the canvas stays light gray, as in Doop, and its labels stay dark; the dock follows the theme (SPEC-design journey 1)", async () => {

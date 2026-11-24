@@ -904,3 +904,5 @@ viewer.viewOf exits{value} reads{} writes{} calls{viewer.lastActOf,viewer.linesO
 viewer.waitOut exits{value} reads{} writes{} calls{}
 viewer.waitThenAsk exits{value} reads{viewer.gates.of} writes{viewer.gates.set} calls{viewer.saysChanged,viewer.waitOut}
 viewer.whereOf exits{value} reads{} writes{} calls{}
+viewer.zoomKeyStep exits{value} reads{} writes{} calls{}
+viewer.zoomStep exits{value} reads{} writes{} calls{?}

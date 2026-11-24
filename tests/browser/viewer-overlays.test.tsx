@@ -308,20 +308,22 @@ test("on a phone, the menu More of a request closes by a press out of it, and a 
   await expect.element(page.getByRole("textbox", { name: "Request" })).toBeVisible();
 });
 
-test("on a phone the dock has no Zoom out and Zoom in, and each of its buttons is 40 x 40 px at least", async () => {
+test("on a phone the zoom button of the dock shows the zoom with no arrow, and each button of the dock is 40 x 40 px at least", async () => {
   await tab(await serve(), phone);
 
   const shown = dock()
     .getByRole("button")
     .elements()
     .filter((b) => rectOf(b).width > 0);
-  expect(shown.map((b) => b.getAttribute("aria-label"))).toEqual([
+  expect(shown.map((b) => b.getAttribute("aria-label")?.replace(/ \d+%$/, ""))).toEqual([
     "Request",
     "Requests",
     "Find",
     "Pages",
-    "Fit",
+    "Zoom",
   ]);
+  const zoomArrow = dock().getByRole("button", { name: /^Zoom/ }).element().querySelector("svg");
+  expect(zoomArrow ? rectOf(zoomArrow).width : 0).toBe(0);
   for (const button of shown) {
     const r = rectOf(button);
     expect([r.width >= 40, r.height >= 40], button.getAttribute("aria-label") ?? "").toEqual([
@@ -332,21 +334,21 @@ test("on a phone the dock has no Zoom out and Zoom in, and each of its buttons i
   expect(rectOf(dock().element()).width).toBeLessThan(phone.width - 48);
 });
 
-test("on a wide screen the dock and the card stay as they were: the card at the right, 340 px wide, the zoom buttons in the dock; Close requests and Escape close the card", async () => {
+test("on a wide screen the dock and the card stay as they were: the card at the right, 340 px wide, the zoom button with its arrow in the dock; Close requests and Escape close the card", async () => {
   await tab(await serve(), wide);
 
   const shown = dock()
     .getByRole("button")
     .elements()
     .filter((b) => rectOf(b).width > 0)
-    .map((b) => b.getAttribute("aria-label"));
-  expect(shown).toEqual(["Request", "Requests", "Find", "Pages", "Zoom out", "Zoom in", "Fit"]);
+    .map((b) => b.getAttribute("aria-label")?.replace(/ \d+%$/, ""));
+  expect(shown).toEqual(["Request", "Requests", "Find", "Pages", "Zoom"]);
   expect(rectOf(dock().element()).height).toBe(42);
-  for (const button of dock()
-    .getByRole("button", { name: /^Zoom|^Fit|^Find/ })
-    .elements()) {
-    expect([rectOf(button).width, rectOf(button).height]).toEqual([32, 32]);
-  }
+  const find = dock().getByRole("button", { name: "Find" }).element();
+  expect([rectOf(find).width, rectOf(find).height]).toEqual([32, 32]);
+  const zoom = dock().getByRole("button", { name: /^Zoom/ }).element();
+  expect(rectOf(zoom).height).toBe(32);
+  expect(rectOf(zoom.querySelector("svg") ?? zoom).width).toBe(12);
 
   await requestsButton().click();
   const sheet = rectOf(card().element());

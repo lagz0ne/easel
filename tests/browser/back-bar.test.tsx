@@ -45,3 +45,26 @@ test("the hover fill of the back button is a 28 px square like the other icon bu
   expect(fill.height).toBe("28px");
   expect(getComputedStyle(button).backgroundColor).toBe("rgba(0, 0, 0, 0)");
 });
+
+test("the bar of the canvas name floats 16 px from the top and the left edge and is 40 px high, as the dock, with the border, radius and shadow of the dock (product#2)", () => {
+  const top = placed(
+    '<div class="e-top"><nav class="e-back" aria-label="Canvas"><a class="e-back-btn" href="/">back</a><h1 class="e-back-name">Product</h1></nav></div>',
+  );
+  const holder = top.parentElement;
+  if (!(holder instanceof HTMLElement)) throw new Error("the bar has no holder");
+  holder.style.position = "relative";
+  holder.style.height = "200px";
+  const bar = top.querySelector(".e-back");
+  if (!(bar instanceof HTMLElement)) throw new Error("the top has no bar");
+  const dock = placed('<div class="e-dock" role="toolbar" aria-label="Canvas"></div>');
+
+  const at = bar.getBoundingClientRect();
+  const from = holder.getBoundingClientRect();
+  const look = getComputedStyle(bar);
+  const dockLook = getComputedStyle(dock);
+
+  expect([at.left - from.left, at.top - from.top, at.height]).toEqual([16, 16, 40]);
+  expect(look.borderTopColor).toBe(dockLook.borderTopColor);
+  expect(look.borderTopLeftRadius).toBe(dockLook.borderTopLeftRadius);
+  expect(look.boxShadow).toBe(dockLook.boxShadow);
+});

@@ -20,12 +20,21 @@ this spec wins, and the screen gets a fix.
 ### The page
 
 1. A toolbar at the top shows the name of the canvas, and the status `Reconnecting` while the
-   socket is down (E4.4).
+   socket is down (E4.4). For a signed-in user, the name floats 16 px from the top and the left
+   edge, 40 px high, with the border, radius and shadow of the dock (product#2, accepted
+   2026-11-24). A viewer of a share link sees no name: the link gives the key of the canvas, not
+   its name.
 2. A dock at the bottom centre of the canvas holds the canvas tools: the button `Request` (tooltip
    "Ask for a change"), the button `Requests` (tooltip "Requests on this canvas"), the button
-   `Find` (tooltip "Find a frame (/)"), then `Zoom out`,
-   the zoom `status`, `Zoom in` and `Fit`. The buttons show icons, and their names are their
-   accessible names. A button shows pressed while its mode or its card is on.
+   `Find` (tooltip "Find a frame (/)"), then the button `Zoom`. The buttons show icons, and their
+   names are their accessible names. A button shows pressed while its mode or its card is on.
+   `Requests` shows a dot of 8 px with a ring of 2 px at the top right of its icon while requests
+   wait for the viewer. The number of them is in its name ("Requests, 2 wait for you") and in the
+   head of the list (product#3, accepted 2026-11-24).
+   `Zoom` shows the zoom and an arrow (tooltip "Pinch to zoom. Click for the zoom steps."). It
+   opens a menu: `Zoom in` (Ctrl +), `Zoom out` (Ctrl −), `Zoom to 100%` (Shift 0) and
+   `Zoom to fit` (Shift 1), as in Figma. Each key does its step outside a text field, and the
+   browser does not zoom the page (product#1, accepted 2026-11-24).
 3. The card `Requests` floats over the canvas at its right edge, 12 px from the top, right and
    bottom edges. The canvas and the dock keep the full width. Nothing
    on the canvas moves when the card opens, changes or closes, as the comments of Figma and
@@ -41,7 +50,7 @@ this spec wins, and the screen gets a fix.
 5. The overlays never make a dead end (the user's report of 2026-11-24). The chart is
    [viewer-overlays](docs/statecharts/viewer-overlays.md), and
    [viewer-overlays-today](docs/statecharts/viewer-overlays-today.md) shows the page before.
-   - The menus `Pages`, `Locale`, `Open` or `Done`, and `More` are the Menu of
+   - The menus `Pages`, `Locale`, `Zoom`, `Open` or `Done`, and `More` are the Menu of
      [Base UI](https://base-ui.com/react/components/menu), as shadcn and Radix menus behave. One
      menu at most is open. A press out of it, Escape or a pick closes it. Escape gives the focus
      back to its button. A menu stays in the view.
@@ -50,7 +59,7 @@ this spec wins, and the screen gets a fix.
      the dock, as a sheet in Linear and Figma on a phone. The dock stays in view, and its buttons
      can be pressed. `Requests` closes `Find` and each menu, and `Find` closes the card, so the
      two never show together.
-   - On a touch screen or a phone, the dock has no `Zoom out` and `Zoom in`: a pinch zooms. Each
+   - On a touch screen or a phone, `Zoom` shows the zoom with no arrow: a pinch zooms. Each
      of its buttons is 40 x 40 px at least, more than the 24 px of WCAG 2.5.8. A wide screen keeps
      the dock as it is.
 
@@ -107,8 +116,8 @@ this spec wins, and the screen gets a fix.
    With the canvas in focus (Tab reaches it first, a `region` named `Frames`), the arrow keys pan
    it, as in tldraw and Miro, so a person with only a keyboard can bring each frame into view (E3
    S14, WCAG 2.1.1). Decided in the E3 design on 2026-11-21; not built yet.
-2. Ctrl+scroll or a pinch zooms around the pointer. Buttons `Zoom in`, `Zoom out` and `Fit` in the
-   dock do the same. A `status` shows the zoom, rounded down to steps of 10% (26% reads 20%).
+2. Ctrl+scroll or a pinch zooms around the pointer. The items of the menu `Zoom` in the dock, and
+   their keys, zoom around the centre. A `status` shows the zoom, rounded down to steps of 10% (26% reads 20%).
 3. While the canvas moves, the set of live documents stays as it is. When it rests, the frames now
    in view go live, nearest first, one at a time. The one change allowed mid-move: a frame an
    agent deletes goes at once.
