@@ -283,8 +283,19 @@ function probe(id: string) {
   });
 }
 
-const colorOf = async (id: string) => (await probe(id))?.color ?? "";
-const drawnOf = async (id: string) => (await probe(id))?.me ?? -1;
+async function answerOf(id: string) {
+  const last: { answer: Probe | null } = { answer: null };
+  await expect
+    .poll(async () => {
+      last.answer = await probe(id);
+      return last.answer;
+    })
+    .not.toBeNull();
+  return last.answer;
+}
+
+const colorOf = async (id: string) => (await answerOf(id))?.color ?? "";
+const drawnOf = async (id: string) => (await answerOf(id))?.me ?? -1;
 const winOf = (id: string) => docOf(id)?.contentWindow ?? null;
 
 const hello = z.object({ easel: z.literal("hello") });
@@ -353,8 +364,8 @@ test("an app frame draws its JS in the composed document (composeApp), with the 
   await rested(at, 2);
 
   expect(docOf("b")?.srcdoc).toContain('<script type="importmap">');
-  expect(await colorOf("b")).toBe(looks[1].rgb);
-  expect(await colorOf("a")).toBe(looks[1].rgb);
+  await expect.poll(() => colorOf("b")).toBe(looks[1].rgb);
+  await expect.poll(() => colorOf("a")).toBe(looks[1].rgb);
 });
 
 const localeButton = () => page.getByRole("button", { name: "Locale" });

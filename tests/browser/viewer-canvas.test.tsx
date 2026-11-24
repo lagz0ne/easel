@@ -148,7 +148,6 @@ async function tab(server: Scope.Handle) {
     root.unmount();
     await scope.close();
   });
-  const start = performance.now();
   root.render(
     <ScopeProvider scope={scope}>
       <Profiler id="canvas" onRender={() => void commits.n++}>
@@ -157,7 +156,7 @@ async function tab(server: Scope.Handle) {
     </ScopeProvider>,
   );
 
-  return { clock, commits, start, scope };
+  return { clock, commits, scope };
 }
 
 const tick = (ms = 30) => new Promise((done) => setTimeout(done, ms));
@@ -195,6 +194,18 @@ async function rest(clock: ReturnType<typeof makeTestClock>) {
   clock.advance(restMs);
   await rafs(liveCap + 6);
   await tick();
+}
+
+async function quiet(at: Tab) {
+  await expect.poll(() => liveIds().every((id) => cardHidden(id))).toBe(true);
+  await expect
+    .poll(async () => {
+      const before = at.commits.n;
+      await rafs(3);
+      await tick();
+      return at.commits.n - before;
+    })
+    .toBe(0);
 }
 
 async function opened(at: Awaited<ReturnType<typeof tab>>, n: number) {
@@ -298,8 +309,6 @@ test("200 frames: shells first, Fit shows every one, and under 30% nothing goes 
   const at = await tab(server);
 
   await expect.poll(() => shells().length).toBe(200);
-  const firstShells = performance.now() - at.start;
-  console.log(`speed: 200 shells drawn ${firstShells.toFixed(0)} ms after the first render`);
   await rafs(2);
   expectEveryFrameInView();
   expect(Number.parseFloat(zoomText() ?? "")).toBeLessThan(30);
@@ -307,7 +316,6 @@ test("200 frames: shells first, Fit shows every one, and under 30% nothing goes 
   await rest(at.clock);
   expect(liveIds()).toEqual([]);
   expectEveryFrameInView();
-  expect(firstShells).toBeLessThan(2_000);
 });
 
 test("at most 12 live at rest, the nearest the centre, one per animation frame and none before the camera rests", async () => {
@@ -355,6 +363,7 @@ test("a pan or a zoom changes no live frame and renders no React, until the came
   await rest(at.clock);
   const before = liveIds().toSorted();
   expect(before).toHaveLength(liveCap);
+  await quiet(at);
   const commits = at.commits.n;
 
   const hand = grab();

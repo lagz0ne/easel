@@ -212,8 +212,19 @@ function probe(id: string) {
   });
 }
 
-const colorOf = async (id: string) => (await probe(id))?.color ?? "";
-const drawnOf = async (id: string) => (await probe(id))?.me ?? -1;
+async function answerOf(id: string) {
+  const last: { answer: z.infer<typeof probeAnswer> | null } = { answer: null };
+  await expect
+    .poll(async () => {
+      last.answer = await probe(id);
+      return last.answer;
+    })
+    .not.toBeNull();
+  return last.answer;
+}
+
+const colorOf = async (id: string) => (await answerOf(id))?.color ?? "";
+const drawnOf = async (id: string) => (await answerOf(id))?.me ?? -1;
 
 const statesButton = () => page.getByRole("button", { name: "States" });
 const statesMenu = () => page.getByRole("menu", { name: "States" });
