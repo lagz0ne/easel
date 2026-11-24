@@ -77,6 +77,20 @@ is.
 - Source: <https://github.com/rsms/inter>; the npm package
   `@fontsource-variable/inter@5.3.0`.
 
+## NATS.js 3.4.0
+
+- What: the NATS client of the dispatcher. A channel of the kind `nats`
+  (SPEC-queue.md) connects with an nkey, and publishes to JetStream
+  (`src/queue/nats.server.ts`). The binary holds `@nats-io/transport-node`
+  3.4.0, `@nats-io/jetstream` 3.4.0, `@nats-io/nats-core` 3.4.0,
+  `@nats-io/nkeys` 2.0.3 and `@nats-io/nuid` 3.0.0.
+- Licence: Apache License 2.0, <https://www.apache.org/licenses/LICENSE-2.0>.
+  Copyright The NATS Authors.
+- Source: <https://github.com/nats-io/nats.js>, and the npm packages above.
+- `@nats-io/nkeys` uses TweetNaCl.js 1.0.3 (`tweetnacl`): Unlicense, public
+  domain. <https://github.com/dchest/tweetnacl-js>.
+- easel does not change their source.
+
 ## The runtime of app frames
 
 The binary holds the runtime bundle of app frames (`src/kit/runtime.server.ts`;
