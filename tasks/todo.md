@@ -867,3 +867,30 @@ images, and the proof (D9-8) comes last.
 
 - [ ] Criteria 1 to 7 of SPEC-design-loop hold, each with its proof. Criterion 1 (one week with no
       Doop) starts here.
+
+## Phase home: a home page of the canvases, and a browser that signs in
+
+The spec is [SPEC-home](../SPEC-home.md). The model is
+[access-browser](../docs/statecharts/access-browser.md).
+
+### H-1: the model
+
+- [x] `access-browser` with its 3 rules, and the twin `access-browser-two-step`, which breaks (458a799).
+
+### H-2: the browser signs in
+
+- [x] Sessions, the code flow, the link of `easel open`, the cookie on the socket and on HTTP, a
+      revoke and `easel users end` close the sockets of the session (f2197ff).
+- [x] `easel open`, `easel users` lists the sessions, `easel users end` (f2197ff).
+
+### H-3: the home page
+
+- [x] `/` lists the canvases with their inbox, live; the sign-in page; `/open`; `/c/<canvas>` with
+      the back button (d766522).
+
+### H-4: a new request from /c/<canvas>
+
+- [ ] On `/c/<canvas>`, the Request step uses the name of the session, and `share.frame` takes a
+      session with no pass (`src/viewer/draft.ts`, `mayName` in `src/frames/share.server.ts`).
+
+**Estimated scope:** S.
