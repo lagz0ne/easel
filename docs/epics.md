@@ -968,11 +968,11 @@ means a change to each frame. So each easel keeps the words of the team in one p
 look, and each agent makes its frames from them. The same place is where a person of the team
 reviews the words, and, later, where they are translated.
 
-| ID   | Journey                          | Actor  | Design        | Review |
-| ---- | -------------------------------- | ------ | ------------- | ------ |
-| E9.1 | Make a frame in the team's words | agent  | not specified | to do  |
-| E9.2 | Change the words                 | user   | not specified | to do  |
-| E9.3 | Review the words                 | person | not specified | to do  |
+| ID   | Journey                          | Actor  | Design                         | Review |
+| ---- | -------------------------------- | ------ | ------------------------------ | ------ |
+| E9.1 | Make a frame in the team's words | agent  | not specified                  | to do  |
+| E9.2 | Change the words                 | user   | not specified                  | to do  |
+| E9.3 | Review the words                 | person | [words](../SPEC-words.md) 1-14 | done   |
 
 Decided:
 

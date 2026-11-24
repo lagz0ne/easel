@@ -1,8 +1,10 @@
 # Spec delta: `words`, the person reviews and translates the texts
 
-Status: approved on 2026-11-24 by the requirements of the user of that day ("Now onto the custom
-controller, copies, i18n, screen and flows"). The user granted autonomy ("granted bypass"), so the
-agent approved this delta against L9, L10, L11, L13 and L14, and did not ask again.
+Status: implemented on 2026-11-24 (`43bf67b`, `319a086`, `0be74b0`), and proven on the live easel
+as the member vibea-claude. Approved on 2026-11-24 by the requirements of the user of that day
+("Now onto the custom controller, copies, i18n, screen and flows"). The user granted autonomy
+("granted bypass"), so the agent approved this delta against L9, L10, L11, L13 and L14, and did
+not ask again.
 
 Module `words` of [MAP-round-1.md](MAP-round-1.md). Requirements: L9, L10, L11, L13 and L14 of
 [E9](docs/epics.md#e9-one-voice). It adds to [SPEC-copy.md](SPEC-copy.md) (the texts of the team by
