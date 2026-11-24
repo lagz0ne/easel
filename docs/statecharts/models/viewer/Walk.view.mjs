@@ -1,6 +1,6 @@
-const screensOf = (v) => Object.values(v.path);
+const statesOf = (v) => Object.values(v.path);
 
-export const title = "viewer: the person walks a flow in walk mode";
+export const title = "viewer: the person walks a map of the code";
 
 const asks = {
   off: null,
@@ -17,12 +17,12 @@ export const colors = { canvas: "tan", walk: "teal", request: "blue" };
 
 export const state = (v) => {
   if (v.mode === "canvas") return "The canvas";
-  const path = screensOf(v);
+  const path = statesOf(v);
   const shown = path[path.length - 1];
   const steps = path.length > 1 ? ` (steps: ${path.join(", ")})` : " (the first step)";
   return [
-    `Walk: screen ${shown}${steps}`,
-    v.told === "noScreen" ? `the bar says no screen comes after done` : null,
+    `Walk: state ${shown}${steps}`,
+    v.told === "offMap" ? "the bar says the map has no such move" : null,
     asks[v.ask],
   ]
     .filter(Boolean)
@@ -30,10 +30,11 @@ export const state = (v) => {
 };
 
 const steps = {
-  StartFlow: () => "a press on the mark of the flow, or on the flow in the menu",
-  PressLinked: (from, to) => `a press on an action: screen ${screensOf(to).at(-1)}`,
-  PressUnlinked: () => "a press on done, which has no link",
-  FramePostsScreen: (from, to) => `the frame posts screen ${screensOf(to).at(-1)}`,
+  StartWalk: () => "a press on the mark of the walk frame, or on the map in the list Maps",
+  CellChanges: (from, to) =>
+    statesOf(to).length > statesOf(from).length
+      ? `the code changes the cell: state ${statesOf(to).at(-1)}`
+      : "the code changes the cell to a state off the map",
   Back: () => "Back",
   Restart: () => "Restart",
   Leave: () => "Leave",

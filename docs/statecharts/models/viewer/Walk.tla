@@ -1,72 +1,56 @@
 ---- MODULE Walk ----
-\* SPEC-flows.md rules 16 to 24 (E12 J1 to J4): the person walks a flow in walk mode. The flow
-\* starts at screen "a". Its links: "send" of a leads to b, "next" of b leads to c, and "back" of b
-\* leads to a. Screen c has the action "done" with no link. Screen "x" is on the page, and no link
-\* leads to it.
+\* SPEC-prototype.md ship 4 (rules 8 and 9), with the walk of SPEC-flows.md rules 19 to 24
+\* (E12 J1 to J4): the person walks a map of the code. The map starts at the state "name". Its
+\* moves: name to code, code to in, code to denied, and denied to name. The state "x" is a state
+\* that the code can reach and the map does not have (an answer with no designed screen).
 \*
-\* The person starts the flow, presses an action, goes Back, Restart and
-\* Leave. Comment turns on the request mode: a press on the screen opens a request there, and Send
-\* or Escape closes it. A press on an action with no link says that no screen comes after it, and
-\* "Ask for it" opens a request on that screen. While a request is open, the screen and the bar
-\* take no step. Escape closes the request first, then the request mode, then leaves.
+\* The screen runs the real code. A press on the screen, or the pick of an answer, can change the
+\* cell to any state: the code decides, not the map. The frame then posts the new state. The person
+\* starts the walk, goes Back, Restart and Leave. Comment turns on the request mode: a press on
+\* the screen opens a request there, and Send or Escape closes it. A state that no move of the map
+\* reaches from the shown state is off the map: the screen stays, the bar says so, and "Ask for
+\* it" opens a request on that screen. While a request is open, the screen and the bar take no
+\* step. Escape closes the request first, then the request mode, then leaves.
 \*
-\* TrustFramePost is decision 5: with FALSE, the viewer takes only an action name from the frame
-\* and finds the next screen in the links. With TRUE (chart viewer-walk-any-post), it goes to the
-\* screen that the frame names.
+\* TrustFramePost is rule 9: with FALSE, the viewer shows a posted state only when a move of the
+\* map from the shown state reaches it. With TRUE (chart viewer-walk-any-post), it shows each
+\* state that the frame posts.
 EXTENDS Naturals, Sequences
 
 CONSTANT TrustFramePost
 
-Screens == {"a", "b", "c", "x"}
-Start == "a"
-Links == {<<"a", "send", "b">>, <<"b", "next", "c">>, <<"b", "back", "a">>}
-Actions == [s \in Screens |-> CASE s = "a" -> {"send"}
-                                [] s = "b" -> {"next", "back"}
-                                [] s = "c" -> {"done"}
-                                [] OTHER -> {}]
+States == {"name", "code", "in", "denied", "x"}
+Start == "name"
+Moves == {<<"name", "code">>, <<"code", "in">>, <<"code", "denied">>, <<"denied", "name">>}
 MaxSteps == 3
 
 VARIABLES
   mode,   \* "canvas" or "walk"
-  path,   \* the screens of the steps; the last one shows
-  told,   \* what the bar says: "none", or "noScreen" after a press on an action with no link
+  path,   \* the states of the steps; the last one shows
+  told,   \* what the bar says: "none", or "offMap" after the code reached a state off the map
   ask     \* the request mode in the walk: "off", "on", or "open" (a request on the shown screen)
 
 vars == <<mode, path, told, ask>>
 
 Shown == path[Len(path)]
-LinkOf(s, act) == {l \in Links : l[1] = s /\ l[2] = act}
-Linked(s, t) == \E l \in Links : l[1] = s /\ l[3] = t
+Moved(s, t) == <<s, t>> \in Moves
 
 Init == mode = "canvas" /\ path = <<>> /\ told = "none" /\ ask = "off"
 
 Walking == mode = "walk"
 Free == Walking /\ ask = "off"
 
-\* A press on the mark of the flow, or on the flow in the Flows menu.
-StartFlow ==
+\* A press on the mark of the walk frame, or on the map in the list Maps.
+StartWalk ==
   /\ mode = "canvas"
   /\ mode' = "walk" /\ path' = <<Start>> /\ told' = "none" /\ ask' = "off"
 
-\* A press on an action that has a link: the next screen shows.
-PressLinked(act) ==
-  /\ Free /\ Len(path) < MaxSteps
-  /\ act \in Actions[Shown] /\ LinkOf(Shown, act) # {}
-  /\ \E l \in LinkOf(Shown, act) : path' = Append(path, l[3])
-  /\ told' = "none"
-  /\ UNCHANGED <<mode, ask>>
-
-\* A press on an action with no link: the screen stays, and the bar says so.
-PressUnlinked(act) ==
-  /\ Free
-  /\ act \in Actions[Shown] /\ LinkOf(Shown, act) = {}
-  /\ told' = "noScreen"
-  /\ UNCHANGED <<mode, path, ask>>
-
-\* Only with TrustFramePost: the frame posts a screen, and the viewer goes there.
-FramePostsScreen(s) ==
-  /\ TrustFramePost /\ Free /\ Len(path) < MaxSteps
-  /\ path' = Append(path, s) /\ told' = "none"
+\* The real code changed the cell to the state s, and the frame posts s.
+CellChanges(s) ==
+  /\ Free /\ Len(path) < MaxSteps /\ s # Shown
+  /\ IF TrustFramePost \/ Moved(Shown, s)
+       THEN path' = Append(path, s) /\ told' = "none"
+       ELSE told' = "offMap" /\ UNCHANGED path
   /\ UNCHANGED <<mode, ask>>
 
 Back ==
@@ -94,9 +78,9 @@ PressToAsk ==
   /\ ask' = "open"
   /\ UNCHANGED <<mode, path, told>>
 
-\* "Ask for it" after a press on an action with no link.
+\* "Ask for it" after the code reached a state off the map.
 AskForIt ==
-  /\ Walking /\ told = "noScreen" /\ ask # "open"
+  /\ Walking /\ told = "offMap" /\ ask # "open"
   /\ ask' = "open" /\ told' = "none"
   /\ UNCHANGED <<mode, path>>
 
@@ -114,30 +98,29 @@ Escape ==
      ELSE mode' = "canvas" /\ path' = <<>> /\ told' = "none" /\ UNCHANGED ask
 
 Next ==
-  \/ StartFlow
-  \/ \E t \in Screens : \E act \in Actions[t] : PressLinked(act) \/ PressUnlinked(act)
-  \/ \E s \in Screens : FramePostsScreen(s)
+  \/ StartWalk
+  \/ \E s \in States : CellChanges(s)
   \/ Back \/ Restart \/ Leave \/ Comment \/ PressToAsk \/ AskForIt \/ Send \/ Escape
 
 Spec == Init /\ [][Next]_vars
 
 TypeOK ==
   /\ mode \in {"canvas", "walk"}
-  /\ path \in Seq(Screens) /\ Len(path) <= MaxSteps
-  /\ told \in {"none", "noScreen"}
+  /\ path \in Seq(States) /\ Len(path) <= MaxSteps
+  /\ told \in {"none", "offMap"}
   /\ ask \in {"off", "on", "open"}
   /\ (mode = "canvas") <=> (path = <<>>)
 
-\* "The walk shows only a screen that a link reaches": each step comes from a link of the screen
-\* before it.
-EachStepIsALink ==
-  Walking => (path[1] = Start /\ \A i \in 1..(Len(path) - 1) : Linked(path[i], path[i + 1]))
+\* "The walk shows only a state that a move of the map from the shown state reaches": each step
+\* comes from a move of the map from the state of the step before it.
+EachStepIsAMove ==
+  Walking => (path[1] = Start /\ \A i \in 1..(Len(path) - 1) : Moved(path[i], path[i + 1]))
 
-\* "Back shows the screen of the step before."
-BackShowsTheScreenBefore == [][Back => Shown' = path[Len(path) - 1]]_vars
+\* "Back shows the state of the step before."
+BackShowsTheStateBefore == [][Back => Shown' = path[Len(path) - 1]]_vars
 
-\* "A press on an action with no link keeps the screen."
-NoLinkKeepsTheScreen == [][told' = "noScreen" => path' = path]_vars
+\* "A state off the map keeps the shown state."
+OffMapKeepsTheState == [][told' = "offMap" => path' = path]_vars
 
 \* "A request made in the walk is on the screen that shows": while it is open, no step changes
 \* the screen.

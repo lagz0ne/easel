@@ -390,6 +390,69 @@ Action home.askForCode, from an earlier state
    of the shown screen reaches" to "the walk shows only a state that a move of the map from the
    shown state reaches"; the twin `viewer-walk-any-post` keeps its meaning.
 
+The model is changed (decisions 23 to 31 below): [viewer-walk](docs/statecharts/viewer-walk.md)
+holds `EachStepIsAMove` on its 19 states, and
+[viewer-walk-any-post](docs/statecharts/viewer-walk-any-post.md) breaks it in 2 steps.
+
+#### The decisions of ship 4
+
+Prior art for the walk: the presentation view of Figma prototypes (one screen at a time, with Back
+and Restart, and comments on the shown frame), Storybook interactions (the real component runs in
+its own document, and a play function presses it), the XState inspector and Stately (the shown
+state, the events that it takes, and the path to it), and the breakpoints of a proxy such as
+Charles or the overrides of Chrome DevTools (a request waits until a person gives its answer).
+
+23. **The walk runs the real code in the document of the walk frame, not in the board worker.**
+    The board worker (frame-apps build order item 7) is not built: no code, no test, and SPEC-kit
+    gives only its place. frame-apps decision 11 puts `logic` in the worker only when its state
+    must stay after the frame closes, or when frames share it. A walk is one frame that runs the
+    whole map: the job builds the view, the cell and the actions of the map into one HTML frame
+    `<name> · walk` on the page of the map (as it builds the pictures, decision 13), and the viewer
+    keeps the value of each step. So no state is shared between frames, and the worker adds
+    nothing now. Storybook runs a story in the document of its own iframe for the same reason.
+    Deferred: the board worker, when a walk crosses two maps that share a cell (such as the
+    sign-in, then the home page), or when a frame of the canvas must show the state of a walk.
+24. **A step of the walk is a state of the cell.** The next screen shows because the cell
+    changed: the real view draws again in the same document. The frame posts the kind and the
+    value of the cell at each change of its kind. A run state (decision 12) is React state of a
+    press: the screen shows it, but it is not a step, because no value of the cell gives it back.
+25. **The viewer checks each posted state against the map (rule 9).** The map is in the stored
+    document of the walk frame, as JSON that the job writes from the code. The run of the frame
+    cannot change it. The viewer shows a posted state only when a move of the map from the shown
+    state reaches it. So the walk never shows a state that the map, its cards and its check do not
+    show. This is SPEC-flows decision 5 with the moves of the code in place of the drawn links.
+26. **A state off the map keeps the shown state (J8 failure end).** The bar says
+    `The map has no move from <shown> to <state>.` with the button `Ask for it`, which opens a
+    request on the screen. The viewer gives the cell the value of the shown step again.
+27. **A call waits for its answer; the bar lists the answers to pick.** The walk frame has the
+    example backend of decision 13, but no call answers by itself. The bar shows each call that
+    waits, with each answer of its contract in the order of the contract, the fault last, and the
+    state that the map gives for it: `browser.wait: approved → in`. A pick gives the call the
+    sample of that answer (decision 14). So the person reaches `denied` as the owner would deny
+    the code. This is the first half of J10; ship 5 adds the switch to a live server. Prior art:
+    a proxy breakpoint holds a request until a person edits its answer; the XState inspector
+    lists the events that the shown state takes.
+28. **Back and Restart give the cell the value of that step, in a new scope.** The frame closes
+    its scope, which stops each run and each call that waits, and starts a new one with that value
+    as a preset of the cell (as decision 13 shows a state). So an open of that state runs again,
+    as it runs when the screen shows. Prior art: the jump of the Redux DevTools and the remount
+    of a Storybook story.
+29. **One press starts a walk, from the map or from the list.** The walk frame has a mark beside
+    its name, `Walk`, as Figma marks the start of a flow. Each row of the frame `Maps` has a
+    button with `data-easel-walk="<name>"`; a press on it on the canvas starts the walk of that
+    map (as SPEC-flows decision 1 names an action, and as a test id names an element in
+    Playwright). The viewer finds the page `Map · <name>` and its frame `<name> · walk`.
+30. **The walk is a layer of the viewer over the canvas.** It shows the screen at the size that
+    fits the view, at most 100%, on a dark ground. The bar at the top has the name of the map,
+    the name of the state, the steps (`name → code → denied`), Back, Restart, Comment and Leave
+    (J3). Escape closes the request, then the request mode, then leaves. The iframe gets the
+    color scheme of the board theme pick, as a frame of the canvas does (J5).
+31. **A request in the walk is on the frame of the shown state (J4).** Comment turns on the
+    request mode. A press on the screen opens a request on the frame `<name> · <state>` of the map,
+    at the same place: the picture and the screen have the same size. So the request is on that
+    screen on the map, and its picture is the picture of that state. Figma puts a comment of the
+    presentation view on the frame that shows.
+
 ### Ship 5: the backend switch (J10)
 
 10. One switch of the board: example answers, or a live server. With example answers, the person
@@ -437,7 +500,8 @@ type MapCard = { title: string; about: string; sections: { head: string; lines: 
 
 - Ship 1 has no model. The search is a bounded computation, and no person changes a state in it.
   Its proof is a test that reaches the 7 states of the sign-in.
-- `viewer-walk` and its twin stay (ship 4).
+- `viewer-walk` and its twin stay. Ship 4 changed their rule to the moves of the map
+  (`EachStepIsAMove`, decisions 23 to 31).
 - `flows-links` and `flows-links-unchecked` go with this delta: the links that they model are not
   in the design now. Ship 6 has the check that replaces them.
 - Ship 5 gets a model of the switch and the live server before its code.
