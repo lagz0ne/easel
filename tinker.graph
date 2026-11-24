@@ -616,6 +616,14 @@ map.relation exits{after,below,section} reads{} writes{} calls{}
 map.showPlans exits{value} reads{} writes{} calls{}
 map.showScope exits{value} reads{} writes{} calls{}
 map.text exits{value} reads{} writes{} calls{}
+map.walkBoot exits{noMap,walking} reads{} writes{} calls{map.walkDataOf}
+map.walkDataOf exits{found,none} reads{} writes{} calls{}
+map.walkDocument exits{value} reads{} writes{} calls{}
+map.walkFrameName exits{value} reads{} writes{} calls{}
+map.walkNameOf exits{value} reads{} writes{} calls{}
+map.walkPageName exits{value} reads{} writes{} calls{}
+map.walkPicks exits{value} reads{} writes{} calls{}
+map.walkReplies exits{value} reads{} writes{} calls{}
 mcp.agentImage exits{value} reads{} writes{} calls{}
 mcp.answer exits{value} reads{} writes{} calls{mcp.answerSignedIn}
 mcp.answerResult exits{value} reads{} writes{} calls{mcp.answerText,mcp.imageContent}

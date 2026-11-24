@@ -17,7 +17,7 @@ import {
   mapRelation,
   readableLabel,
 } from "@/map/canvas";
-import { showPlans, showScope } from "@/map/show";
+import { showPlans, showScope, walkReplies } from "@/map/show";
 import type { MapJson } from "@/map/text";
 
 const closers: Array<() => unknown> = [];
@@ -240,6 +240,18 @@ test("the plan of each state: a cell state waits, a run state presses with its a
   });
   expect(done[0]?.press).toEqual({ name: "nothing", fields: {}, action: "f.go", status: "done" });
   expect(done[0]?.replies).toEqual({ "fixture.go": { ok: true, value: { kind: "done", at: 0 } } });
+});
+
+test("the replies of a walk: each answer of each call with its sample, in the order of the contract, the fault last", async () => {
+  const app = await scope();
+
+  expect(app.run(walkReplies, { input: [contract, { other: "not a contract" }] })).toEqual({
+    "fixture.go": [
+      { kind: "done", reply: { ok: true, value: { kind: "done", at: 0 } } },
+      { kind: "refused", reply: { ok: true, value: { kind: "refused" } } },
+      { kind: "link", reply: { ok: false, kind: "link", payload: expect.anything() } },
+    ],
+  });
 });
 
 const step = data<{ kind: string }>({ label: "fixture.showStep", initial: { kind: "idle" } });

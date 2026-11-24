@@ -94,6 +94,19 @@ export const showPlans = operation({
   },
 });
 
+export const walkReplies = operation({
+  label: "map.walkReplies",
+  input: z.array(z.record(z.string(), z.unknown())),
+  depends: { book: mapBook },
+  run: ({ book }, { input }) =>
+    Object.fromEntries(
+      [...book.answersFrom(input)].map(([call, choices]) => [
+        call,
+        choices.map((choice) => ({ kind: choice.answer.kind, reply: choice.reply })),
+      ]),
+    ),
+});
+
 export const runSeen = resource({
   label: "map.runSeen",
   target: "scope",

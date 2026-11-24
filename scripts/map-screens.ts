@@ -25,10 +25,12 @@ import {
 import type { Relation } from "@/map/canvas";
 import { mapCard, mapCardHtml, mapGraph } from "@/map/card";
 import type { MapGraph } from "@/map/card";
-import { showPlans, shownMark } from "@/map/show";
+import { showPlans, shownMark, walkReplies } from "@/map/show";
 import type { ShowPlan } from "@/map/show";
 import type { MapJson } from "@/map/text";
 import { pressMarks } from "@/map/view";
+import type { WalkData } from "@/map/walk";
+import { walkDocument, walkFrameName, walkPageName } from "@/map/walk";
 
 import { deriveOf } from "./map";
 import type { Derived } from "./map";
@@ -42,11 +44,13 @@ of the cell, and for a state of a run the press of its action with the answer of
 picture goes to the page "Map · <name>" as the frame "<name> · <state>", in the section of the map:
 the steps from the start as columns, each column in the order of the rows of the map. Beside each
 column of pictures, a column of cards: the frame "<name> · <state> · card" tells, from the code and
-tinker.graph, what the state shows, its actions, each answer and the state that it leads to. A
-picture with the same pixels and a card with the same text put nothing; a changed one puts a new
-version of the same frame. The frame "Maps" on the page Live lists each map with its first state
-and its count of states.
---dry <dir> writes the pictures, the cards and the list there, and puts nothing.
+tinker.graph, what the state shows, its actions, each answer and the state that it leads to. The
+frame "<name> · walk" (SPEC-prototype ship 4) is one HTML document with the real view, the cell
+and the actions, and the map as JSON: the viewer walks the map in it. A picture with the same
+pixels, and a card or a walk with the same text, put nothing; a changed one puts a new version of
+the same frame. The frame "Maps" on the page Live lists each map with its first state and its count
+of states.
+--dry <dir> writes the pictures, the cards, the walks and the list there, and puts nothing.
 
 The writes go to EASEL_SERVER with EASEL_TOKEN when both are set, else to the hosts file of
 EASEL_CONFIG_HOME (~/.config/easel-agent when not set): the member vibea-claude.
@@ -185,7 +189,38 @@ async function buildPage(entry: MapEntry, derived: Derived, plans: ShowPlan[]) {
       `map-screens: the page of ${entry.name} did not build: ${built.logs.map((log) => log.message).join("\n")}`,
     );
   }
-  return join(dir, "out");
+  return { out: join(dir, "out"), unitsFile };
+}
+
+async function buildWalk(entry: MapEntry, unitsFile: string, data: WalkData) {
+  const built = await Bun.build({
+    entrypoints: [join(root, "cmds/map-walk.html")],
+    outdir: join(work, entry.name, "walk"),
+    target: "browser",
+    minify: true,
+    define: { "process.env.NODE_ENV": JSON.stringify("production") },
+    plugins: [
+      {
+        name: "map-walk",
+        setup(build) {
+          build.onResolve({ filter: /^map:units$/ }, () => ({ path: unitsFile }));
+          build.onResolve({ filter: /^\/api\/fonts\// }, ({ path }) => ({ path, external: true }));
+        },
+      },
+    ],
+  });
+  const textOf = async (end: string) => {
+    const files = built.outputs.filter((output) => output.path.endsWith(end));
+    return (await Promise.all(files.map((file) => file.text()))).join("\n");
+  };
+  if (!built.success) {
+    throw new Error(
+      `map-screens: the walk of ${entry.name} did not build: ${built.logs.map((log) => log.message).join("\n")}`,
+    );
+  }
+
+  const [html, js, css] = await Promise.all([textOf(".html"), textOf(".js"), textOf(".css")]);
+  return scope.run(walkDocument, { input: { html, js, css, data } });
 }
 
 function serve(out: string) {
@@ -252,7 +287,7 @@ async function takeOne(
 
     await tab.addStyleTag({ content: "*{caret-color:transparent !important}" });
     await tab.evaluate(() => document.fonts.ready.then(() => undefined));
-    const raw = await tab.screenshot({ type: "png" });
+    const raw = await tab.screenshot({ type: "png", animations: "disabled" });
     const lines = scope.run(mapCaption, { input: { map, state: plan.state } });
     const parts = lines.map((line) => scope.run(mapCaptionParts, { input: line }));
     return { state: plan.state, png: await captioned(browser, raw, parts, lifts), why: null };
@@ -260,6 +295,8 @@ async function takeOne(
     await context.close();
   }
 }
+
+const rasterNoise = 8;
 
 const captionFonts = { title: "600 15px sans-serif", line: "14px sans-serif" } as const;
 
@@ -346,7 +383,7 @@ async function samePixels(browser: Browser, a: Buffer, b: Buffer) {
   const tab = await browser.newPage();
   try {
     return await tab.evaluate(
-      async ({ one, two }) => {
+      async ({ one, two, noise }) => {
         const read = async (src: string) => {
           const image = await createImageBitmap(await (await fetch(src)).blob());
           const board = new OffscreenCanvas(image.width, image.height);
@@ -357,11 +394,12 @@ async function samePixels(browser: Browser, a: Buffer, b: Buffer) {
           return pen.getImageData(0, 0, image.width, image.height).data;
         };
         const [x, y] = [await read(one), await read(two)];
-        return x.length === y.length && x.every((v, i) => v === y[i]);
+        return x.length === y.length && x.every((v, i) => Math.abs(v - (y[i] ?? 0)) <= noise);
       },
       {
         one: `data:image/png;base64,${a.toString("base64")}`,
         two: `data:image/png;base64,${b.toString("base64")}`,
+        noise: rasterNoise,
       },
     );
   } finally {
@@ -478,6 +516,30 @@ function putCard(board: Board, card: Card) {
   words.push(`${card.name}: ${sameText && sameSize ? "same" : "next"}`);
 }
 
+function putWalk(board: Board, html: string) {
+  const { entry, page, ids, words } = board;
+  const name = scope.run(walkFrameName, { input: entry.name });
+  const frame = board.byName.get(name);
+  const file = join(work, `${entry.name}-walk.html`);
+  writeFileSync(file, html);
+  if (!frame) {
+    const section = ["--page", page, "--section", `${entry.name}: the walk`];
+    const size = `${mapShot.width}x${mapShot.height}`;
+    const made = written.parse(
+      easel(["put", canvas, file, "--name", name, ...section, "--size", size]),
+    );
+    ids[name] = made.id;
+    return void words.push(`${name}: new`);
+  }
+
+  ids[name] = frame.id;
+  const old = join(work, `old-${frame.id}.html`);
+  easel(["get", canvas, frame.id, "-o", old]);
+  const same = readFileSync(old, "utf8") === html;
+  if (!same) easel(["put", canvas, file, "--id", frame.id, "--base", String(frame.version)]);
+  words.push(`${name}: ${same ? "same" : "next"}`);
+}
+
 function moveGone(board: Board) {
   const { entry, page, ids, words } = board;
   const before = laidOut.parse(easel(["layout", canvas, "--page", page]));
@@ -508,8 +570,8 @@ function putOrder(board: Board) {
 }
 
 async function putMap(browser: Browser, done: Done) {
-  const { entry, map, shots, cards } = done;
-  const page = pageKey(`Map · ${entry.name}`);
+  const { entry, map, shots, cards, walk } = done;
+  const page = pageKey(scope.run(walkPageName, { input: entry.name }));
   const states = scope.run(mapColumns, { input: map.states });
   const columns = scope.run(mapBoard, { input: { map: entry.name, columns: states } });
   const board: Board = {
@@ -537,6 +599,7 @@ async function putMap(browser: Browser, done: Done) {
     }
   }
 
+  putWalk(board, walk);
   moveGone(board);
   putOrder(board);
   return { page, words: board.words };
@@ -579,7 +642,19 @@ function putList(html: string) {
   return "next";
 }
 
-type Done = { entry: MapEntry; map: MapJson; shots: Shot[]; cards: Card[] };
+function writeDry(dir: string, { entry, shots, cards, walk }: Done) {
+  mkdirSync(dir, { recursive: true });
+  for (const shot of shots) {
+    const name = scope.run(mapFrameName, { input: { map: entry.name, state: shot.state } });
+    if (shot.png) writeFileSync(join(dir, `${name}.png`), shot.png);
+    console.log(`map-screens: ${name}: ${shot.png ? "taken" : `failed: ${shot.why}`}`);
+  }
+
+  for (const card of cards) writeFileSync(join(dir, `${card.name}.html`), card.html);
+  writeFileSync(join(dir, `${scope.run(walkFrameName, { input: entry.name })}.html`), walk);
+}
+
+type Done = { entry: MapEntry; map: MapJson; shots: Shot[]; cards: Card[]; walk: string };
 
 async function mapOne(
   browser: Browser,
@@ -599,7 +674,9 @@ async function mapOne(
   const plans = scope.run(showPlans, {
     input: { map: derived.map, contracts: derived.contracts, inputs },
   });
-  const out = await buildPage(entry, derived, plans);
+  const { out, unitsFile } = await buildPage(entry, derived, plans);
+  const replies = scope.run(walkReplies, { input: derived.contracts });
+  const walk = await buildWalk(entry, unitsFile, { name: entry.name, map: derived.map, replies });
   const server = serve(out);
   try {
     const url = `http://127.0.0.1:${server.port}`;
@@ -612,7 +689,7 @@ async function mapOne(
         })),
       ),
     );
-    return { entry, map: derived.map, shots, cards: cardsOf(entry, derived.map, graph) };
+    return { entry, map: derived.map, shots, cards: cardsOf(entry, derived.map, graph), walk };
   } finally {
     await server.stop(true);
   }
@@ -637,17 +714,11 @@ try {
   let failed = 0;
   const rows = [];
   for (const each of done) {
-    const { entry, map, shots, cards } = each;
+    const { entry, map, shots } = each;
     failed += shots.filter((shot) => !shot.png).length;
     if (dryDir) {
-      mkdirSync(dryDir, { recursive: true });
-      for (const shot of shots) {
-        const name = scope.run(mapFrameName, { input: { map: entry.name, state: shot.state } });
-        if (shot.png) writeFileSync(join(dryDir, `${name}.png`), shot.png);
-        console.log(`map-screens: ${name}: ${shot.png ? "taken" : `failed: ${shot.why}`}`);
-      }
-      for (const card of cards) writeFileSync(join(dryDir, `${card.name}.html`), card.html);
-      rows.push({ entry, map, page: `Map · ${entry.name}` });
+      writeDry(dryDir, each);
+      rows.push({ entry, map, page: scope.run(walkPageName, { input: entry.name }) });
       continue;
     }
 

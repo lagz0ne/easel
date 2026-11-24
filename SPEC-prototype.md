@@ -258,7 +258,13 @@ The ship 1 stay "name, askForCode, browser.start fault link" is now the move to
     the top row, each other outcome is below it, and two runs give the same places. The text of
     `bun scripts/map.ts` keeps the exact rows. Deferred to ship 4, with the arrows: a section
     with empty places (as `grid-row` of CSS grid).
-16. **A second run changes only what changed.** The same pixels put nothing. Other pixels put a
+16. **A second run changes only what changed.** The same pixels put nothing. A pixel is the same
+    when each channel differs by 8 of 255 at most: two takes of one screen differ by 1 on the
+    anti-aliased edges of a field (raster noise), and pixelmatch, under the `toHaveScreenshot` of
+    Playwright, allows a threshold for the same reason. The page takes the picture with the
+    animations at their end (`animations: "disabled"`). After the press it waits for the run
+    status in the page: a call at the backend for `pending`, the end of the press with its status
+    for `failed` and `done` (the `observe` export of the scope). Other pixels put a
     new version of the same frame (`--id --base`). A frame of a state that the map does not have
     now goes to the section `<name>: states that the map does not have now`; the job never
     deletes a frame. When `easel layout` shows other columns, `easel move` puts each frame back by
@@ -379,8 +385,8 @@ Action home.askForCode, from an earlier state
     strip. The card uses the classes of the kit (`bg-card`, `text-sm/5`, `font-semibold`), so it
     has the look of the kit, as each frame has. Two runs under load put a new picture of
     `name · askForCode pending` and `name · askForCode failed`: the press of decision 13 waits a
-    fixed 200 ms, so the picture can come before or after the run settles. That is ship 2 code;
-    it is left open.
+    fixed 200 ms, so the picture can come before or after the run settles. Fixed in ship 4: the
+    page waits for the run status, and the compare allows raster noise (decision 16).
 
 ### Ship 4: the walk (J1 to J5)
 
