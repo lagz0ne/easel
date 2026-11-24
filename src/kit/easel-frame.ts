@@ -285,7 +285,7 @@ const fixtureValue = (cell: Data.Cell<unknown>, name: string, raw: unknown) => {
   try {
     return cell.parse ? parse(cell.parse, raw) : raw;
   } catch (error) {
-    const issues = fieldOf(error, "issues") ?? String(error);
+    const issues = fieldOf(fieldOf(error, "payload"), "issues") ?? String(error);
     throw Object.assign(new Error("FixtureInvalid"), {
       kind: "FixtureInvalid",
       payload: { cell: cell.label, fixture: name, issues },

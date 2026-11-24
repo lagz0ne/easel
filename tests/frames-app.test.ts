@@ -712,6 +712,7 @@ test(
     await expect.poll(() => alert.count(), { timeout: 20_000 }).toBe(1);
     expect(await alert.getAttribute("data-easel-refused")).toBe("FixtureInvalid");
     expect(await alert.textContent()).toContain('"cell": "people.list"');
+    expect(await alert.textContent()).toContain("expected string");
     expect(errors).toEqual([]);
   },
 );
