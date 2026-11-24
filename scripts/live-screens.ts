@@ -478,7 +478,7 @@ async function settle(tab: Page) {
     { timeout: 30_000 },
   );
 
-  await tab.waitForLoadState("networkidle");
+  await tab.waitForLoadState("networkidle", { timeout: 10_000 }).catch(() => undefined);
   await tab.waitForTimeout(400);
 }
 
