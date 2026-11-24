@@ -7,7 +7,7 @@ import { authPaths } from "@/access/contract";
 
 import { codesBoard, homeBoard } from "./contract";
 import type { HomeRow, WaitingCode } from "./contract";
-import { askAgain, askForCode, signInStep, useSignInLink } from "./signin";
+import { askAgain, askForCode, copyApproveCommand, signInStep, useSignInLink } from "./signin";
 import type { OpenLink, Who } from "./signin";
 
 import "./home.css";
@@ -66,12 +66,24 @@ function CodeStep({ code, expiresAt }: { code: string; expiresAt: number }) {
     <div role="status" className="e-home-code">
       <p className="e-home-label">Your code</p>
       <p className="e-home-big">{code}</p>
-      <p>
-        Ask an owner to approve it with <code>easel users approve {code}</code>, or on their home
-        page. This page signs in when the owner approves it.
-      </p>
+      <p>Ask an owner to approve it with this command, or on their home page.</p>
+      <CopyLine code={code} />
+      <p>This page signs in when the owner approves it.</p>
       <p className="e-home-note">The code works until {until.format(expiresAt)}.</p>
       <AnotherWay />
+    </div>
+  );
+}
+
+function CopyLine({ code }: { code: string }) {
+  const copy = useRun(copyApproveCommand);
+
+  return (
+    <div className="e-home-copy">
+      <code>easel users approve {code}</code>
+      <button type="button" onClick={() => copy.run({ input: { code } })}>
+        {copy.isSuccess ? "Copied" : "Copy"}
+      </button>
     </div>
   );
 }

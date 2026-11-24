@@ -140,6 +140,22 @@
   letter-spacing: 0.04em;
 }
 
+.e-home-big {
+  user-select: all;
+}
+
+.e-home-copy {
+  display: flex;
+  gap: var(--e-2);
+  align-items: center;
+  flex-wrap: wrap;
+}
+
+.e-home-copy code {
+  user-select: all;
+  overflow-wrap: anywhere;
+}
+
 .e-home-head {
   display: flex;
   flex-wrap: wrap;

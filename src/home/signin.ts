@@ -47,6 +47,18 @@ export const takeHash = tag<(path: string) => string>({
   },
 });
 
+export const writeClipboard = tag<(text: string) => Promise<void>>({
+  label: "home.writeClipboard",
+  default: (text) => navigator.clipboard.writeText(text),
+});
+
+export const copyApproveCommand = operation({
+  label: "home.copyApproveCommand",
+  input: z.object({ code: z.string() }),
+  depends: { write: writeClipboard },
+  run: ({ write }, { input }) => write(`easel users approve ${input.code}`),
+});
+
 const signedOut = z.object({ signIn: z.literal(true) });
 
 export const whoAmI = operation({
@@ -67,13 +79,24 @@ export const whoAmI = operation({
 
 export type Who = Awaited<ReturnType<typeof whoAmI.run>>;
 
+const firstPause = 1_000;
+
+const longestPause = 10_000;
+
 const waitForApproval = operation({
   label: "home.waitForApproval",
   input: z.object({ request: z.string() }),
   depends: { wait: access.browser["browser.wait"], step: signInStep.controller, post: postForm },
   run: async ({ wait, step, post }, { input, clock, signal }) => {
-    for (;;) {
-      const now = await wait.run({ input, signal });
+    for (let pause = firstPause; ;) {
+      const reply = await wait.settle({ input, signal });
+      if (reply.status !== "success") {
+        await clock.sleep(pause, signal);
+        pause = Math.min(pause * 2, longestPause);
+        continue;
+      }
+      pause = firstPause;
+      const now = reply.value;
       switch (now.kind) {
         case "pending":
           continue;

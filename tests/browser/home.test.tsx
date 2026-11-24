@@ -15,7 +15,7 @@ import { frames } from "@/frames";
 import { frames as frameCells } from "@/frames/contract";
 import { home } from "@/home";
 import { homeRows, waitingCodes } from "@/home/contract";
-import { postForm, takeHash } from "@/home/signin";
+import { postForm, takeHash, writeClipboard } from "@/home/signin";
 import { routeTree } from "@/routes";
 
 const now = Date.parse("2026-11-24T10:00:00Z");
@@ -34,6 +34,8 @@ const world = {
   answer: Promise.withResolvers<Wait>(),
   start: { kind: "pending" } as { kind: "pending" } | { kind: "slow" },
   link: "live" as "live" | "gone" | "slow",
+  lostWaits: 0,
+  copied: [] as string[],
 };
 
 const sessionGate = operation({
@@ -66,7 +68,11 @@ const start = operation({
 const wait = operation({
   label: "test.browserWait",
   input: browserApi["browser.wait"].input,
-  run: () => world.answer.promise,
+  run: () => {
+    if (world.lostWaits === 0) return world.answer.promise;
+    world.lostWaits -= 1;
+    throw new Error("the socket closed");
+  },
 });
 
 const peek = operation({
@@ -169,6 +175,8 @@ async function boot() {
   world.answer = Promise.withResolvers<Wait>();
   world.start = { kind: "pending" };
   world.link = "live";
+  world.lostWaits = 0;
+  world.copied = [];
   const server = await createScope({
     capsules: [
       exits({ store: localStorage }),
@@ -213,6 +221,7 @@ async function tab(server: Scope.Handle, path: string, size: { w: number; h: num
   const scope = await createScope({
     tags: [
       postForm((action, fields) => posted.push([action, fields])),
+      writeClipboard(async (text) => void world.copied.push(text)),
       takeHash(() => (path.startsWith("/open#") ? path.slice(6) : "")),
     ],
     capsules: [
@@ -270,6 +279,35 @@ for (const size of [phone, desk]) {
     expect(document.body.textContent).not.toContain(request);
   });
 }
+
+test("a wait that fails, as when a phone leaves the page and its socket closes, is asked again: the approve still signs in", async () => {
+  const server = await boot();
+  world.lostWaits = 2;
+  const shown = await tab(server, "/", phone);
+
+  await page.getByLabelText("Your name").fill("bo");
+  await page.getByRole("button", { name: "Get a code" }).click();
+  await expect.element(page.getByText("BCDF-GHJK", { exact: true })).toBeVisible();
+  await expect.poll(() => world.lostWaits, { timeout: 8_000 }).toBe(0);
+
+  world.answer.resolve({ kind: "approved" });
+  await expect.element(page.getByText("Approved. Signing in.")).toBeVisible();
+  expect(shown.posted).toEqual([["/auth/code", { request }]]);
+});
+
+test("one click on Copy puts the approve command with the code on the clipboard, and says Copied", async () => {
+  const server = await boot();
+  await tab(server, "/", phone);
+
+  await page.getByLabelText("Your name").fill("bo");
+  await page.getByRole("button", { name: "Get a code" }).click();
+  await page.getByRole("button", { name: "Copy", exact: true }).click();
+
+  expect(world.copied).toEqual(["easel users approve BCDF-GHJK"]);
+  await expect.element(page.getByRole("button", { name: "Copied" })).toBeVisible();
+  world.answer.resolve({ kind: "denied" });
+  await expect.element(page.getByText("An owner denied the code.")).toBeVisible();
+});
 
 test("a denied code, a code that ran out, and too many tries each say so; Get a new code goes back to the name", async () => {
   const server = await boot();
