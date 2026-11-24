@@ -167,7 +167,13 @@ async function cliMember(srv: Srv, ann: Awaited<ReturnType<typeof client>>, name
   return client(srv.server, { token: t.text });
 }
 
-type Form = { path: string; fields: Record<string, string>; cookie?: string; from?: string | null };
+type Form = {
+  path: string;
+  fields: Record<string, string>;
+  cookie?: string;
+  from?: string | null;
+  site?: string;
+};
 
 async function post(srv: Srv, op: typeof signInWithCode, form: Form) {
   const body = new URLSearchParams(form.fields).toString();
@@ -178,6 +184,7 @@ async function post(srv: Srv, op: typeof signInWithCode, form: Form) {
   };
   if (form.from !== null) headers.origin = form.from ?? srv.origin;
   if (form.cookie) headers.cookie = form.cookie;
+  if (form.site) headers["sec-fetch-site"] = form.site;
 
   const request = new Request(`${srv.origin}${form.path}`, { method: "POST", headers, body });
   const session = srv.server.createSession({ tags: [transport.request(request)] });
@@ -454,19 +461,22 @@ test("sign out: the session ends, the cookie is cleared, and the next call is re
   expect(again.status).toBe(303);
 });
 
-test("a post from another origin, or with no origin, is refused 403; a body past 4 KiB is refused 413", async () => {
+test("a post that the browser marks cross-site, or from another origin, or with no mark and no origin, is refused 403; a body past 4 KiB is refused 413", async () => {
   const srv = await boot();
   const { ann } = await firstOwner(srv);
   const phoneSession = await codeSignIn(srv, ann, "ann");
+  const forged = [
+    { from: "https://evil.test" },
+    { from: "null" },
+    { from: null },
+    { from: srv.origin, site: "cross-site" },
+    { from: srv.origin, site: "same-site" },
+    { from: srv.origin, site: "none" },
+  ];
 
-  for (const from of ["https://evil.test", "null", null]) {
-    const reply = await post(srv, signOut, {
-      path: "/auth/out",
-      fields: {},
-      cookie: phoneSession.cookie,
-      from,
-    });
-    expect(reply.status).toBe(403);
+  for (const sent of forged) {
+    const out = { path: "/auth/out", fields: {}, cookie: phoneSession.cookie, ...sent };
+    expect([sent, (await post(srv, signOut, out)).status]).toEqual([sent, 403]);
   }
   const big = await post(srv, signInWithLink, {
     path: "/auth/open",
@@ -475,6 +485,23 @@ test("a post from another origin, or with no origin, is refused 403; a body past
   expect(big.status).toBe(413);
   const browser = await client(srv.server, { cookie: phoneSession.cookie });
   expect((await browser.me()).name).toBe("ann");
+});
+
+test("a page with no-referrer sends Origin null: its post is taken when the browser marks it same-origin (Sec-Fetch-Site)", async () => {
+  const srv = await boot();
+  const { ann } = await firstOwner(srv);
+  const phoneSession = await codeSignIn(srv, ann, "ann");
+
+  const out = await post(srv, signOut, {
+    path: "/auth/out",
+    fields: {},
+    cookie: phoneSession.cookie,
+    from: "null",
+    site: "same-origin",
+  });
+  expect([out.status, out.headers.get("location")]).toEqual([303, "/"]);
+  const browser = await client(srv.server, { cookie: phoneSession.cookie });
+  expect(await refused(browser.me())).toEqual({ signIn: true });
 });
 
 test("users.list shows each session (its browser, when it was last used) and the browser codes; users.end ends one, then answers gone", async () => {

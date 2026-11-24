@@ -30,6 +30,8 @@ import { mayName, passOps, shareOps, shareServer } from "@/frames/share.server";
 import { framesServer } from "@/frames/store.server";
 import { greet } from "@/greet";
 import { greetOps } from "@/greet/greet.server";
+import { home } from "@/home";
+import { homeServer } from "@/home/feed.server";
 import { issues } from "@/issues";
 import { issueOps, membersOnly, signedIn } from "@/issues/ops.server";
 import { kit } from "@/kit";
@@ -115,6 +117,8 @@ export default defineMain(async ({ env, args, signal, stdout, stderr, exit }) =>
       queue.api,
       queue.viewer,
       queue.channels,
+      home.board,
+      home.codes,
     ],
     origin,
     maxPayload: socketMaxPayload,
@@ -202,6 +206,9 @@ export default defineMain(async ({ env, args, signal, stdout, stderr, exit }) =>
       queue.viewer({ implement: requestOps, onStart: [mayAct] }),
       dispatchServer({ fetch }),
       queue.channels({ implement: channelOps, onStart: [user, owner] }),
+      homeServer(),
+      home.board({ serve: true, onStart: [user] }),
+      home.codes({ serve: true, onStart: [user, owner] }),
       release({
         commit: set.GIT_SHA,
         build: Number(set.BUILD),

@@ -3,10 +3,11 @@ import type { Scope } from "@tinkered/core";
 
 import { baseVersion } from "~/components/health";
 
-import { greet } from "@/greet";
-import { Greeting } from "@/greet/greeting";
+import { HomePage, OpenPage } from "@/home/home";
+import { useSignInLink, whoAmI } from "@/home/signin";
 import { Board, IssuesHome, Thread } from "@/issues/board";
 import { TodoList } from "@/todo/todo-list";
+import { Canvas } from "@/viewer/canvas";
 import { openPage } from "@/viewer/gate";
 import { Opening, Viewer } from "@/viewer/viewer";
 
@@ -16,11 +17,33 @@ const index = createRoute({
   getParentRoute: () => root,
   path: "/",
   loader: ({ context, abortController }) =>
-    context.scope.run(greet.api.greet, {
-      input: { name: "world" },
-      signal: abortController.signal,
-    }),
-  component: () => <Greeting text={index.useLoaderData().text} />,
+    context.scope.run(whoAmI, { input: { stop: abortController.signal } }),
+  component: () => <HomePage who={index.useLoaderData()} />,
+});
+
+const open = createRoute({
+  getParentRoute: () => root,
+  path: "/open",
+  loader: ({ context }) => context.scope.run(useSignInLink),
+  component: () => <OpenPage sent={open.useLoaderData().kind === "sent"} />,
+});
+
+const canvas = createRoute({
+  getParentRoute: () => root,
+  path: "/c/$canvas",
+  loader: ({ context, abortController }) =>
+    context.scope.run(whoAmI, { input: { stop: abortController.signal } }),
+  pendingComponent: Opening,
+  pendingMs: 0,
+  component: () => {
+    const who = canvas.useLoaderData();
+    const key = canvas.useParams().canvas;
+    return who.kind === "in" ? (
+      <Canvas canvas={key} opening={<Opening />} back />
+    ) : (
+      <HomePage who={who} />
+    );
+  },
 });
 
 const todo = createRoute({ getParentRoute: () => root, path: "/todo", component: TodoList });
@@ -67,6 +90,8 @@ const tinker = createRoute({
 
 export const routeTree = root.addChildren([
   index,
+  open,
+  canvas,
   todo,
   issues,
   team.addChildren([thread]),

@@ -7,6 +7,7 @@ import { z } from "zod";
 import { frames } from "@/frames";
 import { boardDoc } from "@/frames/contract";
 import type { BoardFrame, FrameInfo } from "@/frames/contract";
+import { BackBar } from "@/home/back";
 import { compose, composeApp, composeKit, frameAxes } from "@/kit/compose";
 import { paneScript } from "@/kit/controls";
 import type { ControlShown, PanePlace } from "@/kit/controls";
@@ -934,16 +935,16 @@ const shownFrames = resource({
   },
 });
 
-type CanvasProps = { canvas: string; opening: React.ReactNode };
+type CanvasProps = { canvas: string; opening: React.ReactNode; back?: boolean };
 
-export function Canvas({ canvas, opening }: CanvasProps) {
+export function Canvas({ canvas, opening, back }: CanvasProps) {
   const page = useData(pageInAddress({ canvas }));
   if (page === null) return opening;
 
-  return <CanvasPage canvas={canvas} page={page} opening={opening} />;
+  return <CanvasPage canvas={canvas} page={page} opening={opening} back={back} />;
 }
 
-function CanvasPage({ canvas, page, opening }: CanvasProps & { page: string }) {
+function CanvasPage({ canvas, page, opening, back }: CanvasProps & { page: string }) {
   const part = frames.board.frames.where({ canvas, page });
   const list = useData(part);
   const state = useData(frames.board.status(part));
@@ -1019,6 +1020,7 @@ function CanvasPage({ canvas, page, opening }: CanvasProps & { page: string }) {
         </div>
       </section>
       <div className="e-top">
+        <BackBar canvas={canvas} shown={back === true} />
         <Status lost={lost} fault={state?.status === "fault"} />
         <NewVersion canvas={canvas} />
       </div>

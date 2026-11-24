@@ -47,7 +47,7 @@ no_page_errors() {
 flow=boot
 t0=$SECONDS
 "${AB[@]}" open "$base/" >/dev/null || fail "open /"
-"${AB[@]}" wait --text "Hello, world." >/dev/null || fail "the greeting from greet.api never showed"
+"${AB[@]}" wait --text "Sign in to easel" >/dev/null || fail "the sign-in page (users.me refused) never showed"
 no_page_errors
 echo "smoke: ok   boot ($((SECONDS - t0)) s)"
 
@@ -77,6 +77,13 @@ id="$(jq -r .id <<<"$made")"
 easel shot smoke "$id" -o "$out/shot.webp" --scale 0.5 >/dev/null 2>&1 || fail "easel shot"
 [[ "$(head -c 4 "$out/shot.webp")" == RIFF && "$(tail -c +9 "$out/shot.webp" | head -c 4)" == WEBP ]] ||
   fail "easel shot wrote no WebP"
+opened="$(easel open --no-browser --json 2>/dev/null)" || fail "easel open"
+"${AB[@]}" open "$(jq -r .url <<<"$opened")" >/dev/null || fail "open the sign-in link"
+"${AB[@]}" wait --text "Canvases" >/dev/null || fail "the sign-in link did not open the home page"
+"${AB[@]}" find role link click --name "Smoke" >/dev/null || fail "no row Smoke on the home page"
+"${AB[@]}" wait --text "Smoke one" >/dev/null || fail "the canvas did not open from the home page"
+"${AB[@]}" find role link click --name "Back to the canvases" >/dev/null || fail "no back button on the canvas"
+"${AB[@]}" wait --text "Canvases" >/dev/null || fail "the back button did not go to the home page"
 link="$(easel share smoke 2>/dev/null)" || fail "easel share"
 "${AB[@]}" open "$link" >/dev/null || fail "open the share link"
 "${AB[@]}" wait --text "Smoke one" >/dev/null || fail "the frame's shell never showed"

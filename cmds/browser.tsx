@@ -8,8 +8,10 @@ import { TinkerError, TinkerNotFound } from "~/base/fallbacks";
 import { abortReasons } from "~/components/errors";
 import { telemetry } from "~/components/telemetry";
 
+import { access } from "@/access";
 import { frames } from "@/frames";
 import { greet } from "@/greet";
+import { home } from "@/home";
 import { issues } from "@/issues";
 import { queue } from "@/queue";
 import { routeTree } from "@/routes";
@@ -29,6 +31,11 @@ const app = createScope({
     }),
     ws.client({ url: `${location.origin.replace(/^http/, "ws")}/rpc`, meta: tabMeta }),
     greet.api({ remote: ws.client }),
+    access.browser({ remote: ws.client }),
+    access.user({ remote: ws.client }),
+    access.owner({ remote: ws.client }),
+    home.board({ read: ws.client }),
+    home.codes({ read: ws.client }),
     todo.board({ read: ws.client }),
     todo.api({ remote: ws.client }),
     issues.board({ read: ws.client }),

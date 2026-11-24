@@ -200,9 +200,10 @@ const formOf = operation({
   depends: { request: transport.request.required, origin },
   run: async ({ request, origin }) => {
     const own = origin ?? new URL(request.url).origin;
-    if (request.headers.get("origin") !== own) {
-      return new Response(null, { status: 403, headers: page });
-    }
+    const site = request.headers.get("sec-fetch-site");
+    const sameOrigin =
+      site === null ? request.headers.get("origin") === own : site === "same-origin";
+    if (!sameOrigin) return new Response(null, { status: 403, headers: page });
 
     const size = Number(request.headers.get("content-length") ?? maxFormBytes + 1);
     if (!(size <= maxFormBytes)) return new Response(null, { status: 413, headers: page });
