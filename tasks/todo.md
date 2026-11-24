@@ -785,3 +785,81 @@ SPEC-frames § Make a canvas, step 4, and judged rules 12 and 13.
 - [x] Tests: `tests/canvas-delete.test.ts`, `tests/cli-frames.test.ts`, `tests/cli-cmd.test.ts`.
 
 **Estimated scope:** S.
+
+## Phase 9: the design loop, easel designs itself in easel
+
+The spec is [SPEC-design-loop.md](../SPEC-design-loop.md) (approved 2026-11-24). The hub request
+for NATS is hq-aob. Two tracks run at the same time: images (D9-1 to D9-3) and the dispatch to
+Paseo (D9-4, D9-5). The move of the screens (D9-6) needs neither. The Live page (D9-7) needs
+images, and the proof (D9-8) comes last.
+
+### D9-1: image frames
+
+- [ ] `easel put <canvas> shot.png|jpg|webp` (10 MB at most) makes an image frame at the size of
+      the image; a new put is a new version. MCP `put_frame` takes an image.
+- [ ] The viewer shows an image frame, with requests, pages and versions as each other frame.
+- [ ] A member drops or pastes an image on the board, and it becomes a frame (a model first: the
+      drop is new state of the viewer).
+
+**Estimated scope:** M.
+
+### D9-2: a screenshot on a request
+
+- [ ] A person pastes one image into a request, or picks a part of the board to take one. The
+      screenshot stays with the request (a model first).
+
+**Dependencies:** D9-1. **Estimated scope:** M.
+
+### D9-3: images for agents
+
+- [ ] `get_frame` of an image frame, `next_request` with a screenshot, and `shot_frame` answer MCP
+      image content, so the agent can look at the image.
+
+**Dependencies:** D9-1, D9-2. **Estimated scope:** S.
+
+### D9-4: the NATS channel
+
+- [ ] `easel channel set <name> nats --url <u> --subject easel.requests --seed-file <f>
+[--canvas <k>]...`; the seed is write-only.
+- [ ] The dispatcher publishes each waiting period to `easel.requests.<canvas>` with
+      `Nats-Msg-Id` `<canvas>:<n>:<period>`; the message has no text. Retries, `failed` and
+      `easel deliveries` as for GitHub.
+- [ ] Tests against a local `nats-server` with JetStream.
+
+**Estimated scope:** M.
+
+### D9-5: the Paseo adapter
+
+- [ ] A small Bun service in the repository: a durable pull consumer `paseo` (`max_ack_pending` 2) that starts an agent with `paseo run` in the easel workspace and acks; at most 20 agents in
+      a day; the prompt names the canvas and the number and says to claim with `easel next`.
+- [ ] A hub request for its user unit, after hq-aob.
+
+**Dependencies:** D9-4, hq-aob. **Estimated scope:** M.
+
+### D9-6: the screens on easel
+
+- [ ] Canvas `product` with the pages Read me, E3, E4 and E8, each frame of the Doop canvas
+      `easel · Product design` at its place; the 3 open Doop comments as requests.
+
+**Estimated scope:** S.
+
+### D9-7: the Live page
+
+- [ ] After each deploy, a job opens easel on a fixed fixture canvas, takes each screen at
+      390×844 and 1440×900, light and dark, and puts each as an image frame on the page `Live` of
+      `product`, with the name of its proposal.
+
+**Dependencies:** D9-1, D9-6. **Estimated scope:** M.
+
+### D9-8: the proof on easel
+
+- [ ] `bun run design:proof` reads the canvases of easel; it fails when a live screen uses a color
+      that is not in the design system. SPEC-design and `docs/design-canvas.md` name easel's
+      canvases, not Doop.
+
+**Dependencies:** D9-6, D9-7. **Estimated scope:** M.
+
+### Checkpoint H: after D9-8
+
+- [ ] Criteria 1 to 7 of SPEC-design-loop hold, each with its proof. Criterion 1 (one week with no
+      Doop) starts here.

@@ -1,6 +1,6 @@
 # Spec delta: `design-loop`, easel designs itself in easel
 
-Status: proposed (2026-11-24).
+Status: approved (user, 2026-11-24: "Approved"), with `design-system` and `product`, at most 2 agents at the same time and 20 in a day, and the hub request hq-aob.
 
 ## Objective
 
@@ -64,7 +64,7 @@ Prior art:
      work-queue retention. The message holds the canvas, the number, the frame and the page of the
      request, not its text. The message id is the request and its period, so JetStream drops a
      repeat.
-   - The NATS is the hub's own (`hub-nats`, JetStream). easel connects with its own nkey, which
+   - The NATS is the hub's own (`hub-nats`, JetStream). easel connects with its own nkey, `easel-dispatch`, which
      may only publish to `easel.requests.>`. The nkey seed is write-only, as the token of a GitHub
      channel.
    - A publish that fails is tried again as a GitHub delivery is (SPEC-queue § The dispatcher), and
@@ -133,7 +133,7 @@ Prior art:
 - Ask first: a change of the look of the design system (it changes each frame of the team).
 - Ask first: the hours when the design agent runs, and its cost limit.
 - Ask first: the hub work (a hub request): easel's container must reach `hub-nats`, which listens
-  on loopback only today, and the two nkeys (`easel`, `easel-paseo`) and the stream.
+  on loopback only today, and the two nkeys (`easel-dispatch`, `easel-paseo`) and the stream.
 - Never: the loop deletes a frame or a canvas.
 - Never: `hub-nats` is open to the internet. Only the docker network of the machine reaches it.
 
