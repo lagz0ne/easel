@@ -745,11 +745,22 @@ function shotFrames(live: Live, shot: Shot): ShotFrames {
   };
 }
 
+function keepBoth(take: { screen: string; take: string }, after: Buffer, png: Buffer) {
+  const stem = join(
+    process.env.RUNNER_TEMP ?? tmpdir(),
+    `easel-live-${take.screen}-${take.take.replace(" ", "-")}`,
+  );
+  writeFileSync(`${stem}-after.png`, after);
+  writeFileSync(`${stem}-take.png`, png);
+}
+
 async function planOf(f: ShotFrames, png: Buffer) {
   const plan = scope.run(livePlan, { input: { build, after: f.base.after } });
   if (plan.kind !== "compare" || !f.afterFrame) return plan;
 
-  const same = await samePixels(readFileSync(getFrame(f.afterFrame)), png);
+  const after = readFileSync(getFrame(f.afterFrame));
+  const same = await samePixels(after, png);
+  if (!same) keepBoth(f.base, after, png);
 
   return scope.run(livePlan, { input: { build, after: f.base.after, same } });
 }

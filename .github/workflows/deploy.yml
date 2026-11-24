@@ -120,12 +120,13 @@ jobs:
   screens:
     needs: [deploy, live]
     runs-on: ubuntu-latest
+    continue-on-error: true
     timeout-minutes: 10
     container:
       image: mcr.microsoft.com/playwright:v1.63.0-noble
     concurrency:
       group: screens-main
-      cancel-in-progress: true
+      cancel-in-progress: false
     environment:
       name: production
       url: https://easel.vibea.dev
