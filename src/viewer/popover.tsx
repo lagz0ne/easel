@@ -470,7 +470,7 @@ function More({ v }: { v: RequestView }) {
         onOpenChange={(next) => set.run({ input: { menu: "more", open: next } })}
       >
         <Menu.Trigger className="e-close" aria-label="More">
-          <svg width="14" height="14" viewBox="0 0 14 14" aria-hidden="true">
+          <svg width="14" height="14" viewBox="0 0 14 14" fill="none" aria-hidden="true">
             <circle cx="3" cy="7" r="1.2" fill="currentColor" />
             <circle cx="7" cy="7" r="1.2" fill="currentColor" />
             <circle cx="11" cy="7" r="1.2" fill="currentColor" />
@@ -514,7 +514,7 @@ export function Opened({ v }: { v: RequestView }) {
           title="All requests"
           onClick={() => back.run()}
         >
-          <svg width="14" height="14" viewBox="0 0 14 14" aria-hidden="true">
+          <svg width="14" height="14" viewBox="0 0 14 14" fill="none" aria-hidden="true">
             <path
               d="M8.5 3.5 5 7l3.5 3.5"
               fill="none"
@@ -533,7 +533,7 @@ export function Opened({ v }: { v: RequestView }) {
         </span>
         <More v={v} />
         <button type="button" className="e-close" aria-label="Close" onClick={() => close.run()}>
-          <svg width="14" height="14" viewBox="0 0 14 14" aria-hidden="true">
+          <svg width="14" height="14" viewBox="0 0 14 14" fill="none" aria-hidden="true">
             <path
               d="M3.5 3.5l7 7M10.5 3.5l-7 7"
               stroke="currentColor"

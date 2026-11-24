@@ -370,3 +370,23 @@ test("on a wide screen the dock and the card stay as they were: the card at the 
   await expect.poll(() => pagesMenu().elements()).toHaveLength(0);
   await expect.element(pagesButton()).toHaveTextContent("Two");
 });
+
+test("the X of Close requests and of a request card is a stroke only: its path fills nothing, so it adds no color that the design system does not have (E11 V6)", async () => {
+  await tab(await serve(), wide);
+  const fills = (button: Element) =>
+    [...button.querySelectorAll("path")].map((path) => getComputedStyle(path).fill);
+
+  await requestsButton().click();
+  await expect.element(closeRequests()).toBeVisible();
+  expect(fills(closeRequests().element())).toEqual(["none"]);
+
+  await card()
+    .getByRole("button", { name: /#1(?!\d)/ })
+    .click();
+  const close = page.getByRole("region", { name: "Request #1" }).getByRole("button", {
+    name: "Close",
+    exact: true,
+  });
+  await expect.element(close).toBeVisible();
+  expect(fills(close.element())).toEqual(["none"]);
+});

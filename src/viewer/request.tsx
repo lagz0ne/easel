@@ -121,7 +121,7 @@ function ShotChip({ shot }: { shot: DraftShot }) {
         aria-label="Remove the screenshot"
         onClick={() => remove.run()}
       >
-        <svg width="12" height="12" viewBox="0 0 14 14" aria-hidden="true">
+        <svg width="12" height="12" viewBox="0 0 14 14" fill="none" aria-hidden="true">
           <path d="M3.5 3.5l7 7M10.5 3.5l-7 7" stroke="currentColor" strokeWidth="1.5" />
         </svg>
       </button>
@@ -187,7 +187,7 @@ function Composer({ d, lost }: { d: Draft; lost: boolean }) {
                 const file = event.clipboardData.files[0] ?? null;
                 if (file === null) return;
                 event.preventDefault();
-                void paste.run({ input: file });
+                paste.run({ input: file });
               }}
               onKeyDown={(event) => {
                 if (event.key !== "Enter" || event.shiftKey) return;
