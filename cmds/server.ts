@@ -49,6 +49,7 @@ import { opsTelemetryRoute, opsThreadRoute } from "@/ops/sink.server";
 import { queue } from "@/queue";
 import { channelOps } from "@/queue/channels.server";
 import { dispatchServer } from "@/queue/dispatch.server";
+import { queueEnv } from "@/queue/env.server";
 import { mayAct } from "@/queue/guards.server";
 import { queueOps, requestOps } from "@/queue/ops.server";
 import { startsOps } from "@/queue/starts.server";
@@ -219,7 +220,7 @@ export default defineMain(async ({ env, args, signal, stdout, stderr, exit }) =>
       queueServer({ stdout }),
       queue.api({ implement: queueOps, onStart: [user] }),
       queue.viewer({ implement: requestOps, onStart: [mayAct] }),
-      dispatchServer({ fetch }),
+      dispatchServer({ fetch, agreement: queueEnv.parse(env).agreement }),
       queue.channels({ implement: channelOps, onStart: [user, owner] }),
       queue.starts({ implement: startsOps, onStart: [user] }),
       homeServer(),
