@@ -20,20 +20,20 @@ E10 lets a person see each state of a frame with no agent. E11 keeps the design 
 in step. Round 1 (below) holds E1, E2, E3,
 E4, E5.1, E5.2, E6, E8, part of E9, and E10. E7 is deferred.
 
-| ID  | Epic                         | Outcome                                                                                                               | Actors                  | Journeys                                                                                                                              | Status                                                                                                                  | Review |
-| --- | ---------------------------- | --------------------------------------------------------------------------------------------------------------------- | ----------------------- | ------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------- | ------ |
-| E1  | Get in                       | A person or an agent gets a token when an owner approves it.                                                          | team lead, owner, agent | [access](../SPEC-access.md#journeys), [cli](../SPEC-cli.md#journeys)                                                                  | Built                                                                                                                   | ready  |
-| E2  | Make frames                  | An agent puts HTML frames on a canvas and changes them safely.                                                        | agent                   | [frames](../SPEC-frames.md#make-a-canvas): make a canvas, make and change frames                                                      | Built, except `frame.move`                                                                                              | ready  |
-| E3  | Share and look               | A person opens a link and sees the frames change at once.                                                             | agent, viewer           | [frames](../SPEC-frames.md#share-a-canvas): share, open; [viewer](../SPEC-viewer.md#journeys) 7; [design](../SPEC-design.md#journeys) | Built                                                                                                                   | ready  |
-| E4  | Comment and get a change     | A viewer asks for a change. An agent makes it and replies.                                                            | viewer, agent           | [queue](../SPEC-queue.md#journeys) 3; [viewer](../SPEC-viewer.md#ask-for-a-change): ask for a change, follow the requests             | Built; a GitHub run can get the CLI and sign in ([cli](../SPEC-cli.md#sign-in-with-no-file)), but no real run is proven | active |
-| E5  | Work through MCP             | An agent with no shell does all of E2, E3 and E4.                                                                     | agent                   | [mcp](../SPEC-mcp.md#journeys) 3                                                                                                      | Specified; no MCP server yet                                                                                            | active |
-| E6  | Watch production             | The company sees the health, the errors and the copies of each easel.                                                 | company                 | [ops](../SPEC-ops.md#journeys) 5                                                                                                      | Built, except backups                                                                                                   | ready  |
-| E7  | Fix errors with no person    | An agent fixes a production error and proves the fix.                                                                 | fixer, tick, probe      | [fixer](../SPEC-fixer.md#journeys) 5                                                                                                  | Not built                                                                                                               | to do  |
-| E8  | One look, fast               | Agents make frames fast, and all frames of a team look like one product.                                              | agent, user             | [kit](../SPEC-kit.md#journeys) 3                                                                                                      | Built: the look, the kit, its pieces and capsules; not all fit criteria are proven                                      | to do  |
-| E9  | One voice                    | All frames of a team say one thing in one way, and one change of a text reaches each frame.                           | agent, user, person     | [kit](../SPEC-kit.md)                                                                                                                 | Each frame keeps its own texts; nothing keeps the texts of a team                                                       | to do  |
-| E10 | See each state of a frame    | A person sees a frame in each state of its design, with no agent.                                                     | viewer, user            | [kit](../SPEC-kit.md#the-capsules): controls, panes                                                                                   | Built; no test names X1 to X5                                                                                           | to do  |
-| E11 | The design and the app agree | The person sees the live app beside the design, and an accepted design reaches the live app.                          | person, agent           | [live-screens](../SPEC-live-screens.md), [design-loop](../SPEC-design-loop.md)                                                        | E11.1 built. E11.2: V4 and V7 built (2d362f0); #1 to #3 live at build 320. Not built: V5 (the copies that fall behind)  | active |
-| E12 | Screens and flows            | A person walks through the screens of a journey as a user of the product would, and sees the whole flow on the board. | person, agent           | not designed                                                                                                                          | Not built                                                                                                               | to do  |
+| ID  | Epic                         | Outcome                                                                                                                               | Actors                  | Journeys                                                                                                                              | Status                                                                                                                  | Review |
+| --- | ---------------------------- | ------------------------------------------------------------------------------------------------------------------------------------- | ----------------------- | ------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------- | ------ |
+| E1  | Get in                       | A person or an agent gets a token when an owner approves it.                                                                          | team lead, owner, agent | [access](../SPEC-access.md#journeys), [cli](../SPEC-cli.md#journeys)                                                                  | Built                                                                                                                   | ready  |
+| E2  | Make frames                  | An agent puts HTML frames on a canvas and changes them safely.                                                                        | agent                   | [frames](../SPEC-frames.md#make-a-canvas): make a canvas, make and change frames                                                      | Built, except `frame.move`                                                                                              | ready  |
+| E3  | Share and look               | A person opens a link and sees the frames change at once.                                                                             | agent, viewer           | [frames](../SPEC-frames.md#share-a-canvas): share, open; [viewer](../SPEC-viewer.md#journeys) 7; [design](../SPEC-design.md#journeys) | Built                                                                                                                   | ready  |
+| E4  | Comment and get a change     | A viewer asks for a change. An agent makes it and replies.                                                                            | viewer, agent           | [queue](../SPEC-queue.md#journeys) 3; [viewer](../SPEC-viewer.md#ask-for-a-change): ask for a change, follow the requests             | Built; a GitHub run can get the CLI and sign in ([cli](../SPEC-cli.md#sign-in-with-no-file)), but no real run is proven | active |
+| E5  | Work through MCP             | An agent with no shell does all of E2, E3 and E4.                                                                                     | agent                   | [mcp](../SPEC-mcp.md#journeys) 3                                                                                                      | Specified; no MCP server yet                                                                                            | active |
+| E6  | Watch production             | The company sees the health, the errors and the copies of each easel.                                                                 | company                 | [ops](../SPEC-ops.md#journeys) 5                                                                                                      | Built, except backups                                                                                                   | ready  |
+| E7  | Fix errors with no person    | An agent fixes a production error and proves the fix.                                                                                 | fixer, tick, probe      | [fixer](../SPEC-fixer.md#journeys) 5                                                                                                  | Not built                                                                                                               | to do  |
+| E8  | One look, fast               | Agents make frames fast, and all frames of a team look like one product.                                                              | agent, user             | [kit](../SPEC-kit.md#journeys) 3                                                                                                      | Built: the look, the kit, its pieces and capsules; not all fit criteria are proven                                      | to do  |
+| E9  | One voice                    | All frames of a team say one thing in one way, and one change of a text reaches each frame.                                           | agent, user, person     | [kit](../SPEC-kit.md)                                                                                                                 | Each frame keeps its own texts; nothing keeps the texts of a team                                                       | to do  |
+| E10 | See each state of a frame    | A person sees a frame in each state of its design, with no agent.                                                                     | viewer, user            | [kit](../SPEC-kit.md#the-capsules): controls, panes                                                                                   | Built; no test names X1 to X5                                                                                           | to do  |
+| E11 | The design and the app agree | The person sees the live app beside the design, and an accepted design reaches the live app.                                          | person, agent           | [live-screens](../SPEC-live-screens.md), [design-loop](../SPEC-design-loop.md)                                                        | E11.1 built. E11.2: V4 and V7 built (2d362f0); #1 to #3 live at build 320. Not built: V5 (the copies that fall behind)  | active |
+| E12 | Screens and flows            | A person walks through the screens of a journey as a user of the product would, and sees its whole map, which comes from the product. | person, agent           | not designed                                                                                                                          | Not built                                                                                                               | to do  |
 
 ## Round 1: Show the design
 
@@ -1186,58 +1186,86 @@ Decided:
 ## E12: Screens and flows
 
 A screen alone does not show a journey. A review needs the screens in the order of the journey,
-with the step that leads from one to the next. The agents make the screens and their links; the
-person walks the flow and comments on it.
+with the step that leads from one to the next. The screens are the screens of the product itself,
+and the steps between them come from the product, so nobody draws them and they do not drift. The
+person walks the journey and comments on it; the agents keep the map whole.
 
-| ID    | Journey                   | Actor         | Design       | Review |
-| ----- | ------------------------- | ------------- | ------------ | ------ |
-| E12.1 | Walk through a flow       | person        | not designed | to do  |
-| E12.2 | See and keep a flow whole | agent, person | not designed | to do  |
+| ID    | Journey                      | Actor         | Design       | Review |
+| ----- | ---------------------------- | ------------- | ------------ | ------ |
+| E12.1 | Walk through a flow          | person        | not designed | to do  |
+| E12.2 | Get the map from the product | agent, person | not designed | to do  |
 
 ### E12.1 Walk through a flow
 
 - **Actor:** the person.
 - **Need:** go through the screens of a journey as a user of the product would: press a button
-  and get the next screen, from the start of the journey to its end.
+  and get the next screen, from the start of the journey to its end, with the answers that the
+  person picks or with a live server.
 - **Trigger:** the person reviews a journey.
 - **Success end:** the person went from the first screen to the last by the actions on the
   screens, and commented where a step was wrong.
-- **Failure end:** an action leads nowhere. The person sees that the step has no screen, and can
-  ask for it.
+- **Failure end:** an action leads to an answer that has no designed screen. The person sees that
+  the step has no design, and can ask for it.
 
-| ID  | Requirement                                                          | Fit criterion                                                                                                                              |
-| --- | -------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------ |
-| J1  | The person walks a flow by the actions on its screens.               | On a flow of 5 screens, the person gets from the first to the last only by presses on the screens. Each next screen shows within 1 second. |
-| J2  | The person starts a flow in one step.                                | Each flow has a name and a first screen. From the board, one press starts it.                                                              |
-| J3  | The person always knows where they are in the flow, and can go back. | The person sees the name of the flow and of the screen. One step goes back to the screen before, and one step leaves the flow.             |
-| J4  | The person comments on a step of the flow.                           | A request made during the walk is on that screen, and its picture shows the screen as the person saw it.                                   |
-| J5  | A flow shows the same state on each screen.                          | With dark and Vietnamese picked (X6), each screen of the walk shows dark and Vietnamese.                                                   |
+| ID  | Requirement                                                          | Fit criterion                                                                                                                                                                                                                                    |
+| --- | -------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| J1  | The person walks a flow by the actions on its screens.               | On a flow of 5 screens, the person gets from the first to the last only by presses on the screens. Each next screen shows within 1 second.                                                                                                       |
+| J2  | The person starts a flow in one step.                                | Each flow has a name and a first screen. From the board, one press starts it.                                                                                                                                                                    |
+| J3  | The person always knows where they are in the flow, and can go back. | The person sees the name of the flow and of the screen. One step goes back to the screen before, and one step leaves the flow.                                                                                                                   |
+| J4  | The person comments on a step of the flow.                           | A request made during the walk is on that screen, and its picture shows the screen as the person saw it.                                                                                                                                         |
+| J5  | A flow shows the same state on each screen.                          | With dark and Vietnamese picked (X6), each screen of the walk shows dark and Vietnamese.                                                                                                                                                         |
+| J10 | The person picks what the server answers, or walks on a live server. | With example answers, the person picks the answer of an action (for example, "the owner denies the code") and sees its screen. With a live server, each action does what the product does. One switch changes it, and the screens stay the same. |
 
-### E12.2 See and keep a flow whole
+### E12.2 Get the map from the product
 
 - **Actor:** agent. The person reads the board.
-- **Need:** see on the board how the screens of a flow connect, and keep the links right when a
-  screen changes or goes.
-- **Trigger:** an agent adds, changes or removes a screen or a link.
-- **Success end:** each link of each flow leads to a screen that is there, and the person sees the
-  flow as a map.
-- **Failure end:** a link leads to a screen that is gone. The agent is told before the person
-  meets it.
+- **Need:** see each state of each screen of a journey, and each move between them, as the
+  product has them today, with no step drawn or copied by hand.
+- **Trigger:** the product changes, or an agent adds a journey to the board.
+- **Success end:** each state of each screen of the journey is on the map, in its place, with
+  each move to it, and the person reads what each screen does.
+- **Failure end:** the product has an answer of an action that leads to no designed screen. The
+  agent is told before the person meets it, and the map marks it.
 
-| ID  | Requirement                                                          | Fit criterion                                                                                                                                 |
-| --- | -------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------- |
-| J6  | The agent links a screen to the next by the action that leads there. | The agent names the action on a screen and the screen that it leads to, with no position. The link holds when either screen moves or changes. |
-| J7  | The person sees a flow as a map on the board.                        | Each link shows as an arrow from its screen to the next, and the screens of a flow are in the order of the flow (E2.3).                       |
-| J8  | A broken link is found before the person meets it.                   | When a screen or an action that a link uses goes, the agent that made the change is told which links broke, and the map marks them.           |
-| J9  | The flows of a canvas are listed in one place.                       | The person sees each flow of a canvas, with its first screen and its count of screens, and starts any of them in one press.                   |
+| ID  | Requirement                                                             | Fit criterion                                                                                                                                                                                                             |
+| --- | ----------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| J6  | The moves between the screens come from the product. Nobody draws them. | After a change of the product that adds, changes or removes a step, the map shows the change with no work by a person or an agent. The sign-in of easel shows each of its 7 states, also the one after a lost connection. |
+| J7  | The map is placed by one fixed method.                                  | The steps go from left to right in the order of the journey. The main path is on the top row, and each other outcome is on a row below it. Two people who open the same map see each screen in the same place.            |
+| J8  | A new answer of an action with no screen is found.                      | When the product gets a new outcome of an action, and no designed screen shows it, the agent and the person are told before the person meets it in a walk, and the map marks it.                                          |
+| J9  | The maps of a canvas are listed in one place.                           | The person sees each map of a canvas, with its first screen and its count of screens, and starts a walk of any of them in one press.                                                                                      |
+| J11 | Each screen tells what it shows and what each of its actions leads to.  | Each screen of a map has a card: what it shows, its actions, each outcome of each action and the screen that it leads to. After a change of the product, the card agrees with it, with no edit by hand.                   |
 
 Decided:
 
 - On 2026-11-24, the user moved screens and flows into the round: "Now onto the custom controller,
   copies, i18n, screen and flows".
-- Prior art: the prototypes of Figma (a connection from a layer to a frame, a flow with a starting
-  point, a list of flows), and the prototype clicks of Doop (803 on 82 frames of our design).
-  Excalidraw binds an arrow to the elements at its ends, so it follows them (E2.3).
-- Deferred: data that goes from one screen to the next (a name typed on screen 1 shows on screen
-  2). Add it when a flow cannot be judged with example data (X10).
+- On 2026-11-24, the user rejected prototypes that are pictures with links drawn by hand: "We don't
+  want our prototyping is just suck as all curent protoyping tool. Given with tinker, we actually
+  build more like the app already, we should be able to do much better than that. I meant, we need
+  - screens as in some methodlogical arrangement. Switchable state with data and backend even -
+    composible to real operstion that then can self documented via the static analysis - self
+    wireable prototype thanks to tags and operation dependency". The same day the user approved the
+    proposal ("All yes"): the prototype is the product itself, its map comes from its code, and the
+    first target is the screens of easel (sign-in, home, the requests on a canvas). J6 to J9 changed,
+    and J10 and J11 came. The design is [SPEC-prototype](../SPEC-prototype.md).
+- Prior art: Storybook with MSW (real components, one story for each state), XState and
+  `@xstate/graph` (each state and the shortest path to it, from the code), model-based tests
+  (GraphWalker), Prism (a fake server from the contract), wireflows (NN/g), story maps (Patton) and
+  use cases (Cockburn: the main success scenario, then the extensions), Swagger UI (docs from the
+  contract). Each of them is strong where it reads a fact from the code, and weak where a person
+  copies a fact by hand.
+- Data that goes from one screen to the next (a name typed on screen 1 shows on screen 2) is not
+  deferred now: the screens are the product, so the product carries it.
+- Deferred: a screen that the product does not have yet, designed before its code. Add it when a
+  journey must be reviewed before its code is written.
 - Deferred: a transition between screens (slide, fade). Add it when the person asks for it.
+
+### E12 walk of the slice
+
+On 2026-11-24 (after the user rejected drawn links), E12 was read from left to right as the person:
+open the board, find the sign-in map in the list (J9), see each of its states in place (J7), read
+the card of the code screen (J11), start a walk (J2), get a code, pick "the owner denies" (J10),
+see the denied screen, go back (J3), comment on it (J4), and switch to a live server (J10). Then as
+the company: a change of the sign-in adds an answer; the map shows it with no work (J6), and the
+agent is told that it has no designed screen (J8). The walk changed J6 to J9, and added J10 and
+J11.

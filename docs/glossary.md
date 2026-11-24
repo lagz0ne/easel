@@ -109,6 +109,20 @@ You must know these terms to read any spec.
 | live document | noun | A frame that shows in a sandboxed iframe. The page keeps a maximum of 12.         |
 | pin           | noun | The mark of a request on its frame. It moves when the frame moves.                |
 
+### Prototype
+
+The terms of [SPEC-prototype](../SPEC-prototype.md): the prototype is the product itself.
+
+| Term                | Type | Definition                                                                                                                                  |
+| ------------------- | ---- | ------------------------------------------------------------------------------------------------------------------------------------------- |
+| screen              | noun | A view of the product that shows one cell of the product, such as the sign-in. It is code of the product, not a frame.                      |
+| state (of a screen) | noun | One kind of the value of the cell of a screen, such as `denied`. One state is one picture of the screen.                                    |
+| action              | noun | An operation of the product that a screen runs, from a press or when it opens, such as `home.askForCode`.                                   |
+| answer              | noun | The kind of the value that an operation of the server gives back, such as `denied`, or the fault of the call, such as `link`.               |
+| move                | noun | A change of a screen from one state to another state, by an action and the answer that it got.                                              |
+| map                 | noun | The states of a screen and the moves between them, that easel finds by a run of the code of the product, each in a place of a fixed method. |
+| backend             | noun | What answers the actions of a walk: example answers that the person picks, or a live server of the product.                                 |
+
 ### Queue
 
 | Term            | Type | Definition                                                                                                             |
@@ -146,15 +160,17 @@ You must know these terms to read any spec.
 
 These words break the rules above. The right column gives the recommended change.
 
-| Word  | Problem                                                                                      | Change                                                                   |
-| ----- | -------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------ |
-| shell | Two meanings: the CLI "shell" (SPEC-cli) and the frame shell (SPEC-viewer).                  | Use "frame shell" for the page. Use "CLI" for the command line.          |
-| board | Two meanings: the Tinker remote data board, and a canvas ("open a board" in AGENTS.md).      | Use "canvas" for the product. Use "board" only for Tinker remote data.   |
-| issue | Three meanings: a GitHub issue, an ops "issue" (SPEC.md), and the template `src/issues`.     | Use "error group" for ops. Use "issue" only for a GitHub issue.          |
-| key   | Six meanings: canvas key, picture key, key generation, client key, picture secret, text key. | Always write the full term. Do not write "key" alone.                    |
-| claim | A verb and a noun (STE Rule 1.7).                                                            | Use "claim" as a verb only. For the noun, use "claim handle" or "lease". |
-| put   | A verb and a noun ("a put", STE Rule 1.7).                                                   | Use "put" as a verb only. For the noun, use "write".                     |
-| user  | In common English, any person. In easel, a token holder.                                     | Use "person" for a human. Use "user" only for a token holder.            |
+| Word   | Problem                                                                                                        | Change                                                                          |
+| ------ | -------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------- |
+| shell  | Two meanings: the CLI "shell" (SPEC-cli) and the frame shell (SPEC-viewer).                                    | Use "frame shell" for the page. Use "CLI" for the command line.                 |
+| board  | Two meanings: the Tinker remote data board, and a canvas ("open a board" in AGENTS.md).                        | Use "canvas" for the product. Use "board" only for Tinker remote data.          |
+| issue  | Three meanings: a GitHub issue, an ops "issue" (SPEC.md), and the template `src/issues`.                       | Use "error group" for ops. Use "issue" only for a GitHub issue.                 |
+| key    | Six meanings: canvas key, picture key, key generation, client key, picture secret, text key.                   | Always write the full term. Do not write "key" alone.                           |
+| claim  | A verb and a noun (STE Rule 1.7).                                                                              | Use "claim" as a verb only. For the noun, use "claim handle" or "lease".        |
+| put    | A verb and a noun ("a put", STE Rule 1.7).                                                                     | Use "put" as a verb only. For the noun, use "write".                            |
+| user   | In common English, any person. In easel, a token holder.                                                       | Use "person" for a human. Use "user" only for a token holder.                   |
+| answer | Two meanings: the answer of an operation (SPEC-prototype), and a message that answers a question (SPEC-queue). | Use "answer" for an operation. For a message, write "the answer to a question". |
+| state  | In common English, any condition. In a prototype, one kind of the cell of a screen.                            | Write "state of a screen" where the reader can take it as another state.        |
 
 ## Terms that are not in this list
 
@@ -166,4 +182,4 @@ These terms stay in their own source:
   readiness check, sample): in the module spec that owns them.
 - **Answer kinds** (`stale`, `gone`, `lost`, `empty`, `taken`, `wrongState`): in the contract of each spec.
 - **Page labels and numbers** (Reconnecting, Fit, request mode, at rest): in SPEC-viewer.
-- **Common words** (person, question, answer, password, box): these have their usual meaning.
+- **Common words** (person, question, password, box): these have their usual meaning.

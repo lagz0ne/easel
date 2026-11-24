@@ -117,8 +117,9 @@ stateDiagram-v2
 - The address of the walk and a reload (rule 18): a reload opens the same steps.
 - The time to show the next screen (rule 21): a browser test measures it.
 - The locale and the picks of each screen (rule 25): the walk draws as the canvas does.
-- A link that breaks while the person walks: [flows-links](flows-links.md) shows the links; a press
-  on a broken link acts as a press on an action with no link.
+- A link that breaks while the person walks. [SPEC-prototype](../../SPEC-prototype.md) replaces the
+  drawn links with the moves of the map, which come from the code. Ship 4 of that spec changes the
+  rule of this model from "a link of the shown screen" to "a move of the map from the shown state".
 
 ## What the chart shows
 

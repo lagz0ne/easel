@@ -1,8 +1,14 @@
 # Spec delta: `flows`, the screens of a journey and the links between them
 
-Status: approved by the requirements of 2026-11-24 (E12, J1 to J9; the user: "Now onto the custom
-controller, copies, i18n, screen and flows"). The user granted autonomy for this round, so the
-agent decided the open points below.
+Status: replaced in part by [SPEC-prototype](SPEC-prototype.md) on 2026-11-24. The user rejected
+links drawn by hand, and approved a prototype that is the product: its moves come from the code.
+SPEC-prototype replaces the words action, link, flow and map, the decisions 1 to 3 and 6, rules 1
+to 18 and 27 to 30, the contract, the model `flows-links` and its twin, and the fact rules 1, 2
+and 4. The walk mode (decisions 4 and 5, rules 19 to 26) stays, with the change of SPEC-prototype
+ship 4: the next screen is the state that the real operation gives, not the target of a link.
+
+Before: approved by the requirements of 2026-11-24 (E12, J1 to J9; the user: "Now onto the custom
+controller, copies, i18n, screen and flows").
 
 It adds to [SPEC-frames](SPEC-frames.md), [SPEC-arrange](SPEC-arrange.md) and
 [SPEC-viewer](SPEC-viewer.md). It is the design of E12 in [docs/epics.md](docs/epics.md#e12-screens-and-flows).
