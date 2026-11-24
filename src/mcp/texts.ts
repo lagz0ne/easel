@@ -29,6 +29,8 @@ export const kindTexts: Readonly<Record<string, string>> = {
   closed: "wrongState: a viewer closed the request, so nothing was written. Stop the work on it.",
   lost: "lost: the claim is not yours now (its lease ended), so nothing was written. Stop this work, and call next_request.",
   last: "last: that is the last owner. Make another owner first.",
+  single:
+    "single: this easel is for one person, and an approve here cannot make a user or an owner. The person approves the code in the CLI.",
   theirs:
     "theirs: the code asks to sign a browser in as a user that is there. Only that user can sign that browser in, with easel open. Deny the code if that user did not ask.",
   notLive:

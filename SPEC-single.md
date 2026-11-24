@@ -98,6 +98,64 @@ page with a name field and an approve that makes a user add a person.
 6. A server with `EASEL_AUTH=approve` works as before: the tests of SPEC-access and SPEC-home
    pass with no change.
 
+## Notes from the build
+
+These points were open in the rules above. The build decided them so:
+
+- A code of a single server has no name. The approve binds it to the owner who approves it, and
+  the browser signs in as that owner. With one owner, that is the person. (Prior art: RFC 8628
+  section 5.4. The person who approves a code is the person that the device signs in as.)
+  `easel users` shows such a code as `(the owner who approves it)`.
+- The home page of the person shows a code with no name with Deny, and with no Approve button.
+  The person types the code that its own device shows in `easel users approve <code>`. So a click
+  on a code of another browser cannot sign that browser in.
+- New answers: `login.start` answers `single` for each name in single, also for a name of a user,
+  so that no name shows. `users.add --owner` and `users.approve --owner` answer `single`. An
+  approve that would make a user (a CLI login, or a browser code with a new name, left from an
+  approve server) answers `single`. `browser.start` with no name on an approve or open server
+  answers `name`.
+- The page reads the mode and the project from two `<meta>` tags that the server puts in
+  `index.html` (`easel-auth`, `easel-project`). (Prior art: Jupyter's `page_config` in its page.)
+  So the page needs no call before the sign-in.
+- `EASEL_PROJECT` is 1 to 40 of letters, digits, space, `.`, `_` and `-`. With none, the title of
+  `/` is `Canvases`, as before.
+- A single server prints a setup code while it has no user, as an approve server does. In
+  production, it needs `EASEL_DB`. At start, it writes a line to its log when it has more than
+  one owner (for example after a move from approve).
+- `users.rename` is an owner call of its own service (`access.rename`), so the owner service of
+  SPEC-home stays the same. It works in each mode. One write moves the user, its sessions, its
+  sign-in links, its browser codes and its CLI logins to the new name. It first drops a session
+  or a link that a row kept with the new name. A name of a user, or of a code or a login that
+  waits or is approved, answers `taken`. No user answers `gone`. The MCP has no tool for it.
+- Texts that name the old user stay as they are: the authors of requests, and the names on
+  claims, agreements and messages of the queue. They are history, not rights: a claim is proved
+  by its secret, and the owner checks read the role. A claim that a renamed agent holds runs out
+  at the end of its lease. Rename the person, not an agent that holds a claim.
+
+## Security review, 2026-11-24
+
+A security auditor with fresh context read the code paths. It found no way to make a second
+person or a second owner, and no way for an agent token to get owner rights. Its points:
+
+- Fixed: a click on Approve of a code with no name gave an owner session to any browser that
+  showed a code (medium). The home page now shows no Approve button for it.
+- Fixed: `login.start` told `taken` for a user name and `single` for a new one, so a stranger
+  could find the names (low). It now answers `single` for each name.
+- Fixed: a rename did not drop a session or a link row that already had the new name (low).
+- Fixed: a single server with more than one owner did not say so (low). It writes a line at start.
+- Fixed: the refusal of `easel login` told a person to ask for `easel users add`, which gives a
+  person a member token. It now says that `users add` is for an agent.
+- Open, accepted: the person can still approve a code that a stranger sends in a message
+  (remote phishing, RFC 8628 section 5.4). The page says to type only the code that your own
+  device shows.
+- Open: after a rename, a new user can take the old name, and the old texts then seem to name it
+  (low). Add a list of names that a rename retired when an owner adds users again.
+- Open, approve mode only: an anonymous caller can block a rename to a name with a login or a
+  browser code that waits (low). Deny the code, then rename again.
+- Open, approve mode only, from before this change: an approve of a CLI login for a name that a
+  browser code made a user meanwhile replaces the token of that user (low). Check the name in the
+  approve of a login, as `users.add` does.
+
 ## Boundaries
 
 - Always: export a canvas before its delete.

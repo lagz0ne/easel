@@ -1,8 +1,10 @@
-import { data, operation, tag } from "@tinkered/core";
+import { data, operation, resource, tag } from "@tinkered/core";
 import { z } from "zod";
 
 import { access } from "@/access";
-import { authPaths, name as userName, openPath, signInLink } from "@/access/contract";
+import { authPaths, modes, name as userName, openPath, signInLink } from "@/access/contract";
+
+import { projectName, siteMeta } from "./contract";
 
 const step = z.discriminatedUnion("kind", [
   z.object({ kind: z.literal("name") }),
@@ -11,6 +13,7 @@ const step = z.discriminatedUnion("kind", [
   z.object({ kind: z.literal("expired") }),
   z.object({ kind: z.literal("slow"), retryIn: z.number() }),
   z.object({ kind: z.literal("in") }),
+  z.object({ kind: z.literal("lost") }),
 ]);
 
 export type SignInStep = z.infer<typeof step>;
@@ -47,6 +50,23 @@ export const takeHash = tag<(path: string) => string>({
   },
 });
 
+export const siteShape = z.object({
+  mode: z.enum(modes).catch("approve"),
+  project: projectName.nullable().catch(null),
+});
+
+export type Site = z.infer<typeof siteShape>;
+
+export const readSite = tag<() => Site>({
+  label: "home.readSite",
+  default: () =>
+    siteShape.parse({
+      mode: document.querySelector(`meta[name="${siteMeta.mode}"]`)?.getAttribute("content"),
+      project:
+        document.querySelector(`meta[name="${siteMeta.project}"]`)?.getAttribute("content") ?? null,
+    }),
+});
+
 export const writeClipboard = tag<(text: string) => Promise<void>>({
   label: "home.writeClipboard",
   default: (text) => navigator.clipboard.writeText(text),
@@ -78,6 +98,16 @@ export const whoAmI = operation({
 });
 
 export type Who = Awaited<ReturnType<typeof whoAmI.run>>;
+
+export const readHome = operation({
+  label: "home.readHome",
+  input: z.object({ stop: z.instanceof(AbortSignal).optional() }),
+  depends: { whoAmI, readSite },
+  run: async ({ whoAmI, readSite }, { input }) => ({
+    who: await whoAmI.run({ input }),
+    site: readSite(),
+  }),
+});
 
 const firstPause = 1_000;
 
@@ -117,17 +147,33 @@ const waitForApproval = operation({
 
 export const askForCode = operation({
   label: "home.askForCode",
-  input: z.object({ name: userName }),
+  input: z.object({ name: userName.optional() }),
   depends: { start: access.browser["browser.start"], step: signInStep.controller, waitForApproval },
   run: async ({ start, step, waitForApproval }, { input }) => {
     const shown = await start.run({ input });
     switch (shown.kind) {
+      case "name":
+        return step.set({ kind: "name" });
       case "slow":
         return step.set({ kind: "slow", retryIn: shown.retryIn });
       case "pending":
         step.set({ kind: "code", code: shown.code, expiresAt: shown.expiresAt });
         return waitForApproval.run({ input: { request: shown.request } });
     }
+  },
+});
+
+export const codeAtOnce = resource({
+  label: "home.codeAtOnce",
+  config: {},
+  depends: { askForCode, step: signInStep.controller },
+  factory: ({ askForCode, step }) => {
+    askForCode.run({ input: {} }).then(
+      () => undefined,
+      () => step.set({ kind: "lost" }),
+    );
+
+    return { asked: true };
   },
 });
 

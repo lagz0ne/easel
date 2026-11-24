@@ -23,7 +23,7 @@ import { queue } from "@/queue";
 
 const help = `easel: the canvas CLI. Every command takes --json (one JSON value per line) and --server <url>.
 
-  easel serve                                      start the server (PORT, PUBLIC_ORIGIN, EASEL_AUTH, EASEL_DB)
+  easel serve                                      start the server (PORT, PUBLIC_ORIGIN, EASEL_AUTH, EASEL_DB, EASEL_PROJECT)
   easel login <server> --name <name> [--no-wait]   ask an owner to approve a new user; prints the code at once
   easel login <server> --name <name> --setup <code>  become the first owner with the server's setup code
   easel login <server> --name <name> --print-token  keep nothing; when approved, print the token one time
@@ -39,6 +39,7 @@ const help = `easel: the canvas CLI. Every command takes --json (one JSON value 
   easel users deny <code>                          deny a code (owner)
   easel users revoke <name>                        end a user, its token and its browser sessions (owner)
   easel users end <session>                        end one browser session; \`easel users\` lists them (owner)
+  easel users rename <name> <new>                  give a user a new name; its token and its browser sessions stay (owner)
   easel open [--no-browser]                        sign a browser in as you: a link for one browser, one time,
                                                    for 5 minutes; easel opens it when it can
   easel status                                     the build, the checks, the counters, the errors and the fixer's tick
@@ -889,6 +890,15 @@ const invocation = z.union([
     })),
   z
     .object({
+      positionals: z.tuple([z.literal("users"), z.literal("rename"), z.string(), z.string()]),
+      values: z.strictObject(common),
+    })
+    .transform(({ positionals: [, , name, to], values }): unknown => ({
+      at: values.server,
+      command: { kind: "users", act: { kind: "rename", name, to } },
+    })),
+  z
+    .object({
       positionals: z.tuple([z.literal("open")]),
       values: z.strictObject({ ...common, "no-browser": z.boolean().optional() }),
     })
@@ -1059,6 +1069,7 @@ const main = defineMain(async (ctx) => {
       access.open({ remote: ws.client }),
       access.user({ remote: ws.client }),
       access.owner({ remote: ws.client }),
+      access.rename({ remote: ws.client }),
       ops.user({ remote: ws.client }),
       ops.owner({ remote: ws.client }),
       frames.api({ remote: ws.client }),

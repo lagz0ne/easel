@@ -101,7 +101,7 @@ export const listUsers = operation({
       requests.length ? "waiting for approval:" : "no code waits for approval",
       ...requests.map(
         (r) =>
-          `  ${r.code}\t${r.name}\t${r.browser ? "browser" : "CLI"}\tcame ${new Date(r.since).toISOString()}\truns out ${new Date(r.expiresAt).toISOString()}`,
+          `  ${r.code}\t${r.name || "(the owner who approves it)"}\t${r.browser ? "browser" : "CLI"}\tcame ${new Date(r.since).toISOString()}\truns out ${new Date(r.expiresAt).toISOString()}`,
       ),
       sessions.length
         ? "browser sessions (end one with `easel users end <session>`):"
@@ -132,6 +132,15 @@ export const approveUser = operation({
       case "approved":
         say.run({
           input: { json: answer, text: `approved ${answer.user.name} (${answer.user.role})` },
+        });
+        break;
+      case "single":
+        say.run({
+          input: {
+            json: answer,
+            text: `this easel is for one person (EASEL_AUTH=single): an approve makes no new user and no owner. Approve a browser code with no --owner; an agent gets a token with \`easel users add <name>\``,
+            error: true,
+          },
         });
         break;
       case "theirs":
@@ -218,6 +227,15 @@ export const addUser = operation({
           },
         });
         break;
+      case "single":
+        say.run({
+          input: {
+            json: answer,
+            text: `this easel is for one person (EASEL_AUTH=single): it has one owner. Run \`easel users add ${input.name}\` with no --owner to make an agent`,
+            error: true,
+          },
+        });
+        break;
     }
 
     return exitOf.run({ input: { address: "users.add", kind: answer.kind } });
@@ -286,5 +304,44 @@ export const endSession = operation({
     }
 
     return exitOf.run({ input: { address: "users.end", kind: answer.kind } });
+  },
+});
+
+export const renameUser = operation({
+  label: "cli.rename",
+  input: z.object({ name, to: name }),
+  depends: { say, exitOf, faultExit, deadline, rename: access.rename["users.rename"] },
+  run: async ({ say, exitOf, faultExit, deadline, rename }, { input }) => {
+    const stop = deadline.run({ input: "users.rename" });
+    const reply = await rename.settle({ input, signal: stop.signal });
+    stop.abort();
+    if (reply.status === "cancelled") return faultExit.run({ input: reply.reason });
+    if (reply.status === "failed") return faultExit.run({ input: reply.error });
+
+    const answer = reply.value;
+    switch (answer.kind) {
+      case "renamed":
+        say.run({
+          input: {
+            json: answer,
+            text: `renamed ${input.name} to ${answer.user.name} (${answer.user.role}); its token and its browser sessions stay`,
+          },
+        });
+        break;
+      case "taken":
+        say.run({
+          input: {
+            json: answer,
+            text: `the name ${input.to} is in use, or a code that waits carries it: choose another`,
+            error: true,
+          },
+        });
+        break;
+      case "gone":
+        say.run({ input: { json: answer, text: `no user ${input.name}`, error: true } });
+        break;
+    }
+
+    return exitOf.run({ input: { address: "users.rename", kind: answer.kind } });
   },
 });

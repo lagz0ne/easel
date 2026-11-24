@@ -20,7 +20,7 @@ import { accessEnv } from "@/access/env.server";
 import { accessDoor, byToken, owner, user } from "@/access/guards.server";
 import { loginOps } from "@/access/login.server";
 import { accessServer } from "@/access/store.server";
-import { ownerOps, userOps } from "@/access/users.server";
+import { ownerOps, renameOps, userOps } from "@/access/users.server";
 import { frames } from "@/frames";
 import { socketMaxPayload } from "@/frames/contract";
 import { imageRoute } from "@/frames/images.server";
@@ -31,6 +31,7 @@ import { framesServer } from "@/frames/store.server";
 import { greet } from "@/greet";
 import { greetOps } from "@/greet/greet.server";
 import { home } from "@/home";
+import { homeEnv } from "@/home/env.server";
 import { homeServer } from "@/home/feed.server";
 import { issues } from "@/issues";
 import { issueOps, membersOnly, signedIn } from "@/issues/ops.server";
@@ -56,7 +57,7 @@ import { release } from "@/release";
 import { todo } from "@/todo";
 import { todoOps } from "@/todo/ops.server";
 
-import { clientEntry, pages } from "./pages";
+import { clientEntry, files, sitePagesOf } from "./pages";
 import { runtime } from "./runtime";
 
 const defaults = { PORT: "4318", GIT_SHA: "dev", BUILD: "0" };
@@ -95,6 +96,8 @@ export default defineMain(async ({ env, args, signal, stdout, stderr, exit }) =>
       : { sink: telemetry.server(sends), tabs: opsTelemetryRoute };
 
   const auth = accessEnv.parse(env);
+  const site = { mode: auth.mode, project: homeEnv.parse(env).project };
+  const pages = await sitePagesOf.parseAsync({ built: files, site });
   const set = { ...defaults, ...env };
   const socket = ws.server({
     path: "/rpc",
@@ -104,6 +107,7 @@ export default defineMain(async ({ env, args, signal, stdout, stderr, exit }) =>
       access.open,
       access.user,
       access.owner,
+      access.rename,
       greet.api,
       todo.board,
       todo.api,
@@ -203,6 +207,7 @@ export default defineMain(async ({ env, args, signal, stdout, stderr, exit }) =>
       access.open({ implement: openOps, onStart: [user, byToken] }),
       access.user({ implement: userOps, onStart: [user] }),
       access.owner({ implement: ownerOps, onStart: [user, owner] }),
+      access.rename({ implement: renameOps, onStart: [user, owner] }),
       picturesServer({ chromium: env.EASEL_CHROMIUM, database: auth.file }),
       framesServer({ stdout, runtime }),
       frames.api({ implement: framesOps, onStart: [user] }),

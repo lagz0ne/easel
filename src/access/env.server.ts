@@ -2,6 +2,8 @@ import { isIP } from "node:net";
 
 import { z } from "zod";
 
+import { modes } from "./contract";
+
 const proxies = "127.0.0.0/8,::1";
 
 const cidr = z.string().refine((entry) => {
@@ -18,7 +20,7 @@ export const accessEnv = z
       .string()
       .optional()
       .transform((raw) => raw || "approve")
-      .pipe(z.enum(["approve", "open"])),
+      .pipe(z.enum(modes)),
     EASEL_DB: z
       .string()
       .optional()

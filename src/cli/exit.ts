@@ -30,6 +30,7 @@ const address = z.enum([
   "users.deny",
   "users.revoke",
   "users.end",
+  "users.rename",
   "browser.link",
   "ops.status",
   "ops.errors",

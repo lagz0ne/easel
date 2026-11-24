@@ -21,6 +21,10 @@ export const request = z.string().regex(/^[0-9a-f]{32}$/, "not a request");
 
 export const roles = ["owner", "member"] as const;
 
+export const modes = ["approve", "open", "single"] as const;
+
+export type Mode = (typeof modes)[number];
+
 const user = z.object({ name: z.string(), role: z.enum(roles), since: z.number() });
 export type User = z.infer<typeof user>;
 
@@ -61,6 +65,7 @@ const taken = z.object({ kind: z.literal("taken") });
 const slow = z.object({ kind: z.literal("slow"), retryIn: z.number() });
 const gone = z.object({ kind: z.literal("gone") });
 const denied = z.object({ kind: z.literal("denied") });
+const single = z.object({ kind: z.literal("single") });
 
 export const loginApi = rpc({
   "login.start": {
@@ -74,6 +79,7 @@ export const loginApi = rpc({
       }),
       granted,
       taken,
+      single,
       slow,
     ]),
   },
@@ -100,7 +106,7 @@ export const loginApi = rpc({
 
 export const browserApi = rpc({
   "browser.start": {
-    input: z.object({ name }),
+    input: z.object({ name: name.optional() }),
     output: z.discriminatedUnion("kind", [
       z.object({
         kind: z.literal("pending"),
@@ -108,6 +114,7 @@ export const browserApi = rpc({
         request: z.string(),
         expiresAt: z.number(),
       }),
+      z.object({ kind: z.literal("name") }),
       slow,
     ]),
   },
@@ -155,7 +162,11 @@ export const userApi = rpc({
 export const ownerContracts = {
   "users.add": {
     input: z.object({ name, digest, owner: z.boolean().optional() }),
-    output: z.discriminatedUnion("kind", [z.object({ kind: z.literal("added"), user }), taken]),
+    output: z.discriminatedUnion("kind", [
+      z.object({ kind: z.literal("added"), user }),
+      taken,
+      single,
+    ]),
   },
   "users.list": {
     input: z.null(),
@@ -170,6 +181,7 @@ export const ownerContracts = {
     output: z.discriminatedUnion("kind", [
       z.object({ kind: z.literal("approved"), user }),
       z.object({ kind: z.literal("theirs"), name: z.string() }),
+      single,
       gone,
     ]),
   },
@@ -193,7 +205,23 @@ export const ownerContracts = {
 
 export const ownerApi = rpc(ownerContracts);
 
-type Api = typeof loginApi & typeof browserApi & typeof openApi & typeof userApi & typeof ownerApi;
+export const renameApi = rpc({
+  "users.rename": {
+    input: z.object({ name, to: name }),
+    output: z.discriminatedUnion("kind", [
+      z.object({ kind: z.literal("renamed"), user }),
+      taken,
+      gone,
+    ]),
+  },
+});
+
+type Api = typeof loginApi &
+  typeof browserApi &
+  typeof openApi &
+  typeof userApi &
+  typeof ownerApi &
+  typeof renameApi;
 
 type Address =
   | "login.start"
@@ -212,7 +240,8 @@ type OwnerAddress =
   | "users.approve"
   | "users.deny"
   | "users.revoke"
-  | "users.end";
+  | "users.end"
+  | "users.rename";
 
 type KindOf<A extends Address | OwnerAddress> =
   Awaited<ReturnType<Api[A]["run"]>> extends infer O
@@ -237,6 +266,7 @@ export const successKinds = {
   "users.deny": ["denied"],
   "users.revoke": ["revoked"],
   "users.end": ["ended"],
+  "users.rename": ["renamed"],
 } as const satisfies {
   readonly [A in Address | OwnerAddress]: KindOf<A> extends never ? "always" : readonly KindOf<A>[];
 };

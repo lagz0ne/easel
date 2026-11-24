@@ -1,6 +1,9 @@
 import { z } from "zod";
 
-const files: Record<string, string> =
+import { modes } from "@/access/contract";
+import { siteMeta } from "@/home/contract";
+
+export const files: Record<string, string> =
   process.env.NODE_ENV === "production" ? (await import("./client-files.gen")).default : {};
 
 const noReferrer = {
@@ -24,6 +27,35 @@ export const pagesOf = z.record(z.string(), z.string()).transform((built) => {
 });
 
 export const pages = pagesOf.parse(files);
+
+const site = z.object({ mode: z.enum(modes), project: z.string().nullable() });
+
+const siteHead = site.transform(({ mode, project }) =>
+  [
+    `<meta name="${siteMeta.mode}" content="${mode}">`,
+    project === null
+      ? ""
+      : `<meta name="${siteMeta.project}" content="${Bun.escapeHTML(project)}">`,
+  ].join(""),
+);
+
+export const sitePagesOf = z
+  .object({ built: z.record(z.string(), z.string()), site })
+  .transform(async ({ built, site }) => {
+    const routes = pagesOf.parse(built);
+    const index = built["/index.html"];
+    if (!index) return routes;
+
+    const head = siteHead.parse(site);
+    const html = (await Bun.file(index).text()).replace("</head>", `${head}</head>`);
+    const headers = { ...noReferrer, "content-type": "text/html;charset=utf-8" };
+
+    return {
+      ...routes,
+      "/index.html": new Response(html, { headers }),
+      "/*": new Response(html, { headers }),
+    };
+  });
 
 const entryScript = /^\/assets\/index-[^/]+\.js$/;
 

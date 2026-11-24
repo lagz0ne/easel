@@ -1,6 +1,13 @@
 import { data, remoteData } from "@tinkered/core";
 import { z } from "zod";
 
+export const projectName = z
+  .string()
+  .trim()
+  .regex(/^[A-Za-z0-9][A-Za-z0-9 ._-]{0,39}$/, "1 to 40 of A-Z, a-z, 0-9, space, ., _ and -");
+
+export const siteMeta = { mode: "easel-auth", project: "easel-project" } as const;
+
 export const homeRow = z.object({
   canvas: z.string(),
   name: z.string(),

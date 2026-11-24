@@ -220,6 +220,42 @@ const pendingLogin = operation({
   },
 });
 
+const keepGranted = operation({
+  label: "cli.keepGranted",
+  input: z.object({
+    address: z.literal("login.start"),
+    user,
+    token: z.string(),
+    print: z.boolean(),
+  }),
+  depends: { signedIn, printed },
+  run: ({ signedIn, printed }, { input: { print, ...given } }) =>
+    print ? printed.run({ input: given }) : signedIn.run({ input: given }),
+});
+
+const startRefusal = operation({
+  label: "cli.startRefusal",
+  input: z.object({
+    answer: z.discriminatedUnion("kind", [
+      z.object({ kind: z.literal("taken") }),
+      z.object({ kind: z.literal("single") }),
+      z.object({ kind: z.literal("slow"), retryIn: z.number() }),
+    ]),
+    name: z.string(),
+    server: z.string(),
+  }),
+  run: (_, { input: { answer, name, server } }) => {
+    switch (answer.kind) {
+      case "taken":
+        return `the name ${name} is taken on ${server}: pick another name`;
+      case "single":
+        return `${server} is for one person (EASEL_AUTH=single): it takes no new user. For an agent, the person runs \`easel users add ${name}\` and gives the agent its token`;
+      case "slow":
+        return `too many logins from here: try again in ${Math.ceil(answer.retryIn / 1000)} s`;
+    }
+  },
+});
+
 const startLogin = operation({
   label: "cli.startLogin",
   input: z.object({
@@ -230,17 +266,17 @@ const startLogin = operation({
     print: z.boolean(),
   }),
   depends: {
-    signedIn,
-    printed,
+    keepGranted,
     pendingLogin,
     no,
+    startRefusal,
     faultExit,
     deadline,
     start: access.login["login.start"],
     server: server.required,
   },
   run: async (deps, { input }) => {
-    const { pendingLogin, no, faultExit, deadline, start } = deps;
+    const { pendingLogin, no, startRefusal, faultExit, deadline, start } = deps;
     const { name, token, digest, print } = input;
     const stop = deadline.run({ input: "login.start" });
     const reply = await start.settle({ input: { name, digest }, signal: stop.signal });
@@ -256,26 +292,14 @@ const startLogin = operation({
         const login = { name, code, request, expiresAt, token, print, noWait: input.noWait };
         return pendingLogin.run({ input: login });
       }
-      case "granted": {
-        const given = { address, user: answer.user, token } as const;
-        return print ? deps.printed.run({ input: given }) : deps.signedIn.run({ input: given });
-      }
+      case "granted":
+        return deps.keepGranted.run({ input: { address, user: answer.user, token, print } });
       case "taken":
-        return no.run({
-          input: {
-            address,
-            answer,
-            text: `the name ${name} is taken on ${deps.server}: pick another name`,
-          },
-        });
-      case "slow":
-        return no.run({
-          input: {
-            address,
-            answer,
-            text: `too many logins from here: try again in ${Math.ceil(answer.retryIn / 1000)} s`,
-          },
-        });
+      case "single":
+      case "slow": {
+        const text = startRefusal.run({ input: { answer, name, server: deps.server } });
+        return no.run({ input: { address, answer, text } });
+      }
     }
   },
 });

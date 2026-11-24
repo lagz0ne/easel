@@ -5,6 +5,7 @@ import { integer, sqliteTable, text } from "drizzle-orm/sqlite-core";
 import { z } from "zod";
 
 import { codeLetters, digest, roles } from "./contract";
+import type { Mode } from "./contract";
 
 const userRow = z.object({
   name: z.string(),
@@ -161,7 +162,7 @@ CREATE TABLE IF NOT EXISTS access_links (
   used INTEGER NOT NULL
 );`;
 
-export const mode = tag<"approve" | "open">({ label: "access.mode", default: "approve" });
+export const mode = tag<Mode>({ label: "access.mode", default: "approve" });
 
 export const origin = tag<string | null>({ label: "access.origin", default: null });
 
@@ -215,7 +216,8 @@ const upsertSession = `INSERT INTO access_sessions (id, digest, name, browser, s
   VALUES (?, ?, ?, ?, ?, ?) ON CONFLICT (id) DO UPDATE SET used = excluded.used`;
 
 const upsertCode = `INSERT INTO access_browser_codes (request, code, name, address, since, expires_at, state)
-  VALUES (?, ?, ?, ?, ?, ?, ?) ON CONFLICT (request) DO UPDATE SET state = excluded.state`;
+  VALUES (?, ?, ?, ?, ?, ?, ?) ON CONFLICT (request) DO UPDATE SET name = excluded.name,
+  state = excluded.state`;
 
 const insertLink = "INSERT INTO access_links (digest, name, expires_at, used) VALUES (?, ?, ?, 0)";
 
@@ -327,6 +329,69 @@ const showUse = operation({
   },
 });
 
+const renameSql = [
+  "UPDATE access_users SET name = ? WHERE name = ?",
+  "UPDATE access_sessions SET name = ? WHERE name = ?",
+  "UPDATE access_links SET name = ? WHERE name = ?",
+  "UPDATE access_browser_codes SET name = ? WHERE name = ?",
+  "UPDATE access_logins SET name = ? WHERE name = ?",
+];
+
+const dropKeptSql = [
+  "DELETE FROM access_sessions WHERE name = ?",
+  "DELETE FROM access_links WHERE name = ?",
+];
+
+const renameUser = operation({
+  label: "access.renameUser",
+  input: z.object({ from: z.string(), to: z.string() }),
+  depends: { users: users.atScope.controller },
+  run: ({ users }, { input: { from, to } }) => {
+    const row = users.of({ name: from }).get();
+    if (!row) return;
+
+    users.delete({ name: from });
+    users.set({ ...row, name: to });
+  },
+});
+
+const renameSessions = operation({
+  label: "access.renameSessions",
+  input: z.object({ from: z.string(), to: z.string() }),
+  depends: { sessions: sessions.atScope.controller },
+  run: ({ sessions }, { input: { from, to } }) => {
+    const kept = sessions.get().filter((row) => row.name === to);
+    for (const row of kept) sessions.delete({ digest: row.digest });
+
+    const moved = sessions.get().filter((row) => row.name === from);
+    for (const row of moved) sessions.set({ ...row, name: to });
+  },
+});
+
+const renameCodes = operation({
+  label: "access.renameCodes",
+  input: z.object({ from: z.string(), to: z.string() }),
+  depends: { codes: browserCodes.atScope.controller, logins: logins.atScope.controller },
+  run: ({ codes, logins }, { input: { from, to } }) => {
+    const codesMoved = codes.get().filter((row) => row.name === from);
+    for (const row of codesMoved) codes.set({ ...row, name: to });
+
+    const loginsMoved = logins.get().filter((row) => row.name === from);
+    for (const row of loginsMoved) logins.set({ ...row, name: to });
+  },
+});
+
+const showRename = operation({
+  label: "access.showRename",
+  input: z.object({ from: z.string(), to: z.string() }),
+  depends: { renameUser, renameSessions, renameCodes },
+  run: ({ renameUser, renameSessions, renameCodes }, { input }) => {
+    renameUser.run({ input });
+    renameSessions.run({ input });
+    renameCodes.run({ input });
+  },
+});
+
 const codeUser = z.object({ name: z.string() }).nullable();
 
 export const store = resource({
@@ -339,8 +404,10 @@ export const store = resource({
     showAccess,
     showBrowser,
     showUse,
+    showRename,
   },
-  factory: async ({ connection, sqlOfChange, sqlOfUse, showAccess, showBrowser, showUse }) => {
+  factory: async (deps) => {
+    const { connection, sqlOfChange, sqlOfUse, showAccess, showBrowser, showUse } = deps;
     const db = connection.db.$client;
 
     return {
@@ -352,6 +419,14 @@ export const store = resource({
 
         showAccess.run({ input: { change: c, setupUsed: change.setupUsed === true } });
         showBrowser.run({ input: c });
+      },
+      rename: (from: string, to: string) => {
+        db.transaction(() => {
+          for (const sql of dropKeptSql) db.query(sql).run(to);
+          for (const sql of renameSql) db.query(sql).run(to, from);
+        })();
+
+        deps.showRename.run({ input: { from, to } });
       },
       liveLink: (digest: string, now: number) =>
         liveLink.parse(db.query(peekLink).get(digest, now)),
@@ -427,6 +502,18 @@ const readTables = operation({
   },
 });
 
+const warnOwners = operation({
+  label: "access.warnOwners",
+  depends: { users: users.atScope.controller, mode, out: stdout },
+  run: ({ users, mode, out }) => {
+    const owners = users.get().filter((user) => user.role === "owner");
+    if (mode !== "single" || owners.length < 2) return;
+
+    const names = owners.map((user) => user.name).toSorted();
+    out?.write(`access: a single server has ${owners.length} owners: ${names.join(", ")}\n`);
+  },
+});
+
 const load = operation({
   label: "access.load",
   depends: {
@@ -440,10 +527,12 @@ const load = operation({
     out: stdout,
     newCode,
     readTables,
+    warnOwners,
   },
   run: async (deps, { clock }) => {
     const { connection, users, logins, setup, sessions, codes, mode, out, newCode, readTables } =
       deps;
+    const { warnOwners } = deps;
     connection.db.$client.exec("PRAGMA synchronous = FULL");
     connection.db.$client.exec(schema);
 
@@ -470,7 +559,8 @@ const load = operation({
     for (const row of rows.sessions) sessions.set(row);
     for (const row of rows.codes) codes.set(row);
 
-    if (mode !== "approve" || users.get().length) return setup.set(null);
+    warnOwners.run();
+    if (mode === "open" || users.get().length) return setup.set(null);
 
     const code = newCode.run();
     setup.set(code);
@@ -490,7 +580,7 @@ const checkMode = operation({
   run: ({ mode, origin, isLoopback }) => {
     const host = origin === null ? null : URL.parse(origin)?.hostname;
 
-    return mode === "approve" || (!!host && isLoopback.run({ input: host }));
+    return mode !== "open" || (!!host && isLoopback.run({ input: host }));
   },
 });
 
@@ -498,8 +588,8 @@ const checkFile = operation({
   label: "access.checkFile",
   depends: { connection: bunSqlite.connection, mode, durable, out: stdout },
   run: async ({ connection, mode, durable, out }) => {
-    const lost = durable && mode === "approve" && connection.db.$client.filename === ":memory:";
-    if (lost) out?.write("access: an approve server in production needs EASEL_DB, a SQLite file\n");
+    const lost = durable && mode !== "open" && connection.db.$client.filename === ":memory:";
+    if (lost) out?.write(`access: a ${mode} server in production needs EASEL_DB, a SQLite file\n`);
 
     return !lost;
   },

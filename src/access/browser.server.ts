@@ -54,6 +54,9 @@ export const startBrowser = operation({
     const slow = admit.run({ input: "browser.start" });
     if (slow) return slow;
 
+    const name = mode === "single" ? "" : input.name;
+    if (name === undefined) return { kind: "name" as const };
+
     const address = clientAddress.run();
     const full = room.run({ input: { address, from: "browser" } });
     if (full) return full;
@@ -62,15 +65,15 @@ export const startBrowser = operation({
     const code = {
       request: newRequest.run(),
       code: freshCode.run(),
-      name: input.name,
+      name,
       address,
       since: now,
       expiresAt: now + codeLife,
       state: mode === "open" ? ("approved" as const) : ("pending" as const),
     };
     const unusable = deps.digestOf.run({ input: deps.hexOf.run({ input: 32 }) });
-    const owner = { name: input.name, role: "owner" as const, since: now, digest: unusable };
-    const made = mode === "open" && !deps.users.of({ name: input.name }).get();
+    const owner = { name, role: "owner" as const, since: now, digest: unusable };
+    const made = mode === "open" && !deps.users.of({ name }).get();
     store.write({ codes: [code], ...(made ? { users: [owner] } : {}) });
     return {
       kind: "pending" as const,

@@ -124,6 +124,24 @@ export const inUse = operation({
   },
 });
 
+export const nameInUse = operation({
+  label: "access.nameInUse",
+  input: z.string(),
+  depends: {
+    users: users.atScope.controller,
+    logins: logins.atScope.controller,
+    codes: browserCodes.atScope.controller,
+  },
+  run: ({ users, logins, codes }, { input: name, clock }) => {
+    const now = clock.currentTimeMillis();
+    const waits = (row: { state: string; expiresAt: number }) =>
+      (row.state === "pending" || row.state === "approved") && row.expiresAt > now;
+    const waiting = [...logins.get(), ...codes.get()].filter(waits);
+
+    return !!users.of({ name }).get() || waiting.some((row) => row.name === name);
+  },
+});
+
 export const room = operation({
   label: "access.room",
   input: z.object({ address: z.string(), from: z.enum(["cli", "browser"]) }),
@@ -165,6 +183,7 @@ export const startLogin = operation({
     const slow = admit.run({ input: "login.start" });
     if (slow) return slow;
 
+    if (mode === "single") return { kind: "single" as const };
     if (inUse.run({ input })) return { kind: "taken" as const };
 
     const now = clock.currentTimeMillis();

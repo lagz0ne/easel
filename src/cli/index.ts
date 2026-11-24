@@ -33,6 +33,7 @@ import {
   endSession,
   listUsers,
   logout,
+  renameUser,
   revokeUser,
   whoami,
 } from "./users";
@@ -44,6 +45,7 @@ const usersCommand = z.discriminatedUnion("kind", [
   z.object({ kind: z.literal("deny"), code }),
   z.object({ kind: z.literal("revoke"), name }),
   z.object({ kind: z.literal("end"), session: sessionId }),
+  z.object({ kind: z.literal("rename"), name, to: name }),
 ]);
 
 const errorsCommand = z.discriminatedUnion("kind", [
@@ -97,7 +99,7 @@ export type Command = z.infer<typeof command>;
 const users = operation({
   label: "cli.usersCommand",
   input: usersCommand,
-  depends: { listUsers, addUser, approveUser, denyUser, revokeUser, endSession },
+  depends: { listUsers, addUser, approveUser, denyUser, revokeUser, endSession, renameUser },
   run: (ops, { input }) => {
     switch (input.kind) {
       case "ls":
@@ -112,6 +114,8 @@ const users = operation({
         return ops.revokeUser.run({ input });
       case "end":
         return ops.endSession.run({ input });
+      case "rename":
+        return ops.renameUser.run({ input });
     }
   },
 });

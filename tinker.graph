@@ -1,6 +1,6 @@
 access.addressKey exits{value} reads{} writes{} calls{access.prefix64}
 access.admit exits{slow,value} reads{} writes{} calls{access.addressKey,access.clientAddress}
-access.approveBrowser exits{approved,gone,theirs} reads{?} writes{?} calls{access.digestOf,access.secretBytes,access.waitingBrowser}
+access.approveBrowser exits{approved,gone,single,theirs} reads{?} writes{?} calls{access.digestOf,access.secretBytes,access.waitingBrowser}
 access.browserOf exits{value} reads{} writes{} calls{}
 access.byToken exits{refused,value} reads{} writes{} calls{}
 access.checkFile exits{value} reads{} writes{} calls{}
@@ -16,7 +16,8 @@ access.inUse exits{value} reads{?} writes{?} calls{}
 access.isLoopback exits{value} reads{} writes{} calls{}
 access.judge exits{denied,expired,granted,pending} reads{?} writes{?} calls{}
 access.judgeCode exits{approved,denied,expired,pending} reads{?} writes{?} calls{}
-access.load exits{value} reads{?} writes{?} calls{access.newCode,access.readTables}
+access.load exits{value} reads{?} writes{?} calls{access.newCode,access.readTables,access.warnOwners}
+access.nameInUse exits{value} reads{?} writes{?} calls{}
 access.newCode exits{value} reads{} writes{} calls{access.secretBytes}
 access.newRequest exits{value} reads{} writes{} calls{access.secretBytes}
 access.newSession exits{value} reads{} writes{} calls{access.browserOf,access.digestOf,access.hexOf}
@@ -24,11 +25,15 @@ access.owner exits{refused,value} reads{} writes{} calls{}
 access.prefix64 exits{value} reads{} writes{} calls{}
 access.readTables exits{value} reads{} writes{} calls{}
 access.remove exits{gone,last,removed} reads{?} writes{?} calls{}
+access.renameCodes exits{value} reads{?} writes{?} calls{}
+access.renameSessions exits{value} reads{?} writes{?} calls{}
+access.renameUser exits{value} reads{?} writes{?} calls{}
 access.room exits{slow,value} reads{?} writes{?} calls{}
 access.secretBytes exits{value} reads{} writes{} calls{}
 access.sessionUser exits{value} reads{?} writes{?} calls{access.cookieSecret,access.digestOf}
 access.showAccess exits{value} reads{?} writes{?} calls{}
 access.showBrowser exits{value} reads{?} writes{?} calls{}
+access.showRename exits{value} reads{} writes{} calls{access.renameCodes,access.renameSessions,access.renameUser}
 access.showUse exits{value} reads{?} writes{?} calls{}
 access.sqlOfChange exits{value} reads{} writes{} calls{access.sqlOfDrop}
 access.sqlOfDrop exits{value} reads{} writes{} calls{}
@@ -37,13 +42,14 @@ access.trustedPeer exits{value} reads{} writes{} calls{}
 access.user exits{refused,value} reads{?} writes{?} calls{access.digestOf,access.sessionUser}
 access.waiting exits{value} reads{?} writes{?} calls{}
 access.waitingBrowser exits{value} reads{?} writes{?} calls{}
+access.warnOwners exits{value} reads{?} writes{?} calls{}
 accessDoor.socketDigest exits{value} reads{} writes{} calls{access.cookieSecret,access.digestOf}
 auth.code exits{value} reads{} writes{} calls{access.formOf,access.goTo,access.newSession}
 auth.open exits{value} reads{} writes{} calls{access.digestOf,access.formOf,access.goTo,access.newSession}
 auth.out exits{value} reads{?} writes{?} calls{access.cookieSecret,access.digestOf,access.formOf,access.goTo}
 browser.link.do exits{link} reads{} writes{} calls{access.digestOf,access.hexOf}
 browser.peek.do exits{gone,live,slow} reads{} writes{} calls{access.admit,access.digestOf}
-browser.start.do exits{pending,slow} reads{?} writes{?} calls{access.admit,access.clientAddress,access.digestOf,access.freshCode,access.hexOf,access.newRequest,access.room}
+browser.start.do exits{name,pending,slow} reads{?} writes{?} calls{access.admit,access.clientAddress,access.digestOf,access.freshCode,access.hexOf,access.newRequest,access.room}
 browser.wait.do exits{approved,denied,expired,pending,slow} reads{?} writes{?} calls{access.admit,access.judgeCode}
 canvas.create.do exits{created,taken} reads{} writes{} calls{frames.saveCanvas}
 canvas.delete.do exits{deleted,gone} reads{} writes{} calls{frames.deleteRows,frames.endPasses,frames.forgetCells}
@@ -117,6 +123,7 @@ cli.hosts.entry exits{value} reads{} writes{} calls{cli.hosts.load}
 cli.hosts.load exits{value} reads{} writes{} calls{}
 cli.hosts.save exits{value} reads{} writes{} calls{cli.hosts.load}
 cli.htmlFile exits{value} reads{} writes{} calls{}
+cli.keepGranted exits{value} reads{} writes{} calls{cli.printed,cli.signedIn}
 cli.kitAccept exits{value} reads{} writes{} calls{?,cli.lookDeadline,cli.lookExitOf,cli.lookFault,cli.say}
 cli.kitCapsules exits{value} reads{} writes{} calls{?,cli.kitCapsulesText,cli.lookDeadline,cli.lookExitOf,cli.lookFault,cli.say}
 cli.kitCapsulesText exits{value} reads{} writes{} calls{cli.kitExportText,cli.kitSchemaText}
@@ -185,6 +192,7 @@ cli.readFolder exits{bad,files} reads{} writes{} calls{}
 cli.readPatch exits{value} reads{} writes{} calls{}
 cli.ready exits{value} reads{} writes{} calls{?,cli.framesDeadline,cli.framesExitOf,cli.framesFault,cli.say,cli.unsettledLines,cli.unsettledText}
 cli.refusal exits{value} reads{} writes{} calls{cli.hosts.entry,cli.hosts.save}
+cli.rename exits{value} reads{} writes{} calls{?,cli.deadline,cli.exitOf,cli.faultExit,cli.say}
 cli.report exits{value} reads{} writes{} calls{?,cli.reportCall,cli.say,cli.startsDeadline,cli.startsExitOf,cli.startsFault,cli.startsInvalid}
 cli.reportCall exits{failed,started,state} reads{} writes{} calls{}
 cli.requestLine exits{value} reads{} writes{} calls{queue.stateOf}
@@ -209,7 +217,8 @@ cli.shot exits{value} reads{} writes{} calls{?,cli.fetchPicture,cli.framesDeadli
 cli.shotFailure exits{value} reads{} writes{} calls{}
 cli.signedIn exits{value} reads{} writes{} calls{cli.exitOf,cli.hosts.save,cli.say}
 cli.sinceAt exits{value} reads{} writes{} calls{}
-cli.startLogin exits{value} reads{} writes{} calls{?,cli.deadline,cli.faultExit,cli.no,cli.pendingLogin,cli.printed,cli.signedIn}
+cli.startLogin exits{value} reads{} writes{} calls{?,cli.deadline,cli.faultExit,cli.keepGranted,cli.no,cli.pendingLogin,cli.startRefusal}
+cli.startRefusal exits{value} reads{} writes{} calls{}
 cli.starts exits{value} reads{} writes{} calls{cli.agree,cli.limits,cli.report}
 cli.startsDeadline exits{value} reads{} writes{} calls{}
 cli.startsExitOf exits{value} reads{} writes{} calls{}
@@ -235,7 +244,7 @@ cli.userAct exits{value} reads{} writes{} calls{cli.queueExitOf,cli.queueInvalid
 cli.userCall exits{value} reads{} writes{} calls{}
 cli.userText exits{value} reads{} writes{} calls{cli.queueRefusalText}
 cli.users exits{value} reads{} writes{} calls{?,cli.deadline,cli.exitOf,cli.faultExit,cli.say}
-cli.usersCommand exits{value} reads{} writes{} calls{cli.addUser,cli.approve,cli.deny,cli.endSession,cli.revoke,cli.users}
+cli.usersCommand exits{value} reads{} writes{} calls{cli.addUser,cli.approve,cli.deny,cli.endSession,cli.rename,cli.revoke,cli.users}
 cli.waitLogin exits{value} reads{} writes{} calls{cli.hosts.entry,cli.say,cli.waitOn}
 cli.waitOn exits{value} reads{} writes{} calls{cli.sayPending,cli.waitOnce}
 cli.waitOnce exits{value} reads{} writes{} calls{?,cli.deadline,cli.faultExit,cli.waited}
@@ -324,6 +333,7 @@ home.codesNow exits{value} reads{?} writes{?} calls{}
 home.copyApproveCommand exits{value} reads{} writes{} calls{}
 home.dropGone exits{value} reads{?} writes{?} calls{}
 home.inboxOf exits{value} reads{} writes{} calls{viewer.shownState}
+home.readHome exits{value} reads{} writes{} calls{home.whoAmI}
 home.readSignInLink exits{ask,bad,slow} reads{} writes{} calls{?,home.whoAmI}
 home.showCodes exits{value} reads{?} writes{?} calls{}
 home.showRow exits{value} reads{?} writes{?} calls{home.inboxOf}
@@ -495,7 +505,7 @@ live.used exits{value} reads{} writes{} calls{live.elementValues}
 live.valueKey exits{value} reads{} writes{} calls{live.color,live.font}
 login.end.do exits{ended,last} reads{} writes{} calls{access.remove}
 login.setup.do exits{granted,slow,taken,wrong} reads{?} writes{?} calls{access.admit,access.inUse}
-login.start.do exits{granted,pending,slow,taken} reads{} writes{} calls{access.admit,access.clientAddress,access.freshCode,access.inUse,access.newRequest,access.room}
+login.start.do exits{granted,pending,single,slow,taken} reads{} writes{} calls{access.admit,access.clientAddress,access.freshCode,access.inUse,access.newRequest,access.room}
 login.wait.do exits{denied,expired,granted,pending,slow} reads{?} writes{?} calls{access.admit,access.judge}
 look.get.do exits{found,gone} reads{} writes{} calls{kit.currentKit,kit.readKitAt}
 look.set.do exits{stale,unchanged,unreadable,updated} reads{} writes{} calls{kit.contrast,kit.currentKit,kit.lookValues,kit.mergeLook,kit.rootBlock,kit.saveLook}
@@ -724,12 +734,13 @@ texts.set.do exits{invalid,stale,tooBig,unchanged,updated} reads{} writes{} call
 todo.add.do exits{value} reads{} writes{todo.list.set} calls{}
 todo.remove.do exits{gone,removed} reads{todo.list.of} writes{todo.list.delete} calls{}
 todo.toggle.do exits{gone,toggled} reads{todo.list.of} writes{todo.list.set} calls{}
-users.add.do exits{added,taken} reads{} writes{} calls{access.inUse}
-users.approve.do exits{approved,gone,theirs} reads{} writes{} calls{access.approveBrowser,access.waiting}
+users.add.do exits{added,single,taken} reads{} writes{} calls{access.inUse}
+users.approve.do exits{approved,gone,single,theirs} reads{} writes{} calls{access.approveBrowser,access.waiting}
 users.deny.do exits{denied,gone} reads{} writes{} calls{access.waiting,access.waitingBrowser}
 users.end.do exits{ended,gone} reads{?} writes{?} calls{}
 users.list.do exits{value} reads{?} writes{?} calls{}
 users.me.do exits{me} reads{} writes{} calls{}
+users.rename.do exits{gone,renamed,taken} reads{?} writes{?} calls{access.nameInUse}
 users.revoke.do exits{gone,last,revoked} reads{} writes{} calls{access.remove}
 viewer.actOn exits{value} reads{} writes{} calls{viewer.callNamed,viewer.readyToAct,viewer.showActAnswer}
 viewer.actingOn exits{value} reads{viewer.acting.get} writes{} calls{}

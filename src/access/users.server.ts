@@ -1,10 +1,10 @@
 import { operation } from "@tinkered/core";
 import { z } from "zod";
 
-import { ownerApi, userApi } from "./contract";
+import { ownerApi, renameApi, userApi } from "./contract";
 import { caller, digestOf } from "./guards.server";
-import { inUse } from "./login.server";
-import { browserCodes, logins, secretBytes, sessions, store, users } from "./store.server";
+import { inUse, nameInUse } from "./login.server";
+import { browserCodes, logins, mode, secretBytes, sessions, store, users } from "./store.server";
 
 export const me = operation({
   label: "users.me.do",
@@ -16,8 +16,9 @@ export const me = operation({
 export const add = operation({
   label: "users.add.do",
   input: ownerApi["users.add"].input,
-  depends: { inUse, store },
-  run: async ({ inUse, store }, { input, clock }) => {
+  depends: { inUse, store, mode },
+  run: async ({ inUse, store, mode }, { input, clock }) => {
+    if (mode === "single" && input.owner) return { kind: "single" as const };
     if (inUse.run({ input })) return { kind: "taken" as const };
 
     const role = input.owner ? ("owner" as const) : ("member" as const);
@@ -93,20 +94,24 @@ const approveBrowser = operation({
     bytes: secretBytes,
     digestOf,
     me: caller.required,
+    mode,
   },
-  run: async ({ waitingBrowser, store, users, bytes, digestOf, me }, { input, clock }) => {
+  run: async (deps, { input, clock }) => {
+    const { waitingBrowser, store, users, bytes, digestOf, me, mode } = deps;
     const code = waitingBrowser.run({ input: input.code });
     if (!code) return { kind: "gone" as const };
 
-    const held = users.of({ name: code.name }).get();
+    const name = code.name || me.name;
+    const held = users.of({ name }).get();
     if (held && held.name !== me.name) return { kind: "theirs" as const, name: held.name };
     if (held) {
-      store.write({ codes: [{ ...code, state: "approved" }] });
+      store.write({ codes: [{ ...code, name, state: "approved" }] });
       return {
         kind: "approved" as const,
         user: { name: held.name, role: held.role, since: held.since },
       };
     }
+    if (mode === "single") return { kind: "single" as const };
 
     const user = {
       name: code.name,
@@ -125,9 +130,12 @@ const approveBrowser = operation({
 export const approve = operation({
   label: "users.approve.do",
   input: ownerApi["users.approve"].input,
-  depends: { waiting, approveBrowser, store },
-  run: async ({ waiting, approveBrowser, store }, { input, clock }) => {
+  depends: { waiting, approveBrowser, store, mode },
+  run: async ({ waiting, approveBrowser, store, mode }, { input, clock }) => {
+    if (mode === "single" && input.owner) return { kind: "single" as const };
+
     const login = waiting.run({ input: input.code });
+    if (login && mode === "single") return { kind: "single" as const };
     if (!login) return approveBrowser.run({ input });
 
     const user = {
@@ -225,6 +233,25 @@ export const endLogin = operation({
     return done.kind === "last" ? done : { kind: "ended" as const };
   },
 });
+
+export const rename = operation({
+  label: "users.rename.do",
+  input: renameApi["users.rename"].input,
+  depends: { users: users.atScope.controller, nameInUse, store },
+  run: async ({ users, nameInUse, store }, { input }) => {
+    const row = users.of({ name: input.name }).get();
+    if (!row) return { kind: "gone" as const };
+    if (nameInUse.run({ input: input.to })) return { kind: "taken" as const };
+
+    store.rename(input.name, input.to);
+    return {
+      kind: "renamed" as const,
+      user: { name: input.to, role: row.role, since: row.since },
+    };
+  },
+});
+
+export const renameOps = { "users.rename": rename } as const;
 
 export const userOps = { "users.me": me, "login.end": endLogin } as const;
 

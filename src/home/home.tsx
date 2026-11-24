@@ -7,8 +7,15 @@ import { authPaths } from "@/access/contract";
 
 import { codesBoard, homeBoard } from "./contract";
 import type { HomeRow, WaitingCode } from "./contract";
-import { askAgain, askForCode, copyApproveCommand, signInStep, useSignInLink } from "./signin";
-import type { OpenLink, Who } from "./signin";
+import {
+  askAgain,
+  askForCode,
+  codeAtOnce,
+  copyApproveCommand,
+  signInStep,
+  useSignInLink,
+} from "./signin";
+import type { OpenLink, Site, Who } from "./signin";
 
 import "./home.css";
 
@@ -61,14 +68,51 @@ function NameStep() {
   );
 }
 
-function CodeStep({ code, expiresAt }: { code: string; expiresAt: number }) {
+function NoNameStep() {
+  useData(codeAtOnce({}));
+  const ask = useRun(askForCode);
+
+  return (
+    <>
+      <p role="status" className="e-home-note">
+        Getting a code.
+      </p>
+      <button
+        type="button"
+        className="e-home-primary"
+        disabled={ask.isPending}
+        onClick={() => ask.run({ input: {} })}
+      >
+        Get a code
+      </button>
+      <AnotherWay />
+    </>
+  );
+}
+
+const approveText = {
+  team: {
+    ask: "Ask an owner to approve it with this command, or on their home page.",
+    wait: "This page signs in when the owner approves it.",
+  },
+  single: {
+    ask: "Approve it with this command, on a computer where your CLI is signed in.",
+    wait: "This page signs in when you approve it.",
+  },
+};
+
+type CodeProps = { code: string; expiresAt: number; single: boolean };
+
+function CodeStep({ code, expiresAt, single }: CodeProps) {
+  const text = single ? approveText.single : approveText.team;
+
   return (
     <div role="status" className="e-home-code">
       <p className="e-home-label">Your code</p>
       <p className="e-home-big">{code}</p>
-      <p>Ask an owner to approve it with this command, or on their home page.</p>
+      <p>{text.ask}</p>
       <CopyLine code={code} />
-      <p>This page signs in when the owner approves it.</p>
+      <p>{text.wait}</p>
       <p className="e-home-note">The code works until {until.format(expiresAt)}.</p>
       <AnotherWay />
     </div>
@@ -101,13 +145,19 @@ function Again({ text }: { text: string }) {
   );
 }
 
-function Step() {
+function FirstStep({ single }: { single: boolean }) {
+  return single ? <NoNameStep /> : <NameStep />;
+}
+
+function Step({ single }: { single: boolean }) {
   const step = useData(signInStep);
   switch (step.kind) {
     case "name":
-      return <NameStep />;
+      return <FirstStep single={single} />;
     case "code":
-      return <CodeStep code={step.code} expiresAt={step.expiresAt} />;
+      return <CodeStep code={step.code} expiresAt={step.expiresAt} single={single} />;
+    case "lost":
+      return <Again text="No answer from easel." />;
     case "denied":
       return <Again text="An owner denied the code." />;
     case "expired":
@@ -121,11 +171,11 @@ function Step() {
   }
 }
 
-export function SignIn() {
+export function SignIn({ site }: { site: Site }) {
   return (
     <main className="e-home e-home-narrow">
       <h1>Sign in to easel</h1>
-      <Step />
+      <Step single={site.mode === "single"} />
     </main>
   );
 }
@@ -241,16 +291,43 @@ function CanvasList({ list }: { list: readonly HomeRow[] }) {
   );
 }
 
+type SlotProps = { row: WaitingCode; me: string; busy: boolean; approve: () => void };
+
+function ApproveSlot({ row, me, busy, approve }: SlotProps) {
+  if (row.name === "") {
+    return (
+      <span className="e-home-meta">
+        Type it in <code>easel users approve</code> if your device shows it
+      </span>
+    );
+  }
+  if (row.user && row.name !== me) {
+    return <span className="e-home-meta">Only {row.name} can sign it in</span>;
+  }
+
+  return (
+    <button
+      type="button"
+      className="e-home-primary"
+      disabled={busy}
+      aria-label={`Approve ${row.code} of ${row.name}`}
+      onClick={approve}
+    >
+      Approve
+    </button>
+  );
+}
+
 function CodeRow({ row, me }: { row: WaitingCode; me: string }) {
   const approve = useRun(access.owner["users.approve"]);
   const deny = useRun(access.owner["users.deny"]);
   const busy = approve.isPending || deny.isPending;
-  const theirs = row.user && row.name !== me;
+  const who = row.name || "a browser";
 
   return (
     <li className="e-home-wait">
       <span className="e-home-main">
-        <span className="e-home-name">{row.name}</span>
+        <span className="e-home-name">{who}</span>
         <span className="e-home-meta">
           <code>{row.code}</code> · {row.browser ? "a browser" : "the CLI"} · until{" "}
           {until.format(row.expiresAt)}
@@ -260,24 +337,17 @@ function CodeRow({ row, me }: { row: WaitingCode; me: string }) {
         <button
           type="button"
           disabled={busy}
-          aria-label={`Deny ${row.code} of ${row.name}`}
+          aria-label={`Deny ${row.code} of ${who}`}
           onClick={() => deny.run({ input: { code: row.code } })}
         >
           Deny
         </button>
-        {theirs ? (
-          <span className="e-home-meta">Only {row.name} can sign it in</span>
-        ) : (
-          <button
-            type="button"
-            className="e-home-primary"
-            disabled={busy}
-            aria-label={`Approve ${row.code} of ${row.name}`}
-            onClick={() => approve.run({ input: { code: row.code, owner: false } })}
-          >
-            Approve
-          </button>
-        )}
+        <ApproveSlot
+          row={row}
+          me={me}
+          busy={busy}
+          approve={() => approve.run({ input: { code: row.code, owner: false } })}
+        />
       </span>
       {approve.error || deny.error ? <p role="alert">No answer. Try again.</p> : null}
     </li>
@@ -313,18 +383,24 @@ function Listed({ list, ready, lost }: ListedProps) {
   );
 }
 
-function Home({ name, owner }: { name: string; owner: boolean }) {
+function HomeTitle({ project }: { project: string | null }) {
+  return <h1>{project ?? "Canvases"}</h1>;
+}
+
+type HomeProps = { name: string; owner: boolean; site: Site };
+
+function Home({ name, owner, site }: HomeProps) {
   const part = homeBoard.rows.where({});
   const list = useData(part);
   const state = useData(homeBoard.status(part));
   if (state?.status === "fault" && signedOut.safeParse(state.fault.payload).success) {
-    return <SignIn />;
+    return <SignIn site={site} />;
   }
 
   return (
     <main className="e-home">
       <header className="e-home-head">
-        <h1>Canvases</h1>
+        <HomeTitle project={site.project} />
         <form method="post" action={authPaths.out} className="e-home-out">
           <span className="e-home-meta">{owner ? `${name} (owner)` : name}</span>
           <button type="submit">Sign out</button>
@@ -336,11 +412,11 @@ function Home({ name, owner }: { name: string; owner: boolean }) {
   );
 }
 
-export function HomePage({ who }: { who: Who }) {
+export function HomePage({ who, site }: { who: Who; site: Site }) {
   switch (who.kind) {
     case "out":
-      return <SignIn />;
+      return <SignIn site={site} />;
     case "in":
-      return <Home name={who.name} owner={who.owner} />;
+      return <Home name={who.name} owner={who.owner} site={site} />;
   }
 }
