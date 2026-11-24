@@ -638,7 +638,7 @@ Decided:
 SPEC-queue closes D6, D7, D9 and D10 with the dispatcher and the channels, and the statechart
 [queue-dispatch](statecharts/queue-dispatch.md) (2026-11-20). SPEC-starts closes D11 to D13 with
 the agreement, the limits and the holds, and the statechart [starts](statecharts/starts.md)
-(2026-11-24).
+(2026-11-24). It is live since 2026-11-24 (b09e544), with a live proof on `product`.
 
 ### E4 walk of the slice
 

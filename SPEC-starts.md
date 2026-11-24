@@ -1,6 +1,7 @@
 # Spec delta: `starts`, only the person starts the work of an agent
 
-Status: approved by the requirements of 2026-11-24 (E4.5 D11, D12 and D13 in
+Status: implemented (f1561ca, 9ffcf17, b09e544; live on easel.vibea.dev since 2026-11-24, build
+308). Approved by the requirements of 2026-11-24 (E4.5 D11, D12 and D13 in
 [epics](docs/epics.md), and the user: "yes, work on this, do the routine. Dispatcher needed").
 The user granted autonomy, so the decisions below are mine, with their reasons. They follow
 D11 to D13 as written.
@@ -274,10 +275,25 @@ D11 to D13 show on no state. The table above is the proof until it reads easel (
 | ST-4 | The server: `channel.limits`, `channel.report`, the holds, and the starts in `deliveries`. | done  |
 | ST-5 | The viewer: the hold on the card and in the list, and `Agree`.                             | done  |
 | ST-6 | The adapter: the limits from easel, the reports.                                           | done  |
-| ST-7 | Live proof (success criteria 1, 2 and 4), then this spec is implemented.                   | open  |
+| ST-7 | Live proof (success criteria 1, 2 and 4), then this spec is implemented.                   | done  |
 
-ST-3 and ST-4 shipped in f1561ca, and ST-5 in 9ffcf17. The rule of agreement is off in these
-deploys (`dispatchServer` gets no `agreement`), so each request goes to the agents as before. A
-one-line ship turns it on after `easel users` shows `lagz0ne` as the one owner (SPEC-single).
-ST-7 waits for that ship: with the rule off, a test request on `product` starts a real agent.
-The live NATS channel is `design-loop`; the adapter reads it from `EASEL_PASEO_CHANNEL` (hq-8uk).
+ST-3 and ST-4 shipped in f1561ca, and ST-5 in 9ffcf17, with the rule of agreement off. b09e544
+turned it on, after `lagz0ne` became the one owner. The live NATS channel is `design-loop`; the
+adapter reads it from `EASEL_PASEO_CHANNEL` (hq-8uk).
+
+Live proof on `product`, 2026-11-24 (UTC), with the limits 2 running and 20 a day:
+
+1. Criterion 1. A viewer of the share link sent `product#11` at 11:48:49. Its card said "Waits
+   for the owner" and "Waits for the owner to agree" at 11:48:59. The card of the person said
+   "Waits for you to agree", with `Agree`. Until 11:53:20, `paseo ls` showed no `design product#11`,
+   and `easel deliveries` said "no delivery yet". `easel agree product 11` ran at 11:53:23. The
+   delivery was sent at 11:53:24, and the agent started at 11:53:28.
+2. Criterion 2. The person sent `product#12` at 11:59:51 with no other step. The delivery was
+   sent at 11:59:52, and the agent started at 12:00:09.
+3. Criterion 4. With 2 agents in the state running (`product#13` and `#14`), the person sent
+   `product#15` at 12:00:51. At 12:03:46 its card said "Waits for the limit: 2 of 2 agents run",
+   and no agent ran for it. An earlier read of the card did not work, so the first time of the
+   notice is not known. The agent of `#13` ended at 12:03:57, and the agent of `#15` started at
+   12:04:06.
+
+All test requests (`product#11` to `#15`) are closed, and their agents are archived.
