@@ -74,3 +74,5 @@ viewer-walk	models/viewer/Walk.tla	models/viewer/Walk.cfg	models/viewer/Walk.vie
 viewer-walk-any-post	models/viewer/Walk.tla	models/viewer/WalkAnyPost.cfg	models/viewer/Walk.view.mjs	breaks
 flows-links	models/flows/Links.tla	models/flows/Links.cfg	models/flows/Links.view.mjs	holds
 flows-links-unchecked	models/flows/Links.tla	models/flows/LinksUnchecked.cfg	models/flows/Links.view.mjs	breaks
+part-copies	models/pieces/PartCopies.tla	models/pieces/PartCopies.cfg	models/pieces/PartCopies.view.mjs	holds
+part-copies-outside-kit	models/pieces/PartCopies.tla	models/pieces/PartCopiesOutsideKit.cfg	models/pieces/PartCopies.view.mjs	breaks

@@ -86,7 +86,7 @@ You must know these terms to read any spec.
 | kit          | noun      | The pieces of screen in the look (a button, a field, a card) that agents use to make frames. Each easel has one.                        |
 | look value   | noun      | One named value of the look, such as the main color. It is not a token: a token is only an access token.                                |
 | piece        | noun      | One part of the kit: a class for a common control, or a short tag that the frame expands.                                               |
-| kit version  | noun      | The number of one state of the look and the kit. It starts at 1 and increases at each change of either. It never changes.               |
+| kit version  | noun      | The number of one state of the look, the kit and the parts. It starts at 1 and increases at each change. It never changes.              |
 | text key     | noun      | The name of one text of the team, such as `trial.start`. A frame shows a text by its text key.                                          |
 | team text    | noun      | One text in the one list of texts of an easel, in `en` and, if given, in `vi`. It is in the kit version.                                |
 | exploring    | adjective | The status of a new app frame. It may have its own texts, and colors and sizes that are not in the look.                                |
@@ -95,6 +95,11 @@ You must know these terms to read any spec.
 | made CSS     | noun      | The CSS that easel makes from the class names of a frame version or a kit version, and keeps with it.                                   |
 | pane         | noun      | A control of an app frame that the viewer draws beside it, in its own iframe and scope. It is a React component of the frame.           |
 | pane link    | noun      | The channel between a pane and the scope of its frame. The pane reads the frame and calls it on the pane link.                          |
+| part         | noun      | One component of the design system, such as the Dock. Its main is in a frame, and its copies are in other frames.                       |
+| main         | noun      | The element that a part comes from. The frame that holds it is the source of the part.                                                  |
+| copy         | noun      | An element in a frame that shows a part. easel puts the part of the kit version into it when it gives the document.                     |
+| edited copy  | noun      | A copy with a change outside its props, overrides and slots. easel shows it as written, and it does not follow its part.                |
+| publish      | verb      | To write each main of a frame into a new kit version, as the next revision of its part.                                                 |
 
 ### Viewer page
 
