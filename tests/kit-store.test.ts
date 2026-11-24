@@ -437,24 +437,30 @@ test("the preflight in the kit is the one of the pinned Tailwind, byte for byte"
   expect(preflight).toBe(await Bun.file(file).text());
 });
 
-test("speed: a put with the check and the make stays in the budget, for a usual frame and for 1 MiB", async () => {
-  const { srv } = await easel();
-  const { putFrame } = await import("@/frames/ops.server");
-  const one = await frame("dashboard");
-  const big = one.repeat(Math.ceil((1024 * 1024 - 4096) / one.length)).slice(0, 1024 * 1024 - 4096);
-  const p50 = async (html: string, runs: number) => {
-    const times: number[] = [];
-    for (let i = 0; i < runs; i++) {
-      const start = performance.now();
-      await srv.server.run(putFrame, { input: { canvas: "flow", html: `${html}<!--${i}-->` } });
-      times.push(performance.now() - start);
-    }
-    return times.toSorted((x, y) => x - y)[Math.floor(runs / 2)] ?? Infinity;
-  };
-  await p50(one, 1);
+test(
+  "speed: a put with the check and the make stays in the budget, for a usual frame and for 1 MiB",
+  { tags: ["speed"], timeout: 60_000 },
+  async () => {
+    const { srv } = await easel();
+    const { putFrame } = await import("@/frames/ops.server");
+    const one = await frame("dashboard");
+    const big = one
+      .repeat(Math.ceil((1024 * 1024 - 4096) / one.length))
+      .slice(0, 1024 * 1024 - 4096);
+    const p50 = async (html: string, runs: number) => {
+      const times: number[] = [];
+      for (let i = 0; i < runs; i++) {
+        const start = performance.now();
+        await srv.server.run(putFrame, { input: { canvas: "flow", html: `${html}<!--${i}-->` } });
+        times.push(performance.now() - start);
+      }
+      return times.toSorted((x, y) => x - y)[Math.floor(runs / 2)] ?? Infinity;
+    };
+    await p50(one, 1);
 
-  const usual = await p50(one, 15);
-  const large = await p50(big, 3);
-  expect(usual).toBeLessThan(50);
-  expect(large).toBeLessThan(400);
-}, 60_000);
+    const usual = await p50(one, 15);
+    const large = await p50(big, 3);
+    expect(usual).toBeLessThan(50);
+    expect(large).toBeLessThan(400);
+  },
+);

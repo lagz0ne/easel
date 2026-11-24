@@ -68,6 +68,17 @@ Prior art:
 5. **The first list.** The first run writes what loads today before `easel:open`. Each item that
    the first view does not show moves after `easel:open` in its own ship, and each ship shows the
    change of `open`.
+6. **The budgets of server work.** A test with a time budget of server work (the make of a frame,
+   the check of a TSX, a put, the layout of a page, the draws of K7) has the Vitest tag `speed`.
+   `bun run test` and `tinker check` do not run it: `vite.config.ts` sets the `tagsFilter` to
+   `!speed`. A loaded machine moves the time, and a functional test must not fail on time. The
+   run of step 2 runs these tests after its steps, one file at a time
+   (`vp test --project server --tagsFilter speed --no-file-parallelism`). A failed test runs one
+   time again (the `retry` of the tag); a second failure makes the run red. The behavior of each
+   of these operations stays in a functional test with no time. Prior art: Chromium and Mozilla
+   run their speed tests on their own bots, apart from the functional tests. (Added on
+   2026-11-24: these budgets failed the gates of `check:plain` at a load of 10 or more, issues
+   #17 and #24.)
 
 ## Tech Stack
 
@@ -92,6 +103,7 @@ scripts/speed.ts       → the run and the gate (Bun, Playwright)
 speed.json             → the budgets and the hot path list, with a reason for each item
 src/viewer/            → the marks (stage.ts), and the work that moves off the critical path
 tests/speed.test.ts    → the logic of the gate: p50, p95, the budget, the base, the list
+tests/*.test.ts        → a test with the tag `speed`: a budget of server work (The design 6)
 docs/canvas-speed.md   → what we learned; a new section "Budgets" points to speed.json
 ```
 

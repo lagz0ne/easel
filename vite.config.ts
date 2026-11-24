@@ -24,6 +24,15 @@ export default defineConfig({
   },
   test: {
     root: at("."),
+    tags: [
+      {
+        name: "speed",
+        description:
+          "A speed budget of server work. Only the speed gate runs it (bun run speed), on its own host.",
+        retry: 1,
+      },
+    ],
+    tagsFilter: ["!speed"],
     projects: [
       {
         resolve: { alias },

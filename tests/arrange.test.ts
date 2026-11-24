@@ -147,23 +147,27 @@ test("the check lists the frames that touch and the strays of a section", async 
   expect(found).toEqual([{ touch: ["a", "b"] }, { stray: "in", section: "Sign in" }]);
 });
 
-test("speed: the layout and the check of a page of 200 frames in 10 sections take less than 5 ms", async () => {
-  const s = await scope();
-  const sections = Array.from({ length: 10 }, (_, n) => flow(`s${n}`, n, { wrap: 5 }));
-  const slots = Array.from({ length: 200 }, (_, i) => at(`f${i}`, `s${i % 10}`, i, 0, 390, 844));
-  const arrangeOnce = () => {
-    const start = performance.now();
-    const laid = s.run(layoutPage, { input: { sections, slots, fixed: [] } });
-    const boxes = laid.places.map((p) => ({ ...p, w: 390, h: 844, section: "s0" }));
-    s.run(findingsOf, { input: { frames: boxes, sections: laid.sections } });
-    return performance.now() - start;
-  };
-  const warmUpRuns = 20;
-  const timedRuns = 31;
-  for (let run = 0; run < warmUpRuns; run++) arrangeOnce();
-  const times = Array.from({ length: timedRuns }, arrangeOnce).sort((a, b) => a - b);
-  const p50 = times[Math.floor(timedRuns / 2)] ?? Infinity;
+test(
+  "speed: the layout and the check of a page of 200 frames in 10 sections take less than 5 ms",
+  { tags: ["speed"] },
+  async () => {
+    const s = await scope();
+    const sections = Array.from({ length: 10 }, (_, n) => flow(`s${n}`, n, { wrap: 5 }));
+    const slots = Array.from({ length: 200 }, (_, i) => at(`f${i}`, `s${i % 10}`, i, 0, 390, 844));
+    const arrangeOnce = () => {
+      const start = performance.now();
+      const laid = s.run(layoutPage, { input: { sections, slots, fixed: [] } });
+      const boxes = laid.places.map((p) => ({ ...p, w: 390, h: 844, section: "s0" }));
+      s.run(findingsOf, { input: { frames: boxes, sections: laid.sections } });
+      return performance.now() - start;
+    };
+    const warmUpRuns = 20;
+    const timedRuns = 31;
+    for (let run = 0; run < warmUpRuns; run++) arrangeOnce();
+    const times = Array.from({ length: timedRuns }, arrangeOnce).sort((a, b) => a - b);
+    const p50 = times[Math.floor(timedRuns / 2)] ?? Infinity;
 
-  console.log(`speed: the layout and the check of 200 frames, warm: p50 ${p50.toFixed(2)} ms`);
-  expect(p50).toBeLessThan(5);
-});
+    console.log(`speed: the layout and the check of 200 frames, warm: p50 ${p50.toFixed(2)} ms`);
+    expect(p50).toBeLessThan(5);
+  },
+);

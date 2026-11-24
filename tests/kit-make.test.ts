@@ -163,36 +163,44 @@ test("the pin: Lightning CSS and its native builds for the 3 release targets are
   }
 });
 
-test("speed: a usual frame is checked and made well under the budget of 50 ms", async () => {
-  const scope = await open();
-  const kit = await testKit();
-  const html = await frame("dashboard");
-  await cssOf(scope, html);
+test(
+  "speed: a usual frame is checked and made well under the budget of 50 ms",
+  { tags: ["speed"] },
+  async () => {
+    const scope = await open();
+    const kit = await testKit();
+    const html = await frame("dashboard");
+    await cssOf(scope, html);
 
-  const times: number[] = [];
-  for (let i = 0; i < 15; i++) {
-    const start = performance.now();
-    await scope.run(makeFrame, { input: { html, kit } });
-    times.push(performance.now() - start);
-  }
-  times.sort((x, y) => x - y);
-  const p50 = times[7] ?? Infinity;
-  expect(p50).toBeLessThan(25);
-});
+    const times: number[] = [];
+    for (let i = 0; i < 15; i++) {
+      const start = performance.now();
+      await scope.run(makeFrame, { input: { html, kit } });
+      times.push(performance.now() - start);
+    }
+    times.sort((x, y) => x - y);
+    const p50 = times[7] ?? Infinity;
+    expect(p50).toBeLessThan(25);
+  },
+);
 
-test("speed: a frame of 1 MiB is checked and made in the budget, with room for a loaded host", async () => {
-  const scope = await open();
-  const kit = await testKit();
-  const one = await frame("dashboard");
-  const html = one.repeat(Math.ceil((1024 * 1024) / one.length));
-  await cssOf(scope, one);
+test(
+  "speed: a frame of 1 MiB is checked and made in the budget, with room for a loaded host",
+  { tags: ["speed"] },
+  async () => {
+    const scope = await open();
+    const kit = await testKit();
+    const one = await frame("dashboard");
+    const html = one.repeat(Math.ceil((1024 * 1024) / one.length));
+    await cssOf(scope, one);
 
-  const times: number[] = [];
-  for (let i = 0; i < 3; i++) {
-    const start = performance.now();
-    await scope.run(makeFrame, { input: { html, kit } });
-    times.push(performance.now() - start);
-  }
-  times.sort((x, y) => x - y);
-  expect(times[1] ?? Infinity).toBeLessThan(200);
-});
+    const times: number[] = [];
+    for (let i = 0; i < 3; i++) {
+      const start = performance.now();
+      await scope.run(makeFrame, { input: { html, kit } });
+      times.push(performance.now() - start);
+    }
+    times.sort((x, y) => x - y);
+    expect(times[1] ?? Infinity).toBeLessThan(200);
+  },
+);

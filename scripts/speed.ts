@@ -180,6 +180,8 @@ try {
   for (const finding of findings) console.log(`speed: ${finding.text}`);
   console.log(`speed: before easel:open: ${seen.join(", ")}`);
 
+  kinds.push(serverBudgets());
+
   const verdict = scope.run(speedGate, { input: { steps: kinds, findings: findings.length } });
   if (verdict.kind === "alert") {
     console.log(
@@ -193,6 +195,36 @@ try {
   await browser.close();
   for (const side of sides) await side.stop();
   rmSync(work, { recursive: true, force: true });
+}
+
+function serverBudgets() {
+  const command = [
+    "bun",
+    "--bun",
+    "vp",
+    "test",
+    "--project",
+    "server",
+    "--tagsFilter",
+    "speed",
+    "--no-file-parallelism",
+  ];
+  const ran = Bun.spawnSync(command, {
+    cwd: root,
+    env: { ...process.env, NO_COLOR: "1" },
+    stdout: "pipe",
+    stderr: "pipe",
+  });
+
+  const output = `${ran.stdout.toString()}${ran.stderr.toString()}`;
+  for (const line of output.split("\n").filter((l) => l.startsWith("speed: "))) {
+    console.log(line);
+  }
+
+  const kind = ran.exitCode === 0 ? "inTime" : "overBudget";
+  if (kind === "overBudget") console.log(output.trimEnd().split("\n").slice(-60).join("\n"));
+  console.log(`speed: server budgets (${command.slice(2).join(" ")})  ${kind}`);
+  return kind;
 }
 
 /** The value after a flag, as `--base <sha>`. */

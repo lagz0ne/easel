@@ -279,29 +279,33 @@ test("the composed document of an app frame: the look, the CSS, the import map o
   expect(axes).toContain('id="easel-axes">{"locale":"\\u003c/script>"}</script>');
 });
 
-test("speed: a put of a usual TSX frame spends less than 50 ms in the check and the make", async () => {
-  const srv = await boot();
-  await annOn(srv);
-  const tsx = await pricing();
-  await srv.server.run(putFrame, { input: { canvas: "flow", tsx } });
+test(
+  "speed: a put of a usual TSX frame spends less than 50 ms in the check and the make",
+  { tags: ["speed"] },
+  async () => {
+    const srv = await boot();
+    await annOn(srv);
+    const tsx = await pricing();
+    await srv.server.run(putFrame, { input: { canvas: "flow", tsx } });
 
-  const times: number[] = [];
-  for (let i = 0; i < 30; i++) {
-    const start = performance.now();
-    const made = await srv.server.run(putFrame, {
-      input: { canvas: "flow", tsx: `${tsx}\n// ${i}` },
-    });
-    times.push(performance.now() - start);
-    expect(made.kind).toBe("created");
-  }
-  times.sort((a, b) => a - b);
-  const p50 = times[15] ?? Infinity;
-  const p95 = times[28] ?? Infinity;
-  process.stderr.write(
-    `frame.put of pricing.tsx: p50 ${p50.toFixed(1)} ms, p95 ${p95.toFixed(1)} ms\n`,
-  );
-  expect(p50).toBeLessThan(50);
-});
+    const times: number[] = [];
+    for (let i = 0; i < 30; i++) {
+      const start = performance.now();
+      const made = await srv.server.run(putFrame, {
+        input: { canvas: "flow", tsx: `${tsx}\n// ${i}` },
+      });
+      times.push(performance.now() - start);
+      expect(made.kind).toBe("created");
+    }
+    times.sort((a, b) => a - b);
+    const p50 = times[15] ?? Infinity;
+    const p95 = times[28] ?? Infinity;
+    process.stderr.write(
+      `frame.put of pricing.tsx: p50 ${p50.toFixed(1)} ms, p95 ${p95.toFixed(1)} ms\n`,
+    );
+    expect(p50).toBeLessThan(50);
+  },
+);
 
 const paneDocs = (html: string, places: readonly PanePlace[]) =>
   Object.fromEntries(places.map((place) => [place, html + paneScript.replace("__PLACE__", place)]));

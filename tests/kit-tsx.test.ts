@@ -203,29 +203,33 @@ test("the make step of a TSX that does not parse makes nothing", async () => {
   expect(got.kind).toBe("unparsed");
 });
 
-test("speed: a usual app frame and one of 256 KiB are checked in the budget of 50 ms", async () => {
-  const scope = await open();
-  const kit = await testKit();
-  const usual = await pricing();
-  const big = usual.repeat(Math.floor((256 * 1024) / usual.length)).replaceAll("export ", "");
-  expect(new TextEncoder().encode(big).length).toBeLessThanOrEqual(256 * 1024);
-  expect(await scope.run(checkApp, { input: { tsx: big, kit } })).toMatchObject({
-    kind: "checked",
-  });
+test(
+  "speed: a usual app frame and one of 256 KiB are checked in the budget of 50 ms",
+  { tags: ["speed"] },
+  async () => {
+    const scope = await open();
+    const kit = await testKit();
+    const usual = await pricing();
+    const big = usual.repeat(Math.floor((256 * 1024) / usual.length)).replaceAll("export ", "");
+    expect(new TextEncoder().encode(big).length).toBeLessThanOrEqual(256 * 1024);
+    expect(await scope.run(checkApp, { input: { tsx: big, kit } })).toMatchObject({
+      kind: "checked",
+    });
 
-  const time = async (tsx: string, runs: number) => {
-    const times: number[] = [];
-    for (let i = 0; i < runs; i++) {
-      const start = performance.now();
-      await scope.run(checkApp, { input: { tsx, kit } });
-      times.push(performance.now() - start);
-    }
-    return times.sort((x, y) => x - y)[Math.floor(runs / 2)] ?? Infinity;
-  };
+    const time = async (tsx: string, runs: number) => {
+      const times: number[] = [];
+      for (let i = 0; i < runs; i++) {
+        const start = performance.now();
+        await scope.run(checkApp, { input: { tsx, kit } });
+        times.push(performance.now() - start);
+      }
+      return times.sort((x, y) => x - y)[Math.floor(runs / 2)] ?? Infinity;
+    };
 
-  expect(await time(usual, 15)).toBeLessThan(25);
-  expect(await time(big, 5)).toBeLessThan(150);
-});
+    expect(await time(usual, 15)).toBeLessThan(25);
+    expect(await time(big, 5)).toBeLessThan(150);
+  },
+);
 
 test("the module of an app frame: kit/import, kit/react-state and kit/shape, each at its place", async () => {
   const tsx = [

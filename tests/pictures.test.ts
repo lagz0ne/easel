@@ -1378,7 +1378,7 @@ test("a real Chromium draws an app frame from its runtime: the same pixels as th
   expect(drawnApp).toEqual(drawnHtml);
 }, 60_000);
 
-test("K7, speed: after a change of the look, a real Chromium draws the 20 frames in view in the new kit version, asked all at once as a tab asks, in well under 10 s and under the 5 s slot wait", async () => {
+async function drawTwentyAfterLook() {
   const chromium = localChromium();
   expect(chromium).not.toBeNull();
   const srv = await boot({ chromium, real: true });
@@ -1407,8 +1407,20 @@ test("K7, speed: after a change of the look, a real Chromium draws the 20 frames
   console.log(
     `speed: K7 20 frames in view drawn in the new kit version in ${most.toFixed(0)} ms (the first in ${Math.min(...times).toFixed(0)} ms), 2 draws at once`,
   );
-  expect(most).toBeLessThan(5_000);
+  return most;
+}
+
+test("K7: after a change of the look, a real Chromium draws the 20 frames in view in the new kit version, asked all at once as a tab asks", async () => {
+  await drawTwentyAfterLook();
 }, 60_000);
+
+test(
+  "K7, speed: after a change of the look, a real Chromium draws the 20 frames in view in the new kit version, asked all at once as a tab asks, in well under 10 s and under the 5 s slot wait",
+  { tags: ["speed"], timeout: 60_000 },
+  async () => {
+    expect(await drawTwentyAfterLook()).toBeLessThan(5_000);
+  },
+);
 
 test("a real draw does not reach this machine: a document's http, https, ws, wss, worker, frame and image loads to loopback are refused", async () => {
   const hits: string[] = [];
