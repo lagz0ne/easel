@@ -890,7 +890,8 @@ The spec is [SPEC-home](../SPEC-home.md). The model is
 
 ### H-4: a new request from /c/<canvas>
 
-- [ ] On `/c/<canvas>`, the Request step uses the name of the session, and `share.frame` takes a
-      session with no pass (`src/viewer/draft.ts`, `mayName` in `src/frames/share.server.ts`).
+- [x] On `/c/<canvas>`, the Request step uses the name of the session, and `share.frame` takes a
+      session with no pass (`src/viewer/draft.ts`, `mayName` in `src/frames/share.server.ts`)
+      (10c9109, live at build 316).
 
 **Estimated scope:** S.
