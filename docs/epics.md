@@ -32,7 +32,7 @@ E4, E5.1, E5.2, E6, E8, part of E9, and E10. E7 is deferred.
 | E8  | One look, fast               | Agents make frames fast, and all frames of a team look like one product.                     | agent, user             | [kit](../SPEC-kit.md#journeys) 3                                                                                                      | Built: the look, the kit, its pieces and capsules; not all fit criteria are proven                                      | to do  |
 | E9  | One voice                    | All frames of a team say one thing in one way, and one change of a text reaches each frame.  | agent, user, person     | [kit](../SPEC-kit.md)                                                                                                                 | Each frame keeps its own texts; nothing keeps the texts of a team                                                       | to do  |
 | E10 | See each state of a frame    | A person sees a frame in each state of its design, with no agent.                            | viewer, user            | [kit](../SPEC-kit.md#the-capsules): controls, panes                                                                                   | Built; no test names X1 to X5                                                                                           | to do  |
-| E11 | The design and the app agree | The person sees the live app beside the design, and an accepted design reaches the live app. | person, agent           | [live-screens](../SPEC-live-screens.md), [design-loop](../SPEC-design-loop.md)                                                        | E11.1 built: the live screens and the proof on easel. Not built: E11.2 (the build request, V4, V7)                      | active |
+| E11 | The design and the app agree | The person sees the live app beside the design, and an accepted design reaches the live app. | person, agent           | [live-screens](../SPEC-live-screens.md), [design-loop](../SPEC-design-loop.md)                                                        | E11.1 built. E11.2: V4 and V7 built (2d362f0); #1 to #3 live at build 320. Not built: V5 (the copies that fall behind)  | active |
 
 ## Round 1: Show the design
 
@@ -1098,7 +1098,7 @@ Decided:
 | ID    | Journey                                 | Actor         | Design                                          | Review |
 | ----- | --------------------------------------- | ------------- | ----------------------------------------------- | ------ |
 | E11.1 | See the live app beside the design      | person        | [live-screens](../SPEC-live-screens.md) 1-8, 12 | done   |
-| E11.2 | An accepted design reaches the live app | agent, person | [live-screens](../SPEC-live-screens.md) 9-12    | to do  |
+| E11.2 | An accepted design reaches the live app | agent, person | [live-screens](../SPEC-live-screens.md) 9-12    | active |
 
 ### E11.1 See the live app beside the design
 
@@ -1139,3 +1139,13 @@ Decided:
 
 - On 2026-11-24, the user: "yes, please work on this" (E11). The accept of #1, #2 and #3 on
   `product` changed three frame copies but not the live app: V4 and V5 come from that.
+- On 2026-11-24, E11.2 V4 and V7 are built (2d362f0, live at build 318). An accept on a canvas
+  that a nats channel covers adds a build request (author easel, agreed at add). Its resolve
+  needs `--build`, and a build over the live one is refused `notLive`.
+- #1 to #3 were accepted before that build, so no build request came for them. A new request of
+  vibea-claude (a member) waits for the owner. So an agent made the change by hand: the zoom
+  menu, the name 16 px from the edges, and the dot of Requests (e76e007 and 5144a8d, live at
+  build 320). The parts Count, Dock and Toolbar on `design-system` got the variants (each at
+  v2), and the copies on `52b790a2057e` moved to them (Count and Dock rev 6, Toolbar rev 4).
+- Known gap (V5): the other copies of Count, Dock and Toolbar on `product` stay at their old
+  revisions. `design:proof` shows 3 S5 findings for them until each copy moves.
