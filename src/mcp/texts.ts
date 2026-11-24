@@ -18,6 +18,8 @@ export const kindTexts: Readonly<Record<string, string>> = {
   unsettled:
     "unsettled: a ready frame uses only the texts of the team and the look, so nothing changed. Fix each finding below, or call explore_frame and put it as an exploring frame.",
   off: "off: this easel cannot draw pictures. Read the document with get_frame.",
+  badImage:
+    "badImage: the image is not a PNG, JPEG or WebP of at most {maxSide} px on a side and {maxPixels} pixels ({reason}), so nothing was written. Send a PNG, JPEG or WebP in those limits.",
   unreadable:
     "unreadable: each pair of colors below is hard to read, so nothing was written. Change those values, then set the look again.",
   none: "none: the look has no change to undo.",

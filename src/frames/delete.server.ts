@@ -24,6 +24,7 @@ const rowsOfCanvas = [
   ["frames_frames", "DELETE FROM frames_frames WHERE canvas = $canvas"],
   ["frames_kept", "DELETE FROM frames_kept WHERE canvas = $canvas"],
   ["frames_removed", "DELETE FROM frames_removed WHERE canvas = $canvas"],
+  ["frames_images", "DELETE FROM frames_images WHERE canvas = $canvas"],
   ["frames_pages", "DELETE FROM frames_pages WHERE canvas = $canvas"],
   ["frames_canvases", "DELETE FROM frames_canvases WHERE key = $canvas"],
 ] as const;

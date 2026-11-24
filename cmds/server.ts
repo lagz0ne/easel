@@ -16,6 +16,7 @@ import { accessServer } from "@/access/store.server";
 import { ownerOps, userOps } from "@/access/users.server";
 import { frames } from "@/frames";
 import { socketMaxPayload } from "@/frames/contract";
+import { imageRoute } from "@/frames/images.server";
 import { framesLoads, framesOps, mayRead } from "@/frames/ops.server";
 import { pictureRoute, picturesServer } from "@/frames/pictures.server";
 import { mayName, passOps, shareOps, shareServer } from "@/frames/share.server";
@@ -136,6 +137,7 @@ export default defineMain(async ({ env, args, signal, stdout, stderr, exit }) =>
       "GET /api/ready": ready,
       "POST /api/telemetry": tabs,
       "GET /api/pictures/{canvas}/{id}/{version}": pictureRoute,
+      "GET /api/images/{canvas}/{sha}": imageRoute,
       "GET /api/runtime/{kit}/{sha}/{file}": runtimeRoute,
       "GET /api/fonts/{dir}/{file}": fontRoute,
       "POST /mcp": mcpHttp.route,

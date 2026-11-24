@@ -7,7 +7,16 @@ import { z } from "zod";
 import { kitRuntime } from "@/kit/runtime.server";
 import { kitStart, showKit } from "@/kit/store.server";
 
-import { canvasInfo, firstPage, frameStatus, frames, kept, pages, removed } from "./contract";
+import {
+  canvasInfo,
+  firstPage,
+  frameStatus,
+  frames,
+  imageType,
+  kept,
+  pages,
+  removed,
+} from "./contract";
 import { boardKey } from "./keys.server";
 
 export const canvases = data({
@@ -62,6 +71,15 @@ CREATE TABLE IF NOT EXISTS frames_kept (
   js TEXT,
   PRIMARY KEY (canvas, id, version)
 );
+CREATE TABLE IF NOT EXISTS frames_images (
+  canvas TEXT NOT NULL,
+  sha TEXT NOT NULL,
+  type TEXT NOT NULL,
+  w INTEGER NOT NULL,
+  h INTEGER NOT NULL,
+  bytes BLOB NOT NULL,
+  PRIMARY KEY (canvas, sha)
+);
 CREATE TABLE IF NOT EXISTS frames_migrations (
   name TEXT PRIMARY KEY NOT NULL,
   ran INTEGER NOT NULL
@@ -89,6 +107,8 @@ const addedColumns = [
   ["frames_frames", "status", "TEXT NOT NULL DEFAULT 'exploring'"],
   ["frames_frames", "page", "TEXT"],
   ["frames_removed", "page", "TEXT"],
+  ["frames_frames", "image", "TEXT"],
+  ["frames_kept", "image", "TEXT"],
 ] as const;
 
 const frameColumns = "canvas, id, name, page, x, y, w, h, version, status";
@@ -160,6 +180,39 @@ const keptOf = `SELECT k.canvas, k.id, k.version, COALESCE(g.gen, 0) AS gen
   FROM frames_kept k LEFT JOIN frames_keygen g ON g.canvas = k.canvas`;
 
 const isKept = "SELECT 1 FROM frames_kept WHERE canvas = ? AND id = ? AND version = ?";
+
+const dropLooseImages = `DELETE FROM frames_images WHERE canvas = $canvas
+  AND sha NOT IN (SELECT image FROM frames_frames WHERE canvas = $canvas AND image IS NOT NULL)
+  AND sha NOT IN (SELECT image FROM frames_kept WHERE canvas = $canvas AND image IS NOT NULL)`;
+
+const keepImage = `INSERT OR IGNORE INTO frames_images (canvas, sha, type, w, h, bytes)
+  VALUES ($canvas, $sha, $type, $w, $h, $bytes)`;
+
+const imageWrite = z
+  .object({
+    sha: z.string(),
+    type: z.string(),
+    w: z.number(),
+    h: z.number(),
+    bytes: z.custom<Uint8Array>((value) => value instanceof Uint8Array),
+  })
+  .nullable();
+
+const imageParams = z
+  .object({
+    sha: z.string(),
+    type: z.string(),
+    w: z.number(),
+    h: z.number(),
+    bytes: z.custom<Uint8Array>((value) => value instanceof Uint8Array),
+  })
+  .transform((one) => ({
+    $sha: one.sha,
+    $type: one.type,
+    $w: one.w,
+    $h: one.h,
+    $bytes: one.bytes,
+  }));
 
 const stdout = tag<{ write(chunk: string): unknown } | null>({
   label: "frames.stdout",
@@ -305,6 +358,7 @@ const frameWrite = z.discriminatedUnion("kind", [
     css: z.string().nullable(),
     kit: z.number().nullable(),
     js: z.string().nullable(),
+    image: imageWrite,
     mode: writeMode,
   }),
   z.object({
@@ -316,6 +370,7 @@ const frameWrite = z.discriminatedUnion("kind", [
     css: z.string().nullable(),
     kit: z.number().nullable(),
     js: z.string().nullable(),
+    image: imageWrite,
     mode: writeMode,
   }),
 ]);
@@ -331,6 +386,7 @@ const keptWrite = operation({
     html: z.string(),
     kit: z.number().nullable(),
     app: z.number(),
+    image: z.string().nullable(),
     mode: writeMode,
     db: z.custom<Database>(),
   }),
@@ -338,10 +394,11 @@ const keptWrite = operation({
     const { db } = input;
     const now = db
       .query(
-        `SELECT version, html IS ? AND (js IS NOT NULL) = ? AND (js IS NULL OR ${sameRuntime}) AS same
+        `SELECT version, html IS ? AND (js IS NOT NULL) = ? AND image IS ?
+           AND (js IS NULL OR ${sameRuntime}) AS same
          FROM frames_frames WHERE canvas = ? AND id = ?`,
       )
-      .get(input.html, input.app, input.kit, input.canvas, input.id);
+      .get(input.html, input.app, input.image, input.kit, input.canvas, input.id);
     if (now === null) return { kind: "gone" as const };
     const { version, same } = z.object({ version: z.number(), same: z.number() }).parse(now);
     if (version !== input.base || !same) return { kind: "stale" as const, id: input.id, version };
@@ -358,6 +415,110 @@ const keptWrite = operation({
   },
 });
 
+const storeImage = operation({
+  label: "frames.storeImage",
+  input: z.object({ canvas: z.string(), image: imageWrite, db: z.custom<Database>() }),
+  run: (_, { input: { canvas, image, db } }) => {
+    if (image) db.query(keepImage).run({ $canvas: canvas, ...imageParams.parse(image) });
+    db.query(dropLooseImages).run({ $canvas: canvas });
+  },
+});
+
+const newWrite = frameWrite.options[0];
+
+const insertFrame = operation({
+  label: "frames.insertFrame",
+  input: z.object({ write: newWrite, db: z.custom<Database>() }),
+  depends: { newPlace, showPages, storeImage },
+  run: ({ newPlace, showPages, storeImage }, { input: { write, db }, clock }) => {
+    const place = newPlace.run({ input: { ...write, db } });
+    if (place === null) return { kind: "gone" as const };
+
+    const row = keyedRow.parse(
+      db
+        .query(
+          `INSERT INTO frames_frames (canvas, id, name, page, x, y, w, h, version, html, made, css, kit, js, status, image)
+           VALUES (?, ?, ?, ?, ?, ?, ?, ?, 1, ?, ?, ?, ?, ?, ?, ?)
+           RETURNING ${frameColumns}, ${genOf} AS gen`,
+        )
+        .get(
+          write.canvas,
+          write.id,
+          write.name,
+          place.page,
+          place.x,
+          place.y,
+          write.w,
+          write.h,
+          write.html,
+          clock.currentTimeMillis(),
+          write.css,
+          write.kit,
+          write.js,
+          statusOf.parse(write.mode),
+          write.image?.sha ?? null,
+          write.canvas,
+        ),
+    );
+    storeImage.run({ input: { canvas: write.canvas, image: write.image, db } });
+    showPages.run({ input: { canvas: write.canvas, db } });
+    return { kind: "created" as const, row, keptBase: false };
+  },
+});
+
+const onWrite = frameWrite.options[1];
+
+const imageBox = imageWrite.transform((image) => ({
+  sha: image?.sha ?? null,
+  w: image?.w ?? null,
+  h: image?.h ?? null,
+}));
+
+const updateFrame = operation({
+  label: "frames.updateFrame",
+  input: z.object({ write: onWrite, db: z.custom<Database>() }),
+  depends: { keptWrite, storeImage },
+  run: ({ keptWrite, storeImage }, { input: { write, db } }) => {
+    const app = Number(write.js !== null);
+    const { mode } = write;
+    const image = imageBox.parse(write.image);
+    const saved = db
+      .query(
+        `UPDATE frames_frames SET html = ?, css = ?, kit = ?, js = ?, image = ?,
+           w = COALESCE(?, w), h = COALESCE(?, h), version = version + 1,
+           status = CASE ? WHEN 'ready' THEN 'ready' WHEN 'html' THEN 'exploring' ELSE status END
+         WHERE canvas = ? AND id = ? AND version = ? AND (? <> 'exploring' OR status = 'exploring')
+           AND (html IS NOT ? OR (js IS NOT NULL) <> ? OR image IS NOT ?
+             OR (js IS NOT NULL AND ${sameRuntime} = 0))
+         RETURNING ${frameColumns}, ${genOf} AS gen`,
+      )
+      .get(
+        write.html,
+        write.css,
+        write.kit,
+        write.js,
+        image.sha,
+        image.w,
+        image.h,
+        mode,
+        write.canvas,
+        write.id,
+        write.base,
+        mode,
+        write.html,
+        app,
+        image.sha,
+        write.kit,
+        write.canvas,
+      );
+    if (saved === null) return keptWrite.run({ input: { ...write, app, image: image.sha, db } });
+
+    storeImage.run({ input: { canvas: write.canvas, image: write.image, db } });
+    const keptBase = db.query(isKept).get(write.canvas, write.id, write.base) !== null;
+    return { kind: "updated" as const, row: keyedRow.parse(saved), keptBase };
+  },
+});
+
 export const saveFrame = operation({
   label: "frames.saveFrame",
   input: frameWrite,
@@ -367,80 +528,17 @@ export const saveFrame = operation({
     keptCells: kept.atScope.controller,
     boardFrame,
     boardKept,
-    keptWrite,
-    newPlace,
-    showPages,
+    insertFrame,
+    updateFrame,
   },
-  run: async (units, { input, clock }) => {
-    const { connection, cells, keptCells, boardFrame, boardKept, keptWrite } = units;
-    const { newPlace, showPages } = units;
+  run: async (units, { input }) => {
+    const { connection, cells, keptCells, boardFrame, boardKept } = units;
     const db = connection.db.$client;
-    const answer = db.transaction(() => {
-      if (input.kind === "new") {
-        const place = newPlace.run({ input: { ...input, db } });
-        if (place === null) return { kind: "gone" as const };
-
-        const row = keyedRow.parse(
-          db
-            .query(
-              `INSERT INTO frames_frames (canvas, id, name, page, x, y, w, h, version, html, made, css, kit, js, status)
-               VALUES (?, ?, ?, ?, ?, ?, ?, ?, 1, ?, ?, ?, ?, ?, ?)
-               RETURNING ${frameColumns}, ${genOf} AS gen`,
-            )
-            .get(
-              input.canvas,
-              input.id,
-              input.name,
-              place.page,
-              place.x,
-              place.y,
-              input.w,
-              input.h,
-              input.html,
-              clock.currentTimeMillis(),
-              input.css,
-              input.kit,
-              input.js,
-              statusOf.parse(input.mode),
-              input.canvas,
-            ),
-        );
-        showPages.run({ input: { canvas: input.canvas, db } });
-        return { kind: "created" as const, row, keptBase: false };
-      }
-
-      const app = Number(input.js !== null);
-      const { mode } = input;
-      const saved = db
-        .query(
-          `UPDATE frames_frames SET html = ?, css = ?, kit = ?, js = ?, version = version + 1,
-             status = CASE ? WHEN 'ready' THEN 'ready' WHEN 'html' THEN 'exploring' ELSE status END
-           WHERE canvas = ? AND id = ? AND version = ? AND (? <> 'exploring' OR status = 'exploring')
-             AND (html IS NOT ? OR (js IS NOT NULL) <> ? OR (js IS NOT NULL AND ${sameRuntime} = 0))
-           RETURNING ${frameColumns}, ${genOf} AS gen`,
-        )
-        .get(
-          input.html,
-          input.css,
-          input.kit,
-          input.js,
-          mode,
-          input.canvas,
-          input.id,
-          input.base,
-          mode,
-          input.html,
-          app,
-          input.kit,
-          input.canvas,
-        );
-      if (saved !== null) {
-        const keptBase = db.query(isKept).get(input.canvas, input.id, input.base) !== null;
-        return { kind: "updated" as const, row: keyedRow.parse(saved), keptBase };
-      }
-
-      return keptWrite.run({ input: { ...input, app, db } });
-    })();
+    const answer = db.transaction(() =>
+      input.kind === "new"
+        ? units.insertFrame.run({ input: { write: input, db } })
+        : units.updateFrame.run({ input: { write: input, db } }),
+    )();
 
     switch (answer.kind) {
       case "created":
@@ -588,6 +686,7 @@ export const dropFrame = operation({
           ),
       );
       db.query("DELETE FROM frames_frames WHERE canvas = ? AND id = ?").run(input.canvas, input.id);
+      db.query(dropLooseImages).run({ $canvas: input.canvas });
       const keptLast = db.query(isKept).get(row.canvas, row.id, row.version) !== null;
       return { row, gone, keptLast };
     })();
@@ -723,12 +822,13 @@ export const readPicture = operation({
         css: z.string().nullable(),
         js: z.string().nullable(),
         kit: z.number().nullable(),
+        image: z.string().nullable(),
         gen: z.number(),
       })
-      .transform(({ current, w, h, html, css, js, kit, gen }) => ({
+      .transform(({ current, w, h, html, css, js, kit, image, gen }) => ({
         current,
         gen,
-        doc: html !== null && w !== null && h !== null ? { html, css, js, kit, w, h } : null,
+        doc: html !== null && w !== null && h !== null ? { html, css, js, kit, image, w, h } : null,
       }))
       .parse(
         connection.db.$client
@@ -746,6 +846,9 @@ export const readPicture = operation({
                CASE WHEN f.version = $version THEN f.kit
                  ELSE (SELECT kit FROM frames_kept
                    WHERE canvas = $canvas AND id = $id AND version = $version) END AS kit,
+               CASE WHEN f.version = $version THEN f.image
+                 ELSE (SELECT image FROM frames_kept
+                   WHERE canvas = $canvas AND id = $id AND version = $version) END AS image,
                COALESCE((SELECT gen FROM frames_keygen WHERE canvas = $canvas), 0) AS gen
              FROM (SELECT 1)
                LEFT JOIN frames_frames f ON f.canvas = $canvas AND f.id = $id
@@ -772,25 +875,39 @@ export const readStill = operation({
     ),
 });
 
+const docRow = frameRow
+  .extend({
+    html: z.string(),
+    css: z.string().nullable(),
+    js: z.string().nullable(),
+    kit: z.number().nullable(),
+    image: z.string().nullable(),
+    type: imageType.nullable(),
+    bytes: z.number().nullable(),
+    gen: z.number(),
+  })
+  .transform(({ image, type, bytes, gen, ...row }) => ({
+    ...row,
+    gen,
+    image: image !== null && type !== null && bytes !== null ? { sha: image, type, bytes } : null,
+  }));
+
 export const readDoc = operation({
   label: "frames.readDoc",
   input: z.object({ canvas: z.string(), id: z.string() }),
   depends: { connection: bunSqlite.connection },
   run: async ({ connection }, { input }) =>
-    frameRow
-      .extend({
-        html: z.string(),
-        css: z.string().nullable(),
-        js: z.string().nullable(),
-        kit: z.number().nullable(),
-      })
-      .safeParse(
-        connection.db.$client
-          .query(
-            `SELECT ${frameColumns}, html, css, js, kit FROM frames_frames WHERE canvas = ? AND id = ?`,
-          )
-          .get(input.canvas, input.id),
-      ).data,
+    docRow.safeParse(
+      connection.db.$client
+        .query(
+          `SELECT f.canvas, f.id, f.name, f.page, f.x, f.y, f.w, f.h, f.version, f.status,
+             f.html, f.css, f.js, f.kit, f.image, i.type, LENGTH(i.bytes) AS bytes, ${genOf} AS gen
+           FROM frames_frames f
+             LEFT JOIN frames_images i ON i.canvas = f.canvas AND i.sha = f.image
+           WHERE f.canvas = ? AND f.id = ?`,
+        )
+        .get(input.canvas, input.canvas, input.id),
+    ).data,
 });
 
 const addColumns = operation({

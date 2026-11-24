@@ -23,6 +23,7 @@ import {
   framesApi,
   framesBoard,
   frames,
+  imageInput,
   keyOfName,
   maxDocBytes,
   maxFindings,
@@ -31,6 +32,7 @@ import {
   putInput,
 } from "./contract";
 import { deleteCanvas } from "./delete.server";
+import { imageAddress, imageDoc, readImage, sanitizedImage } from "./images.server";
 import { createPage, deletePage, listPages, orderPages, renamePage } from "./pages.server";
 import { shotFrame } from "./pictures.server";
 import { endedRefusal, lockedRefusal, passMeta } from "./share";
@@ -85,10 +87,16 @@ const appOf = operation({
 export const loadDocs = operation({
   label: "frames.loadDocs",
   input: z.object({ canvas: z.string(), id: z.string() }),
-  depends: { readDoc, appOf },
-  run: async ({ readDoc, appOf }, { input }) => {
+  depends: { readDoc, appOf, imageAddress, imageDoc },
+  run: async ({ readDoc, appOf, imageAddress, imageDoc }, { input }) => {
     const row = await readDoc.run({ input });
     if (!row) return [];
+    if (row.image) {
+      const { canvas, id, version, name, gen } = row;
+      const src = imageAddress.run({ input: { canvas, sha: row.image.sha, gen } });
+      const html = imageDoc.run({ input: { src, name } });
+      return [{ canvas, id, version, html, css: null, app: null }];
+    }
 
     const app = await appOf.run({ input: { js: row.js, kit: row.kit } });
     const { canvas, id, version, html, css } = row;
@@ -168,11 +176,13 @@ const makeAppDoc = operation({
 });
 
 const textOf = z.custom<PutInput>().transform((put) => {
+  if ("image" in put) return "";
   if ("files" in put) return folderText.parse(put.files);
   return "tsx" in put ? put.tsx : put.html;
 });
 
 const filesOf = z.custom<PutInput>().transform((put): FrameFiles | null => {
+  if ("image" in put) return null;
   if ("files" in put) return put.files;
   return "tsx" in put ? { [entryFile]: put.tsx } : null;
 });
@@ -183,6 +193,13 @@ const bytesOf = z.custom<PutInput>().transform((put) => {
   return Object.values(files).reduce((sum, text) => sum + utf8Bytes.parse(text), 0);
 });
 
+const boxOf = z
+  .object({ put: z.custom<PutInput>(), image: sanitizedImage.nullable() })
+  .transform(({ put, image }) => {
+    if (image) return { w: image.w, h: image.h };
+    return ("size" in put && put.size) || defaultSize;
+  });
+
 const writeOf = operation({
   label: "frames.writeOf",
   input: z.object({
@@ -191,10 +208,11 @@ const writeOf = operation({
     css: z.string().nullable(),
     kit: z.number().nullable(),
     js: z.string().nullable(),
+    image: sanitizedImage.nullable(),
     mode: z.enum(["ready", "exploring", "html"]),
   }),
   depends: { newFrameId },
-  run: ({ newFrameId }, { input: { put, html, css, kit, js, mode } }) => {
+  run: ({ newFrameId }, { input: { put, html, css, kit, js, image, mode } }) => {
     if ("id" in put) {
       return {
         kind: "on" as const,
@@ -205,11 +223,12 @@ const writeOf = operation({
         css,
         kit,
         js,
+        image,
         mode,
       };
     }
 
-    const box = put.size ?? defaultSize;
+    const box = boxOf.parse({ put, image });
     const name = put.name ?? "untitled";
     return {
       kind: "new" as const,
@@ -224,6 +243,7 @@ const writeOf = operation({
       css,
       kit,
       js,
+      image,
       mode,
     };
   },
@@ -266,15 +286,29 @@ const madeAppOf = operation({
     if (made.kind !== "made") return made;
 
     const html = storedText.parse({ put, fixed: made.fixed, ready });
-    return { ...made, html, mode: modeOf.parse(ready) };
+    return { ...made, html, mode: modeOf.parse(ready), image: null };
+  },
+});
+
+const madeImageOf = operation({
+  label: "frames.madeImageOf",
+  input: imageInput,
+  depends: { readImage },
+  run: async ({ readImage }, { input }) => {
+    const read = await readImage.run({ input });
+    if (read.kind !== "image") return read;
+
+    const none = { css: null, kit: null, js: null, findings: [] };
+    return { kind: "made" as const, ...none, html: "", mode: "html" as const, image: read };
   },
 });
 
 const madeOf = operation({
   label: "frames.madeOf",
   input: putInput,
-  depends: { makeDoc, madeAppOf },
-  run: async ({ makeDoc, madeAppOf }, { input }) => {
+  depends: { makeDoc, madeAppOf, madeImageOf },
+  run: async ({ makeDoc, madeAppOf, madeImageOf }, { input }) => {
+    if ("image" in input) return madeImageOf.run({ input: input.image });
     const files = filesOf.parse(input);
     const maxBytes = files === null ? maxDocBytes : maxAppBytes;
     if (bytesOf.parse(input) > maxBytes) return { kind: "tooBig" as const, maxBytes };
@@ -282,7 +316,7 @@ const madeOf = operation({
 
     const made = await makeDoc.run({ input: textOf.parse(input) });
     if (made.kind === "tooBig") return { kind: "tooBig" as const, maxBytes: maxMadeCssBytes };
-    return { ...made, html: textOf.parse(input), mode: "html" as const };
+    return { ...made, html: textOf.parse(input), mode: "html" as const, image: null };
   },
 });
 
@@ -292,14 +326,14 @@ export const putFrame = operation({
   depends: { saveFrame, madeOf, writeOf, invalidate: framesBoard.invalidate },
   run: async ({ saveFrame, madeOf, writeOf, invalidate }, { input }) => {
     const made = await madeOf.run({ input });
-    if (made.kind === "tooBig") return made;
+    if (made.kind === "tooBig" || made.kind === "badImage") return made;
     if (made.kind === "offKit" || made.kind === "unsettled") {
       const findings = made.findings.slice(0, maxFindings);
       return { kind: made.kind, findings, more: made.findings.length - findings.length };
     }
 
-    const { html, css, kit, js, mode } = made;
-    const write = writeOf.run({ input: { put: input, html, css, kit, js, mode } });
+    const { html, css, kit, js, mode, image } = made;
+    const write = writeOf.run({ input: { put: input, html, css, kit, js, image, mode } });
     const answer = await saveFrame.run({ input: write });
     if (answer.kind === "stale" || answer.kind === "gone") return answer;
     if (answer.kind !== "unchanged") {
@@ -343,12 +377,17 @@ export const listFrames = operation({
 export const getFrame = operation({
   label: "frame.get.do",
   input: framesApi["frame.get"].input,
-  depends: { readDoc },
-  run: async ({ readDoc }, { input }) => {
+  depends: { readDoc, imageAddress },
+  run: async ({ readDoc, imageAddress }, { input }) => {
     const row = await readDoc.run({ input });
     if (!row) return { kind: "gone" as const };
 
-    const { canvas: _canvas, css: _css, js, kit: _kit, html, ...info } = row;
+    const { canvas, css: _css, js, kit: _kit, html, image, gen, ...info } = row;
+    if (image) {
+      const url = imageAddress.run({ input: { canvas, sha: image.sha, gen } });
+      const shown = { mimeType: image.type, w: info.w, h: info.h, bytes: image.bytes, url };
+      return { kind: "found" as const, frame: { ...info, image: shown } };
+    }
     const files = js === null ? null : folderOf.parse(html);
     const frame =
       js === null ? { ...info, html } : files ? { ...info, files } : { ...info, tsx: html };

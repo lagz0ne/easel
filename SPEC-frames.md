@@ -128,6 +128,8 @@ type Frame = FrameInfo & { html: string }
               | { kind: "stale"; id: string; version: number } | { kind: "gone" }
               | { kind: "tooBig"; maxBytes: number }                  // a document over 1 MiB
               | { kind: "offKit"; findings: Finding[]; more: number } // an app frame, refused
+              | { kind: "badImage"; reason: "type" | "pixels" | "unreadable";
+                  maxSide: number; maxPixels: number }                 // an image, refused
 "frame.move":   { kind: "moved" } | { kind: "gone" }
 "frame.delete": { kind: "deleted" } | { kind: "gone" }
 "frame.shot":   { kind: "ready"; url: string; version: number; kit: number } | { kind: "off" }
@@ -192,12 +194,14 @@ Inputs:
 - `tooBig` is measured on the document's encoded size, its UTF-8 bytes, not its string length.
   The made CSS is not counted; it is at most 256 KiB, and a document whose CSS would be more
   answers `tooBig` too, with `maxBytes` 262144. The
-  cmd sets the socket's `maxPayload` to 2 MiB, so a document a little over 1 MiB gets the
-  `tooBig` answer and not a closed socket. The CLI checks the same limit before it sends.
+  cmd sets the socket's `maxPayload` to 16 MiB (Bun's own default), so an image of 10 MiB in
+  base64 goes on the socket, and a document a little over 1 MiB gets the `tooBig` answer and not
+  a closed socket. The CLI checks the same limit before it sends.
 - The CLI also checks the document as it goes on the socket, JSON-encoded: each `"`, `\` and
-  control character takes 2 to 6 bytes there. Over 2 MiB less 64 KiB (`maxSentDocBytes`), the CLI
-  answers `tooBig` and sends nothing, so a document of quotes under 1 MiB does not close the
-  socket.
+  control character takes 2 to 6 bytes there. Over 16 MiB less 64 KiB (`maxSentDocBytes`), the
+  CLI answers `tooBig` and sends nothing. A document of at most 1 MiB is always under it.
+- An image frame (D9-1 of the design loop; SPEC-design-loop § Images, rules 9 and 12): see
+  § Image frames.
 - `frame.shot` takes `{ canvas, id, scale, region? }` and answers the picture's address for the
   current version. It draws nothing; the address does.
 - `canvas.share` takes `{ canvas, password? }`. A string of 8 to 1024 characters sets or changes
@@ -324,6 +328,52 @@ kit version of the tab when the viewer asked, at the claim, or at the result
 - `bumpKeys` raises a canvas's key generation and writes its frames' cells, and the keys of its
   kept versions, again with new keys.
   `easel unshare` and a password set or changed call it.
+
+### Image frames
+
+An image frame is a frame whose version is a picture that a person or an agent took, not a
+document. It has versions, requests and pages as each other frame. Prior art: GitHub and Linear
+take a pasted or dropped image, keep it, and show it inline; GitHub removes the EXIF data of an
+image, and the GPS place with it.
+
+- `frame.put` takes `image: { mimeType, data }` in place of `html`, `tsx` or `files`: the shape
+  of an MCP image content, with `mimeType` `image/png`, `image/jpeg` or `image/webp`, and `data`
+  the bytes in base64. A put with `image` takes `name`, `page`, `x` and `y`, or `id` and `base`,
+  and no `size`: the frame takes the size of the image, in CSS pixels. A new image on an id is a
+  new version, and the frame takes the size of the new image.
+- `easel put <canvas> shot.png` sends a file whose name ends in `.png`, `.jpg`, `.jpeg` or
+  `.webp` as an image. `--size` with an image is bad usage (64). The CLI checks the 10 MiB limit
+  before it sends.
+- More than 10 MiB (10485760 bytes) answers `tooBig` with that `maxBytes`, and writes nothing.
+- The server reads the type from the bytes, never from the name or the `mimeType`. Bytes that
+  are not the type that `mimeType` names (an SVG, HTML, a GIF, a JPEG sent as `image/png`) answer
+  `badImage` with `reason: "type"`. An image over 16000 px on a side or over 25000000 pixels
+  answers `reason: "pixels"`; the check reads the header, before a pixel is decoded, so a small
+  file that claims a large picture (a decompression bomb) costs nothing. Bytes that do not decode
+  answer `reason: "unreadable"`. `badImage` also carries `maxSide` and `maxPixels`, and writes
+  nothing. The limit of pixels is lower than Pillow's `MAX_IMAGE_PIXELS` (89478485), and holds
+  a 5K screen (5120×2880).
+- The server decodes the image and encodes it again in its own type (PNG lossless, JPEG and WebP
+  at quality 90), and keeps only those bytes. So no metadata stays: no EXIF, no GPS place, no
+  text chunk, and no bytes after the end of the image (a polyglot file). An EXIF orientation is
+  applied first, so a photo stays upright. The same image again gives the same bytes: `unchanged`.
+- The bytes are kept once for each canvas, by their SHA-256 (as git and OCI keep blobs), in
+  `frames_images`. A version, or a kept version, refers to them. The bytes go when no version and
+  no kept version of the canvas refers to them, and with the canvas.
+- `frame.get` of an image frame answers `image: { mimeType, w, h, bytes, url }`. `easel get -o
+<file>` fetches `url` and writes the image; with no `-o` it prints the type, the size and the
+  bytes, and fetches nothing. A fetch that fails exits 69.
+- `GET /api/images/<canvas>/<sha>?k=<key>` answers the bytes. The key is HMAC-SHA-256 of the
+  server's secret, `image`, the canvas, the SHA-256 and the canvas's key generation, so it ends
+  as a picture key ends. The answer has the stored `Content-Type`, `X-Content-Type-Options:
+nosniff`, `Content-Security-Policy: default-src 'none'; sandbox`, `Content-Disposition: inline`
+  and `Cache-Control: private, max-age=31536000, immutable`. A wrong key, no key, or bytes that
+  are not kept answer 404 with `no-store`. An image is never served as HTML.
+- The board's document of an image frame is a small HTML document with the kit off: one `<img>`
+  of that address, at the size of the frame. So the viewer shows it as each other frame.
+- The picture of an image frame draws that document with the image as a `data:` address, so the
+  draw needs no network (judged rule 5).
+- An image frame stays `exploring`.
 
 ### Exploring and ready
 

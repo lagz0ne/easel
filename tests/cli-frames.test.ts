@@ -374,18 +374,14 @@ test("put of a document over 1 MiB of UTF-8 exits 1, tooBig, and sends nothing",
   expect(a.lines()).toEqual([{ kind: "found", frames: [] }]);
 });
 
-test("put of a document under 1 MiB whose JSON is over the socket's limit exits 1, tooBig, and sends nothing", async () => {
+test("put of a document of quotes under 1 MiB saves: its JSON is twice its size, under the socket's 16 MiB", async () => {
   const srv = await boot();
   const a = await ann(srv);
   const quotes = '"'.repeat(maxDocBytes - 1);
-  expect(Buffer.byteLength(JSON.stringify(quotes))).toBeGreaterThan(maxSentDocBytes);
+  expect(Buffer.byteLength(JSON.stringify(quotes))).toBeLessThan(maxSentDocBytes);
 
-  expect(await a.run({ kind: "put", canvas: "flow", file: a.file("q.html", quotes) })).toBe(1);
-  expect(a.lines()).toEqual([{ kind: "tooBig", maxBytes: maxDocBytes }]);
-  await a.run({ kind: "ls", canvas: "flow" });
-  expect(a.lines()).toEqual([{ kind: "found", frames: [] }]);
-  const half = '"'.repeat(maxDocBytes / 2);
-  expect(await a.run({ kind: "put", canvas: "flow", file: a.file("h.html", half) })).toBe(0);
+  expect(await a.run({ kind: "put", canvas: "flow", file: a.file("q.html", quotes) })).toBe(0);
+  expect(a.lines()).toMatchObject([{ kind: "created", version: 1 }]);
 });
 
 test("put of a .tsx file sends an app frame: created exits 0, and get -o writes its TSX", async () => {

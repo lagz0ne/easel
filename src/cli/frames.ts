@@ -7,13 +7,19 @@ import { z } from "zod";
 import { loginApi } from "@/access/contract";
 import { frames } from "@/frames";
 import {
+  badImage,
   canvasKey,
   canvasName,
   frame,
   frameId,
   frameName,
   framesSuccessKinds,
+  imageInfo,
+  imageType,
+  type ImageType,
+  listedFrame,
   maxDocBytes,
+  maxImageBytes,
   maxMadeCssBytes,
   maxSentDocBytes,
   pageKey,
@@ -329,6 +335,12 @@ const readFolder = operation({
   },
 });
 
+const imageTypeOfName = z.string().transform((file): ImageType | null => {
+  const ending = /\.(png|jpe?g|webp)$/i.exec(file)?.[1]?.toLowerCase();
+  if (ending === undefined) return null;
+  return ending === "png" ? "image/png" : ending === "webp" ? "image/webp" : "image/jpeg";
+});
+
 const readDocument = operation({
   label: "cli.readDocument",
   input: z.string(),
@@ -337,6 +349,16 @@ const readDocument = operation({
     if (file === "-") return stdin ? { kind: "text" as const, text: await stdin() } : null;
     try {
       if (statSync(file).isDirectory()) return readFolder.run({ input: file });
+      const mimeType = imageTypeOfName.parse(file);
+      if (mimeType !== null) {
+        const bytes = readFileSync(file);
+        return {
+          kind: "image" as const,
+          mimeType,
+          bytes: bytes.byteLength,
+          data: bytes.toString("base64"),
+        };
+      }
       return { kind: "text" as const, text: readFileSync(file, "utf8") };
     } catch {
       return null;
@@ -372,6 +394,9 @@ const putUsage = operation({
       return "--id needs --base, the version you got: `easel get` prints it";
     }
 
+    if (input.size !== undefined && imageTypeOfName.parse(input.file) !== null) {
+      return "--size does not go with an image: the frame takes the size of the image";
+    }
     const boxed = [input.name, input.size, input.page, input.at].some((flag) => flag !== undefined);
     return input.id !== undefined && boxed
       ? "--name, --size, --page and --at do not go with --id: a put with --id writes the document only; `easel move` moves a frame"
@@ -383,11 +408,13 @@ const tooBigText = operation({
   label: "cli.tooBigText",
   input: z.object({ maxBytes: z.number(), app: z.boolean() }),
   run: (_, { input: { maxBytes, app } }) =>
-    app
-      ? `the app frame is too big: over ${maxAppBytes} bytes of UTF-8, or its made CSS would be. Keep one frame in one file of at most 256 KiB, and use kit classes`
-      : maxBytes === maxMadeCssBytes
-        ? `the document is too big: its made CSS would be over ${maxMadeCssBytes} bytes. Use fewer class names: kit classes, and the scales of the look`
-        : `the document is too big: over ${maxBytes} bytes of UTF-8, or over ${maxSentDocBytes} as JSON, where each " \\ and control character counts 2 to 6. Inline less, or load assets over https`,
+    maxBytes === maxImageBytes
+      ? `the image is too big: over ${maxImageBytes} bytes. Make it smaller, or take a part of it`
+      : app
+        ? `the app frame is too big: over ${maxAppBytes} bytes of UTF-8, or its made CSS would be. Keep one frame in one file of at most 256 KiB, and use kit classes`
+        : maxBytes === maxMadeCssBytes
+          ? `the document is too big: its made CSS would be over ${maxMadeCssBytes} bytes. Use fewer class names: kit classes, and the scales of the look`
+          : `the document is too big: over ${maxBytes} bytes of UTF-8, or over ${maxSentDocBytes} as JSON, where each " \\ and control character counts 2 to 6. Inline less, or load assets over https`,
 });
 
 const goneText = operation({
@@ -420,6 +447,19 @@ const unsettledText = operation({
 
 type PutAnswer = z.infer<typeof putOutput>;
 
+const badImageText = operation({
+  label: "cli.badImageText",
+  input: badImage,
+  run: (_, { input: { reason, maxSide, maxPixels } }) => {
+    const why = {
+      type: "its bytes are not the PNG, JPEG or WebP that its name says (SVG and other formats are refused)",
+      pixels: `it is over ${maxSide} px on a side, or over ${maxPixels} pixels`,
+      unreadable: "its bytes do not decode",
+    } as const;
+    return `badImage: nothing was written; ${why[reason]}`;
+  },
+});
+
 const foundText = operation({
   label: "cli.foundText",
   input: z.custom<Extract<PutAnswer, { findings: unknown }>>(),
@@ -447,8 +487,11 @@ const putText = operation({
     answer: putOutput,
     app: z.boolean(),
   }),
-  depends: { tooBigText, foundText, goneText },
-  run: ({ tooBigText, foundText, goneText }, { input: { canvas, id, page, answer, app } }) => {
+  depends: { tooBigText, foundText, goneText, badImageText },
+  run: (
+    { tooBigText, foundText, goneText, badImageText },
+    { input: { canvas, id, page, answer, app } },
+  ) => {
     if ("findings" in answer) return foundText.run({ input: answer });
 
     switch (answer.kind) {
@@ -461,6 +504,8 @@ const putText = operation({
         return { text: goneText.run({ input: { canvas, id, page } }), error: true };
       case "tooBig":
         return { text: tooBigText.run({ input: { maxBytes: answer.maxBytes, app } }), error: true };
+      case "badImage":
+        return { text: badImageText.run({ input: answer }), error: true };
     }
   },
 });
@@ -484,6 +529,7 @@ const putDoc = z.union([
   z.object({ html: z.string() }),
   z.object({ tsx: z.string(), ready: z.boolean().optional() }),
   z.object({ files: z.custom<FrameFiles>(), ready: z.boolean().optional() }),
+  z.object({ image: z.object({ mimeType: imageType, data: z.string() }) }),
 ]);
 
 const docOf = operation({
@@ -492,11 +538,13 @@ const docOf = operation({
     read: z.union([
       z.object({ kind: z.literal("text"), text: z.string() }),
       z.object({ kind: z.literal("files"), files: z.custom<FrameFiles>() }),
+      z.object({ kind: z.literal("image"), mimeType: imageType, data: z.string() }),
     ]),
     app: z.boolean(),
     ready: z.boolean().optional(),
   }),
   run: (_, { input: { read, app, ready } }): z.infer<typeof putDoc> => {
+    if (read.kind === "image") return { image: { mimeType: read.mimeType, data: read.data } };
     if (read.kind === "files") return { files: read.files, ready };
     return app ? { tsx: read.text, ready } : { html: read.text };
   },
@@ -517,14 +565,17 @@ const loadDoc = operation({
     const app = folder || file.endsWith(".tsx");
     const notApp = "--ready is for an app frame: a .tsx file or a folder";
     if (ready && !app) return { bad: notApp } as const;
-    return { bad: null, folder, app, doc: docOf.run({ input: { read, app, ready } }) } as const;
+    const bytes = read.kind === "image" ? read.bytes : 0;
+    const doc = docOf.run({ input: { read, app, ready } });
+    return { bad: null, folder, app, bytes, doc } as const;
   },
 });
 
 const sentDoc = operation({
   label: "cli.sentDoc",
-  input: putDoc,
-  run: (_, { input: doc }) => {
+  input: z.object({ doc: putDoc, bytes: z.number() }),
+  run: (_, { input: { doc, bytes: imageBytes } }) => {
+    if ("image" in doc) return { bytes: imageBytes, maxBytes: maxImageBytes };
     if ("html" in doc) return { bytes: Buffer.byteLength(doc.html, "utf8"), maxBytes: maxDocBytes };
     const texts = "tsx" in doc ? [doc.tsx] : Object.values(doc.files);
     const bytes = texts.reduce((sum, text) => sum + Buffer.byteLength(text, "utf8"), 0);
@@ -546,10 +597,14 @@ const sendPut = operation({
       y: placeAt.optional(),
     }),
     doc: putDoc,
+    bytes: z.number(),
   }),
   depends: { framesFault, deadline: framesDeadline, putCall: frames.api["frame.put"], sentDoc },
-  run: async ({ framesFault, deadline, putCall, sentDoc }, { input: { command, doc } }) => {
-    const { bytes, maxBytes } = sentDoc.run({ input: doc });
+  run: async (
+    { framesFault, deadline, putCall, sentDoc },
+    { input: { command, doc, bytes: imageBytes } },
+  ) => {
+    const { bytes, maxBytes } = sentDoc.run({ input: { doc, bytes: imageBytes } });
     const sentBytes = Buffer.byteLength(JSON.stringify(doc), "utf8");
     if (bytes > maxBytes || sentBytes > maxSentDocBytes) {
       return { answered: true as const, answer: { kind: "tooBig" as const, maxBytes } };
@@ -559,7 +614,9 @@ const sendPut = operation({
     const sent =
       id !== undefined && base !== undefined
         ? { canvas, ...doc, id, base }
-        : { canvas, ...doc, name, size, page, x, y };
+        : "image" in doc
+          ? { canvas, ...doc, name, page, x, y }
+          : { canvas, ...doc, name, size, page, x, y };
     const stop = deadline.run({ input: "frame.put" });
     const reply = await putCall.settle({ input: sent, signal: stop.signal });
     stop.abort();
@@ -603,8 +660,8 @@ export const put = operation({
     const { size, id, base } = flags;
     const place = { page: input.page, x: flags.at?.x, y: flags.at?.y };
     const command = { canvas: input.canvas, name: input.name, size, id, base, ...place };
-    const { folder, app, doc } = loaded;
-    const sent = await sendPut.run({ input: { command, doc } });
+    const { folder, app, doc, bytes } = loaded;
+    const sent = await sendPut.run({ input: { command, doc, bytes } });
     if (!sent.answered) return sent.exit;
 
     const { answer } = sent;
@@ -663,17 +720,21 @@ const writtenOf = operation({
   label: "cli.writtenOf",
   input: frame,
   run: (_, { input }) => {
+    if ("image" in input) {
+      const { image, ...info } = input;
+      return { html: null, files: null, image, info };
+    }
     if ("files" in input) {
       const { files, ...info } = input;
-      return { html: null, files, info };
+      return { html: null, files, image: null, info };
     }
     if ("tsx" in input) {
       const { tsx, ...info } = input;
-      return { html: tsx, files: null, info };
+      return { html: tsx, files: null, image: null, info };
     }
 
     const { html, ...info } = input;
-    return { html, files: null, info };
+    return { html, files: null, image: null, info };
   },
 });
 
@@ -685,6 +746,70 @@ const writeFolder = operation({
       mkdirSync(dirname(join(out, path)), { recursive: true });
       writeFileSync(join(out, path), text);
     }
+  },
+});
+
+export const pictureFetch = tag<(request: Request) => Promise<Response>>({
+  label: "cli.pictureFetch",
+  default: () => Promise.reject(new Error("easel shot: no fetch given")),
+});
+
+export const shotTries = 3;
+
+const fetchPicture = operation({
+  label: "cli.fetchPicture",
+  input: z.string(),
+  depends: { send: pictureFetch },
+  run: async ({ send }, { input: url, clock, signal }) => {
+    let status = 0;
+    for (let tried = 1; tried <= shotTries; tried++) {
+      const stop = new AbortController();
+      const late = clock.sleep(callDeadline, AbortSignal.any([signal, stop.signal])).then(
+        () => stop.abort(),
+        () => undefined,
+      );
+      const got = await send(new Request(url, { signal: stop.signal }))
+        .then(async (response) => ({
+          status: response.status,
+          wait: Number(response.headers.get("retry-after") ?? 1),
+          bytes: response.status === 200 ? new Uint8Array(await response.arrayBuffer()) : null,
+        }))
+        .catch(() => ({ status: 0, wait: 1, bytes: null }));
+      stop.abort();
+      await late;
+      status = got.status;
+      if (got.bytes !== null) return { status, bytes: got.bytes };
+      if ((status !== 0 && status !== 503) || tried === shotTries) break;
+
+      const wait = Number.isFinite(got.wait) ? Math.min(Math.max(got.wait, 0), 5) : 1;
+      await clock.sleep(wait * 1000, signal);
+    }
+    return { status, bytes: null };
+  },
+});
+
+const gotImage = operation({
+  label: "cli.gotImage",
+  input: z.object({ info: listedFrame, image: imageInfo, out: z.string().optional() }),
+  depends: { fetchPicture, origin: server.required },
+  run: async ({ fetchPicture, origin }, { input: { info, image, out } }) => {
+    const about = `${info.id} v${info.version}: an image, ${image.mimeType} ${image.w}x${image.h}, ${image.bytes} bytes`;
+    if (out === undefined) {
+      return {
+        kind: "found" as const,
+        json: { kind: "found", frame: { ...info, image } },
+        text: `${about}; -o <file> writes it`,
+      };
+    }
+
+    const got = await fetchPicture.run({ input: new URL(image.url, origin).href });
+    if (got.bytes === null) {
+      const text = `the image of ${info.id} cannot be fetched (HTTP ${got.status}): try again`;
+      return { kind: "failed" as const, json: { kind: "failed", status: got.status }, text };
+    }
+    writeFileSync(out, got.bytes);
+    const json = { kind: "found", frame: { ...info, image }, file: out };
+    return { kind: "found" as const, json, text: `${info.id} v${info.version} written to ${out}` };
   },
 });
 
@@ -725,8 +850,9 @@ export const get = operation({
     deadline: framesDeadline,
     getCall: frames.api["frame.get"],
     gotOut,
+    gotImage,
   },
-  run: async ({ say, exitOf, framesFault, deadline, getCall, gotOut }, { input }) => {
+  run: async ({ say, exitOf, framesFault, deadline, getCall, gotOut, gotImage }, { input }) => {
     const stop = deadline.run({ input: "frame.get" });
     const reply = await getCall.settle({
       input: { canvas: input.canvas, id: input.id },
@@ -737,6 +863,12 @@ export const get = operation({
     if (reply.status === "failed") return framesFault.run({ input: reply.error });
 
     const answer = reply.value;
+    if (answer.kind === "found" && "image" in answer.frame) {
+      const { image, ...info } = answer.frame;
+      const got = await gotImage.run({ input: { info, image, out: input.out } });
+      say.run({ input: { json: got.json, text: got.text, error: got.kind === "failed" } });
+      return got.kind === "failed" ? exits.unreachable : exits.ok;
+    }
     switch (answer.kind) {
       case "found":
         say.run({ input: gotOut.run({ input: { answer, out: input.out } }) });
@@ -1011,13 +1143,6 @@ export const unshare = operation({
   },
 });
 
-export const pictureFetch = tag<(request: Request) => Promise<Response>>({
-  label: "cli.pictureFetch",
-  default: () => Promise.reject(new Error("easel shot: no fetch given")),
-});
-
-export const shotTries = 3;
-
 const shotFlags = z.object({
   scale: z
     .enum(["0.25", "0.5", "1", "2"], "--scale takes 0.25, 0.5, 1 or 2")
@@ -1031,38 +1156,6 @@ const shotFlags = z.object({
     .transform(([x = 0, y = 0, w = 0, h = 0]) => ({ x, y, w, h }))
     .pipe(pictureRegion)
     .optional(),
-});
-
-const fetchPicture = operation({
-  label: "cli.fetchPicture",
-  input: z.string(),
-  depends: { send: pictureFetch },
-  run: async ({ send }, { input: url, clock, signal }) => {
-    let status = 0;
-    for (let tried = 1; tried <= shotTries; tried++) {
-      const stop = new AbortController();
-      const late = clock.sleep(callDeadline, AbortSignal.any([signal, stop.signal])).then(
-        () => stop.abort(),
-        () => undefined,
-      );
-      const got = await send(new Request(url, { signal: stop.signal }))
-        .then(async (response) => ({
-          status: response.status,
-          wait: Number(response.headers.get("retry-after") ?? 1),
-          bytes: response.status === 200 ? new Uint8Array(await response.arrayBuffer()) : null,
-        }))
-        .catch(() => ({ status: 0, wait: 1, bytes: null }));
-      stop.abort();
-      await late;
-      status = got.status;
-      if (got.bytes !== null) return { status, bytes: got.bytes };
-      if ((status !== 0 && status !== 503) || tried === shotTries) break;
-
-      const wait = Number.isFinite(got.wait) ? Math.min(Math.max(got.wait, 0), 5) : 1;
-      await clock.sleep(wait * 1000, signal);
-    }
-    return { status, bytes: null };
-  },
 });
 
 const badShotFlag = {

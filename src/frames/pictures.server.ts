@@ -15,6 +15,7 @@ import { readiness } from "@/ops/registry";
 import { seenView } from "@/queue/store.server";
 
 import { frames, framesApi, maxPicturePixels, maxPictureSide, picturePrefix } from "./contract";
+import { imageDataUri, imageDoc } from "./images.server";
 import {
   chromiumPath,
   keyMatches,
@@ -590,6 +591,7 @@ const readRow = z.object({
       css: z.string().nullable(),
       js: z.string().nullable(),
       kit: z.number().nullable(),
+      image: z.string().nullable(),
       w: z.number(),
       h: z.number(),
     })
@@ -648,18 +650,36 @@ const findPicture = operation({
   },
 });
 
+const imagePictureDoc = operation({
+  label: "pictures.imageDoc",
+  input: z.object({ canvas: z.string(), sha: z.string() }),
+  depends: { imageDataUri, imageDoc },
+  run: async ({ imageDataUri, imageDoc }, { input }) => {
+    const src = await imageDataUri.run({ input });
+    if (src === null) throw new Error(`pictures: the image ${input.sha} is not stored`);
+
+    return { html: imageDoc.run({ input: { src, name: "" } }), runtime: null };
+  },
+});
+
 const pictureDoc = operation({
   label: "pictures.doc",
   input: z.object({
+    canvas: z.string(),
     html: z.string(),
     css: z.string().nullable(),
     js: z.string().nullable(),
     kit: z.number().nullable(),
+    image: z.string().nullable(),
     look: composeKit,
   }),
-  depends: { compose, composeApp, runtimeOf, runtimeAddress, storedFiles },
+  depends: { compose, composeApp, runtimeOf, runtimeAddress, storedFiles, imagePictureDoc },
   run: async (units, { input }) => {
     const { html, css, js, kit, look } = input;
+    if (input.image !== null) {
+      const sha = input.image;
+      return units.imagePictureDoc.run({ input: { canvas: input.canvas, sha } });
+    }
     if (js === null || kit === null) {
       return { html: units.compose.run({ input: { html, css, kit: look } }), runtime: null };
     }
@@ -686,6 +706,7 @@ const drawPicture = operation({
     css: z.string().nullable(),
     js: z.string().nullable(),
     kit: z.number().nullable(),
+    image: z.string().nullable(),
     look: z.string(),
     kitCss: z.string(),
     texts: z.record(z.string(), z.unknown()),

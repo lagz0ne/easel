@@ -103,3 +103,13 @@ export const keyMatches = operation({
     return sent.length === want.length && timingSafeEqual(sent, want);
   },
 });
+
+export const imageKey = operation({
+  label: "images.key",
+  input: z.object({ canvas: z.string(), sha: z.string(), gen: z.number() }),
+  depends: { state: pictureState },
+  run: ({ state }, { input }) =>
+    createHmac("sha256", state.current.secret)
+      .update(`image\n${input.canvas}\n${input.sha}\n${input.gen}`)
+      .digest("base64url"),
+});

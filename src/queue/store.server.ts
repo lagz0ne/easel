@@ -62,18 +62,18 @@ CREATE TABLE IF NOT EXISTS queue_messages (
 );
 CREATE INDEX IF NOT EXISTS queue_messages_request ON queue_messages (request, created);
 DROP TRIGGER IF EXISTS queue_keep_put;
-CREATE TRIGGER queue_keep_put BEFORE UPDATE OF html, js ON frames_frames
+CREATE TRIGGER queue_keep_put BEFORE UPDATE OF html, js, image ON frames_frames
 WHEN ${referred}
 BEGIN
-  INSERT OR IGNORE INTO frames_kept (canvas, id, version, html, css, kit, js)
-  VALUES (OLD.canvas, OLD.id, OLD.version, OLD.html, OLD.css, OLD.kit, OLD.js);
+  INSERT OR IGNORE INTO frames_kept (canvas, id, version, html, css, kit, js, image)
+  VALUES (OLD.canvas, OLD.id, OLD.version, OLD.html, OLD.css, OLD.kit, OLD.js, OLD.image);
 END;
 DROP TRIGGER IF EXISTS queue_keep_drop;
 CREATE TRIGGER queue_keep_drop BEFORE DELETE ON frames_frames
 WHEN ${referred}
 BEGIN
-  INSERT OR IGNORE INTO frames_kept (canvas, id, version, html, css, kit, js)
-  VALUES (OLD.canvas, OLD.id, OLD.version, OLD.html, OLD.css, OLD.kit, OLD.js);
+  INSERT OR IGNORE INTO frames_kept (canvas, id, version, html, css, kit, js, image)
+  VALUES (OLD.canvas, OLD.id, OLD.version, OLD.html, OLD.css, OLD.kit, OLD.js, OLD.image);
 END;`;
 
 const addedColumns = [

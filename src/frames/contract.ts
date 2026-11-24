@@ -10,7 +10,21 @@ import { sharePassword, sharePath } from "./share";
 
 export const maxDocBytes = 1024 * 1024;
 
-export const socketMaxPayload = 2 * 1024 * 1024;
+export const maxImageBytes = 10 * 1024 * 1024;
+
+export const maxImageSide = 16_000;
+
+export const maxImagePixels = 25_000_000;
+
+export const imageTypes = ["image/png", "image/jpeg", "image/webp"] as const;
+
+export const imageType = z.enum(imageTypes);
+
+export type ImageType = z.infer<typeof imageType>;
+
+export const imagePrefix = "/api/images/";
+
+export const socketMaxPayload = 16 * 1024 * 1024;
 
 export const maxSentDocBytes = socketMaxPayload - 64 * 1024;
 
@@ -100,10 +114,23 @@ export const listedFrame = frameInfo.extend({ status: frameStatus });
 
 export type ListedFrame = z.infer<typeof listedFrame>;
 
+export const imageInfo = z.object({
+  mimeType: imageType,
+  w: z.number(),
+  h: z.number(),
+  bytes: z.number(),
+  url: z
+    .string()
+    .regex(/^\/api\/images\/[a-z0-9-]+\/[0-9a-f]{64}\?k=[\w-]+$/, "not an image's path"),
+});
+
+export type ImageInfo = z.infer<typeof imageInfo>;
+
 export const frame = z.union([
   listedFrame.extend({ html: z.string() }),
   listedFrame.extend({ tsx: z.string() }),
   listedFrame.extend({ files: frameFiles }),
+  listedFrame.extend({ image: imageInfo }),
 ]);
 
 export type Frame = z.infer<typeof frame>;
@@ -221,6 +248,22 @@ const unsettled = z.object({
   more: z.number(),
 });
 
+export const imageInput = z.strictObject({
+  mimeType: imageType,
+  data: z.base64().max(Math.ceil((2 * maxImageBytes) / 3) * 4),
+});
+
+export type ImageInput = z.infer<typeof imageInput>;
+
+export const badImageReason = z.enum(["type", "pixels", "unreadable"]);
+
+export const badImage = z.object({
+  kind: z.literal("badImage"),
+  reason: badImageReason,
+  maxSide: z.number(),
+  maxPixels: z.number(),
+});
+
 const placeOfNew = {
   page: pageKey.optional(),
   x: placeAt.optional(),
@@ -266,6 +309,13 @@ export const putInput = z.union([
     base: version,
     ready: z.boolean().optional(),
   }),
+  z.strictObject({
+    canvas: canvasKey,
+    image: imageInput,
+    name: frameName.optional(),
+    ...placeOfNew,
+  }),
+  z.strictObject({ canvas: canvasKey, image: imageInput, id: frameId, base: version }),
 ]);
 
 export type PutInput = z.infer<typeof putInput>;
@@ -277,6 +327,7 @@ export const putOutput = z.union([
   z.object({ kind: z.literal("tooBig"), maxBytes: z.number() }),
   z.object({ kind: z.literal("offKit"), findings: z.array(findingShape), more: z.number() }),
   unsettled,
+  badImage,
 ]);
 
 const one = z.object({ canvas: canvasKey, id: frameId });
