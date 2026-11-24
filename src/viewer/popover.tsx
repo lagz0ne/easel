@@ -29,7 +29,12 @@ const boxTexts = {
   answer: { name: "Answer", hint: "Or write an answer…" },
   note: { name: "Note", hint: "Why open it again?" },
   clear: { name: "Make it clear, then send it back", hint: "Make it clear, then send it back…" },
+  chat: { name: "Add a note", hint: "Add to the request…" },
 } as const;
+
+const hintsInState: Partial<Record<`${Box}.${Shown}`, string>> = {
+  "chat.inWork": "Steer the agent: it reads this as it works…",
+};
 
 const takeable: readonly Shown[] = ["waiting", "inWork", "question", "person"];
 
@@ -257,6 +262,7 @@ function BoxActs({ v, box, here }: { v: RequestView; box: Box; here: Acts }) {
     );
   }
   if (box === "answer") return null;
+  if (box === "chat" && boxFits.chat.includes(v.shown)) return null;
 
   return (
     <div className="e-acts">
@@ -293,7 +299,9 @@ function BoxField({
     <div className="e-box" data-busy={busy} aria-invalid={here.step === "notSent"}>
       <textarea
         aria-label={boxTexts[box].name}
-        placeholder={asks ? "Write an answer…" : boxTexts[box].hint}
+        placeholder={
+          asks ? "Write an answer…" : (hintsInState[`${box}.${v.shown}`] ?? boxTexts[box].hint)
+        }
         rows={2}
         value={here.text}
         readOnly={busy}
@@ -387,14 +395,34 @@ const headTone: Record<Shown, "plain" | "waits" | "person"> = {
   takenBack: "plain",
 };
 
+const boxOfState: Partial<Record<Shown, Box>> = {
+  waiting: "chat",
+  inWork: "chat",
+  question: "answer",
+  person: "clear",
+};
+
 function Controls({ v, here }: { v: RequestView; here: Acts }) {
-  if (here.box) return <BoxForm v={v} box={here.box} here={here} />;
-  if (v.shown === "question") return <BoxForm v={v} box="answer" here={here} />;
-  if (v.shown === "person") return <BoxForm v={v} box="clear" here={here} />;
+  const box = here.box ?? boxOfState[v.shown] ?? null;
+  if (box === "chat") return <ChatActs v={v} here={here} />;
+  if (box) return <BoxForm v={v} box={box} here={here} />;
   if (decided.includes(v.shown)) return <Decide v={v} here={here} />;
   if (v.outdated) return <OutdatedActs v={v} here={here} />;
 
   return <Notice v={v} here={here} />;
+}
+
+function ChatActs({ v, here }: { v: RequestView; here: Acts }) {
+  return (
+    <>
+      <BoxForm v={v} box="chat" here={here} />
+      {v.outdated ? (
+        <div className="e-acts">
+          <CloseButton v={v} always />
+        </div>
+      ) : null}
+    </>
+  );
 }
 
 function OutdatedActs({ v, here }: { v: RequestView; here: Acts }) {

@@ -476,7 +476,9 @@ const holderText = operation({
       return { text: refusalText.run({ input: answer }), error: true };
     }
     if (answer.kind === "extended") {
-      return { text: `extended: until ${new Date(answer.until).toISOString()}`, error: false };
+      const until = `extended: until ${new Date(answer.until).toISOString()}`;
+      const notes = answer.notes.map((m) => `\n${m.from} (note): ${m.text ?? ""}`);
+      return { text: until + notes.join(""), error: false };
     }
 
     return { text: holderDone[answer.kind], error: false };

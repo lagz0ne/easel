@@ -31,6 +31,7 @@ const minute = 60_000;
 
 type Call =
   | "request.edit"
+  | "request.note"
   | "request.answer"
   | "request.accept"
   | "request.reopen"
@@ -219,6 +220,11 @@ const saves: Record<Call, (from: string, input: CallInput) => Change> = {
     patch: { status: "open", tries: 0, claimedBy: null, claimedUntil: null },
     message: { kind: "edit", from, text: text ?? null },
   }),
+  "request.note": (from, { n, text }) => ({
+    n,
+    patch: {},
+    message: { kind: "note", from, text: text ?? null },
+  }),
   "request.answer": (from, { n, text, option }) => ({
     n,
     patch: { status: "open", tries: 0 },
@@ -261,6 +267,7 @@ const called = operation({
   input: z.object({
     call: z.enum([
       "request.edit",
+      "request.note",
       "request.answer",
       "request.accept",
       "request.reopen",
@@ -293,6 +300,17 @@ const editStub = operation({
     const a = called.run({ input: { call: "request.edit", input } });
     if (a.kind === "full") throw new Error("an edit is not full");
     return a.kind === "saved" ? { kind: "edited" as const } : a;
+  },
+});
+
+const noteStub = operation({
+  label: "test.actNote",
+  input: requestContracts["request.note"].input,
+  depends: { called },
+  run: ({ called }, { input }) => {
+    const a = called.run({ input: { call: "request.note", input } });
+    if (a.kind === "full") throw new Error("a note is not full");
+    return a.kind === "saved" ? { kind: "noted" as const } : a;
   },
 });
 
@@ -359,6 +377,7 @@ async function serve() {
         implement: {
           "request.add": addStub,
           "request.edit": editStub,
+          "request.note": noteStub,
           "request.answer": answerStub,
           "request.accept": acceptStub,
           "request.reopen": reopenStub,
@@ -946,6 +965,50 @@ test("More: Correct the request (Cancel, Save) while it waits, off with the hint
     },
     { call: "request.close", input: { canvas: "home", n: 2 } },
     { call: "request.close", input: { canvas: "home", n: 3 } },
+  ]);
+});
+
+test("a note, as a chat: the textbox Add a note and Send at the end of a request that waits or is in work; it adds to the thread and changes no state; while an agent works, the hint says the agent reads it (product#7)", async () => {
+  const server = await boot(() => {
+    stored(1, "Add a short FAQ here.");
+    stored(2, "Add a pricing FAQ.", {
+      claimedBy: "claude-1",
+      claimedAt: serverNow - 2 * minute,
+      claimedUntil: serverNow + 5 * minute,
+      tries: 1,
+    });
+  });
+  await tab(server);
+
+  await openIt(1);
+  const box = dialog(1).getByRole("textbox", { name: "Add a note" });
+  expect(box.element()).toHaveAttribute("placeholder", "Add to the request…");
+  await box.fill("Three questions at most.");
+  await userEvent.keyboard("{Enter}");
+  await expect.poll(() => lines(1).at(-1)).toBe("M Mai just now Three questions at most.");
+  expect(mark(1)).toBe("Waiting for an agent");
+  await expect.element(box).toHaveValue("");
+
+  await userEvent.keyboard("{Escape}");
+  await openIt(2);
+  const steer = dialog(2).getByRole("textbox", { name: "Add a note" });
+  expect(steer.element()).toHaveAttribute(
+    "placeholder",
+    "Steer the agent: it reads this as it works…",
+  );
+  await steer.fill("Use the plans of the pricing page.");
+  await dialog(2).getByRole("button", { name: "Send" }).click();
+  await expect
+    .poll(() => lines(2).at(-1))
+    .toBe("M Mai just now Use the plans of the pricing page.");
+  expect(mark(2)).toBe("claude-1");
+
+  expect(calls()).toEqual([
+    { call: "request.note", input: { canvas: "home", n: 1, text: "Three questions at most." } },
+    {
+      call: "request.note",
+      input: { canvas: "home", n: 2, text: "Use the plans of the pricing page." },
+    },
   ]);
 });
 

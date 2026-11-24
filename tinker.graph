@@ -598,6 +598,7 @@ queue.natsConnectionCauseOf exits{value} reads{} writes{} calls{queue.scrub}
 queue.newId exits{value} reads{} writes{} calls{}
 queue.newSecret exits{value} reads{} writes{} calls{access.secretBytes}
 queue.nextPlan exits{value} reads{} writes{} calls{}
+queue.notesSinceClaim exits{value} reads{} writes{} calls{}
 queue.openIssue exits{failed,sent} reads{} writes{} calls{queue.githubStep}
 queue.pageOfAsk exits{value} reads{} writes{} calls{frames.firstPageOf,frames.hasPage}
 queue.pickedOption exits{value} reads{} writes{} calls{}
@@ -641,9 +642,10 @@ request.close.do exits{closed,gone,slow,wrongState} reads{} writes{} calls{queue
 request.decline.do exits{declined,gone,lost,wrongState} reads{} writes{} calls{queue.holderAct}
 request.deliveries.do exits{gone,listed} reads{} writes{} calls{}
 request.edit.do exits{edited,gone,slow,wrongState} reads{} writes{} calls{queue.actOn}
-request.extend.do exits{extended,gone,lost,wrongState} reads{} writes{} calls{queue.holderAct}
+request.extend.do exits{extended,gone,lost,wrongState} reads{} writes{} calls{queue.holderAct,queue.notesSinceClaim}
 request.list.do exits{listed} reads{?} writes{?} calls{queue.stateOf}
 request.next.do exits{claimed,empty} reads{} writes{} calls{queue.nextPlan,queue.tryClaim,queue.waitTurn}
+request.note.do exits{gone,noted,slow,wrongState} reads{} writes{} calls{queue.actOn}
 request.release.do exits{gone,lost,released,wrongState} reads{} writes{} calls{queue.holderAct}
 request.reopen.do exits{full,gone,reopened,slow,wrongState} reads{} writes{} calls{queue.actOn}
 request.resolve.do exits{gone,lost,resolved,wrongState} reads{} writes{} calls{queue.holderAct}
@@ -684,8 +686,8 @@ viewer.addOnce exits{added,badImage,full,gone,offFrame,slow,tooBig} reads{} writ
 viewer.askProof exits{value} reads{} writes{} calls{}
 viewer.axesFor exits{value} reads{} writes{} calls{viewer.configPicks}
 viewer.backToList exits{value} reads{} writes{viewer.panelOpen.set} calls{viewer.closeRequest}
-viewer.callNamed exits{accepted,answered,closed,edited,full,gone,reopened,slow,wrongState} reads{} writes{} calls{viewer.callOnce,viewer.keptName,viewer.namePass}
-viewer.callOnce exits{accepted,answered,closed,edited,full,gone,reopened,slow,wrongState} reads{} writes{} calls{?}
+viewer.callNamed exits{accepted,answered,closed,edited,full,gone,noted,reopened,slow,wrongState} reads{} writes{} calls{viewer.callOnce,viewer.keptName,viewer.namePass}
+viewer.callOnce exits{accepted,answered,closed,edited,full,gone,noted,reopened,slow,wrongState} reads{} writes{} calls{?}
 viewer.cancelBox exits{value} reads{} writes{viewer.acting.set} calls{}
 viewer.claimLines exits{value} reads{} writes{} calls{}
 viewer.closeCard exits{value} reads{} writes{viewer.panelOpen.set} calls{viewer.closeRequest}

@@ -87,6 +87,13 @@ ViewerEdits ==
   /\ (status = "open" /\ ~live) \/ status = "person"
   /\ SendBack
 
+\* request.note (product#7): a viewer adds to the thread, as a chat. A request that is not in
+\* work comes back to the queue at its place, as an edit. A request in work stays with its agent:
+\* the note only adds a message, which the agent reads at its next extend.
+ViewerNotes ==
+  \/ ViewerEdits
+  \/ live /\ UNCHANGED vars
+
 \* request.answer
 ViewerAnswers ==
   /\ status = "asking"
@@ -117,7 +124,7 @@ Closed ==
   /\ UNCHANGED vars
 
 AgentStep == AgentClaims \/ AgentReleases \/ AgentResolves \/ AgentAsks \/ AgentDeclines
-ViewerStep == ViewerEdits \/ ViewerAnswers \/ ViewerAccepts \/ ViewerReopens \/ ViewerCloses
+ViewerStep == ViewerEdits \/ ViewerNotes \/ ViewerAnswers \/ ViewerAccepts \/ ViewerReopens \/ ViewerCloses
 
 Next == ViewerAdds \/ AgentStep \/ LeaseRunsOut \/ ViewerStep \/ Closed
 
@@ -134,7 +141,8 @@ OnlyAnOpenRequestIsInWork == live => status = "open"
 \* the queue, and never needs a person by the count of tries.
 AQuestionWaitsForAViewer == status = "asking" => ~Waiting /\ ~live /\ ~NeedsPerson
 
-\* Judged rule 9: a viewer changes a request in work only to take it back (close it).
+\* Judged rule 9: a viewer changes the state of a request in work only to take it back (close
+\* it). A note adds a message and changes no state.
 AViewerOnlyTakesBackARequestInWork == [][(live /\ ViewerStep) => status' = "closed"]_vars
 
 \* E4.1 N9: a request that the viewer takes back never shows a result.
@@ -152,7 +160,12 @@ AResultStaysResolvedUntilReopened ==
 \* E4.3 P4, journey "A request no agent finishes", step 3: only a viewer or a user takes a
 \* request away from a person, by an edit or a close.
 OnlyAPersonActsOnARequestThatNeedsAPerson ==
-  [][(NeedsPerson /\ ~NeedsPerson') => (ViewerEdits \/ ViewerCloses)]_vars
+  [][(NeedsPerson /\ ~NeedsPerson') => (ViewerEdits \/ ViewerNotes \/ ViewerCloses)]_vars
+
+\* product#7: a note to a request in work keeps the claim, the state and the tries. The agent
+\* goes on, with the note.
+ANoteKeepsTheAgentAtWork ==
+  [][(live /\ ViewerNotes) => (live' /\ status' = status /\ tries' = tries)]_vars
 
 \* A closed request stays closed.
 AClosedRequestStaysClosed == [][status = "closed" => status' = "closed"]_vars

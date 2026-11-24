@@ -180,7 +180,7 @@ export const tools = {
     address: "request.extend",
     annotations: idempotent,
     description:
-      "Start the lease of a claim again (30 to 3600 s, 300 when none). Call it before the lease ends on a long piece of work.",
+      "Start the lease of a claim again (30 to 3600 s, 300 when none): call it before the lease ends, and before you resolve. It answers each note that the viewer added since the claim: follow it as a part of the request.",
   },
   release_request: {
     address: "request.release",
@@ -281,6 +281,7 @@ export const noTool = {
   "request.accept": "a viewer's call, from the page",
   "request.reopen": "a viewer's call, from the page",
   "request.edit": "a person decides it: the page, or `easel edit`",
+  "request.note": "a viewer's call, from the page",
   "request.close": "a person decides it: the page, or `easel close`",
   "share.open": "a viewer's call, from the page",
   "share.name": "a viewer's call, from the page",

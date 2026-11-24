@@ -262,6 +262,18 @@ test("extend starts the lease again and exits 0 (E4 chart: inWork, extend)", asy
   expect(await a.run({ kind: "extend", claim: held })).toBe(0);
 });
 
+test("extend prints each note that a viewer added since the claim, with the name, under its until (product#7)", async () => {
+  const srv = await boot();
+  const { a, bo } = await queued(srv, 1, false);
+  const held = await claim(a, { kind: "next", lease: "60" });
+  a.text();
+  expect(await bo.note("flow", 1, "Make it blue, too.")).toEqual({ kind: "noted" });
+
+  expect(await a.run({ kind: "extend", claim: held, lease: "600" })).toBe(0);
+  const until = new Date(srv.clock.currentTimeMillis() + 600_000).toISOString();
+  expect(a.text()).toBe(`extended: until ${until}\nBo (note): Make it blue, too.\n`);
+});
+
 test("ask sends the question with its HTML part and options and exits 0 (E4 chart: inWork -> asking)", async () => {
   const srv = await boot();
   const { a } = await queued(srv);

@@ -63,7 +63,7 @@ export const openedRequest = data<{ canvas: string; n: number } | null>({
   initial: null,
 });
 
-export const actBox = z.enum(["correct", "answer", "note", "clear"]);
+export const actBox = z.enum(["correct", "answer", "note", "clear", "chat"]);
 
 export type ActBox = z.infer<typeof actBox>;
 

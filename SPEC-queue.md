@@ -68,6 +68,27 @@ Prior art:
    versions, and a viewer can ask for a new change.
 6. When an agent moves the frame, its requests move with it.
 
+### A viewer adds a note
+
+The request product#7 (lagz0ne, 2026-11-24): "I also cannot add to a thread I created, so I
+need to add another ticket just for that. Expect, chat-like. If the request is not processed,
+append to the original. If it's on, do steer". Prior art: a comment on a GitHub issue or a Linear
+issue adds to the thread at any time. A message to a Linear agent session, or a comment on the
+pull request of the Copilot coding agent, reaches the agent while it works.
+
+1. The thread of a request that waits or is in work ends with a textbox `Add a note` and a
+   button `Send`, as a chat. Enter sends it. While an agent works, its hint says that the agent
+   reads it. A request that needs a person has its box `Make it clear, then send it back`, a
+   question has its answer box, and a result has its own acts.
+2. A note to a request that waits, or that needs a person, appends to the request. The request
+   keeps its place in the queue, and its count of tries starts again at 0. A request that needs
+   a person waits again.
+3. A note to a request in work steers the agent. The claim, the lease and the count of tries do
+   not change. The answer of `easel extend` (and `extend_request`) gives each note since the
+   claim, and the agent follows it within the frame or canvas of the claim.
+4. A note is a message of the kind `note`, with the name of the sender. It shows in the thread
+   at once, on each tab. A note to a request in work shows after the line `<agent> took it`.
+
 ### A screenshot on a request
 
 D9-2 of the design loop ([design loop](SPEC-design-loop.md), rule 10). The model is
@@ -260,9 +281,10 @@ D9-2 of the design loop ([design loop](SPEC-design-loop.md), rule 10). The model
 "request.add":     { kind: "added"; n: number } | { kind: "gone" } | { kind: "full" }
                  | { kind: "slow"; retryIn: number } | { kind: "tooBig"; maxBytes: number }
                  | { kind: "badImage"; reason; maxSide; maxPixels } | { kind: "offFrame" }
-// request.edit { canvas, n, text }; answer { canvas, n, text, option? }; accept { canvas, n };
+// request.edit { canvas, n, text }; note { canvas, n, text }; answer { canvas, n, text, option? }; accept { canvas, n };
 // reopen { canvas, n, text }; close { canvas, n, text? }
 "request.edit":    { kind: "edited" } | Refused
+"request.note":    { kind: "noted" } | Refused
 "request.answer":  { kind: "answered" } | Refused
 "request.accept":  { kind: "accepted" } | Refused
 "request.reopen":  { kind: "reopened" } | Refused | { kind: "full" }
@@ -280,7 +302,7 @@ type Refused = { kind: "wrongState"; state: State } | { kind: "gone" }
                      frames: FrameBox[] | null; shot: Shot | null; claim: string; until: number;
                      now: number; note: string }
                  | { kind: "empty" }
-"request.extend":  { kind: "extended"; until: number; now: number } | Lost
+"request.extend":  { kind: "extended"; until: number; now: number; notes: Message[] } | Lost
 "request.release": { kind: "released" } | Lost
 "request.decline": { kind: "declined" } | Lost
 "request.ask":     { kind: "asked" } | Lost
@@ -391,8 +413,8 @@ A message on the board (cell `messages`, keyed by canvas):
 `{ canvas, id, request, kind, from, text, html, options, option, before, after, beforeKit, afterKit,
 created }`.
 
-- `kind` is `ask`, `edit`, `question`, `answer`, `result`, `accept`, `reopen`, `release`,
-  `decline` or `close`.
+- `kind` is `ask`, `edit`, `note`, `question`, `answer`, `result`, `accept`, `reopen`,
+  `release`, `decline` or `close`.
 - `from` is the name of the viewer, or of the user.
 - `beforeKit` and `afterKit` are the kit versions at the claim and at the resolve, on a `result`
   only. The pictures of Before and After draw each frame version in its kit version (K10).
@@ -416,7 +438,7 @@ clock offset of the server). Nothing stored says "in work" or "needs a person".
 
 The order of the queue is `queuedAt`, oldest first, then canvas and `n`. `request.add` sets
 `queuedAt` to `created`. A release, an edit and a reopen set it to the time of that call. An
-answer keeps it: the request goes back to its first place (E4.2 M19).
+answer and a note keep it: the request goes back to its first place (E4.2 M19).
 
 ## Rules
 
@@ -429,7 +451,7 @@ one for each waiting period, the cap of attempts, and one outcome when two ways 
 
 ### Fact rules (the code graph decides)
 
-1. `request.add`, `edit`, `answer`, `accept`, `reopen` and `close` run `mayRead` first, for the
+1. `request.add`, `edit`, `note`, `answer`, `accept`, `reopen` and `close` run `mayRead` first, for the
    canvas that they name.
 2. These calls take the name of the sender from the pass, or from the user. They do not take it
    from the input.
@@ -465,16 +487,19 @@ one for each waiting period, the cap of attempts, and one outcome when two ways 
 9. Each call of a viewer is one conditional write on `status` and the lease, in one SQL
    statement:
    - `edit`: `open` and not in work, or `person`. It sets `open` and `tries` to 0.
+   - `note`: `open` (also in work), or `person`. Not in work, it sets `open` and `tries` to 0. In
+     work, it changes no column but `updated`: the lease and `tries` stay.
    - `answer`: `asking`. It sets `open` and `tries` to 0.
    - `accept`: `resolved` with `acceptedBy` null. It sets `acceptedBy`.
    - `reopen`: `resolved`. It sets `open`, `tries` to 0 and `acceptedBy` to null.
    - `close`: `open` (also in work), `asking`, or `person`. It sets `closed` and ends the lease
      (`claimedBy`, `claimedUntil` and `claimedAt` to null).
    - In any other state, the answer is `wrongState`. A viewer changes a request that an agent
-     holds only to take it back (`close`).
+     holds only to take it back (`close`), or to add a `note`.
 10. Each outcome is one conditional write with its message: `resolve` sets `resolved`, `ask` sets
     `asking`, and `decline` sets `person`. Each ends the lease.
-11. `tries` counts claims. `request.next` adds one. `edit`, `answer` and `reopen` set it to 0.
+11. `tries` counts claims. `request.next` adds one. `edit`, `answer` and `reopen` set it to 0, and
+    so does a `note` to a request that is not in work.
     `extend`, `release` and the outcomes leave it. A request that is not in work with 3 tries
     needs a person, and `request.next` never gives it.
 12. `request.next` holds no lock while it waits. It wakes when a request in its scope becomes

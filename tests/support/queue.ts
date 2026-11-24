@@ -141,6 +141,8 @@ export async function client(
       }),
     edit: (canvas: string, n: number, text = "Move it to the left.") =>
       scope.run(queue.viewer["request.edit"], { input: { canvas, n, text } }),
+    note: (canvas: string, n: number, text = "Also the footer.") =>
+      scope.run(queue.viewer["request.note"], { input: { canvas, n, text } }),
     answer: (canvas: string, n: number, text = "Navy.", option?: number) =>
       scope.run(queue.viewer["request.answer"], {
         input: option === undefined ? { canvas, n, text } : { canvas, n, text, option },

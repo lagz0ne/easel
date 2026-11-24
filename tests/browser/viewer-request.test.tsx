@@ -411,7 +411,10 @@ const frameList = () => page.getByRole("region", { name: "Frames" });
 const frameOf = (name: string) => frameList().getByRole("group", { name });
 const requestButton = () => page.getByRole("button", { name: "Request", exact: true });
 const textbox = () => page.getByRole("textbox", { name: "Request" });
-const sendButton = () => page.getByRole("button", { name: "Send" });
+
+const sendButton = () =>
+  page.getByRole("form", { name: "New request" }).getByRole("button", { name: "Send" });
+
 const nameBox = () => page.getByRole("textbox", { name: "Your name" });
 const pin = (n: number) => page.getByRole("button", { name: `Request #${n}` });
 const alertText = () => page.getByRole("alert").element().textContent;

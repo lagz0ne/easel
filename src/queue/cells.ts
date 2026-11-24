@@ -31,6 +31,7 @@ export type Request = z.infer<typeof request>;
 export const messageKind = z.enum([
   "ask",
   "edit",
+  "note",
   "question",
   "answer",
   "result",

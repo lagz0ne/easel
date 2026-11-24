@@ -309,12 +309,18 @@ test("extend starts the lease again from now, for --lease or 300 s; an agent who
 
   srv.clock.advance(59_000);
   const now = srv.clock.currentTimeMillis();
-  expect(await a.extend(claim)).toEqual({ kind: "extended", until: now + leaseMs, now });
+  expect(await a.extend(claim)).toEqual({
+    kind: "extended",
+    until: now + leaseMs,
+    now,
+    notes: [],
+  });
   srv.clock.advance(leaseMs - 1);
   expect(await a.extend(claim, 30)).toEqual({
     kind: "extended",
     until: now + leaseMs - 1 + 30_000,
     now: now + leaseMs - 1,
+    notes: [],
   });
   expect(await stateIn(a, srv, 1)).toBe("inWork");
   expect((await a.list({ state: "inWork" })).requests[0]?.tries).toBe(1);

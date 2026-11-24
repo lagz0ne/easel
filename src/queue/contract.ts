@@ -147,6 +147,10 @@ export const requestContracts = {
     input: z.strictObject({ ...one, text }),
     output: z.discriminatedUnion("kind", [z.object({ kind: z.literal("edited") }), ...refused]),
   },
+  "request.note": {
+    input: z.strictObject({ ...one, text }),
+    output: z.discriminatedUnion("kind", [z.object({ kind: z.literal("noted") }), ...refused]),
+  },
   "request.answer": {
     input: z.strictObject({ ...one, text, option: z.number().int().min(0).max(5).optional() }),
     output: z.discriminatedUnion("kind", [z.object({ kind: z.literal("answered") }), ...refused]),
@@ -203,7 +207,12 @@ export const queueContracts = {
   "request.extend": {
     input: z.strictObject({ claim: claimHandle, lease: lease.optional() }),
     output: z.discriminatedUnion("kind", [
-      z.object({ kind: z.literal("extended"), until: z.number(), now: z.number() }),
+      z.object({
+        kind: z.literal("extended"),
+        until: z.number(),
+        now: z.number(),
+        notes: z.array(message),
+      }),
       ...lostOr,
     ]),
   },
@@ -271,6 +280,7 @@ export const queueSuccessKinds = {
 export const requestSuccessKinds = {
   "request.add": ["added"],
   "request.edit": ["edited"],
+  "request.note": ["noted"],
   "request.answer": ["answered"],
   "request.accept": ["accepted"],
   "request.reopen": ["reopened"],

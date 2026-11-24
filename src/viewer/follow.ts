@@ -471,6 +471,7 @@ const outdatedLine = operation({
 const firstWords: Record<Message["kind"], string> = {
   ask: "asked it",
   edit: "corrected it",
+  note: "added a note",
   question: "asked a question",
   answer: "answered",
   result: "sent a result",
@@ -516,17 +517,20 @@ const linesOf = operation({
     const { sofarStep, linesOfMessage, stateLine, proofOf, outdatedLine } = deps;
     const known = thread.reduce((was, m) => sofarStep.run({ input: { was, m } }), start);
     const lastResult = thread.findLast((m) => m.kind === "result")?.id;
-    const lines = thread.flatMap((m) => {
+    const linesOfOne = (m: Message) => {
       const live = shown === "question" && known.question === m.id;
       const opens = shown === "result" && m.id === lastResult;
       const proof = proofOf.run({ input: { m, r, opens, outdated } });
       return linesOfMessage.run({ input: { m, author: r.author, known, live, proof } });
-    });
+    };
+    const claimedAt = shown === "inWork" ? r.claimedAt : null;
+    const whileInWork = (m: Message) => claimedAt !== null && m.created >= claimedAt;
     const last = thread.at(-1) ?? null;
 
     return [
-      ...lines,
+      ...thread.filter((m) => !whileInWork(m)).flatMap(linesOfOne),
       ...stateLine.run({ input: { r, shown, last } }),
+      ...thread.filter(whileInWork).flatMap(linesOfOne),
       ...outdatedLine.run({ input: { r, outdated } }),
     ];
   },

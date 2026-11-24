@@ -365,7 +365,7 @@ export const saveRequest = operation({
 });
 
 const viewerWrite = z.object({
-  kind: z.enum(["edit", "answer", "accept", "reopen", "close"]),
+  kind: z.enum(["edit", "note", "answer", "accept", "reopen", "close"]),
   canvas: z.string(),
   n: z.number(),
   from: z.string(),
@@ -380,6 +380,11 @@ const viewerSql = {
     set: `status = 'open', tries = 0, queued_at = $now, claimed_by = NULL, claimed_until = NULL,
       claimed_at = NULL, claim_digest = NULL`,
     where: `(status = 'open' AND (claimed_until IS NULL OR claimed_until <= $now)) OR status = 'person'`,
+  },
+  note: {
+    set: `tries = CASE WHEN status = 'open' AND claimed_until > $now THEN tries ELSE 0 END,
+      status = 'open'`,
+    where: "status IN ('open', 'person')",
   },
   answer: { set: "status = 'open', tries = 0", where: "status = 'asking'" },
   accept: { set: "accepted_by = $from", where: "status = 'resolved' AND accepted_by IS NULL" },
@@ -778,6 +783,20 @@ export const readClaimed = operation({
       row.version !== null && doc !== null ? { version: row.version, kit: row.kit, doc } : null;
     return { messages: thread, frame, saw, frames: null };
   },
+});
+
+export const notesSinceClaim = operation({
+  label: "queue.notesSinceClaim",
+  input: z.object({ request: z.string(), since: z.number() }),
+  depends: { connection: bunSqlite.connection },
+  run: async ({ connection }, { input }) =>
+    connection.db.$client
+      .query(
+        `SELECT ${messageColumns} FROM queue_messages
+         WHERE request = $request AND kind = 'note' AND created >= $since ORDER BY created, rowid`,
+      )
+      .all({ $request: input.request, $since: input.since })
+      .map((m) => messageRow.parse(m)),
 });
 
 export const seenView = operation({

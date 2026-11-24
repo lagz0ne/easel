@@ -64,6 +64,66 @@ test("a viewer edits a request that waits: edited, a message edit with the text,
   expect(first.kind === "claimed" && first.request.n).toBe(2);
 });
 
+test("a note to a request that waits appends to it: noted, a message note with the text, tries 0, and the request keeps its place in the queue (product#7)", async () => {
+  const srv = await boot();
+  const { a, bo } = await queued(srv, 2);
+  await a.release(claimOf(await a.next({ canvas: "flow", n: 1 })));
+  srv.clock.advance(10);
+  const before = await rowOf(a, srv, 1);
+  const tab = watchQueue(a);
+
+  expect(await bo.note("flow", 1, "Also the footer.")).toEqual({ kind: "noted" });
+  const row = await rowOf(a, srv, 1);
+  expect(row).toMatchObject({ status: "open", tries: 0, state: "waiting" });
+  expect(row.queuedAt).toBe(before.queuedAt);
+  await until(() => tab.messages().some((m) => m.kind === "note"));
+  expect(tab.messages().find((m) => m.kind === "note")).toMatchObject({
+    from: "Bo",
+    text: "Also the footer.",
+  });
+  const first = await a.next();
+  expect(first.kind === "claimed" && first.request.n).toBe(2);
+});
+
+test("a note to a request in work steers the agent: the claim, the lease and the tries stay, and each extend gives the notes since the claim (ANoteKeepsTheAgentAtWork)", async () => {
+  const srv = await boot();
+  const { a, bo } = await queued(srv);
+  expect(await bo.note("flow", 1, "Before the claim.")).toEqual({ kind: "noted" });
+  srv.clock.advance(10);
+  const claim = claimOf(await a.next());
+  const held = await rowOf(a, srv, 1);
+  srv.clock.advance(10);
+
+  expect(await bo.note("flow", 1, "Make it blue, too.")).toEqual({ kind: "noted" });
+  expect(await rowOf(a, srv, 1)).toMatchObject({
+    state: "inWork",
+    tries: 1,
+    claimedBy: held.claimedBy,
+    claimedUntil: held.claimedUntil,
+  });
+  const extended = await a.extend(claim);
+  expect(extended.kind === "extended" && extended.notes.map((m) => [m.from, m.text])).toEqual([
+    ["Bo", "Make it blue, too."],
+  ]);
+  expect(await a.resolve(claim)).toEqual({ kind: "resolved" });
+});
+
+test("a note to a request that needs a person makes it wait again with tries 0; a note to a question, a result or a closed request answers wrongState (OnlyAPersonActsOnARequestThatNeedsAPerson)", async () => {
+  const srv = await boot();
+  const { a, bo } = await queued(srv, 4);
+  await a.decline(claimOf(await a.next({ canvas: "flow", n: 1 })), "Unclear.");
+  await a.ask(claimOf(await a.next({ canvas: "flow", n: 2 })), "Which?");
+  await a.resolve(claimOf(await a.next({ canvas: "flow", n: 3 })));
+  await bo.close("flow", 4);
+
+  expect(await bo.note("flow", 1, "The blue button.")).toEqual({ kind: "noted" });
+  expect(await rowOf(a, srv, 1)).toMatchObject({ status: "open", state: "waiting", tries: 0 });
+  expect(await bo.note("flow", 2)).toEqual({ kind: "wrongState", state: "question" });
+  expect(await bo.note("flow", 3)).toEqual({ kind: "wrongState", state: "result" });
+  expect(await bo.note("flow", 4)).toEqual({ kind: "wrongState", state: "closed" });
+  expect(await bo.note("flow", 9)).toEqual({ kind: "gone" });
+});
+
 test("a viewer call on a request in work answers wrongState inWork and writes nothing; only a close takes it back (AViewerOnlyTakesBackARequestInWork)", async () => {
   const srv = await boot();
   const { a, bo } = await queued(srv);
@@ -280,7 +340,7 @@ test(`a viewer's calls count in the limits of the pass: past ${perPass} a minute
   for (let i = 1; i < perPass; i++) await bo.edit("flow", 1);
   expect((await bo.edit("flow", 1)).kind).toBe("slow");
 
-  for (const call of [bo.edit, bo.answer, bo.accept, bo.reopen, bo.close]) {
+  for (const call of [bo.edit, bo.note, bo.answer, bo.accept, bo.reopen, bo.close]) {
     expect((await call("flow", 1)).kind).toBe("slow");
   }
   expect(await rowOf(a, srv, 1)).toMatchObject({ status: "open" });

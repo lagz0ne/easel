@@ -15,6 +15,7 @@ import { showRequest } from "./pages";
 
 export const act = z.discriminatedUnion("call", [
   z.object({ call: z.literal("edit"), text: z.string() }),
+  z.object({ call: z.literal("note"), text: z.string() }),
   z.object({ call: z.literal("answer"), text: z.string(), option: z.number().optional() }),
   z.object({ call: z.literal("accept") }),
   z.object({ call: z.literal("reopen"), text: z.string() }),
@@ -30,6 +31,7 @@ export const boxCalls = {
   answer: "answer",
   note: "reopen",
   clear: "edit",
+  chat: "note",
 } as const;
 
 export const boxFits: Record<z.infer<typeof actBox>, readonly string[]> = {
@@ -37,6 +39,7 @@ export const boxFits: Record<z.infer<typeof actBox>, readonly string[]> = {
   answer: ["question"],
   note: ["result", "accepted", "doneNoAnswer"],
   clear: ["person"],
+  chat: ["waiting", "inWork"],
 };
 
 export const typedName = data({ label: "viewer.typedName", initial: "" });
@@ -167,15 +170,18 @@ const callOnce = operation({
   input: z.object({ at: target, act }),
   depends: {
     edit: queue.viewer["request.edit"],
+    note: queue.viewer["request.note"],
     answer: queue.viewer["request.answer"],
     accept: queue.viewer["request.accept"],
     reopen: queue.viewer["request.reopen"],
     close: queue.viewer["request.close"],
   },
-  run: ({ edit, answer, accept, reopen, close }, { input: { at, act: a } }) => {
+  run: ({ edit, note, answer, accept, reopen, close }, { input: { at, act: a } }) => {
     switch (a.call) {
       case "edit":
         return edit.run({ input: { ...at, text: a.text } });
+      case "note":
+        return note.run({ input: { ...at, text: a.text } });
       case "answer":
         return answer.run({ input: { ...at, text: a.text, option: a.option } });
       case "accept":
@@ -236,7 +242,8 @@ const readyToAct = operation({
   depends: { acts: acting.controller, actingOn, nameToGive, keptName },
   run: ({ acts, actingOn, nameToGive, keptName }, { input: { at, act: a, now } }) => {
     const { kept, naming } = actingOn.run({ input: { at, now } });
-    if ("text" in a && kept.saw !== now) {
+    const steers = a.call === "note" && boxFits.chat.includes(now);
+    if ("text" in a && !steers && kept.saw !== now) {
       const why = now === "inWork" ? "started" : "first";
       acts.set({ ...at, ...kept, saw: now, step: "notSent", why });
       return null;
@@ -253,7 +260,7 @@ const readyToAct = operation({
 });
 
 const saved = z.object({
-  kind: z.enum(["edited", "answered", "accepted", "reopened", "closed"]),
+  kind: z.enum(["edited", "noted", "answered", "accepted", "reopened", "closed"]),
 });
 
 const refusal = z.discriminatedUnion("kind", [
