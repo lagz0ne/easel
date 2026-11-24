@@ -795,7 +795,18 @@ test("a wheel over the thread of a request in the card scrolls the thread, not t
   expect(getComputedStyle(thread).overscrollBehaviorY).toBe("contain");
 });
 
-test("a request in the card has the look of the design system: a 40 px head with a line under it, filled while a question waits; 13/20 text; a name of weight 600; a round 24 px avatar, square for an agent; icons for More and Close; All requests is a chevron in the head, not a line of its own (Sidebar card, Popover card, ThreadHead, Message; request product#5)", async () => {
+function expectFirstInHeadAtTopOfCard(button: Element) {
+  const head = button.parentElement;
+  if (!head) throw new Error("the button has no parent");
+
+  expect(head.tagName).toBe("HEADER");
+  expect(button.previousElementSibling).toBeNull();
+
+  const cardTop = panel().element().getBoundingClientRect().top;
+  expect(head.getBoundingClientRect().top - cardTop).toBe(1);
+}
+
+test("a request in the card has the look of the design system: a 40 px head with a line under it, filled while a question waits; 13/20 text; a name of weight 600; a round 24 px avatar, square for an agent; icons for More and Close; All requests is a chevron in the head at the top of the card, not a line of its own (Sidebar card, Popover card, ThreadHead, Message; request product#5)", async () => {
   const server = await boot(() => {
     const r = stored(1, "Make the logo bigger.", { status: "asking", claimedBy: "claude-1" });
     store.messages.push(said(r, "question", "claude-1", "Which logo?", r.created + 1));
@@ -821,10 +832,13 @@ test("a request in the card has the look of the design system: a 40 px head with
   ]);
   const back = dialog.getByRole("button", { name: "All requests" }).element();
   expect(back.querySelector("svg")).not.toBeNull();
-  expect(back.parentElement?.tagName).toBe("HEADER");
-  expect(back.previousElementSibling).toBeNull();
+  expectFirstInHeadAtTopOfCard(back);
   const head = one("header");
-  expect([head.height, head.borderBottomWidth]).toEqual(["40px", "1px"]);
+  expect([head.height, head.borderBottomWidth, head.borderTopWidth]).toEqual([
+    "40px",
+    "1px",
+    "0px",
+  ]);
   expect(head.backgroundColor).toBe("rgb(238, 244, 252)");
   const ref = one(".e-head-ref");
   expect([ref.whiteSpace, ref.textOverflow, ref.overflow]).toEqual([
