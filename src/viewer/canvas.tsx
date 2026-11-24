@@ -41,6 +41,7 @@ import {
   requestView,
 } from "./follow";
 import type { RequestView } from "./follow";
+import { frameFromLink } from "./frame-link";
 import { personOfPage } from "./hold";
 import { openMenu, setMenu } from "./overlays";
 import { pageInAddress, pageList, shellBoxes, showRequest } from "./pages";
@@ -986,24 +987,25 @@ const shownFrames = resource({
 
 type SignedIn = { name: string; owner: boolean };
 
-type CanvasProps = { canvas: string; opening: React.ReactNode; me?: SignedIn };
+type CanvasProps = { canvas: string; opening: React.ReactNode; me?: SignedIn; aim?: string };
 
 type PageProps = {
   canvas: string;
   page: string;
   opening: React.ReactNode;
   signedIn: { name: string; owner: string };
+  aim: string;
 };
 
-export function Canvas({ canvas, opening, me }: CanvasProps) {
+export function Canvas({ canvas, opening, me, aim = "" }: CanvasProps) {
   const page = useData(pageInAddress({ canvas }));
   if (page === null) return opening;
 
   const signedIn = { name: me?.name ?? "", owner: `${me?.owner === true}` };
-  return <CanvasPage canvas={canvas} page={page} opening={opening} signedIn={signedIn} />;
+  return <CanvasPage canvas={canvas} page={page} opening={opening} signedIn={signedIn} aim={aim} />;
 }
 
-function CanvasPage({ canvas, page, opening, signedIn }: PageProps) {
+function CanvasPage({ canvas, page, opening, signedIn, aim }: PageProps) {
   const part = frames.board.frames.where({ canvas, page });
   const list = useData(part);
   const state = useData(frames.board.status(part));
@@ -1025,6 +1027,7 @@ function CanvasPage({ canvas, page, opening, signedIn }: PageProps) {
   const kitNow = useData(kitFeed({ canvas }));
   useData(openFromLink({ canvas }));
   useData(aimFromLink({ canvas, page }));
+  useData(frameFromLink({ canvas, hash: aim }));
   if (state?.status === "fault" && ended.safeParse(state.fault.payload).success) return opening;
 
   return (

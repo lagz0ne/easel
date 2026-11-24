@@ -918,3 +918,4 @@ words.htmlTexts exits{value} reads{} writes{} calls{}
 words.markupAttributes exits{value} reads{} writes{} calls{}
 words.plainText exits{value} reads{} writes{} calls{}
 words.readFrameDocs exits{value} reads{} writes{} calls{}
+words.readTextsPage exits{value} reads{} writes{} calls{?,home.readHome}

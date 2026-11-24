@@ -17,6 +17,7 @@ import { queue } from "@/queue";
 import { routeTree } from "@/routes";
 import { todo } from "@/todo";
 import { tabMeta } from "@/viewer/gate";
+import { words } from "@/words";
 
 const stop = new AbortController();
 
@@ -46,6 +47,7 @@ const app = createScope({
     frames.pass({ remote: ws.client }),
     queue.viewer({ remote: ws.client }),
     queue.starts({ remote: ws.client }),
+    words.api({ remote: ws.client }),
   ],
 });
 

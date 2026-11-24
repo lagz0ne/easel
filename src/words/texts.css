@@ -1,0 +1,126 @@
+@import "../design/tokens.css";
+
+.e-texts {
+  max-width: 1080px;
+}
+
+.e-texts-head {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--e-2) var(--e-4);
+  align-items: baseline;
+  margin-bottom: var(--e-4);
+}
+
+.e-texts-head h1 {
+  margin: 0;
+}
+
+.e-texts-counts {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--e-1) var(--e-4);
+  margin: 0 0 var(--e-5);
+  padding: 0;
+  list-style: none;
+  color: var(--e-muted);
+}
+
+.e-texts-counts strong {
+  font-weight: var(--e-w-medium);
+  color: var(--e-text);
+}
+
+.e-texts section {
+  margin-bottom: var(--e-6);
+}
+
+.e-texts-table {
+  width: 100%;
+  border-collapse: collapse;
+  background-color: var(--e-surface);
+  border: 1px solid var(--e-line);
+  border-radius: var(--e-radius-l);
+}
+
+.e-texts-table caption {
+  padding-bottom: var(--e-2);
+  font-weight: var(--e-w-medium);
+  color: var(--e-muted);
+  text-align: left;
+}
+
+.e-texts-table th,
+.e-texts-table td {
+  padding: var(--e-2) var(--e-3);
+  text-align: left;
+  vertical-align: top;
+  border-top: 1px solid var(--e-divider);
+}
+
+.e-texts-table thead th {
+  font-weight: var(--e-w-medium);
+  color: var(--e-muted);
+  border-top: 0;
+}
+
+.e-texts-table tbody th {
+  font-weight: var(--e-w-normal);
+  white-space: nowrap;
+}
+
+.e-texts-mark {
+  display: inline-block;
+  padding: 0 var(--e-2);
+  font-size: var(--e-size-1);
+  line-height: var(--e-leading-1);
+  font-weight: var(--e-w-medium);
+  color: var(--e-text);
+  background-color: var(--e-tint);
+  border: 1px solid var(--e-line);
+  border-radius: var(--e-radius-full);
+}
+
+.e-texts-mark[data-mark="missing"] {
+  border-color: var(--e-warn);
+}
+
+.e-texts-uses {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--e-1) var(--e-3);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.e-texts-uses .e-home-meta {
+  margin-left: var(--e-1);
+}
+
+.e-texts-own {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  background-color: var(--e-surface);
+  border: 1px solid var(--e-line);
+  border-radius: var(--e-radius-l);
+}
+
+.e-texts-own > li {
+  padding: var(--e-2) var(--e-3);
+}
+
+.e-texts-own > li + li {
+  border-top: 1px solid var(--e-divider);
+}
+
+.e-texts-own summary {
+  cursor: pointer;
+  color: var(--e-muted);
+}
+
+.e-texts-text {
+  margin: 0 0 var(--e-1);
+  overflow-wrap: anywhere;
+}

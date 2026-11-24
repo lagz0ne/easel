@@ -1,4 +1,9 @@
-import { createRootRouteWithContext, createRoute, Outlet } from "@tanstack/react-router";
+import {
+  createRootRouteWithContext,
+  createRoute,
+  Outlet,
+  useLocation,
+} from "@tanstack/react-router";
 import type { Scope } from "@tinkered/core";
 
 import { baseVersion } from "~/components/health";
@@ -10,6 +15,8 @@ import { TodoList } from "@/todo/todo-list";
 import { Canvas } from "@/viewer/canvas";
 import { openPage } from "@/viewer/gate";
 import { Opening, Viewer } from "@/viewer/viewer";
+import { readTextsPage } from "@/words/page-data";
+import { TextsPage } from "@/words/texts";
 
 const root = createRootRouteWithContext<{ scope: Scope.Handle }>()({ component: Outlet });
 
@@ -39,12 +46,26 @@ const canvas = createRoute({
   component: () => {
     const { who, site } = canvas.useLoaderData();
     const key = canvas.useParams().canvas;
+    const aim = useLocation({ select: (at) => at.hash });
     return who.kind === "in" ? (
-      <Canvas canvas={key} opening={<Opening />} me={{ name: who.name, owner: who.owner }} />
+      <Canvas
+        canvas={key}
+        opening={<Opening />}
+        me={{ name: who.name, owner: who.owner }}
+        aim={aim}
+      />
     ) : (
       <HomePage who={who} site={site} />
     );
   },
+});
+
+const texts = createRoute({
+  getParentRoute: () => root,
+  path: "/texts",
+  loader: ({ context, abortController }) =>
+    context.scope.run(readTextsPage, { input: { stop: abortController.signal } }),
+  component: () => <TextsPage {...texts.useLoaderData()} />,
 });
 
 const todo = createRoute({ getParentRoute: () => root, path: "/todo", component: TodoList });
@@ -93,6 +114,7 @@ export const routeTree = root.addChildren([
   index,
   open,
   canvas,
+  texts,
   todo,
   issues,
   team.addChildren([thread]),

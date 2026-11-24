@@ -171,6 +171,10 @@
   margin: 0;
 }
 
+.e-home-texts {
+  margin-right: auto;
+}
+
 .e-home-out {
   display: flex;
   gap: var(--e-3);

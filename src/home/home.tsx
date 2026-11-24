@@ -401,6 +401,9 @@ function Home({ name, owner, site }: HomeProps) {
     <main className="e-home">
       <header className="e-home-head">
         <HomeTitle project={site.project} />
+        <Link to="/texts" className="e-home-texts">
+          Texts
+        </Link>
         <form method="post" action={authPaths.out} className="e-home-out">
           <span className="e-home-meta">{owner ? `${name} (owner)` : name}</span>
           <button type="submit">Sign out</button>
