@@ -30,6 +30,34 @@ const root = join(import.meta.dir, "..");
 const canvas = "product";
 const fixtureName = "Shop redesign";
 const viewer = "Mai";
+const fixturePins = 3;
+
+const fixtureAsks = [
+  {
+    n: 1,
+    frame: "Pricing",
+    text: "Make the Team plan stand out: it is the one we want people to pick.",
+    spot: { x: 0.7, y: 0.35 },
+  },
+  {
+    n: 2,
+    frame: "Pricing",
+    text: "Use our brand blue on the Starter button, not the default one.",
+    spot: { x: 0.25, y: 0.55 },
+  },
+  {
+    n: 3,
+    frame: "Checkout, mobile",
+    text: "Add the coupon field from the old checkout.",
+    spot: { x: 0.5, y: 0.3 },
+  },
+  {
+    n: 4,
+    frame: "Sign-up",
+    text: "Move the sign-up button above the fold.",
+    spot: { x: 0.5, y: 0.4 },
+  },
+];
 
 const args = process.argv.slice(2);
 
@@ -252,24 +280,7 @@ async function markedOpen(tab: Page) {
 }
 
 async function playFixture(page: Page, mcp: ReturnType<typeof tools>, key: string) {
-  await ask(
-    page,
-    "Pricing",
-    "Make the Team plan stand out: it is the one we want people to pick.",
-    {
-      x: 0.7,
-      y: 0.35,
-    },
-  );
-  await ask(page, "Pricing", "Use our brand blue on the Starter button, not the default one.", {
-    x: 0.25,
-    y: 0.55,
-  });
-  await ask(page, "Checkout, mobile", "Add the coupon field from the old checkout.", {
-    x: 0.5,
-    y: 0.3,
-  });
-  await ask(page, "Sign-up", "Move the sign-up button above the fold.", { x: 0.5, y: 0.4 });
+  for (const one of fixtureAsks) await ask(page, one);
 
   await answer(mcp, key, 1, "Done. The Team card has a blue border and a Most popular label.");
   await answer(mcp, key, 2, "Done. The Starter button uses the brand blue now.");
@@ -303,27 +314,30 @@ async function sendNote(tab: Page, note: string) {
   await tab.getByRole("button", { name: "Send", exact: true }).click({ timeout: 5_000 });
 }
 
-async function ask(tab: Page, frame: string, text: string, spot: { x: number; y: number }) {
+type Ask = { n: number; frame: string; text: string; spot: { x: number; y: number } };
+
+async function ask(tab: Page, { n, frame, text, spot }: Ask) {
   await tab.getByRole("button", { name: "Request", exact: true }).click();
   const shell = tab.getByRole("group", { name: frame, exact: true });
   const box = await shell.boundingBox();
   if (!box) throw new Error(`live-screens: the frame ${frame} does not show`);
+
   await shell.click({ position: { x: box.width * spot.x, y: box.height * spot.y } });
   await tab.getByRole("textbox", { name: "Request" }).fill(text);
   await tab.getByRole("button", { name: "Send", exact: true }).click();
 
   const named = tab.getByRole("textbox", { name: "Your name" });
-  if (await named.isVisible({ timeout: 1_000 }).catch(() => false)) {
+  const pin = tab.locator(`button.e-pin[aria-label="Request #${n}"]`);
+  await named.or(pin).first().waitFor({ timeout: 10_000 });
+  if (await named.isVisible()) {
     await named.fill(viewer);
     await tab.getByRole("button", { name: "Send", exact: true }).click();
   }
 
-  await tab
-    .getByRole("button", { name: /^Request #\d+$/ })
-    .last()
-    .waitFor();
+  await pin.waitFor({ state: "attached", timeout: 10_000 });
   await tab.reload();
   await markedOpen(tab);
+  await pin.waitFor({ state: "attached", timeout: 10_000 });
 }
 
 async function openList(tab: Page) {
@@ -348,27 +362,39 @@ async function openRequest(tab: Page, n: number) {
 }
 
 async function takeAll(on: Browser, fixture: Fixture) {
-  const shots: Array<Shot> = [];
   const onlyScreen = argOf("--screen");
   const onlyTake = argOf("--take");
-  for (const screen of screens.filter((s) => !onlyScreen || s.key === onlyScreen)) {
-    const chosen = takes.filter((t) => !onlyTake || t.key === onlyTake);
-    const started = Date.now();
-    const taken = await Promise.all(
-      chosen.map((take) =>
-        takeOne(on, fixture, screen, take).catch((error: unknown) => ({
-          screen,
-          take,
-          png: null,
-          values: null,
-          why: error instanceof Error ? (error.message.split("\n")[0] ?? "") : String(error),
-        })),
-      ),
+  const chosen = screens
+    .filter((s) => !onlyScreen || s.key === onlyScreen)
+    .flatMap((screen) =>
+      takes.filter((t) => !onlyTake || t.key === onlyTake).map((take) => ({ screen, take })),
     );
-    console.log(`live-screens: took ${screen.key} in ${Date.now() - started} ms`);
-    shots.push(...taken);
-  }
+  const started = Date.now();
+  const shots = await Promise.all(
+    chosen.map(({ screen, take }) =>
+      takeOne(on, fixture, screen, take).catch((error: unknown) => ({
+        screen,
+        take,
+        png: null,
+        values: null,
+        why: error instanceof Error ? (error.message.split("\n")[0] ?? "") : String(error),
+      })),
+    ),
+  );
+  console.log(`live-screens: took ${shots.length} takes in ${Date.now() - started} ms`);
+
   return shots;
+}
+
+async function justNow(tab: Page) {
+  const old = await tab.evaluate(() =>
+    [...document.querySelectorAll(".e-rr-when, .e-when, .e-pop, .e-req")]
+      .map((el) => el.textContent ?? "")
+      .filter((text) => /\d+\s?(min|h|days)\b|Yesterday/.test(text)),
+  );
+  if (old.length > 0) {
+    throw new Error(`an age is not "just now" (${old[0]?.slice(0, 60)}): the take came too late`);
+  }
 }
 
 async function takeOne(on: Browser, fixture: Fixture, screen: Screen, take: Take): Promise<Shot> {
@@ -388,11 +414,13 @@ async function takeOne(on: Browser, fixture: Fixture, screen: Screen, take: Take
     const hash = screen.open.kind === "request" ? `#request-${screen.open.n}` : "";
     await tab.goto(`${fixture.link}${hash}`);
     await markedOpen(tab);
+    await eachRequest(tab);
 
     if (screen.open.kind === "list") await openList(tab);
     else await openLinked(tab, screen.open.n);
 
     await settle(tab);
+    await justNow(tab);
     const values = scope.run(liveUsed, { input: await stylesOf(tab) });
     const raw = await tab.screenshot({ type: "png" });
     const png = await captioned(raw, `build ${build} · ${take.key}`);
@@ -409,6 +437,14 @@ async function takeOne(on: Browser, fixture: Fixture, screen: Screen, take: Take
   } finally {
     await context.close();
   }
+}
+
+async function eachRequest(tab: Page) {
+  await tab.waitForFunction(
+    ({ count }) => document.querySelectorAll("button.e-pin").length >= count,
+    { count: fixturePins },
+    { timeout: 20_000 },
+  );
 }
 
 async function settle(tab: Page) {
@@ -834,8 +870,11 @@ async function oldStatus(id: string) {
 }
 
 try {
+  const begun = Date.now();
   const fixture = await startFixture();
+  console.log(`live-screens: the fixture took ${Date.now() - begun} ms`);
   server = fixture.server;
+
   const shots = await takeAll(browser, fixture);
   const exit = dryDir ? await dry(shots) : await putAll(shots);
   process.exitCode = exit;

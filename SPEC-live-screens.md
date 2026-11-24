@@ -86,8 +86,9 @@ copies, but the live app did not change, and nothing showed the difference. Afte
 
    Each take of a screen starts from the share link, in a new browser context, with the size, the
    theme, `prefers-reduced-motion` and the text caret off. A request opens by its link
-   (`#request-<n>`). The four takes of a screen run at the same time, so each age on the screen
-   stays `just now`.
+   (`#request-<n>`). A take starts only when the pins of the fixture show. All 12 takes run at
+   the same time, so each age on the screen stays `just now`. A take with an older age fails: it
+   came too late, and it is not a difference of the build.
 
 7. **The values of a live screen (V6).** During each take, the page reads the computed style of
    each element of easel's own page that shows (not of a frame's document): the colors (text,
