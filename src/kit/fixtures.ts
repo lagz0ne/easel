@@ -26,11 +26,3 @@ export const mergeFixtures = operation({
     return kept.length ? { ...others, [cell]: Object.fromEntries(kept) } : others;
   },
 });
-
-export const fixtureNames = operation({
-  label: "kit.fixtureNames",
-  input: z.object({ fixtures: kitFixtures, cells: z.array(z.string()) }),
-  run: (_, { input: { fixtures, cells } }) => [
-    ...new Set(cells.flatMap((cell) => Object.keys(fixtures[cell] ?? {}))),
-  ],
-});

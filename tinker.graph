@@ -474,7 +474,6 @@ kit.exportTold exits{value} reads{} writes{} calls{}
 kit.fillAt exits{value} reads{} writes{} calls{kit.designAt,kit.fillCopies}
 kit.fillCopies exits{value} reads{} writes{} calls{}
 kit.fillNow exits{value} reads{} writes{} calls{kit.designNow,kit.fillAt}
-kit.fixtureNames exits{value} reads{} writes{} calls{}
 kit.fontCss exits{value} reads{} writes{} calls{}
 kit.fontFaces exits{value} reads{} writes{} calls{}
 kit.fontRoute exits{value} reads{} writes{} calls{}
