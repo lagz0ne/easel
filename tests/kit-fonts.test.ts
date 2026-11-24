@@ -71,10 +71,13 @@ test("a picture's look holds each named font as a data: URL; a look with no held
   expect(await s.run(inlineFonts, { input: ":root {}\n" })).toBe(":root {}\n");
 });
 
-test("Inter, the font of the viewer, is held in three files by range, as Google Fonts does; tokens.css has the same faces", async () => {
+test("Inter, the font of the viewer, is held in three files by range, as Google Fonts does; tokens.css has the same faces, and the face of Geist Mono, the mono of Doop (product#9)", async () => {
   const s = await scope();
   const faces = await s.run(fontFaces, { input: { "--e-font": '"Inter", sans-serif' } });
   const inter = await s.run(fontFaces, { input: { "--font-sans": '"Inter", sans-serif' } });
+  const viewer = await s.run(fontFaces, {
+    input: { "--font-sans": '"Inter", sans-serif', "--font-mono": '"Geist Mono", monospace' },
+  });
 
   expect(faces).toBe("");
   expect(inter.match(/font-family: "Inter";/g)).toHaveLength(3);
@@ -85,5 +88,5 @@ test("Inter, the font of the viewer, is held in three files by range, as Google 
   const css = readFileSync(join(import.meta.dirname, "../src/design/tokens.css"), "utf8");
   const flat = (text: string) => text.replace(/\s+/g, " ").trim();
   const inCss = [...css.matchAll(/@font-face \{[^}]*\}/g)].map((m) => m[0]).join("\n");
-  expect(flat(inCss)).toBe(flat(inter));
+  expect(flat(inCss)).toBe(flat(viewer));
 });

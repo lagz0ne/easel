@@ -8,6 +8,8 @@
   background-color: var(--e-bg);
   color: var(--e-text);
   font-family: var(--e-font);
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
 }
 
 .e-unseen {

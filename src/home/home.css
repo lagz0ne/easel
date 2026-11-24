@@ -7,9 +7,11 @@
   margin: 0 auto;
   padding: var(--e-5) var(--e-4) var(--e-7);
   font-family: var(--e-font);
-  font-size: var(--e-size-3);
-  line-height: var(--e-leading-3);
+  font-size: var(--e-size-2);
+  line-height: var(--e-leading-2);
   color: var(--e-text);
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
 }
 
 .e-home-narrow {
@@ -19,8 +21,8 @@
 
 .e-home h1 {
   margin: 0 0 var(--e-4);
-  font-size: var(--e-size-4);
-  line-height: var(--e-leading-4);
+  font-size: var(--e-size-3);
+  line-height: var(--e-leading-3);
   font-weight: var(--e-w-strong);
 }
 
@@ -37,7 +39,7 @@
 }
 
 .e-home code {
-  font-family: ui-monospace, "SF Mono", Menlo, monospace;
+  font-family: "Geist Mono", ui-monospace, "SF Mono", Menlo, monospace;
   font-size: 0.9em;
 }
 
@@ -133,7 +135,7 @@
 }
 
 .e-home-big {
-  font-family: ui-monospace, "SF Mono", Menlo, monospace;
+  font-family: "Geist Mono", ui-monospace, "SF Mono", Menlo, monospace;
   font-size: 28px;
   line-height: 36px;
   font-weight: var(--e-w-strong);

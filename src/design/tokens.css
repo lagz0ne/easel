@@ -98,6 +98,13 @@
 }
 
 @font-face {
+  font-family: "Geist Mono";
+  src: url("/api/fonts/geist-1.9.2/GeistMono-Variable.woff2") format("woff2");
+  font-weight: 100 900;
+  font-style: normal;
+  font-display: swap;
+}
+@font-face {
   font-family: "Inter";
   src: url("/api/fonts/inter-5.3.0/inter-vietnamese-wght-normal.woff2") format("woff2");
   font-weight: 100 900;

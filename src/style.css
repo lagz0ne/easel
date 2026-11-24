@@ -5,4 +5,8 @@ body {
   background-color: var(--e-bg);
   color: var(--e-text);
   font-family: var(--e-font);
+  font-size: var(--e-size-2);
+  line-height: var(--e-leading-2);
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
 }
