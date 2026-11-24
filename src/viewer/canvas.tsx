@@ -38,6 +38,7 @@ import {
   requestView,
 } from "./follow";
 import type { RequestView } from "./follow";
+import { personOfPage } from "./hold";
 import { openMenu, setMenu } from "./overlays";
 import { pageInAddress, pageList, shellBoxes, showRequest } from "./pages";
 import { PagesButton } from "./pages-list";
@@ -961,6 +962,7 @@ function CanvasPage({ canvas, page, opening, back }: CanvasProps & { page: strin
   const hovering = asking && !drafting;
   const mode = useData(requestMode, (on) => (on ? "request" : "view"));
   useData(clockTicker({ canvas }));
+  useData(personOfPage({ signedIn: `${back === true}` }));
   const kitNow = useData(kitFeed({ canvas }));
   useData(openFromLink({ canvas }));
   useData(aimFromLink({ canvas, page }));

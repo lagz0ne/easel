@@ -20,8 +20,9 @@ import { acting, backToList, closeCard } from "./draft";
 import type { ActBox as Box, Acting as Acts } from "./draft";
 import { seenWhileOpen } from "./follow";
 import type { Line, RequestView, Shown } from "./follow";
+import { HoldNotice } from "./hold-notice";
 import { openMenu, setMenu } from "./overlays";
-import { Age, Initial, OutdatedMark, Place, StateMark } from "./panel";
+import { Age, Initial, OutdatedMark, Place, RequestMark } from "./panel";
 import { RequestShot } from "./request";
 
 const boxTexts = {
@@ -524,7 +525,7 @@ export function Opened({ v }: { v: RequestView }) {
             />
           </svg>
         </button>
-        <StateMark shown={v.shown} agent={r.claimedBy} />
+        <RequestMark v={v} />
         {v.outdated ? <OutdatedMark cause={v.outdated.cause} /> : null}
         <span className="e-head-ref">
           {`#${r.n} · `}
@@ -545,6 +546,7 @@ export function Opened({ v }: { v: RequestView }) {
       <RequestShot canvas={r.canvas} id={r.id} />
       <Thread v={v} box={here.box} />
       {here.step === "naming" ? <NameField /> : null}
+      <HoldNotice v={v} />
       <Controls v={v} here={here} />
     </section>
   );

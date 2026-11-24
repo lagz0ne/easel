@@ -736,6 +736,8 @@ viewer.actingOn exits{value} reads{viewer.acting.get} writes{} calls{}
 viewer.addDraft exits{added,badImage,full,gone,offFrame,slow,tooBig} reads{} writes{viewer.draft.set} calls{?,viewer.addInputOf}
 viewer.addInputOf exits{value} reads{} writes{} calls{}
 viewer.addOnce exits{added,badImage,full,gone,offFrame,slow,tooBig} reads{} writes{} calls{viewer.addDraft,viewer.keptName,viewer.namePass}
+viewer.agreeTo exits{value} reads{} writes{viewer.agreeing.set} calls{?}
+viewer.agreementWords exits{value} reads{} writes{} calls{}
 viewer.askProof exits{value} reads{} writes{} calls{}
 viewer.axesFor exits{value} reads{} writes{} calls{viewer.configPicks}
 viewer.backToList exits{value} reads{} writes{viewer.panelOpen.set} calls{viewer.closeRequest}
@@ -755,9 +757,11 @@ viewer.enterPassword exits{value} reads{} writes{} calls{?,viewer.openInput,view
 viewer.escape exits{value} reads{viewer.draft.get,viewer.findOpen.get,viewer.openedRequest.get,viewer.panelOpen.get} writes{viewer.draft.set,viewer.panelOpen.set,viewer.requestMode.set} calls{viewer.backToList,viewer.closeFind}
 viewer.frameCause exits{value} reads{} writes{} calls{}
 viewer.headStep exits{value} reads{} writes{} calls{}
+viewer.holdWords exits{value} reads{} writes{} calls{viewer.agreementWords,viewer.limitWords}
 viewer.keepName exits{value} reads{} writes{} calls{}
 viewer.keptName exits{value} reads{} writes{} calls{}
 viewer.lastActOf exits{value} reads{} writes{} calls{}
+viewer.limitWords exits{value} reads{} writes{} calls{}
 viewer.linesOf exits{value} reads{} writes{} calls{viewer.linesOfMessage,viewer.outdatedLine,viewer.proofOf,viewer.sofarStep,viewer.stateLine}
 viewer.linesOfMessage exits{value} reads{} writes{} calls{viewer.messageLine,viewer.stepWords}
 viewer.listViews exits{value} reads{} writes{} calls{viewer.threads,viewer.viewOf}

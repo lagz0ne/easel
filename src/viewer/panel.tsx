@@ -13,6 +13,7 @@ import {
   serverTime,
 } from "./follow";
 import type { Outdated, RequestView, Shown } from "./follow";
+import { holdsHere } from "./hold";
 import { openMenu, setMenu } from "./overlays";
 import { pageList } from "./pages";
 
@@ -34,6 +35,20 @@ export function StateMark({ shown, agent }: { shown: Shown; agent: string | null
     <span className="e-sb" data-state={shown} role="img" aria-label={word} title={word}>
       <i className="e-sb-mark" />
       {shown === "inWork" ? <span className="e-sb-label">{word}</span> : null}
+    </span>
+  );
+}
+
+export function RequestMark({ v, short = false }: { v: RequestView; short?: boolean }) {
+  const words = useData(holdsHere({ canvas: v.r.canvas })).get(v.r.id);
+  if (v.shown !== "waiting" || words === undefined) {
+    return <StateMark shown={v.shown} agent={v.r.claimedBy} />;
+  }
+
+  return (
+    <span className="e-sb" data-state="held" data-hold={words.kind} title={words.mark}>
+      <i className="e-sb-mark" />
+      <span className="e-sb-label">{short ? words.short : words.mark}</span>
     </span>
   );
 }
@@ -149,7 +164,7 @@ function Row({
               <Age from={v.r.created} />
             </span>
             <span className="e-rr-sep" aria-hidden="true" />
-            <StateMark shown={v.shown} agent={v.r.claimedBy} />
+            <RequestMark v={v} short />
             {v.outdated ? <OutdatedMark cause={v.outdated.cause} /> : null}
             <span className="e-rr-ref">{`#${v.r.n}`}</span>
           </span>

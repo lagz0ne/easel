@@ -44,6 +44,7 @@ const app = createScope({
     frames.viewer({ remote: ws.client }),
     frames.pass({ remote: ws.client }),
     queue.viewer({ remote: ws.client }),
+    queue.starts({ remote: ws.client }),
   ],
 });
 

@@ -1,0 +1,27 @@
+.e-sb[data-state="held"] {
+  color: var(--e-accent);
+}
+
+.e-sb[data-state="held"] .e-sb-mark {
+  border-style: dashed;
+}
+
+.e-hold {
+  display: grid;
+  gap: var(--e-1);
+  padding: var(--e-3) var(--e-4);
+  margin: 0 var(--e-3) var(--e-3);
+  font-size: var(--e-size-1);
+  color: var(--e-muted);
+  background: var(--e-tint);
+  border-radius: var(--e-radius);
+}
+
+.e-hold strong {
+  font-weight: 600;
+  color: var(--e-text);
+}
+
+.e-hold p {
+  margin: 0;
+}
