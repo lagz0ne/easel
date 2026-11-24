@@ -941,6 +941,19 @@ test("a shell's picture is its frame's address on the board: version, key and sc
   expect(cardHidden("a")).toBe(true);
 });
 
+test("a card is grey until its picture loads, then clear, so a frame that paints no background shows the board, as it does live", async () => {
+  const server = await boot([frame("a", 0, 0, { k: "key-a1", html: silent })]);
+  await tab(server);
+  await expect.poll(() => picOf("a")).toBeTruthy();
+  const card = cardOf("a");
+  const clear = "rgba(0, 0, 0, 0)";
+  const fill = () => (card ? getComputedStyle(card).backgroundColor : "");
+  expect(fill()).not.toBe(clear);
+
+  picOf("a")?.dispatchEvent(new Event("load"));
+  await expect.poll(fill).toBe(clear);
+});
+
 test("a picture that fails (a busy server's 503) is asked again after 1, 2 and 4 s, then left a card", async () => {
   const errors = { n: 0 };
   const onError = (event: Event) => {

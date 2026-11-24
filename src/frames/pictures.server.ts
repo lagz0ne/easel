@@ -351,6 +351,7 @@ export const drawPage = operation({
         page.screenshot({
           type: "webp",
           quality: 90,
+          omitBackground: true,
           clip: {
             x: input.region.x,
             y: input.region.y,

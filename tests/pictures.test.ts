@@ -1,3 +1,4 @@
+import { createHmac } from "node:crypto";
 import { createSocket } from "node:dgram";
 import { mkdtempSync, readFileSync, rmSync, statSync } from "node:fs";
 import { connect, createServer, Socket } from "node:net";
@@ -16,7 +17,7 @@ import { routes } from "~/components/requests/index.server";
 
 import { frames } from "@/frames";
 import { frames as frameCells, kept, picturePath, removed } from "@/frames/contract";
-import { secretName, keyMatches, pictureKey } from "@/frames/keys.server";
+import { secretName, keyMatches, pictureDraw, pictureKey } from "@/frames/keys.server";
 import { createCanvas, deleteFrame, framesLoads, putFrame } from "@/frames/ops.server";
 import {
   chromiumBrowser,
@@ -735,6 +736,18 @@ test("the generation and the secret survive a restart: the board's keys are the 
   expect((await again.get(await again.address("flow", first.id))).status).toBe(200);
 }, 30_000);
 
+test("the key names the way the server draws: the same frame drawn the old way, on white, had another key, so a tab does not show a picture it kept from then", async () => {
+  const dir = mkdtempSync(join(tmpdir(), "easel-pictures-"));
+  closers.push(() => rmSync(dir, { recursive: true, force: true }));
+  const srv = await withFrame({ file: join(dir, "data", "easel.db") });
+  const secret = readFileSync(join(dir, "data", secretName));
+  const hmac = (input: string) => createHmac("sha256", secret).update(input).digest("base64url");
+
+  const k = (await srv.member("flow", srv.id)).k;
+  expect(k).toBe(hmac(`flow\n${srv.id}\n1\n0\n${pictureDraw}`));
+  expect(k).not.toBe(hmac(`flow\n${srv.id}\n1\n0`));
+});
+
 test("a secret file that is not 256 bits stops the start", async () => {
   const dir = mkdtempSync(join(tmpdir(), "easel-pictures-"));
   closers.push(() => rmSync(dir, { recursive: true, force: true }));
@@ -1287,6 +1300,20 @@ test("a real Chromium draws a WebP at the scale and region asked, and readiness 
   expect(await srv.server.run(chromiumCheck)).toEqual({ ok: true, detail: "Chromium runs" });
 }, 30_000);
 
+test("a real Chromium leaves clear what the frame does not paint, as the tab shows it: a transparent body draws a WebP with alpha", async () => {
+  const srv = await boot({ chromium: localChromium(), real: true });
+  await srv.canvas("Real");
+  const clear = await srv.put({
+    canvas: "real",
+    html: '<body style="margin:0;background:transparent"><p>Hi</p></body>',
+    size: { w: 200, h: 100 },
+  });
+
+  const answer = await srv.get(await srv.address("real", clear.id, "s=1"));
+  expect(answer.status).toBe(200);
+  expect(webpHasAlpha(new Uint8Array(await answer.arrayBuffer()))).toBe(true);
+}, 30_000);
+
 test("an app frame's picture is drawn from its composed app document (composeApp): its JS, with the runtime of its kit version from the stored bytes, not its TSX", async () => {
   const srv = await boot();
   await srv.canvas("Apps");
@@ -1538,6 +1565,13 @@ test("a request that goes away at once, while its draw starts, gives its slot ba
     await until(() => srv.server.resolve(drawSlots).free === drawsAtOnce);
   }
 }, 60_000);
+
+function webpHasAlpha(b: Uint8Array) {
+  const ascii = (from: number, to: number) => String.fromCharCode(...b.slice(from, to));
+  const extended = ascii(12, 16) === "VP8X";
+  const alphaFlag = 0x10;
+  return extended && ((b[20] ?? 0) & alphaFlag) !== 0;
+}
 
 function sizeOf(b: Uint8Array) {
   const at = (i: number) => b[i] ?? 0;

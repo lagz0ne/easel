@@ -66,6 +66,8 @@ export const loadPictures = operation({
   },
 });
 
+export const pictureDraw = "clear-background";
+
 const keyInput = z.object({
   canvas: z.string(),
   id: z.string(),
@@ -79,7 +81,7 @@ export const pictureKey = operation({
   depends: { state: pictureState },
   run: ({ state }, { input }) =>
     createHmac("sha256", state.current.secret)
-      .update(`${input.canvas}\n${input.id}\n${input.version}\n${input.gen}`)
+      .update(`${input.canvas}\n${input.id}\n${input.version}\n${input.gen}\n${pictureDraw}`)
       .digest("base64url"),
 });
 

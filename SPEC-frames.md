@@ -274,12 +274,17 @@ frame, the draw also answers each request for the runtime of that kit version fr
 bytes, and takes the picture after the first render ([kit](SPEC-kit.md) § App frames, "The
 picture of an app frame").
 
+The draw paints no background under the document. A part that the document does not paint is
+clear, as the tab shows it live. The card of a frame is grey only until its picture loads.
+
 A **kept view** is a kept version with the kit version that a request or a message refers to: the
 kit version of the tab when the viewer asked, at the claim, or at the result
 ([queue](SPEC-queue.md)).
 
-- `key` is HMAC-SHA-256 of the server's secret, the canvas, the id, the version and the canvas's
-  key generation, in base64url. The secret is 256 random bits, made at the first start and kept
+- `key` is HMAC-SHA-256 of the server's secret, the canvas, the id, the version, the canvas's
+  key generation and the way the server draws (`clear-background`), in base64url. A new way to
+  draw gives each picture a new address, so a tab does not show a picture that it kept from
+  before. The secret is 256 random bits, made at the first start and kept
   under `/data`. The key generation goes up when the canvas's link ends or its password is set or
   changed (not when the same password is set again), and the board's keys are written again
   then. So the keys a viewer held stop working

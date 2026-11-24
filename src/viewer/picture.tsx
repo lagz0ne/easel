@@ -3,6 +3,8 @@ import { useResource } from "@tinkered/react";
 
 import { maxPicturePixels, picturePrefix } from "@/frames/contract";
 
+import "./picture.css";
+
 export const picRetryMs = [1_000, 2_000, 4_000] as const;
 
 const picRetry = resource({
@@ -54,6 +56,7 @@ function Picture({
       decoding="async"
       draggable={false}
       onError={(event) => retry.failed(event.currentTarget)}
+      onLoad={(event) => event.currentTarget.setAttribute("data-shown", "")}
     />
   );
 }

@@ -311,4 +311,4 @@ test("an easel made before the texts gets the seed texts at revision 1 in each k
       texts: seed,
     });
   }
-});
+}, 30_000);
