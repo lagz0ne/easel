@@ -285,23 +285,39 @@ async function playFixture(page: Page, mcp: ReturnType<typeof tools>, key: strin
   await answer(mcp, key, 1, "Done. The Team card has a blue border and a Most popular label.");
   await answer(mcp, key, 2, "Done. The Starter button uses the brand blue now.");
 
-  await openRequest(page, 1);
-  await page.getByRole("button", { name: "Accept", exact: true }).click();
-  await openRequest(page, 2);
-  await page.getByRole("button", { name: "Accept", exact: true }).click();
+  await accept(page, 1);
+  await accept(page, 2);
   await openAgain(page, "The label is too loud. Make it grey, please.");
 }
 
+async function accept(tab: Page, n: number) {
+  await openRequest(tab, n);
+  await tab.getByRole("button", { name: "Accept", exact: true }).click();
+  await tab
+    .getByRole("region", { name: `Request #${n}` })
+    .getByText("accepted the result")
+    .waitFor({ timeout: 10_000 });
+}
+
+async function noteSent(tab: Page, note: string) {
+  const card = tab.getByRole("region", { name: "Request #2" });
+  const field = tab.getByRole("textbox", { name: "Note" });
+  const shown = (one: ReturnType<Page["getByText"]>) => one.isVisible().catch(() => false);
+  const reopened = await shown(card.getByText("opened it again"));
+  const message = await shown(card.getByText(note, { exact: true }));
+
+  return reopened && message && !(await field.isVisible().catch(() => false));
+}
+
 async function openAgain(tab: Page, note: string) {
-  const sent = tab.getByRole("region", { name: "Request #2" }).getByText(note);
   for (let i = 0; i < 5; i++) {
-    if (await sent.isVisible().catch(() => false)) return;
+    if (await noteSent(tab, note)) return;
 
     await sendNote(tab, note).catch(() => undefined);
-    await sent.waitFor({ timeout: 3_000 }).catch(() => undefined);
+    await tab.waitForTimeout(2_000);
   }
 
-  await sent.waitFor({ timeout: 1_000 });
+  if (!(await noteSent(tab, note))) throw new Error("live-screens: the note of #2 was not sent");
 }
 
 async function sendNote(tab: Page, note: string) {
