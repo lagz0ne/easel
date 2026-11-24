@@ -1139,6 +1139,7 @@
 
 .e-menu-n,
 .e-menu-hint {
+  font-family: inherit;
   font-size: var(--e-size-1);
   font-weight: 400;
   color: var(--e-muted);

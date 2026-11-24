@@ -519,6 +519,10 @@ test("the dock has one zoom button with the zoom in it; it opens a menu of Zoom 
     "Zoom to 100%Shift 0",
     "Zoom to fitShift 1",
   ]);
+  const hint = items[0]?.querySelector("kbd");
+  expect(hint ? getComputedStyle(hint).fontFamily : "").toBe(
+    getComputedStyle(items[0] ?? document.body).fontFamily,
+  );
   await menu.getByRole("menuitem", { name: /^Zoom in/ }).click();
   expect(width()).toBeCloseTo(fitted * 1.25, 0);
   await expect.poll(() => menu.elements().length).toBe(0);
