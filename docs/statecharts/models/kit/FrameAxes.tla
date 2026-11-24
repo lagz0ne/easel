@@ -1,7 +1,7 @@
 ---- MODULE FrameAxes ----
 \* SPEC-kit.md § The capsules, "The axes in the viewer": the locale and the data state of the
 \* capsule frames of one canvas, in one tab. Two frames: `cap` is a capsule frame, `plain` is an
-\* HTML frame or an app frame with no capsule.
+\* app frame with no capsule. An HTML frame takes the locale pick by the chart words-frame.
 \*
 \* A capsule frame tells the page what it can show: when it gets its port, it posts its axes (the
 \* locales, and the values of its capsule's config). The page keeps them for that frame version.

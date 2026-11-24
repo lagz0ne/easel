@@ -205,12 +205,12 @@ test("L5: the first draw of an app frame shows the texts of the team that the do
   expect(at.errors).toEqual([]);
 }, 60_000);
 
-test("L12: in the locale vi, an app frame shows the vi text of the team; a text key with no vi text shows its en text; a vi text given later shows on the port", async () => {
+test("L12, L13: in the locale vi, an app frame shows the vi text of the team; a text key with no vi text shows its en text between U+2068 and U+2069, so the frame marks it; a vi text given later shows on the port", async () => {
   const at = await opened(docWith("vi", changed, "vi"));
   await expect
     .poll(() => at.textOf("part"), { timeout: 20_000 })
-    .toBe("Dùng thử miễn phí | No people yet | Ghi chú");
-  expect(await at.textOf("team")).toBe("Dùng thử miễn phí | No people yet");
+    .toBe("Dùng thử miễn phí | \u2068No people yet\u2069 | Ghi chú");
+  expect(await at.textOf("team")).toBe("Dùng thử miễn phí | \u2068No people yet\u2069");
 
   await at.sendKit(withVi);
   await expect

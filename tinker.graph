@@ -819,7 +819,7 @@ viewer.claimLines exits{value} reads{} writes{} calls{}
 viewer.closeCard exits{value} reads{} writes{viewer.panelOpen.set} calls{viewer.closeRequest}
 viewer.closeFind exits{value} reads{} writes{viewer.findOpen.set} calls{}
 viewer.closeRequest exits{value} reads{} writes{viewer.acting.set,viewer.openMenu.set,viewer.openedRequest.set} calls{}
-viewer.composeDoc exits{value} reads{} writes{} calls{kit.compose,kit.composeApp}
+viewer.composeDoc exits{value} reads{} writes{} calls{kit.compose,kit.composeApp,words.frameWords}
 viewer.configPicks exits{value} reads{} writes{} calls{}
 viewer.copyLink exits{value} reads{} writes{viewer.openMenu.set} calls{viewer.copyText}
 viewer.copyText exits{value} reads{} writes{} calls{}
@@ -914,8 +914,11 @@ words.addUses exits{value} reads{} writes{} calls{}
 words.appTexts exits{value} reads{} writes{} calls{}
 words.collectUses exits{value} reads{} writes{} calls{words.addUses,words.frameTextsOf}
 words.frameTextsOf exits{value} reads{} writes{} calls{words.appTexts,words.htmlTexts}
+words.frameWords exits{value} reads{} writes{} calls{words.wordsKey}
 words.htmlTexts exits{value} reads{} writes{} calls{}
 words.markupAttributes exits{value} reads{} writes{} calls{}
 words.plainText exits{value} reads{} writes{} calls{}
 words.readFrameDocs exits{value} reads{} writes{} calls{}
 words.readTextsPage exits{value} reads{} writes{} calls{?,home.readHome}
+words.wordsFor exits{value} reads{} writes{} calls{words.wordsKey}
+words.wordsKey exits{value} reads{} writes{} calls{}

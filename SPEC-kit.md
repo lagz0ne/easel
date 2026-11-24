@@ -773,8 +773,10 @@ own capsule whose schema lists its values (a `z.enum`), with its values and its 
 - **A config key is a pick for each frame**, after the frame's name (Storybook's args): its data
   state.
 - **A pick is another document.** The page composes the frame version again with the axes that it
-  posted and that differ from their defaults (`axesFor`), so the frame draws in a new scope. A
-  frame with no axes, or with no pick, is not composed again.
+  posted and that differ from their defaults (`axesFor`), so the frame draws in a new scope. An
+  app frame with no axes, or with no pick, is not composed again. An HTML frame takes the locale
+  pick, as [SPEC-words](SPEC-words.md) rule 13 and the chart
+  [words-frame](docs/statecharts/words-frame.md) say.
 - The picks are the tab's own: another tab, and the picture of a frame, show the defaults.
 - After a new version, the frame draws once with its defaults, then with the picks when it posted
   its axes: a new version can drop a value.

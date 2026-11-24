@@ -469,9 +469,9 @@ test("viewer-overlays Locale on a phone (390 x 844): the dock with Locale fits, 
   await expect.element(localeButton()).toHaveTextContent("VI");
 });
 
-test("X1 kit-frame-axes: a capsule frame posts its axes; the page offers the locale and its data states; a pick composes it again with them, and the other frame is not drawn again", async () => {
+test("X1 kit-frame-axes: a capsule frame posts its axes; the page offers the locale and its data states; a pick composes it again with them, and an app frame with no axes is not drawn again", async () => {
   const server = await boot([
-    { id: "a", x: 0, y: 0 },
+    { id: "a", x: 0, y: 0, app: true },
     { id: "b", x: 400, y: 0, capsule: true },
   ]);
   const at = await tab(server);

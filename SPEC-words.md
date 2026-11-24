@@ -121,10 +121,11 @@ shows `vi`, and each text with no translation shows its `en` text with a mark.
 7. The table of the texts of the team has a row for each text key: the text key, the `en` text,
    the `vi` text, and the uses. A row with no `vi` text shows "Not translated". A row with no use
    shows "Not used". So the person sees each text beside its translation (L14).
-8. Each use is a link to `/c/<canvas>?page=<page>#frame-<id>`. The canvas opens on that page, and
-   the view goes to the frame and puts it in the middle (L10).
-9. A list of the texts with no key follows, with the uses of each, and the note "No text key: no
-   translation". A list of the unknown text keys comes before it when there is one.
+8. Each use is a link to `/c/<canvas>#frame-<id>`. The canvas opens on the page of that frame
+   (the viewer finds it with `share.frame`), and the view goes to the frame and puts it in the
+   middle (L10).
+9. A list of the texts with no key follows, with the uses of each, and the note "A text with no key
+   has no translation". A list of the unknown text keys comes before it when there is one.
 
 ### The texts in a frame
 

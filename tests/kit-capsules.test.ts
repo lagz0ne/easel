@@ -168,11 +168,11 @@ const teamOnly = resource({
   factory: ({ say }) => say(["trial.start", "people.empty"]),
 });
 
-test("say(texts) gives the text of the team in the locale, else its en text, else the text of the part (L12)", async () => {
+test("say(texts) gives the text of the team in the locale, else its en text between U+2068 and U+2069 (L13), else the text of the part (L12)", async () => {
   const view = shownBy("own.View", ownText, ["trial.start", "people.empty", "own.title"]);
 
   const vi = await drawn({ capsules: kit("vi", seed, team), view });
-  expect(vi.html).toBe("<p>Dùng thử | No people yet | Tiêu đề</p>");
+  expect(vi.html).toBe("<p>Dùng thử | \u2068No people yet\u2069 | Tiêu đề</p>");
 
   const en = await drawn({ capsules: kit("en", seed, team), view });
   expect(en.html).toBe("<p>Start the trial | No people yet | Own title</p>");
@@ -206,15 +206,15 @@ test("say(texts): a gap in the texts of the part for a text key of the team is n
   expect(shown.html).toBe("<p>Dùng thử</p>");
 });
 
-test("say([text keys]) gives the t of those text keys from the texts of the team only; a text key that the team does not have raises CopyGaps", async () => {
+test("say([text keys]) gives the t of those text keys from the texts of the team only, an en text in vi between U+2068 and U+2069; a text key that the team does not have raises CopyGaps", async () => {
   const view = shownBy("team.View", teamOnly, ["trial.start", "people.empty"]);
 
   const vi = await drawn({ capsules: kit("vi", seed, team), view });
-  expect(vi.html).toBe("<p>Dùng thử | No people yet</p>");
+  expect(vi.html).toBe("<p>Dùng thử | \u2068No people yet\u2069</p>");
 
   const changed = { ...team, "trial.start": { en: "Try it free" } };
   const en = await drawn({ capsules: kit("vi", seed, changed), view });
-  expect(en.html).toBe("<p>Try it free | No people yet</p>");
+  expect(en.html).toBe("<p>\u2068Try it free\u2069 | \u2068No people yet\u2069</p>");
 
   const got = await server.run(renderFrame, { input: { capsules: kit("en"), view } });
   expect(got).toEqual({

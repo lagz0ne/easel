@@ -91,6 +91,13 @@ const say = resource({
         text[locale] ?? text.en,
       ]);
       const known: Readonly<Record<string, Text>> = { ...own, ...Object.fromEntries(shared) };
+      const untranslated = new Set(
+        locale === "en"
+          ? []
+          : Object.entries(team).flatMap(([key, text]) =>
+              text[locale] === undefined ? [key] : [],
+            ),
+      );
       return (key: string, params: Readonly<Record<string, string | number>> = {}) => {
         const text = known[key];
         if (text === undefined) return key;
@@ -101,7 +108,10 @@ const say = resource({
             : plural.select(Number(params.count)) === "one"
               ? text.one
               : text.other;
-        return form.replace(/\{(\w+)\}/g, (whole, name: string) => String(params[name] ?? whole));
+        const said = form.replace(/\{(\w+)\}/g, (whole, name: string) =>
+          String(params[name] ?? whole),
+        );
+        return untranslated.has(key) ? `\u2068${said}\u2069` : said;
       };
     };
   },
@@ -129,7 +139,7 @@ export const copy = capsule({
         'easel installs it for each frame: copy({ locale, team }), with each locale of the board ("en", "vi") and the texts of the team of the kit version.',
       exports: {
         say: {
-          does: 'say(["<text key>", ...]) gives the t of those text keys from the texts of the team only: the text in the locale, else its en text. A text key that the team does not have raises CopyGaps. say(texts) gives the t of a part: the text of the team in the locale, else its en text, else the text of the part. A gap in the texts of a part, for a text key that the team does not have, raises CopyGaps.',
+          does: 'say(["<text key>", ...]) gives the t of those text keys from the texts of the team only: the text in the locale, else its en text. A text key that the team does not have raises CopyGaps. say(texts) gives the t of a part: the text of the team in the locale, else its en text, else the text of the part. In a locale that is not en, an en text of the team comes between U+2068 and U+2069, and the frame marks it as not translated. A gap in the texts of a part, for a text key that the team does not have, raises CopyGaps.',
           use: 'const text = resource({ label: "<part>.text", depends: { say: copy.say }, factory: ({ say }) => say(["trial.start", "people.empty"]) }); // or, with texts of the part: tags: [copy.texts(texts)], factory: ({ say }) => say(texts), with texts = { en: { "<part>.title": "..." }, vi: { ... } } satisfies Texts',
         },
         texts: {

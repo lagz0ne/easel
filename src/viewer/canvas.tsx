@@ -12,6 +12,8 @@ import { BackBar } from "@/home/back";
 import { compose, composeApp, composeKit, frameAxes } from "@/kit/compose";
 import { paneScript } from "@/kit/controls";
 import type { ControlShown, PanePlace } from "@/kit/controls";
+import { teamTexts } from "@/kit/texts";
+import { firstLocale, frameWords, wordsFor } from "@/words/frame-words";
 
 import "./canvas.css";
 import "./arrange.css";
@@ -252,11 +254,13 @@ const composeDoc = operation({
     axes: frameAxes.nullable(),
     key: z.string(),
     serial: z.number(),
+    words: z.object({ locale: z.string(), texts: teamTexts.nullable() }),
   }),
-  depends: { compose, composeApp },
-  run: ({ compose, composeApp }, { input: { doc, kit, axes, key, serial } }): Composed => {
+  depends: { compose, composeApp, frameWords },
+  run: ({ compose, composeApp, frameWords }, { input }): Composed => {
+    const { doc, kit, axes, key, serial, words } = input;
     const look = kit ?? { look: "", css: "" };
-    const html = doc.app
+    const made = doc.app
       ? composeApp.run({
           input: {
             js: doc.app.js,
@@ -267,7 +271,10 @@ const composeDoc = operation({
           },
         })
       : compose.run({ input: { html: doc.html, css: doc.css, kit: look } });
-    return { version: doc.version, key, html, app: Boolean(doc.app), serial };
+    const app = Boolean(doc.app);
+
+    const html = frameWords.run({ input: { ...words, html: made, app } });
+    return { version: doc.version, key, html, app, serial };
   },
 });
 
@@ -284,8 +291,10 @@ const liveDoc = resource({
     done: closeDone,
     axesFor,
     composeDoc,
+    wordsFor,
   }),
-  factory: ({ doc, kit, memo, offered, picked, live, done, axesFor, composeDoc }, ctx) => {
+  factory: (deps, ctx) => {
+    const { doc, kit, memo, offered, picked, live, done, axesFor, composeDoc, wordsFor } = deps;
     const { id } = ctx.config;
     const at = doc.get();
     const look = kit.get() ?? null;
@@ -296,11 +305,15 @@ const liveDoc = resource({
 
     const axes = axesFor.run({ input: { id, version: at.version, offer: offered[id], picked } });
     const key = `${at.version}:${JSON.stringify(axes)}`;
+    const words = wordsFor.run({
+      input: { html: at.html, app: Boolean(at.app), axes, picked: picked.locale, kit: look },
+    });
+    const shownWith = `${key}:${words.key}`;
     const before = kept.shown();
-    if (before?.key === key) return kept.next(before, done);
+    if (before?.key === shownWith) return kept.next(before, done);
 
     const made = composeDoc.run({
-      input: { doc: at, kit: look, axes, key, serial: kept.serial() },
+      input: { doc: at, kit: look, axes, key: shownWith, serial: kept.serial(), words },
     });
     return kept.next(made, done);
   },
@@ -746,10 +759,18 @@ function ControlsPanel({ list }: { list: readonly FrameInfo[] }) {
   );
 }
 
-function LocalePick() {
-  const locales = useData(offeredAxes, (all) =>
-    [...new Set(Object.values(all).flatMap((offer) => offer.locales))].join(" "),
+const teamLocales = [firstLocale, "vi"];
+
+function LocalePick({ canvas }: { canvas: string }) {
+  const offered = useData(offeredAxes, (all) =>
+    Object.values(all)
+      .flatMap((offer) => offer.locales)
+      .join(" "),
   );
+  const texts = useData(frames.board.kit.of({ canvas }))?.texts ?? {};
+  const translated = Object.values(texts).some((text) => text.vi !== undefined);
+  const given = [...(translated ? teamLocales : []), ...offered.split(" ")];
+  const locales = [...new Set(given.filter((code) => code !== ""))].join(" ");
   const locale = useData(axesPicked, (p) => p.locale) ?? defaultLocale;
   const open = useData(openMenu, (m) => m === "locale");
   const set = useRun(setMenu);
@@ -830,7 +851,7 @@ function Dock({ canvas, page }: { canvas: string; page: string }) {
       <RequestsButton canvas={canvas} />
       <FindButton />
       <PagesButton canvas={canvas} page={page} />
-      <LocalePick />
+      <LocalePick canvas={canvas} />
       <span className="e-dock-sep" aria-hidden="true" />
       <ZoomPick />
     </div>
