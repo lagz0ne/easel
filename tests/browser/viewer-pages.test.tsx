@@ -16,10 +16,10 @@ import { queue } from "@/queue";
 import { messages, requests, serverClock } from "@/queue/cells";
 import type { Request } from "@/queue/cells";
 import { routeTree } from "@/routes";
-import { axesPicked, pickConfig, pickLocale } from "@/viewer/canvas";
 import { openedKey, visitKey } from "@/viewer/follow";
 import { nameKey, tabMeta } from "@/viewer/gate";
 import { showFrameOf } from "@/viewer/pages";
+import { pickBoard, pickFrame, picksNow } from "@/viewer/switches";
 
 import { frameOnPage } from "./frame-page";
 
@@ -393,15 +393,13 @@ test("an agent moves a marked frame to another page: the tab stays on its page, 
 test("a switch of the board is for the canvas: the locale and a config pick stay when the person goes to another page (rule 13)", async () => {
   address(null);
   const t = await tab(await serve());
-  t.scope.run(pickLocale, { input: "vi" });
-  t.scope.run(pickConfig, { input: { id: "a1", key: "theme", value: "dark" } });
+  t.scope.run(pickBoard, { input: { name: "locale", value: "vi" } });
+  t.scope.run(pickFrame, { input: { id: "a1", name: "theme", value: "dark" } });
 
   await pagesButton().click();
   await pagesMenu().getByRole("menuitemradio", { name: /^Two/ }).click();
   await expect.poll(() => idsOf(t.host)).toEqual(["c2"]);
 
-  expect(t.scope.resolve(axesPicked)).toEqual({
-    locale: "vi",
-    config: { a1: { theme: "dark" } },
-  });
+  const picks = t.scope.resolve(picksNow({})).get();
+  expect([picks.board.locale, picks.frames]).toEqual(["vi", { a1: { theme: "dark" } }]);
 });

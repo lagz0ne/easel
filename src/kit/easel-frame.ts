@@ -109,16 +109,19 @@ const fieldOf = (unit: unknown, key: string): unknown =>
     : undefined;
 
 const offerOf = (frame: FrameCapsule | undefined) => {
-  const config: Record<string, { values: unknown[]; default?: unknown }> = {};
+  const config: Record<string, { values: unknown[]; default?: unknown; name?: string }> = {};
   const keys = z.record(z.string(), z.unknown()).catch({}).parse(fieldOf(frame, "config"));
   for (const [key, entry] of Object.entries(keys)) {
     const tag = fieldOf(entry, "kind") === undefined ? entry : fieldOf(entry, "target");
     const parse = fieldOf(tag, "parse");
     const values = fieldOf(parse instanceof z.ZodType ? z.toJSONSchema(parse) : null, "enum");
     if (!Array.isArray(values)) continue;
+
+    const label = fieldOf(tag, "label");
+    const name = typeof label === "string" ? { name: label } : {};
     config[key] = fieldOf(tag, "hasDefault")
-      ? { values, default: fieldOf(tag, "def") }
-      : { values };
+      ? { values, default: fieldOf(tag, "def"), ...name }
+      : { values, ...name };
   }
   return { easel: "axes", locales: [...locales], config };
 };

@@ -67,6 +67,18 @@ import {
   zoomShown,
 } from "./stage";
 import type { KitMessage } from "./stage";
+import { FrameStates, pickSwitch, StatesPick } from "./switch-pick";
+import {
+  appOffers,
+  docTakesTheme,
+  frameValue,
+  localeSwitch,
+  picksInAddress,
+  picksNow,
+  switchPicksShape,
+  teamLocales,
+  themeSwitch,
+} from "./switches";
 import { zoomItems, zoomKeys, zoomStep } from "./zoom";
 
 type Stage = ReturnType<typeof stage.factory>;
@@ -156,48 +168,16 @@ type Composed = { version: number; key: string; html: string; app: boolean; seri
 
 type ShownDocs = { current: Composed | null; leaving: readonly Composed[] };
 
-const defaultLocale = "en";
+const htmlLocale = operation({
+  label: "viewer.htmlLocale",
+  input: z.object({ id: z.string(), picks: switchPicksShape }),
+  run: (_, { input: { id, picks } }) => {
+    const [own, board] = [picks.frames[id]?.[localeSwitch], picks.board[localeSwitch]];
+    if (own !== undefined && teamLocales.includes(own)) return own;
+    if (board !== undefined && teamLocales.includes(board)) return board;
 
-export const axesPicked = data<{
-  locale: string | null;
-  config: Readonly<Record<string, Readonly<Record<string, string>>>>;
-}>({ label: "viewer.axesPicked", initial: { locale: null, config: {} } });
-
-export const pickLocale = operation({
-  label: "viewer.pickLocale",
-  input: z.string(),
-  depends: { picked: axesPicked.controller, menu: openMenu.controller },
-  run: ({ picked, menu }, { input }) => {
-    menu.set(null);
-    picked.set({ ...picked.get(), locale: input });
+    return null;
   },
-});
-
-export const pickConfig = operation({
-  label: "viewer.pickConfig",
-  input: z.object({ id: z.string(), key: z.string(), value: z.string() }),
-  depends: { picked: axesPicked.controller },
-  run: ({ picked }, { input: { id, key, value } }) => {
-    const now = picked.get();
-    const config = { ...now.config, [id]: { ...now.config[id], [key]: value } };
-    picked.set({ ...now, config });
-  },
-});
-
-const configPicks = operation({
-  label: "viewer.configPicks",
-  input: z.object({
-    axes: axesPost.shape.config,
-    mine: z.record(z.string(), z.string()).optional(),
-  }),
-  run: (_, { input: { axes, mine = {} } }) =>
-    Object.fromEntries(
-      Object.entries(axes).flatMap(([key, axis]) => {
-        const value = mine[key];
-        const good = value !== undefined && value !== axis.default && axis.values.includes(value);
-        return good ? [[key, value]] : [];
-      }),
-    ),
 });
 
 export const axesFor = operation({
@@ -206,20 +186,47 @@ export const axesFor = operation({
     id: z.string(),
     version: z.number(),
     offer: axesPost.extend({ version: z.number() }).optional(),
-    picked: z.object({
-      locale: z.string().nullable(),
-      config: z.record(z.string(), z.record(z.string(), z.string())),
-    }),
+    picks: switchPicksShape,
   }),
-  depends: { configPicks },
-  run: ({ configPicks }, { input: { id, version, offer, picked } }) => {
+  depends: { appOffers, frameValue },
+  run: ({ appOffers, frameValue }, { input: { id, version, offer, picks } }) => {
     if (offer?.version !== version) return null;
 
-    const pick = picked.locale;
-    const known = pick !== null && pick !== defaultLocale && offer.locales.includes(pick);
-    const config = configPicks.run({ input: { axes: offer.config, mine: picked.config[id] } });
-    const some = known || Object.keys(config).length > 0;
-    return some ? { ...(known ? { locale: pick } : {}), config } : null;
+    const picked = appOffers.run({ input: offer }).flatMap((one) => {
+      const value = frameValue.run({ input: { id, offer: one, picks } });
+      return value === one.default ? [] : [{ key: one.key, value }];
+    });
+    const locale = picked.find((one) => one.key === undefined)?.value;
+    const config = Object.fromEntries(
+      picked.flatMap((one) => (one.key ? [[one.key, one.value]] : [])),
+    );
+    if (locale === undefined && picked.length === 0) return null;
+
+    return { ...(locale === undefined ? {} : { locale }), config };
+  },
+});
+
+const frameScheme = resource({
+  label: "viewer.frameScheme",
+  config: { canvas: docCanvas.required, id: docId.required },
+  depends: (c) => ({
+    doc: frames.board.docs.of({ canvas: c.canvas, id: c.id }),
+    kit: frames.board.kit.of({ canvas: c.canvas }),
+    picks: picksNow({}),
+    offered: offeredAxes,
+    docTakesTheme,
+    frameValue,
+  }),
+  factory: ({ doc, kit, picks, offered, docTakesTheme, frameValue }, { config: { id } }) => {
+    const at = doc.get();
+    if (!at) return null;
+
+    const offer = offered[id]?.version === at.version ? offered[id] : undefined;
+    const names = Object.values(offer?.config ?? {}).flatMap((axis) => axis.name ?? []);
+    const input = { doc: at, kit: kit.get() ?? null, names };
+    if (!docTakesTheme.run({ input })) return null;
+
+    return frameValue.run({ input: { id, offer: themeSwitch, picks: picks.get() } });
   },
 });
 
@@ -286,15 +293,17 @@ const liveDoc = resource({
     kit: frames.board.kit.of({ canvas: c.canvas }),
     memo: docMemo({ canvas: c.canvas, id: c.id }),
     offered: offeredAxes,
-    picked: axesPicked,
+    picks: picksNow({}),
     live: liveSet,
     done: closeDone,
     axesFor,
+    htmlLocale,
     composeDoc,
     wordsFor,
   }),
   factory: (deps, ctx) => {
-    const { doc, kit, memo, offered, picked, live, done, axesFor, composeDoc, wordsFor } = deps;
+    const { doc, kit, memo, offered, live, done, axesFor, composeDoc, wordsFor } = deps;
+    const picks = deps.picks.get();
     const { id } = ctx.config;
     const at = doc.get();
     const look = kit.get() ?? null;
@@ -303,10 +312,11 @@ const liveDoc = resource({
       return kept.next(null, done);
     }
 
-    const axes = axesFor.run({ input: { id, version: at.version, offer: offered[id], picked } });
+    const axes = axesFor.run({ input: { id, version: at.version, offer: offered[id], picks } });
     const key = `${at.version}:${String(at.parts)}:${JSON.stringify(axes)}`;
+    const picked = deps.htmlLocale.run({ input: { id, picks } });
     const words = wordsFor.run({
-      input: { html: at.html, app: Boolean(at.app), axes, picked: picked.locale, kit: look },
+      input: { html: at.html, app: Boolean(at.app), axes, picked, kit: look },
     });
     const shownWith = `${key}:${words.key}`;
     const before = kept.shown();
@@ -336,6 +346,7 @@ const kitFeed = resource({
 
 function LiveDoc({ canvas, frame, at }: { canvas: string; frame: FrameInfo; at: Stage }) {
   const docs = useData(liveDoc({ canvas, id: frame.id }));
+  const scheme = useData(frameScheme({ canvas, id: frame.id }));
   const shown = docs.current ? [docs.current, ...docs.leaving] : docs.leaving;
 
   return (
@@ -348,6 +359,8 @@ function LiveDoc({ canvas, frame, at }: { canvas: string; frame: FrameInfo; at: 
           data-id={frame.id}
           data-version={doc.version}
           data-app={doc.app ? "" : undefined}
+          data-theme={scheme ?? undefined}
+          style={scheme ? { colorScheme: scheme } : undefined}
           srcDoc={doc.html + paintScript.replace("__V__", String(doc.version))}
           {...(doc === docs.current
             ? { ref: at.doc, title: frame.name }
@@ -398,7 +411,7 @@ const Shell = memo(function Shell({
       <div className="e-label" data-label>
         <span className="e-label-name">{frame.name}</span>
         {frame.status === "ready" ? <ReadyMark /> : null}
-        <FrameAxes frame={frame} />
+        <FrameStates canvas={canvas} id={frame.id} name={frame.name} />
         <DockedControls {...pane} place="top" />
         <ControlsButton frame={frame} />
       </div>
@@ -420,38 +433,6 @@ const Shell = memo(function Shell({
 
 function ReadyMark() {
   return <span className="e-ready">Ready</span>;
-}
-
-function FrameAxes({ frame }: { frame: FrameInfo }) {
-  const offer = useData(offeredAxes, (all) => all[frame.id]);
-  const mine = useData(axesPicked, (p) => p.config[frame.id]);
-  const pick = useRun(pickConfig);
-  if (offer?.version !== frame.version) return null;
-
-  const keys = Object.entries(offer.config);
-  return (
-    <>
-      {keys.map(([key, axis]) => (
-        <select
-          key={key}
-          className="e-axis"
-          data-own-pointer
-          aria-label={`${key} of ${frame.name}`}
-          title={key}
-          value={mine?.[key] ?? axis.default ?? axis.values[0]}
-          onChange={(event) =>
-            pick.run({ input: { id: frame.id, key, value: event.currentTarget.value } })
-          }
-        >
-          {axis.values.map((value) => (
-            <option key={value} value={value}>
-              {value}
-            </option>
-          ))}
-        </select>
-      ))}
-    </>
-  );
 }
 
 const toggleControls = operation({
@@ -759,8 +740,6 @@ function ControlsPanel({ list }: { list: readonly FrameInfo[] }) {
   );
 }
 
-const teamLocales = [firstLocale, "vi"];
-
 function LocalePick({ canvas }: { canvas: string }) {
   const offered = useData(offeredAxes, (all) =>
     Object.values(all)
@@ -771,7 +750,7 @@ function LocalePick({ canvas }: { canvas: string }) {
   const translated = Object.values(texts).some((text) => text.vi !== undefined);
   const given = [...(translated ? teamLocales : []), ...offered.split(" ")];
   const locales = [...new Set(given.filter((code) => code !== ""))].join(" ");
-  const locale = useData(axesPicked, (p) => p.locale) ?? defaultLocale;
+  const locale = useData(picksNow({})).board[localeSwitch] ?? firstLocale;
   const open = useData(openMenu, (m) => m === "locale");
   const set = useRun(setMenu);
   if (locales === "") return null;
@@ -802,7 +781,7 @@ function LocalePick({ canvas }: { canvas: string }) {
 }
 
 function LocaleMenu({ codes, locale }: { codes: readonly string[]; locale: string }) {
-  const pick = useRun(pickLocale);
+  const pick = useRun(pickSwitch);
   const items = codes.map((code) => ({
     code,
     name: new Intl.DisplayNames([code], { type: "language" }).of(code) ?? code,
@@ -818,7 +797,7 @@ function LocaleMenu({ codes, locale }: { codes: readonly string[]; locale: strin
             value={code}
             lang={code}
             aria-label={name}
-            onClick={() => pick.run({ input: code })}
+            onClick={() => pick.run({ input: { name: localeSwitch, value: code } })}
           >
             <span className="e-pages-name">{name}</span>
             <span className="e-menu-n">{short}</span>
@@ -852,6 +831,7 @@ function Dock({ canvas, page }: { canvas: string; page: string }) {
       <FindButton />
       <PagesButton canvas={canvas} page={page} />
       <LocalePick canvas={canvas} />
+      <StatesPick />
       <span className="e-dock-sep" aria-hidden="true" />
       <ZoomPick />
     </div>
@@ -1020,6 +1000,7 @@ type PageProps = {
 
 export function Canvas({ canvas, opening, me, aim = "" }: CanvasProps) {
   const page = useData(pageInAddress({ canvas }));
+  useData(picksInAddress({}));
   if (page === null) return opening;
 
   const signedIn = { name: me?.name ?? "", owner: `${me?.owner === true}` };

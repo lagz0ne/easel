@@ -627,7 +627,13 @@ test(
       .toEqual({
         easel: "axes",
         locales: ["en", "vi"],
-        config: { sample: { values: ["empty", "one", "many", "bad"], default: "many" } },
+        config: {
+          sample: {
+            values: ["empty", "one", "many", "bad"],
+            default: "many",
+            name: "people.sample",
+          },
+        },
       });
     await frame.getByRole("button", { name: "Remove" }).first().click();
     await expect.poll(() => frame.getByText("2 people").count()).toBe(1);

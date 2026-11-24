@@ -426,7 +426,7 @@ test("viewer-overlays Locale: the locale is a dock button that shows EN, at the 
   expect(page.getByRole("menu", { name: "Pages" }).elements()).toHaveLength(0);
 });
 
-test("viewer-overlays Locale on a phone (390 x 844): the dock with Locale fits, each of its buttons is 40 x 40 px at least, and the menu stays in the view", async () => {
+test("viewer-overlays Locale on a phone (390 x 844): the dock with Locale and States fits, each of its buttons is 40 x 40 px at least, and the menu stays in the view", async () => {
   const server = await boot([{ id: "b", x: 0, y: 0, capsule: true }]);
   const at = await tab(server);
   await rested(at, 1);
@@ -445,6 +445,7 @@ test("viewer-overlays Locale on a phone (390 x 844): the dock with Locale fits, 
     "Find",
     "Pages",
     "Locale",
+    "States",
     "Zoom",
   ]);
   for (const one of shown) {
@@ -477,10 +478,16 @@ test("X1 kit-frame-axes: a capsule frame posts its axes; the page offers the loc
   const at = await tab(server);
   await rested(at, 2);
 
-  const sample = page.getByRole("combobox", { name: "sample of Frame b" });
+  const states = page.getByRole("button", { name: "States of Frame b" });
+  const statesMenu = page.getByRole("menu", { name: "States of Frame b" });
+  const pickSample = async (value: string) => {
+    await states.click();
+    await statesMenu.getByRole("menuitemradio", { name: `sample ${value}` }).click();
+    await expect.poll(() => statesMenu.elements()).toHaveLength(0);
+  };
   await expect.element(localeButton()).toHaveTextContent("EN");
-  await expect.element(sample).toHaveValue("many");
-  expect(page.getByRole("combobox", { name: /of Frame a$/ }).elements()).toEqual([]);
+  await expect.element(states).toBeVisible();
+  expect(page.getByRole("button", { name: "States of Frame a" }).elements()).toEqual([]);
   expect(await colorOf("b")).toBe("{}");
   const [plain, first] = [await drawnOf("a"), await drawnOf("b")];
 
@@ -489,10 +496,10 @@ test("X1 kit-frame-axes: a capsule frame posts its axes; the page offers the loc
   expect(await drawnOf("b")).not.toBe(first);
   expect(await drawnOf("a")).toBe(plain);
 
-  await sample.selectOptions("empty");
+  await pickSample("empty");
   await expect.poll(() => colorOf("b")).toBe('{"locale":"vi","config":{"sample":"empty"}}');
   await chooseLocale("en");
-  await sample.selectOptions("many");
+  await pickSample("many");
   await expect.poll(() => colorOf("b")).toBe("{}");
   expect(await drawnOf("a")).toBe(plain);
 });

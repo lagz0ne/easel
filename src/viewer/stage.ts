@@ -100,13 +100,24 @@ export const axesPost = z.object({
   locales: z.array(z.string()),
   config: z.record(
     z.string(),
-    z.object({ values: z.array(z.string()), default: z.string().optional() }),
+    z.object({
+      values: z.array(z.string()),
+      default: z.string().optional(),
+      name: z.string().optional(),
+    }),
   ),
 });
 
 export const offeredAxes = data<
   Readonly<Record<string, z.infer<typeof axesPost> & { version: number }>>
 >({ label: "viewer.offeredAxes", initial: {} });
+
+export const themedFrames = data<Readonly<Record<string, number>>>({
+  label: "viewer.themedFrames",
+  initial: {},
+});
+
+export const schemeText = /prefers-color-scheme|light-dark\(/i;
 
 export const zoomShown = data({ label: "viewer.zoomShown", initial: 100 });
 
@@ -185,13 +196,14 @@ export const stage = resource({
     part: partBox.controller,
     hover: hoverPart.controller,
     offered: offeredAxes.controller,
+    themed: themedFrames.controller,
     shown: shownControls.controller,
     panes: shownPanes.controller,
     mark: foundFrame.controller,
     popPlace,
   },
   factory: (
-    { live, hold, done, paints, zoom, part, hover, offered, shown, panes, mark, popPlace },
+    { live, hold, done, paints, zoom, part, hover, offered, themed, shown, panes, mark, popPlace },
     ctx,
   ) => {
     let cam = { x: 0, y: 0, z: 1 };
@@ -727,6 +739,14 @@ export const stage = resource({
         offered.set({ ...offered.get(), [id]: { ...read.data, version } });
       },
 
+      markThemed: (id: string, version: number, follows: boolean) => {
+        const now = themed.get();
+        if (follows === (now[id] === version)) return;
+        if (follows) return themed.set({ ...now, [id]: version });
+
+        themed.set(Object.fromEntries(Object.entries(now).filter(([key]) => key !== id)));
+      },
+
       dropPort: (frame: HTMLIFrameElement) => {
         ports.get(frame)?.close();
         ports.delete(frame);
@@ -741,6 +761,7 @@ export const stage = resource({
           if (frame.contentWindow !== event.source) continue;
           if (Number(frame.dataset.version) !== post.data.v) continue;
           at.markPainted(id, post.data.v);
+          at.markThemed(id, post.data.v, schemeText.test(frame.srcdoc));
           at.showed(id, post.data.v);
         }
       },
