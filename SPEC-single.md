@@ -1,7 +1,8 @@
 # Spec delta: `single`, one person and one project on a server
 
-Status: proposed (the user, 2026-11-24: the ask; "for now, use easel.vibea.dev, yes"; the one
-project is `easel`, and the other canvases go after an export: "yes").
+Status: approved (the user, 2026-11-24: the ask; "for now, use easel.vibea.dev, yes"; the one
+project is `easel`, and the other canvases go after an export: "yes"; the person: "can be
+anyname, choose lagz0ne").
 
 ## Objective
 
@@ -63,8 +64,11 @@ Prior art:
 
 9. Export each frame of `capsule-frames`, `leafy-plant-shop`, `s15-find-a-frame` and
    `image-proof` to `~/work/tmp/2026-11-24-single/<canvas>/` (`easel get`, and the pictures).
-   Then delete the 4 canvases.
-10. Remove the member `lagz0ne`. The browser signs in again, as the owner.
+   Then delete the 4 canvases. Done on 2026-11-24: 20 frames, their pictures and pages, and the
+   12 request threads of `s15-find-a-frame`; then `easel canvas rm` of each.
+10. The one person is `lagz0ne`. A new owner command, `easel users rename <name> <new>`, renames
+    the owner `rocky` to `lagz0ne`, so the CLI keeps its token. Before it, remove the member
+    `lagz0ne`, and the browser signs in again, as the owner.
 11. The hub sets `EASEL_AUTH=single` and `EASEL_PROJECT=easel` on the app (a hub request).
 
 ## Model
@@ -104,8 +108,6 @@ The mode changes who can get a session, so the model comes first. It is a varian
 - **More than one project on a single server.** A second project gets its own server.
 - **A move from `single` back to `approve`.** Add it when a second person joins.
 
-## Open questions
+## Decisions
 
-1. **The name of the person.** I recommend `rocky`: it is the owner today and holds the CLI
-   login. The other way: rename it to `lagz0ne`, the name that you typed on the sign-in page.
-   The name shows only on your requests and in `easel users`.
+1. **The name of the person** (the user, 2026-11-24): `lagz0ne`, by a rename of the owner `rocky`.
