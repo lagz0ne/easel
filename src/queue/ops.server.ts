@@ -6,6 +6,7 @@ import { addressKey, limiter } from "@/access/login.server";
 import { secretBytes } from "@/access/store.server";
 import { framesBoard } from "@/frames/contract";
 
+import { addBuildRequest, buildRule } from "./build.server";
 import { requests } from "./cells";
 import type { Request } from "./cells";
 import { defaultLease, queueApi, requestApi, stateOf } from "./contract";
@@ -188,13 +189,14 @@ export const answerRequest = operation({
 export const acceptRequest = operation({
   label: "request.accept.do",
   input: requestApi["request.accept"].input,
-  depends: { actOn },
-  run: async ({ actOn }, { input }) => {
+  depends: { actOn, addBuildRequest },
+  run: async ({ actOn, addBuildRequest }, { input }) => {
     const answer = await actOn.run({
       input: { kind: "accept", ...input, text: null, option: null },
     });
     switch (answer.kind) {
       case "done":
+        await addBuildRequest.run({ input: answer.row });
         return { kind: "accepted" as const };
       case "slow":
       case "gone":
@@ -474,9 +476,15 @@ export const askRequest = operation({
 export const resolveRequest = operation({
   label: "request.resolve.do",
   input: queueApi["request.resolve"].input,
-  depends: { holderAct },
-  run: async ({ holderAct }, { input }) => {
-    const call = { ...input, kind: "resolve" as const, html: input.html ?? null };
+  depends: { holderAct, claimParts, buildRule },
+  run: async ({ holderAct, claimParts, buildRule }, { input }) => {
+    const { build, ...said } = input;
+    const { id } = claimParts.run({ input: input.claim });
+    const rule = await buildRule.run({ input: { id, build: build ?? null, text: said.text } });
+    if (rule.kind !== "go") return rule;
+
+    const text = rule.text;
+    const call = { ...said, text, kind: "resolve" as const, html: said.html ?? null };
     const { answer } = await holderAct.run({ input: call });
     switch (answer.kind) {
       case "done":

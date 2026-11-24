@@ -47,6 +47,7 @@ export const queueCommand = z.discriminatedUnion("kind", [
     claim: z.string(),
     text: z.string(),
     html: z.string().optional(),
+    build: z.number().optional(),
   }),
   z.object({
     kind: z.literal("requests"),
@@ -384,8 +385,9 @@ const partCall = operation({
     const { kind, claim, text } = input;
     const part = html === null ? {} : { html };
     const options = input.kind === "ask" && input.options?.length ? { options: input.options } : {};
+    const build = input.kind === "resolve" && input.build ? { build: input.build } : {};
 
-    return { bad: null, call: { kind, input: { claim, text, ...part, ...options } } };
+    return { bad: null, call: { kind, input: { claim, text, ...part, ...options, ...build } } };
   },
 });
 
@@ -459,6 +461,8 @@ const holderDone = {
   declined: "declined: the request needs a person",
   asked: "asked: the request waits for a viewer",
   resolved: "resolved",
+  needsBuild:
+    "needsBuild: a build request is resolved with the build that holds the change: easel resolve <claim> --text <t> --build <n>",
 } as const;
 
 const holderText = operation({
@@ -475,6 +479,11 @@ const holderText = operation({
     if (answer.kind === "wrongState" || answer.kind === "lost" || answer.kind === "gone") {
       return { text: refusalText.run({ input: answer }), error: true };
     }
+    if (answer.kind === "notLive") {
+      const text = `notLive: easel serves build ${answer.live}. Resolve when your build is live, with --build <n> at most ${answer.live}.`;
+      return { text, error: true };
+    }
+    if (answer.kind === "needsBuild") return { text: holderDone.needsBuild, error: true };
     if (answer.kind === "extended") {
       const until = `extended: until ${new Date(answer.until).toISOString()}`;
       const notes = answer.notes.map((m) => `\n${m.from} (note): ${m.text ?? ""}`);

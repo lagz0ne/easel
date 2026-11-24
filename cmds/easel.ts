@@ -106,7 +106,7 @@ const help = `easel: the canvas CLI. Every command takes --json (one JSON value 
   easel release <claim> --reason <text>            give the request back: it waits again, the try counts
   easel ask <claim> --text <q> [--html <file>] [--option <o>]...
                                                    a question for a viewer, with up to 6 options
-  easel resolve <claim> --text <t> [--html <file>] the result: say what changed
+  easel resolve <claim> --text <t> [--html <file>] [--build <n>]  the result: say what changed; a build request needs --build, the live build that holds the change
   easel decline <claim> --reason <text>            the request goes to a person
   easel requests [--canvas <k>] [--state <state>]  the requests; --state person: those that need a person
   easel edit <canvas> <n> --text <t>               make a request clear: it waits again, with no tries
@@ -634,13 +634,18 @@ const queueInvocations = [
   z
     .object({
       positionals: z.tuple([z.literal("resolve"), z.string()]),
-      values: z.strictObject({ ...common, text: z.string(), html: z.string().optional() }),
+      values: z.strictObject({
+        ...common,
+        text: z.string(),
+        html: z.string().optional(),
+        build: buildFlag.optional(),
+      }),
     })
     .transform(({ positionals: [, claim], values }): unknown => ({
       at: values.server,
       command: {
         kind: "queue",
-        act: { kind: "resolve", claim, text: values.text, html: values.html },
+        act: { kind: "resolve", claim, text: values.text, html: values.html, build: values.build },
       },
     })),
   z

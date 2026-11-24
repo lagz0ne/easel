@@ -214,7 +214,7 @@ export const tools = {
   resolve_request: {
     address: "request.resolve",
     annotations: write,
-    description: `Finish a claimed request: say what changed, with an optional HTML part. ${allows}`,
+    description: `Finish a claimed request: say what changed, with an optional HTML part, and with \`build\`, the live build that holds a change of the code, which a build request needs. ${allows}`,
   },
   list_requests: {
     address: "request.list",

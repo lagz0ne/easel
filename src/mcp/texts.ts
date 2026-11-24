@@ -36,6 +36,8 @@ export const kindTexts: Readonly<Record<string, string>> = {
     "theirs: the code asks to sign a browser in as a user that is there. Only that user can sign that browser in, with easel open. Deny the code if that user did not ask.",
   notLive:
     "notLive: build {live} is live, not the build that you gave. Resolve it after that build deploys.",
+  needsBuild:
+    "needsBuild: a build request needs the live build that holds the change, so nothing was written. Ship the change, then resolve it again with build.",
   failing: "failing: the error was seen on build {seen}, so the fix did not hold.",
   held: "held: a person has this error group. Leave it to them.",
   empty: "empty: no request waits. Call next_request again.",

@@ -234,8 +234,18 @@ export const queueContracts = {
     output: z.discriminatedUnion("kind", [z.object({ kind: z.literal("asked") }), ...lostOr]),
   },
   "request.resolve": {
-    input: z.strictObject({ claim: claimHandle, text, html: htmlPart.optional() }),
-    output: z.discriminatedUnion("kind", [z.object({ kind: z.literal("resolved") }), ...lostOr]),
+    input: z.strictObject({
+      claim: claimHandle,
+      text,
+      html: htmlPart.optional(),
+      build: z.number().int().positive().optional(),
+    }),
+    output: z.discriminatedUnion("kind", [
+      z.object({ kind: z.literal("resolved") }),
+      ...lostOr,
+      z.object({ kind: z.literal("notLive"), live: z.number() }),
+      z.object({ kind: z.literal("needsBuild") }),
+    ]),
   },
   "request.list": {
     input: z.strictObject({ canvas: canvasKey.optional(), state: state.optional() }),

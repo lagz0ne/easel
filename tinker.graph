@@ -221,7 +221,7 @@ cli.sendHolder exits{value} reads{} writes{} calls{cli.queueDeadline,cli.queueFa
 cli.sendPut exits{value} reads{} writes{} calls{?,cli.framesDeadline,cli.framesFault,cli.sentDoc}
 cli.sendUser exits{value} reads{} writes{} calls{cli.queueDeadline,cli.queueFault,cli.settleUser}
 cli.sentDoc exits{value} reads{} writes{} calls{}
-cli.settleHolder exits{asked,declined,extended,gone,lost,released,resolved,wrongState} reads{} writes{} calls{?}
+cli.settleHolder exits{asked,declined,extended,gone,lost,needsBuild,notLive,released,resolved,wrongState} reads{} writes{} calls{?}
 cli.settleUser exits{closed,edited,gone,slow,wrongState} reads{} writes{} calls{?}
 cli.setupLogin exits{value} reads{} writes{} calls{?,cli.deadline,cli.faultExit,cli.no,cli.signedIn}
 cli.share exits{value} reads{} writes{} calls{?,cli.framesDeadline,cli.framesExitOf,cli.framesFault,cli.framesUsage,cli.noCanvas,cli.say}
@@ -658,11 +658,14 @@ portLink.serve exits{value} reads{} writes{} calls{}
 portLink.serveStream exits{value} reads{} writes{} calls{}
 portLink.watch exits{} reads{} writes{} calls{}
 queue.actOn exits{done,full,gone,slow,wrongState} reads{} writes{} calls{queue.changeRequest,queue.newId,queue.viewerLimit,queue.whoActs}
+queue.addBuildRequest exits{value} reads{} writes{} calls{queue.buildText,queue.frameVersionOf,queue.natsCovers,queue.saveRequest}
 queue.agreeOldRequests exits{value} reads{} writes{} calls{}
 queue.attemptDelivery exits{value} reads{} writes{} calls{queue.attemptOnChannel,queue.endAttempt,queue.readAttempt,queue.scrub}
 queue.attemptOnChannel exits{failed,sent} reads{} writes{} calls{queue.attemptOnGithub,queue.attemptOnNats}
 queue.attemptOnGithub exits{failed,sent} reads{} writes{} calls{queue.closeIssue,queue.issueTexts,queue.openIssue,queue.readRepo,queue.writeAgain}
 queue.attemptOnNats exits{failed,sent} reads{} writes{} calls{queue.natsCall}
+queue.buildRule exits{go,needsBuild,notLive} reads{} writes{} calls{queue.isBuildRequest}
+queue.buildText exits{value} reads{} writes{} calls{}
 queue.changeRequest exits{done,full,gone,wrongState} reads{?} writes{?} calls{queue.missedChange,queue.pickedOption}
 queue.channelInfoOf exits{github,nats} reads{} writes{} calls{queue.channelLimitsOf,queue.userKeyOf}
 queue.channelLimitsOf exits{value} reads{} writes{} calls{}
@@ -680,6 +683,7 @@ queue.dispatchState exits{value} reads{} writes{} calls{}
 queue.endAttempt exits{value} reads{} writes{} calls{}
 queue.endTry exits{done,gone,lost,wrongState} reads{?} writes{?} calls{queue.missedTry,queue.tryMessage}
 queue.endedBy exits{value} reads{} writes{} calls{queue.stateOf}
+queue.frameVersionOf exits{value} reads{} writes{} calls{}
 queue.githubCall exits{answer,network,timeout} reads{} writes{} calls{}
 queue.githubMessage exits{value} reads{} writes{} calls{queue.scrub}
 queue.githubStep exits{failed,ok} reads{} writes{} calls{queue.githubCall,queue.githubMessage}
@@ -687,6 +691,7 @@ queue.hasColumn exits{value} reads{} writes{} calls{}
 queue.holdOfPeriod exits{failed,limit,refused,silent,value} reads{} writes{} calls{queue.starterHold}
 queue.holdOfRequest exits{agreement,failed,limit,refused,silent,value} reads{} writes{} calls{queue.holdOfPeriod}
 queue.holderAct exits{value} reads{} writes{} calls{queue.claimParts,queue.endTry,queue.newId}
+queue.isBuildRequest exits{value} reads{} writes{} calls{}
 queue.issueTexts exits{value} reads{} writes{} calls{queue.viewerBlock}
 queue.load exits{value} reads{?} writes{?} calls{queue.agreeOldRequests}
 queue.loadShots exits{value} reads{} writes{} calls{queue.shotOf}
@@ -700,6 +705,7 @@ queue.natsCall exits{acked,failed,rejected} reads{} writes{} calls{queue.natsAns
 queue.natsCauseOf exits{value} reads{} writes{} calls{queue.natsCausesOf,queue.natsConnectionCauseOf}
 queue.natsCausesOf exits{value} reads{} writes{} calls{}
 queue.natsConnectionCauseOf exits{value} reads{} writes{} calls{queue.scrub}
+queue.natsCovers exits{value} reads{} writes{} calls{}
 queue.newId exits{value} reads{} writes{} calls{}
 queue.newSecret exits{value} reads{} writes{} calls{access.secretBytes}
 queue.nextPlan exits{value} reads{} writes{} calls{}
@@ -745,7 +751,7 @@ queue.whoActs exits{value} reads{} writes{} calls{}
 queue.writeAgain exits{failed,sent} reads{} writes{} calls{queue.githubStep}
 release.install exits{value} reads{} writes{} calls{}
 release.version exits{value} reads{} writes{} calls{}
-request.accept.do exits{accepted,gone,slow,wrongState} reads{} writes{} calls{queue.actOn}
+request.accept.do exits{accepted,gone,slow,wrongState} reads{} writes{} calls{queue.actOn,queue.addBuildRequest}
 request.add.do exits{added,badImage,full,gone,offFrame,slow,tooBig} reads{} writes{} calls{?,queue.newId,queue.saveRequest,queue.seenKey,queue.shotWriteOf,queue.viewerLimit,queue.whoActs}
 request.agree.do exits{agreed,gone,notPerson,wrongState} reads{?} writes{?} calls{queue.stateOf}
 request.answer.do exits{answered,gone,slow,wrongState} reads{} writes{} calls{queue.actOn}
@@ -760,7 +766,7 @@ request.next.do exits{claimed,empty} reads{} writes{} calls{queue.nextPlan,queue
 request.note.do exits{gone,noted,slow,wrongState} reads{} writes{} calls{queue.actOn}
 request.release.do exits{gone,lost,released,wrongState} reads{} writes{} calls{queue.holderAct}
 request.reopen.do exits{full,gone,reopened,slow,wrongState} reads{} writes{} calls{queue.actOn}
-request.resolve.do exits{gone,lost,resolved,wrongState} reads{} writes{} calls{queue.holderAct}
+request.resolve.do exits{gone,lost,needsBuild,notLive,resolved,wrongState} reads{} writes{} calls{queue.buildRule,queue.claimParts,queue.holderAct}
 section.set.do exits{changed,gone,set,unchanged} reads{} writes{} calls{frames.arrangeAfter,frames.changeSection,frames.layoutOf,frames.pageState,frames.sectionTarget,frames.showArranged}
 share.frame.do exits{found,gone} reads{?} writes{?} calls{}
 share.name.do exits{named} reads{} writes{} calls{}

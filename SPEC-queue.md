@@ -294,7 +294,7 @@ type Refused = { kind: "wrongState"; state: State } | { kind: "gone" }
 
 // a user (refused { signIn: true } without a live token)
 // request.next { canvas?, lease?, wait? }; extend { claim, lease? }; release { claim, reason };
-// decline { claim, reason }; ask { claim, text, html?, options? }; resolve { claim, text, html? };
+// decline { claim, reason }; ask { claim, text, html?, options? }; resolve { claim, text, html?, build? };
 // list { canvas?, state? }; next takes n with canvas: only that request
 // deliveries { canvas, n }
 "request.next":    { kind: "claimed"; request: Request; messages: Message[];
@@ -306,7 +306,8 @@ type Refused = { kind: "wrongState"; state: State } | { kind: "gone" }
 "request.release": { kind: "released" } | Lost
 "request.decline": { kind: "declined" } | Lost
 "request.ask":     { kind: "asked" } | Lost
-"request.resolve": { kind: "resolved" } | Lost
+"request.resolve": { kind: "resolved" } | Lost | { kind: "notLive"; live: number }
+  | { kind: "needsBuild" }
 "request.list":    { kind: "listed"; requests: Request[] }
 "request.deliveries": { kind: "listed"; deliveries: Delivery[]; channels: number }
                  | { kind: "gone" }
@@ -490,7 +491,8 @@ one for each waiting period, the cap of attempts, and one outcome when two ways 
    - `note`: `open` (also in work), or `person`. Not in work, it sets `open` and `tries` to 0. In
      work, it changes no column but `updated`: the lease and `tries` stay.
    - `answer`: `asking`. It sets `open` and `tries` to 0.
-   - `accept`: `resolved` with `acceptedBy` null. It sets `acceptedBy`.
+   - `accept`: `resolved` with `acceptedBy` null. It sets `acceptedBy`. On a canvas that a `nats`
+     channel covers, it also adds one build request (SPEC-live-screens 9).
    - `reopen`: `resolved`. It sets `open`, `tries` to 0 and `acceptedBy` to null.
    - `close`: `open` (also in work), `asking`, or `person`. It sets `closed` and ends the lease
      (`claimedBy`, `claimedUntil` and `claimedAt` to null).

@@ -508,7 +508,7 @@ export const changeRequest = operation({
         requestCells.set(answer.row);
         messageCells.set(answer.note);
         if (answer.row.status === "open") bell.ring();
-        return { kind: "done" as const };
+        return { kind: "done" as const, row: answer.row };
       case "gone":
       case "full":
       case "wrongState":

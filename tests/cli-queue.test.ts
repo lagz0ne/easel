@@ -14,8 +14,9 @@ import type { QueueCommand } from "@/cli/queue";
 import { frames } from "@/frames";
 import { queue } from "@/queue";
 import { editRequest, extendRequest, nextRequest } from "@/queue/ops.server";
+import { release } from "@/release";
 
-import { boot, closers, tick, viewer } from "./support/queue";
+import { boot, closers, natsChannel, tick, viewer } from "./support/queue";
 import type { Server } from "./support/queue";
 
 afterEach(async () => {
@@ -301,6 +302,24 @@ test("resolve sends the result with its HTML part and exits 0 (E4 chart: inWork 
   const html = a.file("after.html", "<!doctype html><p>moved</p>");
 
   expect(await a.run({ kind: "resolve", claim: held, text: "Moved the button up.", html })).toBe(0);
+  expect(a.text()).toBe("resolved\n");
+});
+
+test("resolve of a build request: no --build exits 1 needsBuild, a build over the live one exits 1 notLive, the live build exits 0 (SPEC-live-screens 9)", async () => {
+  const srv = await boot(":memory:", [], {
+    extra: [release({ commit: "c".repeat(40), build: 300 })],
+  });
+  await srv.server.run(natsChannel, { input: [] });
+  const { a, bo } = await queued(srv, 1, false);
+  expect(await a.run({ kind: "resolve", claim: await claim(a), text: "Blue now." })).toBe(0);
+  expect((await bo.accept("flow", 1)).kind).toBe("accepted");
+  const held = await claim(a, { kind: "next", canvas: "flow", n: "2" });
+
+  expect(await a.run({ kind: "resolve", claim: held, text: "Shipped." })).toBe(1);
+  expect(a.text()).toMatch(/^needsBuild: .*--build <n>/);
+  expect(await a.run({ kind: "resolve", claim: held, text: "Shipped.", build: 301 })).toBe(1);
+  expect(a.text()).toMatch(/^notLive: easel serves build 300\./);
+  expect(await a.run({ kind: "resolve", claim: held, text: "Shipped.", build: 300 })).toBe(0);
   expect(a.text()).toBe("resolved\n");
 });
 

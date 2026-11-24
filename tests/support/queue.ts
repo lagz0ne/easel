@@ -7,7 +7,7 @@ import type { Capsule, Observe, Scope } from "@tinkered/core";
 import { makeTestClock, memory } from "@tinkered/core/testing";
 import type { preset } from "@tinkered/core/testing";
 import { expect } from "vite-plus/test";
-import type { z } from "zod";
+import { z } from "zod";
 
 import { access } from "@/access";
 import { owner, user } from "@/access/guards.server";
@@ -37,6 +37,21 @@ export async function until(ok: () => boolean) {
 }
 
 export const start = 1_800_000_000_000;
+
+export const natsChannel = operation({
+  label: "test.natsChannel",
+  input: z.array(z.string()),
+  depends: { connection: bunSqlite.connection },
+  run: async ({ connection }, { input: canvases }) =>
+    connection.db.$client
+      .query(
+        `INSERT INTO queue_channels (name, kind, repo, label, trigger, token, url, subject, inbox,
+           canvases, created)
+         VALUES ('loop', 'nats', '', '', '', 'seed', 'nats://127.0.0.1:1', 'easel.requests',
+           '_INBOX', $canvases, 0)`,
+      )
+      .run({ $canvases: JSON.stringify(canvases) }).changes,
+});
 
 export async function boot(
   file = ":memory:",
@@ -179,9 +194,14 @@ export async function client(
       scope.run(api["request.decline"], { input: { claim, reason } }),
     ask: (claim: string, text = "Which blue?", more: { html?: string; options?: string[] } = {}) =>
       scope.run(api["request.ask"], { input: { claim, text, ...more } }),
-    resolve: (claim: string, text = "Moved the button up.", html?: string) =>
+    resolve: (claim: string, text = "Moved the button up.", html?: string, build?: number) =>
       scope.run(api["request.resolve"], {
-        input: html === undefined ? { claim, text } : { claim, text, html },
+        input: {
+          claim,
+          text,
+          ...(html === undefined ? {} : { html }),
+          ...(build === undefined ? {} : { build }),
+        },
       }),
     deliveries: (canvas: string, n: number) =>
       scope.run(api["request.deliveries"], { input: { canvas, n } }),

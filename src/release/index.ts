@@ -3,7 +3,7 @@ import { z } from "zod";
 
 const commit = tag<string>({ label: "release.commit", parse: z.string().min(1) });
 
-const build = tag<number>({
+export const releaseBuild = tag<number>({
   label: "release.build",
   default: 0,
   parse: z.number().int().nonnegative(),
@@ -21,7 +21,7 @@ const downloads = tag<string>({
 
 const version = operation({
   label: "release.version",
-  depends: { commit, build, client: releaseClient },
+  depends: { commit, build: releaseBuild, client: releaseClient },
   run: ({ commit, build, client }) => ({ commit, build, client }),
 });
 
@@ -107,7 +107,7 @@ main "$@"
 
 const install = operation({
   label: "release.install",
-  depends: { build, origin, downloads, request: transport.request.required },
+  depends: { build: releaseBuild, origin, downloads, request: transport.request.required },
   run: ({ build, origin, downloads, request }) => {
     const server = origin ?? new URL(request.url).origin;
     const release = `${downloads.replace(/\/+$/, "")}/build-${build}`;
@@ -124,6 +124,12 @@ const install = operation({
 
 export const release = capsule({
   label: "release",
-  config: { commit: commit.required, build, origin, downloads, client: releaseClient },
+  config: {
+    commit: commit.required,
+    build: releaseBuild,
+    origin,
+    downloads,
+    client: releaseClient,
+  },
   exports: { version, install },
 });
