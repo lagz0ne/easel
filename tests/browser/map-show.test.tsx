@@ -53,6 +53,35 @@ function Form() {
   );
 }
 
+const lateBy = 400;
+
+const sendLate = operation({
+  label: "fixture.sendLate",
+  input: z.object({ name: z.string() }),
+  depends: { call: api["fixture.send"], sent: sent.controller },
+  run: async ({ call, sent }, { input, clock }) => {
+    await clock.sleep(lateBy);
+    sent.set(await call.run({ input }));
+  },
+});
+
+function LateForm() {
+  const go = useRun(sendLate);
+  return (
+    <form
+      data-map-press="sendLate"
+      onSubmit={(event) => {
+        event.preventDefault();
+        go.run({ input: { name: "ann" } });
+      }}
+    >
+      <button type="submit">Send</button>
+      {go.error ? <p role="alert">Not sent.</p> : null}
+      {go.isSuccess ? <p role="status">Sent.</p> : null}
+    </form>
+  );
+}
+
 async function shown(
   view: React.ReactElement,
   cell: typeof sent | typeof signInStep,
@@ -96,7 +125,12 @@ test("a press fills the fields of its form, and the fault of the plan shows the 
   const plan = {
     state: "idle · send failed",
     sample: { kind: "idle" },
-    press: { name: "send", fields: { name: "ann" } },
+    press: {
+      name: "send",
+      fields: { name: "ann" },
+      action: "fixture.send",
+      status: "failed" as const,
+    },
     replies: { "fixture.send": { ok: false as const, kind: "link" as const, payload: null } },
   };
   await shown(<Form />, sent, [send], plan);
@@ -113,7 +147,7 @@ test("a press of a button with no answer in the plan shows the pending run", asy
   const plan = {
     state: "idle · send pending",
     sample: { kind: "idle" },
-    press: { name: "send", fields: {} },
+    press: { name: "send", fields: {}, action: "fixture.send", status: "pending" as const },
     replies: {},
   };
   const host = await shown(<Form />, sent, [send], plan);
@@ -132,9 +166,74 @@ test("a press that the page does not have says so", async () => {
   await shown(<Form />, sent, [send], plan);
 
   expect(
-    await tool.run(pressIn, { input: { page: document, press: { name: "none", fields: {} } } }),
+    await tool.run(pressIn, {
+      input: {
+        page: document,
+        press: { name: "none", fields: {}, action: "fixture.send", status: "done" },
+        limit: 300,
+      },
+    }),
   ).toEqual({
     kind: "noPress",
     press: "none",
   });
+});
+
+test("a press answers only when the page shows the failed run, however late the run fails", async () => {
+  const plan = {
+    state: "idle · sendLate failed",
+    sample: { kind: "idle" },
+    press: { name: "sendLate", fields: {}, action: "fixture.sendLate", status: "failed" as const },
+    replies: { "fixture.send": { ok: false as const, kind: "link" as const, payload: null } },
+  };
+  const host = await shown(<LateForm />, sent, [sendLate], plan);
+
+  await tool.run(pressIn, { input: { page: document, press: plan.press } });
+  expect(host.querySelector("[role=alert]")?.textContent).toBe("Not sent.");
+});
+
+test("a press answers only when the page shows the done run, however late the run ends", async () => {
+  const plan = {
+    state: "idle · sendLate done",
+    sample: { kind: "idle" },
+    press: { name: "sendLate", fields: {}, action: "fixture.sendLate", status: "done" as const },
+    replies: { "fixture.send": { ok: true as const, value: { kind: "sent" } } },
+  };
+  const host = await shown(<LateForm />, sent, [sendLate], plan);
+
+  await tool.run(pressIn, { input: { page: document, press: plan.press } });
+  expect(host.querySelector("[role=status]")?.textContent).toBe("Sent.");
+});
+
+test("a pending press answers only when its call reached the backend", async () => {
+  const plan = {
+    state: "idle · sendLate pending",
+    sample: { kind: "idle" },
+    press: { name: "sendLate", fields: {}, action: "fixture.sendLate", status: "pending" as const },
+    replies: {},
+  };
+  await shown(<LateForm />, sent, [sendLate], plan);
+
+  const started = performance.now();
+  await tool.run(pressIn, { input: { page: document, press: plan.press } });
+  expect(performance.now() - started).toBeGreaterThanOrEqual(lateBy);
+});
+
+test("a press whose run never reaches the status of its state says so, and no picture is taken", async () => {
+  const plan = {
+    state: "idle · send done",
+    sample: { kind: "idle" },
+    press: {
+      name: "send",
+      fields: { name: "ann" },
+      action: "fixture.send",
+      status: "done" as const,
+    },
+    replies: { "fixture.send": { ok: false as const, kind: "link" as const, payload: null } },
+  };
+  await shown(<Form />, sent, [send], plan);
+
+  expect(
+    await tool.run(pressIn, { input: { page: document, press: plan.press, limit: 300 } }),
+  ).toEqual({ kind: "noStatus", press: "send", status: "done" });
 });

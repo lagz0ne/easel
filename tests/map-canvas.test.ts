@@ -207,10 +207,14 @@ test("the plan of each state: a cell state waits, a run state presses with its a
     ["refused", null, {}],
     [
       "idle · go failed",
-      { name: "go", fields: { name: "aa", note: "" } },
+      { name: "go", fields: { name: "aa", note: "" }, action: "f.go", status: "failed" },
       { "fixture.go": { ok: false, kind: "link", payload: expect.anything() } },
     ],
-    ["idle · go pending", { name: "go", fields: { name: "aa", note: "" } }, {}],
+    [
+      "idle · go pending",
+      { name: "go", fields: { name: "aa", note: "" }, action: "f.go", status: "pending" },
+      {},
+    ],
   ]);
   expect(plans[1]?.sample).toEqual({ kind: "done" });
 
@@ -234,7 +238,7 @@ test("the plan of each state: a cell state waits, a run state presses with its a
       inputs: {},
     },
   });
-  expect(done[0]?.press).toEqual({ name: "nothing", fields: {} });
+  expect(done[0]?.press).toEqual({ name: "nothing", fields: {}, action: "f.go", status: "done" });
   expect(done[0]?.replies).toEqual({ "fixture.go": { ok: true, value: { kind: "done", at: 0 } } });
 });
 

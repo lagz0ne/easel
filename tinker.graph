@@ -609,7 +609,7 @@ map.graph exits{value} reads{} writes{} calls{}
 map.order exits{value} reads{} writes{} calls{}
 map.pictureHeight exits{value} reads{} writes{} calls{}
 map.place exits{value} reads{} writes{} calls{}
-map.pressIn exits{noPress,pressed,shown} reads{} writes{} calls{}
+map.pressIn exits{noPress,noStatus,pressed,shown} reads{} writes{} calls{}
 map.pressMarks exits{value} reads{} writes{} calls{}
 map.readView exits{found,none} reads{} writes{} calls{}
 map.relation exits{after,below,section} reads{} writes{} calls{}
