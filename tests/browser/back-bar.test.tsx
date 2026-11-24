@@ -4,7 +4,6 @@ import "@/style.css";
 import "@/home/home.css";
 import "@/viewer/canvas.css";
 
-const transparent = "rgba(0, 0, 0, 0)";
 const surface = "rgb(255, 255, 255)";
 
 function placed(markup: string) {
@@ -27,12 +26,4 @@ test("the back bar over the board keeps its surface, border and shadow with the 
   expect(look.backgroundColor).toBe(surface);
   expect(look.borderTopStyle).toBe("solid");
   expect(look.boxShadow).not.toBe("none");
-});
-
-test("the back button of a request card stays plain text, with no surface and no shadow", () => {
-  const button = placed('<button type="button" class="e-req-back">All requests</button>');
-  const look = getComputedStyle(button);
-
-  expect(look.backgroundColor).toBe(transparent);
-  expect(look.boxShadow).toBe("none");
 });

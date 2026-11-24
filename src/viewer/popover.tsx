@@ -477,20 +477,25 @@ export function Opened({ v }: { v: RequestView }) {
 
   return (
     <section className="e-pop e-req" aria-label={`Request #${r.n}`}>
-      <button type="button" className="e-req-back" onClick={() => back.run()}>
-        <svg width="14" height="14" viewBox="0 0 14 14" aria-hidden="true">
-          <path
-            d="M8.5 3.5 5 7l3.5 3.5"
-            fill="none"
-            stroke="currentColor"
-            strokeWidth="1.5"
-            strokeLinecap="round"
-            strokeLinejoin="round"
-          />
-        </svg>
-        All requests
-      </button>
       <header className="e-head" data-tone={headTone[v.shown]}>
+        <button
+          type="button"
+          className="e-close"
+          aria-label="All requests"
+          title="All requests"
+          onClick={() => back.run()}
+        >
+          <svg width="14" height="14" viewBox="0 0 14 14" aria-hidden="true">
+            <path
+              d="M8.5 3.5 5 7l3.5 3.5"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="1.5"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+            />
+          </svg>
+        </button>
         <StateMark shown={v.shown} agent={r.claimedBy} />
         {v.outdated ? <OutdatedMark cause={v.outdated.cause} /> : null}
         <span className="e-head-ref">

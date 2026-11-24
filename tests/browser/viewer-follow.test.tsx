@@ -795,7 +795,7 @@ test("a wheel over the thread of a request in the card scrolls the thread, not t
   expect(getComputedStyle(thread).overscrollBehaviorY).toBe("contain");
 });
 
-test("a request in the card has the look of the design system: a 40 px head with a line under it, filled while a question waits; 13/20 text; a name of weight 600; a round 24 px avatar, square for an agent; icons for More and Close; All requests with a chevron (Sidebar card, Popover card, ThreadHead, Message)", async () => {
+test("a request in the card has the look of the design system: a 40 px head with a line under it, filled while a question waits; 13/20 text; a name of weight 600; a round 24 px avatar, square for an agent; icons for More and Close; All requests is a chevron in the head, not a line of its own (Sidebar card, Popover card, ThreadHead, Message; request product#5)", async () => {
   const server = await boot(() => {
     const r = stored(1, "Make the logo bigger.", { status: "asking", claimedBy: "claude-1" });
     store.messages.push(said(r, "question", "claude-1", "Which logo?", r.created + 1));
@@ -821,6 +821,8 @@ test("a request in the card has the look of the design system: a 40 px head with
   ]);
   const back = dialog.getByRole("button", { name: "All requests" }).element();
   expect(back.querySelector("svg")).not.toBeNull();
+  expect(back.parentElement?.tagName).toBe("HEADER");
+  expect(back.previousElementSibling).toBeNull();
   const head = one("header");
   expect([head.height, head.borderBottomWidth]).toEqual(["40px", "1px"]);
   expect(head.backgroundColor).toBe("rgb(238, 244, 252)");
@@ -845,7 +847,7 @@ test("a request in the card has the look of the design system: a 40 px head with
   if (!count) throw new Error("no count");
   const drawn = count.getBoundingClientRect();
   expect([drawn.width, drawn.height, getComputedStyle(count).fontSize]).toEqual([16, 16, "11px"]);
-  for (const label of ["More", "Close"]) {
+  for (const label of ["All requests", "More", "Close"]) {
     const button = dialog.getByRole("button", { name: label, exact: true }).element();
     expect(button.querySelector("svg")).not.toBeNull();
     expect([getComputedStyle(button).width, getComputedStyle(button).height]).toEqual([

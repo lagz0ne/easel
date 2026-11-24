@@ -278,8 +278,9 @@ outdated: the frame was removed`, or `May be outdated: a long wait`. Only a wait
    it. The board's cell `removed` gives the name and the last box of the frame. The area goes
    when the request leaves the card.
 10. An open request shows in the card in the place of the list (a `region` named
-    `Request #<n>`). Its pin shows pressed, with an accent ring. Above its head, the button
-    `All requests` (a left chevron, as Miro and Linear) goes back to the list. Escape also goes
+    `Request #<n>`). Its pin shows pressed, with an accent ring. The first button of its head,
+    `All requests` (a left chevron icon, as Miro and Linear), goes back to the list. It has no
+    line of its own (request product#5). Escape also goes
     back to the list, and Escape on the list closes the card. The
     button `Close` (×) closes the card. A press on another pin or row opens that request in its
     place. None of these changes the request. The textbox of a new request (§ Ask for a change)
