@@ -80,3 +80,22 @@ export const serverClock = data({
   parse: z.object({ canvas: z.string(), now: z.number() }),
   key: (c) => ({ canvas: c.canvas }),
 });
+
+export const requestShot = z.object({
+  canvas: z.string(),
+  id: z.string(),
+  kind: z.enum(["image", "region"]),
+  mimeType: z.enum(["image/png", "image/jpeg", "image/webp"]),
+  w: z.number(),
+  h: z.number(),
+  url: z.string(),
+});
+
+export type RequestShot = z.infer<typeof requestShot>;
+
+export const shots = data({
+  label: "queue.shots",
+  mode: "keyed",
+  parse: requestShot,
+  key: (s) => ({ canvas: s.canvas, id: s.id }),
+});

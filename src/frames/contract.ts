@@ -4,7 +4,7 @@ import { z } from "zod";
 import { kit } from "@/kit/cells";
 import { runtimeLink } from "@/kit/runtime";
 import { findingShape, frameFiles } from "@/kit/schema";
-import { messages, requests, serverClock } from "@/queue/cells";
+import { messages, requests, serverClock, shots } from "@/queue/cells";
 
 import { sharePassword, sharePath } from "./share";
 
@@ -223,6 +223,7 @@ export const framesBoard = remoteData({
   removed,
   requests,
   messages,
+  shots,
   serverClock,
   kit,
   client: pageClient,

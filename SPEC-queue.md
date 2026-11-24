@@ -68,6 +68,37 @@ Prior art:
    versions, and a viewer can ask for a new change.
 6. When an agent moves the frame, its requests move with it.
 
+### A screenshot on a request
+
+D9-2 of the design loop ([design loop](SPEC-design-loop.md), rule 10). The model is
+[viewer-request-shot](docs/statecharts/viewer-request-shot.md).
+
+1. The textbox of a request holds one screenshot at most. A person pastes an image into it, or
+   presses `Take a part` and drags a box on the frame of the request. A second screenshot
+   replaces the first. `Remove the screenshot` takes it away. Prior art: GitHub and Linear take a
+   pasted image into a comment box and show it before the send.
+2. A paste is a PNG, JPEG or WebP of at most 10 MiB. The page refuses another file, or a larger
+   one, and says why. The screenshot before stays.
+3. `Take a part` is only on a request on a frame. A request on the whole canvas takes a paste
+   only. Escape in the pick ends the pick only: the text and the screenshot stay. No Send goes
+   while the pick is on.
+4. `request.add` takes `shot`: `{ kind: "image", image: { mimeType, data } }` (base64), or
+   `{ kind: "region", x, y, w, h }` in px of the frame. The server checks an image as it checks an
+   image frame ([frames](SPEC-frames.md#image-frames)): it reads the type from the bytes, keeps
+   the limits, and writes the image again with no metadata. A refused image answers `tooBig` or
+   `badImage`, a box over the edge of the frame answers `offFrame`, and nothing is saved. The page
+   keeps the text, takes the screenshot away, and says that easel did not take it.
+5. The request keeps its screenshot. A pasted image is a blob of the canvas, by its sha-256, held
+   until the canvas is deleted: a frame delete does not remove it. A part is the box only: its
+   picture is the Chromium picture of the request's version, kit and box at scale 1, drawn when
+   someone fetches it, the view that the person saw.
+6. The board carries `shots`, one for each request with a screenshot:
+   `{ canvas, id, kind, mimeType, w, h, url }`. Its `url` has the key of the canvas, so a new
+   password or an unshare ends the old address, and the board sends a new one. The opened request
+   shows the screenshot, as a link to the full image.
+7. `request.next` answers `shot: { mimeType, w, h, url } | null`. `next_request` sends it to the
+   agent as image content ([mcp](SPEC-mcp.md)). easel runs no model.
+
 ### An agent works the queue
 
 1. `easel next --wait 600` claims the oldest waiting request of any canvas (or `--canvas <key>`),
@@ -223,9 +254,12 @@ Prior art:
 // pass, { name: true } when the pass has no name, { signIn: true } with no pass and no live
 // token). The page asks the name at the first Send, and gives it to the pass
 // ([frames](SPEC-frames.md)).
-// request.add { canvas, frameId: string | null, version: number | null, kit?: number, x, y, text, key }
+// request.add { canvas, frameId: string | null, version: number | null, kit?: number, x, y, text, key,
+//   shot?: { kind: "image"; image: { mimeType; data } } | { kind: "region"; x; y; w; h } }
+//   (a region only with a frameId)
 "request.add":     { kind: "added"; n: number } | { kind: "gone" } | { kind: "full" }
-                 | { kind: "slow"; retryIn: number }
+                 | { kind: "slow"; retryIn: number } | { kind: "tooBig"; maxBytes: number }
+                 | { kind: "badImage"; reason; maxSide; maxPixels } | { kind: "offFrame" }
 // request.edit { canvas, n, text }; answer { canvas, n, text, option? }; accept { canvas, n };
 // reopen { canvas, n, text }; close { canvas, n, text? }
 "request.edit":    { kind: "edited" } | Refused
@@ -243,8 +277,8 @@ type Refused = { kind: "wrongState"; state: State } | { kind: "gone" }
 // deliveries { canvas, n }
 "request.next":    { kind: "claimed"; request: Request; messages: Message[];
                      frame: Frame | null; saw: { version: number; kit: number; doc: string } | null;
-                     frames: FrameBox[] | null; claim: string; until: number; now: number;
-                     note: string }
+                     frames: FrameBox[] | null; shot: Shot | null; claim: string; until: number;
+                     now: number; note: string }
                  | { kind: "empty" }
 "request.extend":  { kind: "extended"; until: number; now: number } | Lost
 "request.release": { kind: "released" } | Lost

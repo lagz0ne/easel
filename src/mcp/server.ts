@@ -5,7 +5,7 @@ import type { RunResult } from "@tinkered/core";
 import { z } from "zod";
 
 import { ownerApi } from "@/access/contract";
-import { framesApi } from "@/frames/contract";
+import { framesApi, maxImagePixels } from "@/frames/contract";
 import { kitApi } from "@/kit/contract";
 import { opsOwnerApi, opsUserApi } from "@/ops/contract";
 import { queueApi } from "@/queue/contract";
@@ -14,6 +14,76 @@ import { answerText } from "./texts";
 import { contracts, successLists, tools } from "./tools";
 
 export const mcpLink = tag<() => Promise<Transport>>({ label: "mcp.link" });
+
+export const mcpFetch = tag<((path: string) => Promise<Response>) | null>({
+  label: "mcp.fetch",
+  default: null,
+});
+
+export const agentSide = 1568;
+
+const fetchedImage = z.object({
+  type: z.literal("image"),
+  data: z.string(),
+  mimeType: z.enum(["image/png", "image/jpeg"]),
+});
+
+export const agentImage = operation({
+  label: "mcp.agentImage",
+  input: z.object({ bytes: z.custom<Uint8Array>((value) => value instanceof Uint8Array) }),
+  run: async (_, { input: { bytes } }) => {
+    const image = new Bun.Image(bytes, { maxPixels: maxImagePixels });
+    const meta = await image.metadata();
+
+    const fitted = image.resize(agentSide, agentSide, { fit: "inside", withoutEnlargement: true });
+    const jpeg = meta.format === "jpeg";
+    const out = await (jpeg ? fitted.jpeg({ quality: 90 }) : fitted.png()).bytes();
+    const mimeType = jpeg ? ("image/jpeg" as const) : ("image/png" as const);
+
+    return fetchedImage.parse({
+      type: "image",
+      data: Buffer.from(out).toString("base64"),
+      mimeType,
+    });
+  },
+});
+
+const imagePaths = z
+  .object({ address: z.string(), value: z.looseObject({}) })
+  .transform(({ address, value }) => {
+    const image = z.object({ image: z.object({ url: z.string() }) });
+    const framed = z.object({ frame: image }).safeParse(value).data?.frame.image.url;
+    const shot = z.object({ url: z.string() }).safeParse(value).data?.url;
+    const asked = z.object({ shot: z.object({ url: z.string() }) });
+    const told = asked.safeParse(value).data?.shot.url;
+
+    const paths = { "frame.get": [framed], "frame.shot": [shot], "request.next": [told, framed] };
+    const found = Object.entries(paths).find(([at]) => at === address)?.[1] ?? [];
+    return found.filter((path) => path !== undefined);
+  });
+
+export const imageContent = operation({
+  label: "mcp.imageContent",
+  input: z.object({ address: z.string(), value: z.looseObject({}) }),
+  depends: { fetchImage: mcpFetch, agentImage },
+  run: async ({ fetchImage, agentImage }, { input }) => {
+    const paths = imagePaths.parse(input);
+    if (fetchImage === null || paths.length === 0) return [];
+
+    const content: CallToolResult["content"] = [];
+    for (const path of paths) {
+      const answer = await fetchImage(path).catch(() => new Response(null, { status: 502 }));
+      if (answer.status !== 200) {
+        const text = `the image at ${path.split("?")[0]} cannot be fetched (HTTP ${answer.status}): call again`;
+        content.push({ type: "text", text });
+        continue;
+      }
+      const bytes = new Uint8Array(await answer.arrayBuffer());
+      content.push(await agentImage.run({ input: { bytes } }));
+    }
+    return content;
+  },
+});
 
 const instructions =
   "Frames are made from the kit of this easel. Call `kit_capsules` before the first app frame.";
@@ -123,14 +193,18 @@ export const faultResult = operation({
 export const answerResult = operation({
   label: "mcp.answerResult",
   input: z.object({ address: z.enum(Object.keys(successLists)), value: z.looseObject({}) }),
-  depends: { answerText },
-  run: ({ answerText }, { input: { address, value } }): CallToolResult => {
+  depends: { answerText, imageContent },
+  run: async (
+    { answerText, imageContent },
+    { input: { address, value } },
+  ): Promise<CallToolResult> => {
     const kind = "kind" in value ? String(value.kind) : undefined;
     const list = Object.entries(successLists).find(([at]) => at === address)?.[1] ?? [];
     const ok = [list].flat().some((k) => k === "always" || k === kind);
     const text = answerText.run({ input: { ok, value } });
+    const images = ok ? await imageContent.run({ input: { address, value } }) : [];
 
-    return { isError: !ok, structuredContent: value, content: [{ type: "text", text }] };
+    return { isError: !ok, structuredContent: value, content: [{ type: "text", text }, ...images] };
   },
 });
 

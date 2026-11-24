@@ -8,16 +8,21 @@ import type { Request } from "@/queue/cells";
 
 import { copyText } from "./act";
 import {
+  dragPick,
   drafts,
   openedRequest,
   openRequest,
+  pasteShot,
+  pickDrag,
+  removeShot,
   requestMode,
   sendDraft,
   shownName,
+  startPick,
   toggleRequest,
   typeText,
 } from "./draft";
-import type { Draft, Place as DraftPlace } from "./draft";
+import type { Draft, DraftShot, Place as DraftPlace } from "./draft";
 import { doneStates, requestStates, requestView } from "./follow";
 import type { Shown } from "./follow";
 import { pageList } from "./pages";
@@ -83,7 +88,66 @@ function NotSent({ d, lost }: { d: Draft; lost: boolean }) {
   );
 }
 
+const toldText = {
+  type: "Not added: easel takes a PNG, JPEG or WebP screenshot only.",
+  big: "Not added: the screenshot is over 10 MB.",
+  refused:
+    "easel did not take the screenshot. Your text is kept. Add a new one, or send with no screenshot.",
+} as const;
+
+function Told({ d }: { d: Draft }) {
+  if (d.told === "none") return null;
+
+  return <p role="alert">{toldText[d.told]}</p>;
+}
+
+function ShotChip({ shot }: { shot: DraftShot }) {
+  const remove = useRun(removeShot);
+
+  return (
+    <div className="e-shot-chip">
+      {shot.kind === "image" ? (
+        <img
+          className="e-shot-thumb"
+          src={`data:${shot.mimeType};base64,${shot.data}`}
+          alt="The screenshot"
+        />
+      ) : (
+        <span className="e-shot-part">{`A part of the frame, ${shot.w} × ${shot.h}`}</span>
+      )}
+      <button
+        type="button"
+        className="e-shot-remove"
+        aria-label="Remove the screenshot"
+        onClick={() => remove.run()}
+      >
+        <svg width="12" height="12" viewBox="0 0 14 14" aria-hidden="true">
+          <path d="M3.5 3.5l7 7M10.5 3.5l-7 7" stroke="currentColor" strokeWidth="1.5" />
+        </svg>
+      </button>
+    </div>
+  );
+}
+
+function TakeButton({ d }: { d: Draft }) {
+  const pick = useRun(startPick);
+  if (!d.place.box || d.picking) return null;
+
+  return (
+    <button type="button" className="e-take" onClick={() => pick.run()}>
+      Take a part
+    </button>
+  );
+}
+
+function ShotControls({ d }: { d: Draft }) {
+  if (d.picking) return <p className="e-hint">Drag a box on the frame. Esc stops.</p>;
+
+  return d.shot ? <ShotChip shot={d.shot} /> : null;
+}
+
 function Composer({ d, lost }: { d: Draft; lost: boolean }) {
+  const paste = useRun(pasteShot);
   const type = useRun(typeText);
   const send = useRun(sendDraft);
   const name = useData(shownName);
@@ -119,6 +183,12 @@ function Composer({ d, lost }: { d: Draft; lost: boolean }) {
               aria-invalid={refused || d.step === "unknown"}
               autoFocus
               onChange={(event) => type.run({ input: event.target.value })}
+              onPaste={(event) => {
+                const file = event.clipboardData.files[0] ?? null;
+                if (file === null) return;
+                event.preventDefault();
+                void paste.run({ input: file });
+              }}
               onKeyDown={(event) => {
                 if (event.key !== "Enter" || event.shiftKey) return;
                 event.preventDefault();
@@ -133,9 +203,14 @@ function Composer({ d, lost }: { d: Draft; lost: boolean }) {
               </button>
             )}
           </div>
-          <p className="e-place">
-            <Where frameName={d.place.frameName} />
-          </p>
+          <div className="e-place-row">
+            <p className="e-place">
+              <Where frameName={d.place.frameName} />
+            </p>
+            <TakeButton d={d} />
+          </div>
+          <ShotControls d={d} />
+          <Told d={d} />
           <Said d={d} lost={lost} />
         </div>
       </div>
@@ -263,6 +338,7 @@ function DraftAt({ d, lost }: { d: Draft; lost: boolean }) {
   return (
     <>
       <FrameArea gone={gone} place={d.place} />
+      <ShotArea d={d} />
       <At x={(box?.x ?? 0) + d.place.x} y={(box?.y ?? 0) + d.place.y}>
         <span className="e-pin" data-draft aria-hidden="true">
           ?
@@ -270,6 +346,74 @@ function DraftAt({ d, lost }: { d: Draft; lost: boolean }) {
         <Composer d={d} lost={lost} />
       </At>
     </>
+  );
+}
+
+type Area = { x: number; y: number; w: number; h: number };
+
+function ShotArea({ d }: { d: Draft }) {
+  const box = d.place.box;
+  if (!box) return null;
+  if (d.picking) return <PickArea box={box} />;
+
+  return d.shot?.kind === "region" ? <PartOutline at={box} part={d.shot} /> : null;
+}
+
+function PartOutline({ at, part }: { at: Area; part: Area }) {
+  return (
+    <div
+      className="e-shot-box"
+      aria-hidden="true"
+      style={{ left: at.x + part.x, top: at.y + part.y, width: part.w, height: part.h }}
+    />
+  );
+}
+
+function PickArea({ box }: { box: Area }) {
+  const drag = useRun(dragPick);
+  const held = useData(pickDrag);
+  const drawn = held && {
+    x: Math.min(held.from.x, held.to.x),
+    y: Math.min(held.from.y, held.to.y),
+    w: Math.abs(held.to.x - held.from.x),
+    h: Math.abs(held.to.y - held.from.y),
+  };
+
+  return (
+    <div
+      className="e-pick"
+      role="application"
+      aria-label="Drag a box on the frame"
+      data-own-pointer=""
+      style={{ left: box.x, top: box.y, width: box.w, height: box.h }}
+      onPointerDown={(event) => {
+        const rect = event.currentTarget.getBoundingClientRect();
+        const at = { clientX: event.clientX, clientY: event.clientY, rect, box };
+        drag.run({ input: { step: "down", at } });
+      }}
+      onPointerMove={(event) => {
+        const rect = event.currentTarget.getBoundingClientRect();
+        const at = { clientX: event.clientX, clientY: event.clientY, rect, box };
+        drag.run({ input: { step: "move", at } });
+      }}
+      onPointerUp={(event) => {
+        const rect = event.currentTarget.getBoundingClientRect();
+        const at = { clientX: event.clientX, clientY: event.clientY, rect, box };
+        drag.run({ input: { step: "up", at } });
+      }}
+      onPointerLeave={(event) => {
+        const rect = event.currentTarget.getBoundingClientRect();
+        const at = { clientX: event.clientX, clientY: event.clientY, rect, box };
+        drag.run({ input: { step: "up", at } });
+      }}
+    >
+      {drawn ? (
+        <div
+          className="e-shot-box"
+          style={{ left: drawn.x, top: drawn.y, width: drawn.w, height: drawn.h }}
+        />
+      ) : null}
+    </div>
   );
 }
 
@@ -370,5 +514,16 @@ export function KeptText() {
         Copy text
       </button>
     </section>
+  );
+}
+
+export function RequestShot({ canvas, id }: { canvas: string; id: string }) {
+  const shot = useData(frames.board.shots.of({ canvas, id }));
+  if (!shot) return null;
+
+  return (
+    <a className="e-shot" href={shot.url} target="_blank" rel="noopener noreferrer">
+      <img src={shot.url} alt="The screenshot of the request" width={shot.w} height={shot.h} />
+    </a>
   );
 }

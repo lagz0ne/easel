@@ -2,6 +2,7 @@ import { data, operation, resource } from "@tinkered/core";
 import { z } from "zod";
 
 import { frames } from "@/frames";
+import { imageType, maxImageBytes } from "@/frames/contract";
 import { queue } from "@/queue";
 
 import { closeFind, findOpen, toggleFind } from "./find";
@@ -25,6 +26,17 @@ export type Place = z.infer<typeof place>;
 
 const step = z.enum(["typing", "naming", "sending", "unknown", "notSent"]);
 
+const part = z.object({ x: z.number(), y: z.number(), w: z.number(), h: z.number() });
+
+const draftShot = z.discriminatedUnion("kind", [
+  z.object({ kind: z.literal("image"), mimeType: imageType, data: z.string() }),
+  part.extend({ kind: z.literal("region") }),
+]);
+
+export type DraftShot = z.infer<typeof draftShot>;
+
+const told = z.enum(["none", "type", "big", "refused"]);
+
 const why = z.enum(["none", "gone", "full", "slow", "link", "failed"]);
 
 const draft = z.object({
@@ -35,6 +47,9 @@ const draft = z.object({
   step,
   why,
   maybeSaved: z.boolean(),
+  shot: draftShot.nullable(),
+  picking: z.boolean(),
+  told,
 });
 
 export type Draft = z.infer<typeof draft>;
@@ -191,6 +206,7 @@ export const escape = operation({
 
     const draft = drafts.get();
     if (heldDraft.safeParse(draft).success) return;
+    if (draft?.picking) return drafts.set({ ...draft, picking: false });
     if (draft) {
       drafts.set(null);
       return mode.set(false);
@@ -212,7 +228,9 @@ export const pickPlace = operation({
     if (!mode || heldDraft.safeParse(now).success) return;
 
     if (now && now.canvas === input.canvas) {
-      return drafts.set({ ...now, place: input.place, step: "typing", why: "none" });
+      const shot = now.shot?.kind === "region" ? null : now.shot;
+      const at = { place: input.place, shot, picking: false };
+      return drafts.set({ ...now, ...at, step: "typing", why: "none" });
     }
     drafts.set({
       canvas: input.canvas,
@@ -222,6 +240,9 @@ export const pickPlace = operation({
       step: "typing",
       why: "none",
       maybeSaved: false,
+      shot: null,
+      picking: false,
+      told: "none",
     });
   },
 });
@@ -257,17 +278,26 @@ export const nameFault = z.object({
 
 export const linkFault = z.object({ fault: z.literal("link") });
 
+const sentShot = z.object({ shot: draftShot.nullable() }).transform(({ shot }) => {
+  if (shot === null) return { image: {}, any: {} };
+  if (shot.kind === "region") return { image: {}, any: { shot } };
+
+  const image = { kind: "image" as const, image: { mimeType: shot.mimeType, data: shot.data } };
+  return { image: { shot: image }, any: { shot: image } };
+});
+
 const addInputOf = operation({
   label: "viewer.addInputOf",
   input: draft,
   run: (_, { input: d }) => {
     const { canvas, place: p, text, key } = d;
     const at = { canvas, x: p.x, y: p.y, text, key, ...(p.kit === null ? {} : { kit: p.kit }) };
+    const shot = sentShot.parse(d);
     if (p.frameId === null || p.version === null) {
-      return { ...at, frameId: null, version: null, page: p.page };
+      return { ...at, frameId: null, version: null, page: p.page, ...shot.image };
     }
 
-    return { ...at, frameId: p.frameId, version: p.version };
+    return { ...at, frameId: p.frameId, version: p.version, ...shot.any };
   },
 });
 
@@ -311,7 +341,11 @@ const addOnce = operation({
   },
 });
 
-const sendable = draft.extend({ step: step.exclude(["sending"]), text: z.string().trim().min(1) });
+const sendable = draft.extend({
+  step: step.exclude(["sending"]),
+  text: z.string().trim().min(1),
+  picking: z.literal(false),
+});
 
 const stepBeforeSend = operation({
   label: "viewer.stepBeforeSend",
@@ -354,13 +388,31 @@ const showFault = operation({
   },
 });
 
-const answer = z.discriminatedUnion("kind", [
+const shotRefused = z
+  .object({ kind: z.enum(["tooBig", "badImage", "offFrame"]) })
+  .transform(() => ({
+    kind: "shotRefused" as const,
+  }));
+
+const plainAnswers = [
   z.object({ kind: z.literal("added"), n: z.number() }),
   z.object({ kind: z.literal("gone") }),
   z.object({ kind: z.literal("full") }),
   z.object({ kind: z.literal("slow"), retryIn: z.number() }),
   z.object({ kind: z.literal("fault"), error: z.unknown() }),
-]);
+] as const;
+
+const answer = z.union([...plainAnswers, z.object({ kind: z.literal("shotRefused") })]);
+
+const sentAnswer = z.union([shotRefused, ...plainAnswers]);
+
+const refusedShot = {
+  step: "typing",
+  why: "none",
+  maybeSaved: false,
+  shot: null,
+  told: "refused",
+} as const;
 
 const showAnswer = operation({
   label: "viewer.showAnswer",
@@ -383,6 +435,8 @@ const showAnswer = operation({
       case "full":
       case "slow":
         return drafts.set({ ...now, step: "notSent", why: a.kind, maybeSaved: false });
+      case "shotRefused":
+        return drafts.set({ ...now, ...refusedShot });
       case "fault":
         return showFault.run({ input: { draft: now, error: a.error } });
     }
@@ -400,7 +454,7 @@ export const sendDraft = operation({
     const sent = await addOnce
       .run({ input: { draft: d, typed: input.name } })
       .catch((error: unknown) => ({ kind: "fault" as const, error }));
-    return showAnswer.run({ input: { canvas: d.canvas, answer: sent } });
+    return showAnswer.run({ input: { canvas: d.canvas, answer: sentAnswer.parse(sent) } });
   },
 });
 
@@ -441,5 +495,118 @@ export const escapeKey = resource({
     ctx.defer(() => window.removeEventListener("keydown", onKey));
 
     return { listening: true };
+  },
+});
+
+const typingDraft = draft.extend({
+  step: z.enum(["typing", "notSent"]),
+  picking: z.literal(false),
+});
+
+const readBase64 = operation({
+  label: "viewer.readBase64",
+  input: z.instanceof(Blob),
+  run: async (_, { input: file }) => {
+    const bytes = new Uint8Array(await file.arrayBuffer());
+    let text = "";
+    for (let at = 0; at < bytes.length; at += 0x8000) {
+      text += String.fromCharCode(...bytes.subarray(at, at + 0x8000));
+    }
+
+    return btoa(text);
+  },
+});
+
+export const pasteShot = operation({
+  label: "viewer.pasteShot",
+  input: z.instanceof(Blob),
+  depends: { drafts: drafts.controller, readBase64 },
+  run: async ({ drafts, readBase64 }, { input: file }) => {
+    const now = typingDraft.safeParse(drafts.get()).data;
+    if (!now) return;
+
+    const type = imageType.safeParse(file.type);
+    if (!type.success) return drafts.set({ ...now, told: "type" });
+    if (file.size > maxImageBytes) return drafts.set({ ...now, told: "big" });
+
+    const data = await readBase64.run({ input: file });
+    const later = typingDraft.safeParse(drafts.get()).data;
+    if (!later || later.key !== now.key || data === "") return;
+    drafts.set({ ...later, shot: { kind: "image", mimeType: type.data, data }, told: "none" });
+  },
+});
+
+export const startPick = operation({
+  label: "viewer.startPick",
+  depends: { drafts: drafts.controller },
+  run: ({ drafts }) => {
+    const now = typingDraft.safeParse(drafts.get()).data;
+    if (now?.place.box) drafts.set({ ...now, picking: true });
+  },
+});
+
+const pickedPart = z.object({ part, box: part }).transform(({ part: p, box }) => {
+  const x = Math.max(0, Math.round(p.x));
+  const y = Math.max(0, Math.round(p.y));
+  const w = Math.min(Math.round(p.w), Math.floor(box.w) - x);
+  const h = Math.min(Math.round(p.h), Math.floor(box.h) - y);
+  return w >= 1 && h >= 1 ? { kind: "region" as const, x, y, w, h } : null;
+});
+
+export const pickPart = operation({
+  label: "viewer.pickPart",
+  input: part,
+  depends: { drafts: drafts.controller },
+  run: ({ drafts }, { input }) => {
+    const now = drafts.get();
+    if (!now?.picking || !now.place.box) return;
+
+    const shot = pickedPart.parse({ part: input, box: now.place.box });
+    drafts.set({ ...now, picking: false, ...(shot ? { shot, told: "none" } : {}) });
+  },
+});
+
+export const removeShot = operation({
+  label: "viewer.removeShot",
+  depends: { drafts: drafts.controller },
+  run: ({ drafts }) => {
+    const now = typingDraft.safeParse(drafts.get()).data;
+    if (now) drafts.set({ ...now, shot: null, told: "none" });
+  },
+});
+
+const point = z.object({ x: z.number(), y: z.number() });
+
+export const pickDrag = data<{ from: z.infer<typeof point>; to: z.infer<typeof point> } | null>({
+  label: "viewer.pickDrag",
+  initial: null,
+});
+
+const pointer = z.object({
+  clientX: z.number(),
+  clientY: z.number(),
+  rect: z.object({ left: z.number(), top: z.number(), width: z.number(), height: z.number() }),
+  box: part,
+});
+
+const framePoint = pointer.transform(({ clientX, clientY, rect, box }) => ({
+  x: ((clientX - rect.left) / rect.width) * box.w,
+  y: ((clientY - rect.top) / rect.height) * box.h,
+}));
+
+export const dragPick = operation({
+  label: "viewer.dragPick",
+  input: z.object({ step: z.enum(["down", "move", "up"]), at: pointer }),
+  depends: { drag: pickDrag.controller, pickPart },
+  run: ({ drag, pickPart }, { input: { step, ...raw } }) => {
+    const at = framePoint.parse(raw.at);
+    const from = drag.get()?.from;
+    if (step === "down") return drag.set({ from: at, to: at });
+    if (!from) return;
+    if (step === "move") return drag.set({ from, to: at });
+
+    drag.set(null);
+    const corner = { x: Math.min(from.x, at.x), y: Math.min(from.y, at.y) };
+    pickPart.run({ input: { ...corner, w: Math.abs(at.x - from.x), h: Math.abs(at.y - from.y) } });
   },
 });

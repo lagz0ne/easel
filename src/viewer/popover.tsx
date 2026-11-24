@@ -22,6 +22,7 @@ import { seenWhileOpen } from "./follow";
 import type { Line, RequestView, Shown } from "./follow";
 import { openMenu, setMenu } from "./overlays";
 import { Age, Initial, OutdatedMark, Place, StateMark } from "./panel";
+import { RequestShot } from "./request";
 
 const boxTexts = {
   correct: { name: "Request", hint: "" },
@@ -508,6 +509,7 @@ export function Opened({ v }: { v: RequestView }) {
           </svg>
         </button>
       </header>
+      <RequestShot canvas={r.canvas} id={r.id} />
       <Thread v={v} box={here.box} />
       {here.step === "naming" ? <NameField /> : null}
       <Controls v={v} here={here} />

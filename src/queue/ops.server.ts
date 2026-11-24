@@ -4,12 +4,14 @@ import { z } from "zod";
 import { caller, clientAddress, digestOf } from "@/access/guards.server";
 import { addressKey, limiter } from "@/access/login.server";
 import { secretBytes } from "@/access/store.server";
+import { framesBoard } from "@/frames/contract";
 
 import { requests } from "./cells";
 import type { Request } from "./cells";
 import { defaultLease, queueApi, requestApi, stateOf } from "./contract";
 import { listDeliveries } from "./dispatch.server";
 import { whoActs } from "./guards.server";
+import { shotOf, shotWriteOf } from "./shots.server";
 import {
   changeRequest,
   claimRequest,
@@ -53,8 +55,17 @@ const viewerLimit = operation({
 export const addRequest = operation({
   label: "request.add.do",
   input: requestApi["request.add"].input,
-  depends: { whoActs, seenKey, viewerLimit, saveRequest, newId },
-  run: async ({ whoActs, seenKey, viewerLimit, saveRequest, newId }, { input, clock }) => {
+  depends: {
+    whoActs,
+    seenKey,
+    viewerLimit,
+    shotWriteOf,
+    saveRequest,
+    newId,
+    invalidate: framesBoard.invalidate,
+  },
+  run: async (deps, { input, clock }) => {
+    const { whoActs, seenKey, viewerLimit, shotWriteOf, saveRequest, newId, invalidate } = deps;
     const who = whoActs.run();
     const seen = await seenKey.run({ input: { canvas: input.canvas, key: input.key } });
     if (seen !== null) return { kind: "added" as const, n: seen };
@@ -62,16 +73,25 @@ export const addRequest = operation({
     const slow = viewerLimit.run({ input: who.key });
     if (slow) return slow;
 
-    return saveRequest.run({
+    const shot = await shotWriteOf.run({ input });
+    if (shot.kind === "refused") return shot.answer;
+
+    const id = newId.run();
+    const saved = await saveRequest.run({
       input: {
         ...input,
+        shot: shot.shot,
         page: "page" in input ? (input.page ?? null) : null,
-        id: newId.run(),
+        id,
         author: who.name,
         message: newId.run(),
         now: clock.currentTimeMillis(),
       },
     });
+    if (saved.kind === "added" && shot.shot) {
+      await invalidate.run({ input: { shots: { canvas: input.canvas, id } } });
+    }
+    return saved;
   },
 });
 
@@ -215,9 +235,17 @@ const nextScope = z.object({ canvas: z.string().nullable(), n: z.number().nullab
 const tryClaim = operation({
   label: "queue.tryClaim",
   input: nextScope.extend({ lease: z.number() }),
-  depends: { me: caller.required, claimRequest, readClaimed, newSecret, digestOf, claimNoteOf },
+  depends: {
+    me: caller.required,
+    claimRequest,
+    readClaimed,
+    newSecret,
+    digestOf,
+    claimNoteOf,
+    shotOf,
+  },
   run: async (deps, { input, clock }) => {
-    const { me, claimRequest, readClaimed, newSecret, digestOf, claimNoteOf } = deps;
+    const { me, claimRequest, readClaimed, newSecret, digestOf, claimNoteOf, shotOf } = deps;
     const { lease, ...scope } = input;
     const now = clock.currentTimeMillis();
     const until = now + lease * 1000;
@@ -228,10 +256,12 @@ const tryClaim = operation({
     if (!got) return null;
 
     const rest = await readClaimed.run({ input: got });
+    const shot = await shotOf.run({ input: { canvas: got.row.canvas, id: got.row.id } });
     return {
       kind: "claimed" as const,
       request: got.row,
       ...rest,
+      shot,
       claim: `${got.row.id}.${secret}`,
       until,
       now,

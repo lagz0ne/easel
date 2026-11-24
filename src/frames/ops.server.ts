@@ -17,6 +17,7 @@ import {
   utf8Bytes,
 } from "@/kit/schema";
 import { frameKit } from "@/kit/store.server";
+import { loadShots } from "@/queue/shots.server";
 import { releaseClient } from "@/release";
 
 import {
@@ -529,6 +530,7 @@ export const loadClient = operation({
 
 export const framesLoads = {
   docs: loadDocs,
+  shots: loadShots,
   serverClock: loadServerClock,
   client: loadClient,
 } as const;

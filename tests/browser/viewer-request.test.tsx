@@ -13,8 +13,8 @@ import { frames } from "@/frames";
 import { docs, frames as frameCells, framesBoard } from "@/frames/contract";
 import { passApi, passMeta, shareApi } from "@/frames/share";
 import { queue } from "@/queue";
-import { messages, requests, serverClock } from "@/queue/cells";
-import type { Message, Request } from "@/queue/cells";
+import { messages, requests, serverClock, shots } from "@/queue/cells";
+import type { Message, Request, RequestShot } from "@/queue/cells";
 import { addInput } from "@/queue/contract";
 import { routeTree } from "@/routes";
 import { nameKey, tabMeta } from "@/viewer/gate";
@@ -27,7 +27,16 @@ const serverNow = 1_800_000_000_000;
 const home = "0123456789ab";
 const pass = "1".repeat(32);
 
-type Plan = "added" | "gone" | "full" | "slow" | "fail" | "drop";
+type Plan =
+  | "added"
+  | "gone"
+  | "full"
+  | "slow"
+  | "badImage"
+  | "tooBig"
+  | "offFrame"
+  | "fail"
+  | "drop";
 
 type AddInput = z.infer<typeof addInput>;
 
@@ -42,6 +51,7 @@ const store = {
   plan: [] as Plan[],
   refusal: null as null | { ended: true } | { locked: true },
   doc: null as string | null,
+  shots: [] as RequestShot[],
 };
 
 let current: Scope.Handle | null = null;
@@ -68,22 +78,34 @@ const nameIt = operation({
 
 const tick = (ms = 30) => new Promise((done) => setTimeout(done, ms));
 
+const plannedAnswers = {
+  gone: { kind: "gone" },
+  full: { kind: "full" },
+  offFrame: { kind: "offFrame" },
+  tooBig: { kind: "tooBig", maxBytes: 10 * 1024 * 1024 },
+  slow: { kind: "slow", retryIn: 60_000 },
+  badImage: { kind: "badImage", reason: "unreadable", maxSide: 16_000, maxPixels: 25_000_000 },
+  added: null,
+  drop: null,
+} as const;
+
 const refusedPlan = operation({
   label: "test.refusedPlan",
-  input: z.enum(["added", "gone", "full", "slow", "fail", "drop"]),
+  input: z.enum([
+    "added",
+    "gone",
+    "full",
+    "slow",
+    "badImage",
+    "tooBig",
+    "offFrame",
+    "fail",
+    "drop",
+  ]),
   run: (_, { input: plan }) => {
-    switch (plan) {
-      case "gone":
-      case "full":
-        return { kind: plan };
-      case "slow":
-        return { kind: plan, retryIn: 60_000 };
-      case "fail":
-        throw new Error("the stub server fails");
-      case "added":
-      case "drop":
-        return null;
-    }
+    if (plan === "fail") throw new Error("the stub server fails");
+
+    return plannedAnswers[plan];
   },
 });
 
@@ -243,8 +265,9 @@ const seed = operation({
     thread: messages.controller,
     clocks: serverClock.controller,
     docCells: docs.controller,
+    shotCells: shots.controller,
   },
-  run: ({ cells, rows, thread, clocks, docCells }) => {
+  run: ({ cells, rows, thread, clocks, docCells, shotCells }) => {
     cells.set({
       canvas: "home",
       id: home,
@@ -261,8 +284,10 @@ const seed = operation({
     if (store.doc !== null) {
       docCells.set({ canvas: "home", id: home, version: 1, html: store.doc, css: null });
     }
+
     for (const row of store.requests) rows.set(row);
     for (const m of store.messages) thread.set(m);
+    for (const shot of store.shots) shotCells.set(shot);
   },
 });
 
@@ -288,6 +313,14 @@ const addOnly = capsule({
           z.object({ kind: z.literal("gone") }),
           z.object({ kind: z.literal("full") }),
           z.object({ kind: z.literal("slow"), retryIn: z.number() }),
+          z.object({ kind: z.literal("tooBig"), maxBytes: z.number() }),
+          z.object({ kind: z.literal("offFrame") }),
+          z.object({
+            kind: z.literal("badImage"),
+            reason: z.enum(["type", "pixels", "unreadable"]),
+            maxSide: z.number(),
+            maxPixels: z.number(),
+          }),
         ]),
       },
     }),
@@ -329,6 +362,7 @@ async function boot(fill?: () => void) {
   store.plan.length = 0;
   store.refusal = null;
   store.doc = null;
+  store.shots.length = 0;
   fill?.();
 
   return serve();
@@ -908,4 +942,173 @@ test("in request mode, the part of a live frame under the pointer gets a 1 px ou
   await expect.element(textbox()).toBeVisible();
   await expect.poll(() => outlineBox()).toEqual(part);
   expect(hoverBox()).toBeNull();
+});
+
+const onePixel =
+  "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==";
+
+function pasteFile(file: File) {
+  const box = textbox().element();
+  const data = new DataTransfer();
+  data.items.add(file);
+  box.dispatchEvent(
+    new ClipboardEvent("paste", { clipboardData: data, bubbles: true, cancelable: true }),
+  );
+}
+
+const pngFile = () =>
+  new File([Uint8Array.from(atob(onePixel), (c) => c.charCodeAt(0))], "shot.png", {
+    type: "image/png",
+  });
+
+const thumb = () => page.getByRole("img", { name: "The screenshot" });
+const removeButton = () => page.getByRole("button", { name: "Remove the screenshot" });
+const takeButton = () => page.getByRole("button", { name: "Take a part" });
+const pickArea = () => page.getByRole("application", { name: "Drag a box on the frame" });
+
+function dragOnPick(from: { x: number; y: number }, to: { x: number; y: number }) {
+  const area = pickArea().element();
+  const rect = area.getBoundingClientRect();
+  const at = (p: { x: number; y: number }) => ({
+    clientX: rect.left + rect.width * p.x,
+    clientY: rect.top + rect.height * p.y,
+    bubbles: true,
+    pointerId: 1,
+  });
+
+  area.dispatchEvent(new PointerEvent("pointerdown", at(from)));
+  area.dispatchEvent(new PointerEvent("pointermove", at(to)));
+  area.dispatchEvent(new PointerEvent("pointerup", at(to)));
+}
+
+test("a pasted PNG shows in the textbox with Remove; Send sends it as the shot of the request, and the textbox holds one screenshot at most (PasteImage, Remove, SavedIsWhatWasShown)", async () => {
+  const server = await boot();
+  localStorage.setItem(nameKey, "Mai");
+  await tab(server);
+
+  await openOnHome();
+  await type();
+  pasteFile(pngFile());
+  await expect.element(thumb()).toBeVisible();
+  await removeButton().click();
+  await expect.poll(() => thumb().elements().length).toBe(0);
+
+  pasteFile(pngFile());
+  pasteFile(pngFile());
+  await expect.poll(() => thumb().elements().length).toBe(1);
+  await sendButton().click();
+  await expect.element(pin(1)).toBeVisible();
+  expect(store.adds[0]?.shot).toEqual({
+    kind: "image",
+    image: { mimeType: "image/png", data: onePixel },
+  });
+});
+
+test("a paste of a file that is not a PNG, JPEG or WebP, or of one over 10 MB, adds nothing and says why; the screenshot before stays (PasteRefused)", async () => {
+  const server = await boot();
+  localStorage.setItem(nameKey, "Mai");
+  await tab(server);
+
+  await openOnHome();
+  pasteFile(pngFile());
+  await expect.element(thumb()).toBeVisible();
+  pasteFile(new File(["<svg></svg>"], "a.svg", { type: "image/svg+xml" }));
+  await expect.poll(alertText).toBe("Not added: easel takes a PNG, JPEG or WebP screenshot only.");
+  pasteFile(new File([new Uint8Array(10 * 1024 * 1024 + 1)], "big.png", { type: "image/png" }));
+  await expect.poll(alertText).toBe("Not added: the screenshot is over 10 MB.");
+  expect(thumb().elements()).toHaveLength(1);
+});
+
+test("Take a part: a drag on the frame makes the box, in px of the frame, the shot of the request; Escape in the pick ends the pick only, and no Send goes while it is on (StartPick, Pick, EndPick, EscapeInPickKeepsTheDraft, NoSendWhilePicking)", async () => {
+  const server = await boot();
+  localStorage.setItem(nameKey, "Mai");
+  await tab(server);
+
+  await openOnHome();
+  await type();
+  await takeButton().click();
+  await expect.element(pickArea()).toBeVisible();
+  await userEvent.keyboard("{Escape}");
+  await expect.poll(() => pickArea().elements().length).toBe(0);
+  expect(textbox().element()).toHaveValue("Add a short FAQ here.");
+
+  await takeButton().click();
+  textbox().element().focus();
+  await userEvent.keyboard("{Enter}");
+  await tick(50);
+  expect(store.adds).toHaveLength(0);
+  dragOnPick({ x: 0.1, y: 0.2 }, { x: 0.6, y: 0.7 });
+  await expect.element(page.getByText("A part of the frame, 200 × 150")).toBeVisible();
+  await sendButton().click();
+  await expect.element(pin(1)).toBeVisible();
+  expect(store.adds[0]?.shot).toEqual({ kind: "region", x: 40, y: 60, w: 200, h: 150 });
+});
+
+test("a press with no drag in the pick keeps the screenshot before; a request on the whole canvas has no Take a part (PickOnlyOnAFrame)", async () => {
+  const server = await boot();
+  localStorage.setItem(nameKey, "Mai");
+  await tab(server);
+
+  await openOnHome();
+  await takeButton().click();
+  dragOnPick({ x: 0.5, y: 0.5 }, { x: 0.5, y: 0.5 });
+  await expect.poll(() => pickArea().elements().length).toBe(0);
+  expect(page.getByText(/A part of the frame/).elements()).toHaveLength(0);
+
+  await userEvent.keyboard("{Escape}");
+  await requestButton().click();
+  await page.getByRole("region", { name: "Frames" }).click({ position: { x: 900, y: 700 } });
+  await expect.element(textbox()).toBeVisible();
+  expect(takeButton().elements()).toHaveLength(0);
+});
+
+test("the server refuses the screenshot, as badImage, tooBig or offFrame: nothing is saved, the text stays, the screenshot goes, and the textbox says why (Refused, RefusedIsNeverSaved)", async () => {
+  const server = await boot();
+  localStorage.setItem(nameKey, "Mai");
+  await tab(server);
+  store.plan.push("badImage", "tooBig", "offFrame");
+  const said =
+    "easel did not take the screenshot. Your text is kept. Add a new one, or send with no screenshot.";
+
+  await openOnHome();
+  await type();
+  for (const _ of ["badImage", "tooBig"]) {
+    pasteFile(pngFile());
+    await expect.element(thumb()).toBeVisible();
+    await sendButton().click();
+    await expect.poll(alertText).toBe(said);
+    expect(thumb().elements()).toHaveLength(0);
+  }
+
+  await takeButton().click();
+  dragOnPick({ x: 0.1, y: 0.1 }, { x: 0.3, y: 0.3 });
+  await expect.element(page.getByText(/A part of the frame/)).toBeVisible();
+  await sendButton().click();
+  await expect.poll(alertText).toBe(said);
+  expect(page.getByText(/A part of the frame/).elements()).toHaveLength(0);
+  expect(textbox().element()).toHaveValue("Add a short FAQ here.");
+  expect(store.requests).toHaveLength(0);
+});
+
+test("the opened request shows its screenshot from the board, as a link to the full image", async () => {
+  const url = `/api/images/home/${"a".repeat(64)}?k=key`;
+  const server = await boot(() => {
+    stored(1, "Move it.");
+    store.shots.push({
+      canvas: "home",
+      id: "r1",
+      kind: "image",
+      mimeType: "image/png",
+      w: 40,
+      h: 30,
+      url,
+    });
+  });
+  await tab(server);
+
+  await pin(1).click();
+  const shot = page.getByRole("img", { name: "The screenshot of the request" });
+  await expect.element(shot).toBeVisible();
+  expect(shot.element()).toHaveAttribute("src", url);
+  expect(page.getByRole("link").filter({ has: shot }).element()).toHaveAttribute("href", url);
 });

@@ -40,7 +40,9 @@ test("each kind of each tool is a result or a tool error by its call's success l
     const success: readonly string[] = [successLists[row.address]].flat();
     for (const kind of kindsOf(contracts[row.address].output)) {
       const ok = success.includes(kind) || success.includes("always");
-      const result = app.run(answerResult, { rawInput: { address: row.address, value: { kind } } });
+      const result = await app.run(answerResult, {
+        rawInput: { address: row.address, value: { kind } },
+      });
       expect({ name, kind, isError: result.isError }).toEqual({ name, kind, isError: !ok });
 
       const text = result.content.flatMap((part) => (part.type === "text" ? [part.text] : []));
@@ -67,7 +69,7 @@ test("an answer's text lists its findings and its pairs in the CLI's form, and f
     what: "a color off the look",
     fix: "use a token",
   };
-  const offKit = app.run(answerResult, {
+  const offKit = await app.run(answerResult, {
     rawInput: { address: "frame.put", value: { kind: "offKit", findings: [finding], more: 2 } },
   });
   expect(offKit.content).toEqual([
@@ -82,7 +84,7 @@ test("an answer's text lists its findings and its pairs in the CLI's form, and f
   ]);
 
   const fail = { text: "#777", on: "#fff", ratio: 4.48, min: 4.5, where: "muted on background" };
-  const unreadable = app.run(answerResult, {
+  const unreadable = await app.run(answerResult, {
     rawInput: { address: "look.set", value: { kind: "unreadable", fails: [fail] } },
   });
   expect(unreadable.content).toEqual([
@@ -92,7 +94,7 @@ test("an answer's text lists its findings and its pairs in the CLI's form, and f
     },
   ]);
 
-  const big = app.run(answerResult, {
+  const big = await app.run(answerResult, {
     rawInput: { address: "frame.put", value: { kind: "tooBig", maxBytes: 1048576 } },
   });
   expect(big.content).toEqual([
@@ -101,11 +103,11 @@ test("an answer's text lists its findings and its pairs in the CLI's form, and f
       text: "tooBig: it is over 1048576 bytes, so nothing was written. Make it smaller.",
     },
   ]);
-  const closed = app.run(answerResult, {
+  const closed = await app.run(answerResult, {
     rawInput: { address: "request.resolve", value: { kind: "wrongState", state: "closed" } },
   });
   expect(closed).toMatchObject({ isError: true, content: [{ text: kindTexts.closed }] });
-  const empty = app.run(answerResult, {
+  const empty = await app.run(answerResult, {
     rawInput: { address: "request.next", value: { kind: "empty" } },
   });
   expect(empty).toMatchObject({ isError: false, content: [{ text: kindTexts.empty }] });
@@ -118,7 +120,7 @@ test("set_texts: an invalid answer lists each text key, what is wrong and its fi
     what: "a new text key has no en text",
     fix: 'give its en text: easel texts set trial.start "<text>"',
   };
-  const invalid = app.run(answerResult, {
+  const invalid = await app.run(answerResult, {
     rawInput: { address: "texts.set", value: { kind: "invalid", findings: [finding] } },
   });
   expect(invalid).toMatchObject({
@@ -132,7 +134,7 @@ test("set_texts: an invalid answer lists each text key, what is wrong and its fi
   });
 
   const value = { kind: "found", kit: 1, rev: 1, texts: {}, noVi: [] };
-  const found = app.run(answerResult, { rawInput: { address: "texts.list", value } });
+  const found = await app.run(answerResult, { rawInput: { address: "texts.list", value } });
   expect(found).toMatchObject({ isError: false, structuredContent: value });
 });
 

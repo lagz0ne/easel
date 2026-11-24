@@ -795,24 +795,26 @@ images, and the proof (D9-8) comes last.
 
 ### D9-1: image frames
 
-- [ ] `easel put <canvas> shot.png|jpg|webp` (10 MB at most) makes an image frame at the size of
+- [x] `easel put <canvas> shot.png|jpg|webp` (10 MB at most) makes an image frame at the size of
       the image; a new put is a new version. MCP `put_frame` takes an image.
-- [ ] The viewer shows an image frame, with requests, pages and versions as each other frame.
+- [x] The viewer shows an image frame, with requests, pages and versions as each other frame.
 - [ ] A member drops or pastes an image on the board, and it becomes a frame (a model first: the
       drop is new state of the viewer).
+      Open: it waits for the browser session of [SPEC-home](../SPEC-home.md), so that the drop
+      runs as a signed-in member.
 
 **Estimated scope:** M.
 
 ### D9-2: a screenshot on a request
 
-- [ ] A person pastes one image into a request, or picks a part of the board to take one. The
+- [x] A person pastes one image into a request, or picks a part of the board to take one. The
       screenshot stays with the request (a model first).
 
 **Dependencies:** D9-1. **Estimated scope:** M.
 
 ### D9-3: images for agents
 
-- [ ] `get_frame` of an image frame, `next_request` with a screenshot, and `shot_frame` answer MCP
+- [x] `get_frame` of an image frame, `next_request` with a screenshot, and `shot_frame` answer MCP
       image content, so the agent can look at the image.
 
 **Dependencies:** D9-1, D9-2. **Estimated scope:** S.

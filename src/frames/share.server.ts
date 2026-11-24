@@ -97,6 +97,7 @@ export const endPasses = operation({
         removed: canvas,
         requests: canvas,
         messages: canvas,
+        shots: canvas,
         serverClock: canvas,
         kit: canvas,
         client: canvas,

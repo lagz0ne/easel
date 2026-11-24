@@ -66,7 +66,7 @@ Prior art:
 2. The agent lists the tools. Each has a name, a description that says when to use it, an input
    schema, and an output schema.
 3. It runs the queue loop ([queue](SPEC-queue.md)): `next_request`, `get_frame`, `put_frame`,
-   `shot_frame` (it gets the picture's URL and fetches it), then one outcome with the claim it
+   `shot_frame` (it gets the picture as image content), then one outcome with the claim it
    got: `resolve_request` with the result, `ask_request` with a question, or `decline_request`
    with the reason. `release_request` gives the claim back with a reason, and the try counts.
    `resolve_request` and `ask_request` take an optional HTML part, and `ask_request` takes up to
@@ -163,8 +163,22 @@ The calls with no tool, on purpose, are these. Each is CLI only, or the page's:
 - `set_look` and `put_piece` answer `unreadable` and `offLook` as tool errors. The text lists each
   failing pair or finding, and says to fix it and call again.
 - `frame.shot` answers a picture URL ([SPEC.md](SPEC.md#rules-for-every-module)). `shot_frame`
-  answers that URL only, as its call does. No tool fetches anything: the agent's client fetches the
-  picture over HTTP, as `easel shot` does.
+  answers that URL in `structuredContent`, as its call does.
+- Images go to the agent as MCP image content, `{ type: "image", data, mimeType }`, after the
+  text: the picture of `shot_frame`, the image of an image frame in `get_frame`
+  ([frames](SPEC-frames.md#image-frames)), and the screenshot of a request in `next_request`
+  ([queue](SPEC-queue.md#a-screenshot-on-a-request)), then the image of its frame. MCP clients
+  show an image to the model only as image content, not as a URL (Claude, the MCP SDK). easel
+  runs no model: it only sends the bytes.
+- The MCP layer fetches each image from its own address, with the key in it. `easel mcp` fetches
+  over the CLI's server origin. `/mcp` gets the same fetch over the loopback of the server in a
+  later ship; until then it sends the URLs only. It fits each image inside 1568 px on its long
+  side, the largest side that Claude takes with no scale. A JPEG stays a JPEG. Every other type
+  goes as PNG. A fetch that fails gives the text
+  `the image at <path> cannot be fetched (HTTP <status>): call again` in place of the image. It is
+  not a tool error, because the call itself succeeded.
+- `put_frame` takes `image: { mimeType, data }`, `data` in base64, the form that MCP clients use
+  to send an image. The server checks it as it checks `easel put shot.png`.
 
 ## Rules
 

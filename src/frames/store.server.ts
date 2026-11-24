@@ -108,6 +108,7 @@ const addedColumns = [
   ["frames_frames", "page", "TEXT"],
   ["frames_removed", "page", "TEXT"],
   ["frames_frames", "image", "TEXT"],
+  ["frames_images", "held", "INTEGER NOT NULL DEFAULT 0"],
   ["frames_kept", "image", "TEXT"],
 ] as const;
 
@@ -181,7 +182,7 @@ const keptOf = `SELECT k.canvas, k.id, k.version, COALESCE(g.gen, 0) AS gen
 
 const isKept = "SELECT 1 FROM frames_kept WHERE canvas = ? AND id = ? AND version = ?";
 
-const dropLooseImages = `DELETE FROM frames_images WHERE canvas = $canvas
+const dropLooseImages = `DELETE FROM frames_images WHERE canvas = $canvas AND held = 0
   AND sha NOT IN (SELECT image FROM frames_frames WHERE canvas = $canvas AND image IS NOT NULL)
   AND sha NOT IN (SELECT image FROM frames_kept WHERE canvas = $canvas AND image IS NOT NULL)`;
 

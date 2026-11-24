@@ -1,22 +1,24 @@
 import { operation } from "@tinkered/core";
 
-import { mcpServe } from "@/mcp/server";
+import { mcpFetch, mcpServe } from "@/mcp/server";
 
 import { exits } from "./exit";
-import { entryOf, envToken } from "./hosts";
+import { pictureFetch } from "./frames";
+import { entryOf, envToken, server } from "./hosts";
 import { say } from "./output";
 
 export const mcpRun = operation({
   label: "cli.mcp",
-  depends: { entryOf, envToken, mcpServe, say },
-  run: async ({ entryOf, envToken, mcpServe, say }) => {
+  depends: { entryOf, envToken, mcpServe, say, send: pictureFetch, origin: server.required },
+  run: async ({ entryOf, envToken, mcpServe, say, send, origin }) => {
     if (!(envToken ?? entryOf.run().user?.token)) {
       const text = "not signed in: run `easel login <server> --name <name>`, then `easel mcp`";
       say.run({ input: { json: { refused: { signIn: true } }, text, error: true } });
       return exits.refused;
     }
 
-    await mcpServe.run();
+    const fetchImage = (path: string) => send(new Request(new URL(path, origin)));
+    await mcpServe.run({ tags: [mcpFetch(fetchImage)] });
     return exits.ok;
   },
 });

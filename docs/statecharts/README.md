@@ -62,6 +62,7 @@ Each chart's page has the chart, its rules in plain words, and what the model le
 | [viewer-pages-old-page](viewer-pages-old-page.md)     | viewer | Why the pick of a request asks for its frame: the page of the request is old after a move           |
 | [viewer-overlays](viewer-overlays.md)                 | viewer | The menus, Find and the card Requests on a phone and a wide screen: one press closes the top        |
 | [viewer-overlays-today](viewer-overlays-today.md)     | viewer | Why the card stops above the dock on a phone: else the list covers the dock, a dead end             |
+| [viewer-request-shot](viewer-request-shot.md)         | viewer | One screenshot on a request: a paste or a part of the frame, Remove, a refusal, Escape in the pick  |
 | [kit-piece](kit-piece.md)                             | kit    | Two agents change one piece: the first change on a revision wins, the other gets `stale`            |
 | [kit-look](kit-look.md)                               | kit    | The look: a change, a refused unreadable look, one step back, and what a viewer saw                 |
 | [kit-look-unbound](kit-look-unbound.md)               | kit    | Why a request keeps its kit version: with the frame version only, its Before is wrong               |

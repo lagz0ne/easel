@@ -1,7 +1,18 @@
 import { operation, rpc } from "@tinkered/core";
 import { z } from "zod";
 
-import { canvasKey, frame, frameId, frameInfo, pageKey, version } from "@/frames/contract";
+import {
+  badImage,
+  canvasKey,
+  frame,
+  frameId,
+  frameInfo,
+  imageInput,
+  imageType,
+  maxPictureSide,
+  pageKey,
+  version,
+} from "@/frames/contract";
 import { kitVersion } from "@/kit/contract";
 
 import { message, request } from "./cells";
@@ -53,6 +64,30 @@ export const claimHandle = z
 
 const place = z.number().finite();
 
+const imageShot = z.strictObject({ kind: z.literal("image"), image: imageInput });
+
+const corner = z.number().int().min(0).max(maxPictureSide);
+const side = z.number().int().min(1).max(maxPictureSide);
+
+const regionShot = z.strictObject({
+  kind: z.literal("region"),
+  x: corner,
+  y: corner,
+  w: side,
+  h: side,
+});
+
+export const frameShot = z.discriminatedUnion("kind", [imageShot, regionShot]);
+
+export const shotInfo = z.object({
+  mimeType: imageType,
+  w: z.number(),
+  h: z.number(),
+  url: z.string(),
+});
+
+export type ShotInfo = z.infer<typeof shotInfo>;
+
 export const addInput = z.union([
   z.strictObject({
     canvas: canvasKey,
@@ -63,6 +98,7 @@ export const addInput = z.union([
     y: place,
     text,
     key: clientKey,
+    shot: frameShot.optional(),
   }),
   z.strictObject({
     canvas: canvasKey,
@@ -74,6 +110,7 @@ export const addInput = z.union([
     page: pageKey.optional(),
     text,
     key: clientKey,
+    shot: imageShot.optional(),
   }),
 ]);
 
@@ -84,6 +121,8 @@ const full = z.object({ kind: z.literal("full") });
 const slow = z.object({ kind: z.literal("slow"), retryIn: z.number() });
 const wrongState = z.object({ kind: z.literal("wrongState"), state });
 const lost = z.object({ kind: z.literal("lost") });
+const tooBig = z.object({ kind: z.literal("tooBig"), maxBytes: z.number() });
+const offFrame = z.object({ kind: z.literal("offFrame") });
 
 const refused = [wrongState, gone, slow] as const;
 
@@ -99,6 +138,9 @@ export const requestContracts = {
       gone,
       full,
       slow,
+      tooBig,
+      badImage,
+      offFrame,
     ]),
   },
   "request.edit": {
@@ -149,6 +191,7 @@ export const queueContracts = {
         frame: frame.nullable(),
         saw: z.object({ version: z.number(), kit: z.number(), doc: z.string() }).nullable(),
         frames: z.array(frameInfo).nullable(),
+        shot: shotInfo.nullable(),
         claim: z.string(),
         until: z.number(),
         now: z.number(),

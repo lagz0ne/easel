@@ -20,6 +20,7 @@ const rowsOfCanvas = [
     "DELETE FROM queue_deliveries WHERE request IN (SELECT id FROM queue_requests WHERE canvas = $canvas)",
   ],
   ["queue_messages", "DELETE FROM queue_messages WHERE canvas = $canvas"],
+  ["queue_shots", "DELETE FROM queue_shots WHERE canvas = $canvas"],
   ["queue_requests", "DELETE FROM queue_requests WHERE canvas = $canvas"],
   ["frames_frames", "DELETE FROM frames_frames WHERE canvas = $canvas"],
   ["frames_kept", "DELETE FROM frames_kept WHERE canvas = $canvas"],

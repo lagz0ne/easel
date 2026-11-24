@@ -457,7 +457,7 @@ const scales = new Map([
   ["2", 2],
 ]);
 
-const pictureAddress = operation({
+export const pictureAddress = operation({
   label: "pictures.address",
   input: z.object({
     canvas: z.string(),

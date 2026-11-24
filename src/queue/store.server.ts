@@ -5,6 +5,7 @@ import { capsule, operation, resource, tag } from "@tinkered/core";
 import { z } from "zod";
 
 import { frameStatus } from "@/frames/contract";
+import { sanitizedImage } from "@/frames/images.server";
 import { firstPageOf, hasPage } from "@/frames/store.server";
 
 import { message, messages, request, requests } from "./cells";
@@ -61,6 +62,17 @@ CREATE TABLE IF NOT EXISTS queue_messages (
   created INTEGER NOT NULL
 );
 CREATE INDEX IF NOT EXISTS queue_messages_request ON queue_messages (request, created);
+CREATE TABLE IF NOT EXISTS queue_shots (
+  request TEXT PRIMARY KEY NOT NULL,
+  canvas TEXT NOT NULL,
+  kind TEXT NOT NULL,
+  sha TEXT,
+  type TEXT NOT NULL,
+  x INTEGER NOT NULL,
+  y INTEGER NOT NULL,
+  w INTEGER NOT NULL,
+  h INTEGER NOT NULL
+);
 DROP TRIGGER IF EXISTS queue_keep_put;
 CREATE TRIGGER queue_keep_put BEFORE UPDATE OF html, js, image ON frames_frames
 WHEN ${referred}
@@ -175,6 +187,65 @@ const addWrite = z.object({
   author: z.string(),
   message: z.string(),
   now: z.number(),
+  shot: z
+    .discriminatedUnion("kind", [
+      sanitizedImage.extend({ kind: z.literal("image") }),
+      z.object({
+        kind: z.literal("region"),
+        x: z.number(),
+        y: z.number(),
+        w: z.number(),
+        h: z.number(),
+      }),
+    ])
+    .nullish(),
+});
+
+const frameBox = z.object({ w: z.number(), h: z.number() }).nullable();
+
+const shotOnFrame = operation({
+  label: "queue.shotOnFrame",
+  input: addWrite
+    .pick({ canvas: true, frameId: true, shot: true })
+    .extend({ db: z.custom<Database>() }),
+  run: (_, { input: { db, canvas, frameId, shot } }) => {
+    if (shot?.kind !== "region") return true;
+
+    const frame = frameBox.parse(
+      db
+        .query("SELECT w, h FROM frames_frames WHERE canvas = $canvas AND id = $id")
+        .get({ $canvas: canvas, $id: frameId }),
+    );
+    return frame !== null && shot.x + shot.w <= frame.w && shot.y + shot.h <= frame.h;
+  },
+});
+
+const holdImage = `INSERT INTO frames_images (canvas, sha, type, w, h, bytes, held)
+  VALUES ($canvas, $sha, $type, $w, $h, $bytes, 1)
+  ON CONFLICT (canvas, sha) DO UPDATE SET held = 1`;
+
+const insertShot = `INSERT INTO queue_shots (request, canvas, kind, sha, type, x, y, w, h)
+  VALUES ($request, $canvas, $kind, $sha, $type, $x, $y, $w, $h)`;
+
+const saveShot = operation({
+  label: "queue.saveShot",
+  input: addWrite.pick({ canvas: true, shot: true }).extend({
+    request: z.string(),
+    db: z.custom<Database>(),
+  }),
+  run: (_, { input: { db, canvas, request, shot } }) => {
+    if (!shot) return;
+
+    const at = { $canvas: canvas, $request: request, $kind: shot.kind, $w: shot.w, $h: shot.h };
+    if (shot.kind === "region") {
+      db.query(insertShot).run({ ...at, $sha: null, $type: "image/webp", $x: shot.x, $y: shot.y });
+      return;
+    }
+
+    const blob = { $sha: shot.sha, $type: shot.type, $bytes: shot.bytes };
+    db.query(holdImage).run({ $canvas: canvas, $w: shot.w, $h: shot.h, ...blob });
+    db.query(insertShot).run({ ...at, $sha: shot.sha, $type: shot.type, $x: 0, $y: 0 });
+  },
 });
 
 const openCount =
@@ -204,8 +275,12 @@ export const saveRequest = operation({
     messageCells: messages.atScope.controller,
     bell: waitingBell,
     pageOfAsk,
+    shotOnFrame,
+    saveShot,
   },
-  run: async ({ connection, requestCells, messageCells, bell, pageOfAsk }, { input }) => {
+  run: async (deps, { input }) => {
+    const { connection, requestCells, messageCells, bell, pageOfAsk } = deps;
+    const { shotOnFrame, saveShot } = deps;
     const db = connection.db.$client;
     const at = { $canvas: input.canvas, $now: input.now };
 
@@ -230,6 +305,7 @@ export const saveRequest = operation({
       if (!there) return { kind: "gone" as const };
       const open = z.object({ open: z.number() }).parse(db.query(openCount).get(at)).open;
       if (open >= maxOpen) return { kind: "full" as const };
+      if (!shotOnFrame.run({ input: { ...input, db } })) return { kind: "offFrame" as const };
 
       const row = request.parse(
         db
@@ -268,6 +344,7 @@ export const saveRequest = operation({
           $option: null,
         }),
       );
+      saveShot.run({ input: { db, canvas: input.canvas, request: row.id, shot: input.shot } });
       return { kind: "added" as const, n: row.n, rows: { row, first } };
     })();
 
@@ -281,6 +358,7 @@ export const saveRequest = operation({
         return { kind: "added" as const, n: answer.n };
       case "gone":
       case "full":
+      case "offFrame":
         return answer;
     }
   },
