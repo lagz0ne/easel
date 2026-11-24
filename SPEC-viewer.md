@@ -41,7 +41,7 @@ this spec wins, and the screen gets a fix.
 5. The overlays never make a dead end (the user's report of 2026-11-24). The chart is
    [viewer-overlays](docs/statecharts/viewer-overlays.md), and
    [viewer-overlays-today](docs/statecharts/viewer-overlays-today.md) shows the page before.
-   - The menus `Pages`, `Open` or `Done`, and `More` are the Menu of
+   - The menus `Pages`, `Locale`, `Open` or `Done`, and `More` are the Menu of
      [Base UI](https://base-ui.com/react/components/menu), as shadcn and Radix menus behave. One
      menu at most is open. A press out of it, Escape or a pick closes it. Escape gives the focus
      back to its button. A menu stays in the view.

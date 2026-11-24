@@ -1,6 +1,7 @@
+import { Menu } from "@base-ui/react/menu";
 import { data, operation, resource, tag } from "@tinkered/core";
 import { useData, useResource, useRun } from "@tinkered/react";
-import { Fragment, memo } from "react";
+import { Fragment, memo, useId } from "react";
 import { z } from "zod";
 
 import { frames } from "@/frames";
@@ -25,6 +26,8 @@ import {
   slashKey,
 } from "./draft";
 import { FindButton, FindList } from "./find-list";
+import { columnOpen, fold } from "./fold";
+import type { Side } from "./fold";
 import {
   clockTicker,
   controlsFor,
@@ -34,6 +37,7 @@ import {
   requestView,
 } from "./follow";
 import type { RequestView } from "./follow";
+import { openMenu, setMenu } from "./overlays";
 import { pageInAddress, pageList, shellBoxes, showRequest } from "./pages";
 import { PagesButton } from "./pages-list";
 import { Panel, RequestsButton } from "./panel";
@@ -124,8 +128,11 @@ export const axesPicked = data<{
 export const pickLocale = operation({
   label: "viewer.pickLocale",
   input: z.string(),
-  depends: { picked: axesPicked.controller },
-  run: ({ picked }, { input }) => picked.set({ ...picked.get(), locale: input }),
+  depends: { picked: axesPicked.controller, menu: openMenu.controller },
+  run: ({ picked, menu }, { input }) => {
+    menu.set(null);
+    picked.set({ ...picked.get(), locale: input });
+  },
 });
 
 export const pickConfig = operation({
@@ -321,6 +328,7 @@ const Shell = memo(function Shell({
   const held = useData(holding, (ids) => ids.includes(frame.id));
   const shown = useData(painted, (p) => p[frame.id]);
   const kitNow = useData(frames.board.kit.of({ canvas }))?.kit ?? null;
+  const folds = useResource(fold);
   const pane = { canvas, frame, at, live };
 
   return (
@@ -329,6 +337,8 @@ const Shell = memo(function Shell({
       {...(frame.gone
         ? { hidden: true }
         : { ref: at.shell, role: "group", "aria-label": frame.name })}
+      onPointerEnter={(event) => folds.pointerOn(frame.id, event.pointerType)}
+      onPointerLeave={(event) => folds.pointerOff(frame.id, event.pointerType)}
       data-id={frame.id}
       data-x={frame.x}
       data-y={frame.y}
@@ -596,23 +606,64 @@ function DockedControls(props: Placed) {
   const pane = hasPane && live ? <PaneFrame {...props} /> : null;
   if (count === 0 && !pane) return null;
 
-  const label = `${placeWords[place]} controls of ${frame.name}`;
   if (place === "top") {
     return (
-      <span className="e-ctl-top" role="group" aria-label={label} data-own-pointer>
+      <span
+        className="e-ctl-top"
+        role="group"
+        aria-label={`${placeWords[place]} controls of ${frame.name}`}
+        data-own-pointer
+      >
         <PlacedRows frame={frame} place={place} />
         {pane}
       </span>
     );
   }
   return (
-    <div className={`e-ctl-dock e-ctl-${place}`} role="group" aria-label={label} data-own-pointer>
-      {count ? (
-        <ul className="e-ctl-list">
-          <PlacedRows frame={frame} place={place} />
-        </ul>
-      ) : null}
+    <SideColumn frame={frame} side={place} count={count}>
       {pane}
+    </SideColumn>
+  );
+}
+
+type SideProps = { frame: FrameInfo; side: Side; count: number; children: React.ReactNode };
+
+function SideColumn({ frame, side, count, children }: SideProps) {
+  const folds = useResource(fold);
+  const open = useData(columnOpen({ id: frame.id, side }));
+  const column = useId();
+  const label = `${placeWords[side]} controls of ${frame.name}`;
+
+  return (
+    <div
+      className={`e-ctl-dock e-ctl-${side}`}
+      data-open={open ? "" : undefined}
+      data-fold={`${side} ${frame.id}`}
+      data-own-pointer
+      onFocus={(event) => folds.focusOn(frame.id, side, event.target)}
+      onBlur={(event) => folds.focusOff(frame.id, side, event.relatedTarget)}
+    >
+      <button
+        type="button"
+        className="e-ctl-tab"
+        data-fold-tab
+        aria-label={label}
+        aria-expanded={open}
+        aria-controls={column}
+        title={label}
+        onClick={() => folds.press(frame.id, side)}
+      >
+        <Icon d={icons.controls} />
+        {count ? <span className="e-ctl-count">{count}</span> : null}
+      </button>
+      <div id={column} className="e-ctl-col" role="group" aria-label={label}>
+        {count ? (
+          <ul className="e-ctl-list">
+            <PlacedRows frame={frame} place={side} />
+          </ul>
+        ) : null}
+        {children}
+      </div>
     </div>
   );
 }
@@ -664,26 +715,60 @@ function LocalePick() {
     [...new Set(Object.values(all).flatMap((offer) => offer.locales))].join(" "),
   );
   const locale = useData(axesPicked, (p) => p.locale) ?? defaultLocale;
-  const pick = useRun(pickLocale);
+  const open = useData(openMenu, (m) => m === "locale");
+  const set = useRun(setMenu);
   if (locales === "") return null;
 
+  const name = new Intl.DisplayNames([locale], { type: "language" }).of(locale) ?? locale;
+
   return (
-    <>
-      <span className="e-dock-sep" aria-hidden="true" />
-      <select
-        className="e-axis e-axis-dock"
+    <Menu.Root
+      modal={false}
+      open={open}
+      onOpenChange={(next) => set.run({ input: { menu: "locale", open: next } })}
+    >
+      <Menu.Trigger
+        className="e-dock-btn e-dock-page e-dock-locale"
         aria-label="Locale"
-        title="Locale"
-        value={locale}
-        onChange={(event) => pick.run({ input: event.currentTarget.value })}
+        title={`Locale: ${name}`}
       >
-        {locales.split(" ").map((code) => (
-          <option key={code} value={code}>
-            {new Intl.DisplayNames([code], { type: "language" }).of(code) ?? code}
-          </option>
+        <Icon d={icons.locale} />
+        <span className="e-dock-page-name">{locale.split("-")[0]?.toUpperCase()}</span>
+      </Menu.Trigger>
+      <Menu.Portal>
+        <Menu.Positioner className="e-menu-pos" side="top" sideOffset={8}>
+          <LocaleMenu codes={locales.split(" ")} locale={locale} />
+        </Menu.Positioner>
+      </Menu.Portal>
+    </Menu.Root>
+  );
+}
+
+function LocaleMenu({ codes, locale }: { codes: readonly string[]; locale: string }) {
+  const pick = useRun(pickLocale);
+  const items = codes.map((code) => ({
+    code,
+    name: new Intl.DisplayNames([code], { type: "language" }).of(code) ?? code,
+    short: code.split("-")[0]?.toUpperCase(),
+  }));
+
+  return (
+    <Menu.Popup className="e-menu e-locales" aria-label="Locale">
+      <Menu.RadioGroup value={locale}>
+        {items.map(({ code, name, short }) => (
+          <Menu.RadioItem
+            key={code}
+            value={code}
+            lang={code}
+            aria-label={name}
+            onClick={() => pick.run({ input: code })}
+          >
+            <span className="e-pages-name">{name}</span>
+            <span className="e-menu-n">{short}</span>
+          </Menu.RadioItem>
         ))}
-      </select>
-    </>
+      </Menu.RadioGroup>
+    </Menu.Popup>
   );
 }
 
@@ -701,6 +786,8 @@ const icons = {
   fit: "M3 7V5a2 2 0 0 1 2-2h2M17 3h2a2 2 0 0 1 2 2v2M21 17v2a2 2 0 0 1-2 2h-2M7 21H5a2 2 0 0 1-2-2v-2",
   controls: "M21 4h-7M10 4H3M21 12h-9M8 12H3M21 20h-5M12 20H3M14 2v4M8 10v4M16 18v4",
   close: "M18 6 6 18M6 6l12 12",
+  locale:
+    "M12 21a9 9 0 1 0 0-18 9 9 0 0 0 0 18zM3 12h18M12 3a14 14 0 0 1 0 18M12 3a14 14 0 0 0 0 18",
 } as const;
 
 function Dock({ at, canvas, page }: { at: Stage; canvas: string; page: string }) {

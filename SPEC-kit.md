@@ -765,7 +765,11 @@ own capsule whose schema lists its values (a `z.enum`), with its values and its 
 (`offeredAxes`) and offers only those values:
 
 - **The locale is one pick for the canvas**, in the dock (Storybook's toolbar globals). It shows
-  once a live frame posted its axes.
+  once a live frame posted its axes. It is a dock button `Locale` with the short code of the
+  locale (`EN`), at the size of `Pages`. It opens a menu (the Menu of Base UI) with one radio item
+  for each locale, named in its own language (`Intl.DisplayNames`). It is one of the menus of the
+  page: one menu at most is open, and a press out of it, Escape or a pick closes it (the chart
+  [viewer-overlays](docs/statecharts/viewer-overlays.md); 2026-11-24).
 - **A config key is a pick for each frame**, after the frame's name (Storybook's args): its data
   state.
 - **A pick is another document.** The page composes the frame version again with the axes that it
@@ -811,9 +815,20 @@ Another input (an object, a union) has no control: the panel leaves it out.
   docked to the side, in the same way.
   - `top`: in the frame's label row, after its name and the picks of its data state, as small as
     those picks.
-  - `left`, `right`: in a column docked to that edge of the frame, outside it, 8 px from it, with
-    its top at the top of the frame. The column keeps its screen size at each zoom, as the label
-    and the pins do, and it stacks over the frames beside it.
+  - `left`, `right`: in a column docked to that edge of the frame, outside it, 8 px from it. Its
+    tab is at the top of the frame, and the column is under the tab. The tab and the column keep
+    their screen size at each zoom, as the label and the pins do.
+  - A side column lies over the frame beside it, so it is open only while its frame is in use, as
+    Figma shows the tools of a frame on selection (the user's report of 2026-11-24). The frame is
+    in use while the pointer is on the frame or on the column, the shown focus (`:focus-visible`)
+    is on a control of the column, or the frame has the mark of Find. When the pointer leaves, the
+    column stays open for 300 ms, so a move from the frame to the column does not fold it. Out of
+    use, the column folds to a small tab at that edge: a button with the controls icon and the
+    count of its controls, named `Left controls of <frame>` or `Right controls of <frame>`, with
+    `aria-expanded`. A press on the tab opens the column until the pointer and the focus leave. On
+    a touch screen, a tap on the tab opens it, and a tap out of it folds it. A folded column keeps
+    its controls and its panes, so a run of a control is as before. The `top` place does not
+    fold. The chart is [kit-control-fold](docs/statecharts/kit-control-fold.md).
   - Each place reads the same values of the current document (`shownControls`), so the chart
     holds for each place. While the frame has no live document, the docked controls are not
     shown. A refused run says its kind beside the control. A runtime from before the places posts

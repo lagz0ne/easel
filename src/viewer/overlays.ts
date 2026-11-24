@@ -1,7 +1,7 @@
 import { data, operation, resource } from "@tinkered/core";
 import { z } from "zod";
 
-const menuNames = ["pages", "list", "more"] as const;
+const menuNames = ["pages", "locale", "list", "more"] as const;
 
 type MenuName = (typeof menuNames)[number];
 

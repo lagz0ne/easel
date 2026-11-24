@@ -70,6 +70,7 @@ Each chart's page has the chart, its rules in plain words, and what the model le
 | [kit-app-frame-no-close](kit-app-frame-no-close.md)   | kit    | Why the page posts close first: an iframe removed at once never runs the app's ends                 |
 | [kit-frame-axes](kit-frame-axes.md)                   | kit    | The locale and data state picks of capsule frames: posted, offered, composed again                  |
 | [kit-frame-controls](kit-frame-controls.md)           | kit    | The controls of an app frame: posted, drawn in the panel, run in the live scope                     |
+| [kit-control-fold](kit-control-fold.md)               | kit    | A docked column of controls: open while its frame is in use, else folded to its tab                 |
 | [kit-control-link](kit-control-link.md)               | kit    | A pane of a frame in its own scope: linked to each scope, a mirror of its cells, calls              |
 | [kit-runtime](kit-runtime.md)                         | kit    | The runtime of a kit version: kept after an update, accepted by the team, put again                 |
 | [kit-runtime-same-text](kit-runtime-same-text.md)     | kit    | Why the same TSX on another runtime is a new version: else a put after an accept is lost            |

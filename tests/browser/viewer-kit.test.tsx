@@ -357,6 +357,118 @@ test("an app frame draws its JS in the composed document (composeApp), with the 
   expect(await colorOf("a")).toBe(looks[1].rgb);
 });
 
+const localeButton = () => page.getByRole("button", { name: "Locale" });
+const localeMenu = () => page.getByRole("menu", { name: "Locale" });
+
+const languageOf = (code: string) =>
+  new Intl.DisplayNames([code], { type: "language" }).of(code) ?? code;
+
+async function chooseLocale(code: string) {
+  await localeButton().click();
+  await localeMenu()
+    .getByRole("menuitemradio", { name: languageOf(code) })
+    .click();
+  await expect.poll(() => localeMenu().elements()).toHaveLength(0);
+}
+
+const boxOf = (el: Element) => el.getBoundingClientRect();
+
+test("viewer-overlays Locale: the locale is a dock button that shows EN, at the height of Pages; its menu has a radio item for each locale in its own language; a pick closes it, and so do a press out of it, Escape and Pages (APickClosesItsMenu, AnOutsidePressClosesAMenu, EscapeClosesTheTop, OneMenuAtMost)", async () => {
+  const server = await boot([{ id: "b", x: 0, y: 0, capsule: true }]);
+  const at = await tab(server);
+  await rested(at, 1);
+
+  const button = localeButton();
+  const pages = page.getByRole("button", { name: "Pages" });
+  await expect.element(button).toHaveTextContent("EN");
+  expect(page.getByRole("combobox", { name: "Locale" }).elements()).toEqual([]);
+  expect(boxOf(button.element()).height).toBe(boxOf(pages.element()).height);
+
+  await button.click();
+  await expect.element(localeMenu()).toBeVisible();
+  await expect.element(button).toHaveAttribute("aria-expanded", "true");
+  const items = localeMenu().getByRole("menuitemradio");
+  expect(items.elements().map((item) => item.getAttribute("aria-checked"))).toEqual([
+    "true",
+    "false",
+  ]);
+  expect(items.elements().map((item) => [item.getAttribute("lang"), item.textContent])).toEqual([
+    ["en", `${languageOf("en")}EN`],
+    ["vi", `${languageOf("vi")}VI`],
+  ]);
+  expect(boxOf(localeMenu().element()).bottom).toBeLessThanOrEqual(boxOf(button.element()).top);
+
+  await localeMenu()
+    .getByRole("menuitemradio", { name: languageOf("vi") })
+    .click();
+  await expect.poll(() => localeMenu().elements()).toHaveLength(0);
+  await expect.element(button).toHaveTextContent("VI");
+  await expect.poll(() => colorOf("b")).toBe('{"locale":"vi","config":{}}');
+
+  await button.click();
+  await expect.element(localeMenu()).toBeVisible();
+  await page.getByRole("region", { name: "Frames" }).click({ position: { x: 30, y: 140 } });
+  await expect.poll(() => localeMenu().elements()).toHaveLength(0);
+
+  await button.click();
+  await expect.element(localeMenu()).toBeVisible();
+  await userEvent.keyboard("{Escape}");
+  await expect.poll(() => localeMenu().elements()).toHaveLength(0);
+  await expect.poll(() => document.activeElement).toBe(button.element());
+
+  await button.click();
+  await expect.element(localeMenu()).toBeVisible();
+  await pages.click();
+  await expect.element(page.getByRole("menu", { name: "Pages" })).toBeVisible();
+  expect(localeMenu().elements()).toHaveLength(0);
+  await button.click();
+  await expect.element(localeMenu()).toBeVisible();
+  expect(page.getByRole("menu", { name: "Pages" }).elements()).toHaveLength(0);
+});
+
+test("viewer-overlays Locale on a phone (390 x 844): the dock with Locale fits, each of its buttons is 40 x 40 px at least, and the menu stays in the view", async () => {
+  const server = await boot([{ id: "b", x: 0, y: 0, capsule: true }]);
+  const at = await tab(server);
+  await rested(at, 1);
+  await page.viewport(390, 844);
+  await expect.poll(() => innerWidth).toBe(390);
+
+  const dock = page.getByRole("toolbar", { name: "Canvas" });
+  await expect.element(localeButton()).toHaveTextContent("EN");
+  const shown = dock
+    .getByRole("button")
+    .elements()
+    .filter((b) => boxOf(b).width > 0);
+  expect(shown.map((b) => b.getAttribute("aria-label"))).toEqual([
+    "Request",
+    "Requests",
+    "Find",
+    "Pages",
+    "Locale",
+    "Fit",
+  ]);
+  for (const one of shown) {
+    const box = boxOf(one);
+    expect([box.width >= 40, box.height >= 40], one.getAttribute("aria-label") ?? "").toEqual([
+      true,
+      true,
+    ]);
+  }
+  const width = boxOf(dock.element()).width;
+  console.log(`size: the dock with Locale is ${width.toFixed(0)} px wide at 390 px`);
+  expect(width).toBeLessThan(390 - 48);
+
+  await localeButton().click();
+  await expect.element(localeMenu()).toBeVisible();
+  const menu = boxOf(localeMenu().element());
+  expect([menu.left >= 0, menu.right <= 390]).toEqual([true, true]);
+  await localeMenu()
+    .getByRole("menuitemradio", { name: languageOf("vi") })
+    .click();
+  await expect.poll(() => localeMenu().elements()).toHaveLength(0);
+  await expect.element(localeButton()).toHaveTextContent("VI");
+});
+
 test("X1 kit-frame-axes: a capsule frame posts its axes; the page offers the locale and its data states; a pick composes it again with them, and the other frame is not drawn again", async () => {
   const server = await boot([
     { id: "a", x: 0, y: 0 },
@@ -365,22 +477,21 @@ test("X1 kit-frame-axes: a capsule frame posts its axes; the page offers the loc
   const at = await tab(server);
   await rested(at, 2);
 
-  const locale = page.getByRole("combobox", { name: "Locale" });
   const sample = page.getByRole("combobox", { name: "sample of Frame b" });
-  await expect.element(locale).toBeInTheDocument();
+  await expect.element(localeButton()).toHaveTextContent("EN");
   await expect.element(sample).toHaveValue("many");
   expect(page.getByRole("combobox", { name: /of Frame a$/ }).elements()).toEqual([]);
   expect(await colorOf("b")).toBe("{}");
   const [plain, first] = [await drawnOf("a"), await drawnOf("b")];
 
-  await locale.selectOptions("vi");
+  await chooseLocale("vi");
   await expect.poll(() => colorOf("b")).toBe('{"locale":"vi","config":{}}');
   expect(await drawnOf("b")).not.toBe(first);
   expect(await drawnOf("a")).toBe(plain);
 
   await sample.selectOptions("empty");
   await expect.poll(() => colorOf("b")).toBe('{"locale":"vi","config":{"sample":"empty"}}');
-  await locale.selectOptions("en");
+  await chooseLocale("en");
   await sample.selectOptions("many");
   await expect.poll(() => colorOf("b")).toBe("{}");
   expect(await drawnOf("a")).toBe(plain);
@@ -432,9 +543,7 @@ test("L12: the locale pick vi composes the app frame again with the locale vi an
   const at = await tab(server);
   await rested(at, 1);
 
-  const locale = page.getByRole("combobox", { name: "Locale" });
-  await expect.element(locale).toBeInTheDocument();
-  await locale.selectOptions("vi");
+  await chooseLocale("vi");
   await expect.poll(() => colorOf("t")).toBe(shownTexts("vi", changedTexts));
   expect(docOf("t")?.srcdoc).toContain(`id="easel-texts">${JSON.stringify(changedTexts)}</script>`);
 });
@@ -624,6 +733,9 @@ test("X5 kit-frame-controls places: the frame places each control in its label r
   const right = page.getByRole("group", { name: `Right controls of Frame ${long}` });
   const on = top.getByRole("switch", { name: "On" });
   const size = left.getByRole("combobox", { name: "Size" });
+  await userEvent.hover(shellOf(long));
+  await expect.element(right).toBeVisible();
+  await expect.element(left).toBeVisible();
   await expect.element(on).not.toBeChecked();
   await expect.element(size).toHaveValue("s");
   expect(
@@ -635,7 +747,9 @@ test("X5 kit-frame-controls places: the frame places each control in its label r
 
   const shell = shellOf(long);
   expect(shell.querySelector("[data-label]")?.contains(on.element())).toBe(true);
-  const button = page.getByRole("button", { name: `Controls of Frame ${long}` }).element();
+  const button = page
+    .getByRole("button", { name: `Controls of Frame ${long}`, exact: true })
+    .element();
   for (const el of [on.element(), button]) {
     const box = el.getBoundingClientRect();
     const hit = document.elementFromPoint(box.left + box.width / 2, box.top + box.height / 2);
@@ -670,7 +784,7 @@ test("X5 kit-frame-controls places: the frame places each control in its label r
   await right.getByRole("button", { name: "Fail" }).click();
   await expect.element(right.getByRole("alert")).toHaveTextContent("The frame refused it: Nope.");
 
-  await page.getByRole("button", { name: `Controls of Frame ${long}` }).click();
+  await page.getByRole("button", { name: `Controls of Frame ${long}`, exact: true }).click();
   const panel = page.getByRole("complementary", { name: "Controls" });
   await expect.element(panel.getByRole("spinbutton", { name: "Count" })).toHaveValue(1);
   expect(
@@ -687,6 +801,112 @@ test("X5 kit-frame-controls places: the frame places each control in its label r
       { key: "size", value: "m" },
       { key: "bad" },
     ]);
+});
+
+const foldDelayMs = 300;
+
+const cornerOf = (el: Element) => {
+  const box = boxOf(el);
+  return { x: box.width - 6, y: box.height - 6 };
+};
+
+const hitAt = (x: number, y: number) => document.elementFromPoint(x, y);
+
+test("kit-control-fold: a side column folds to its tab while its frame is not in use, so the frame beside it can be pressed; the pointer on the frame opens it, the way to the column keeps it open, a control in it runs, and it folds 300 ms after the pointer leaves (OpenOnlyInUse, OutOfUseItFolds, FromTheFrameToTheColumnItStaysOpen, AControlCanBePressed)", async () => {
+  const seen = controlsSeen();
+  const server = await boot([
+    { id: "p", x: 0, y: 0, controls: "placed" },
+    { id: "n", x: 360, y: 0 },
+  ]);
+  const at = await tab(server);
+  await rested(at, 2);
+
+  const tabOf = page.getByRole("button", { name: "Right controls of Frame p" });
+  const column = page.getByRole("group", { name: "Right controls of Frame p" });
+  const col = shellOf("p").querySelector(".e-ctl-right .e-ctl-col");
+  if (!col) throw new Error("no right column");
+  await expect.element(tabOf).toHaveAttribute("aria-expanded", "false");
+  await expect.element(tabOf).toHaveTextContent("2");
+  expect(getComputedStyle(col).visibility).toBe("hidden");
+  const over = boxOf(col);
+  const spot = { x: over.left + over.width / 2, y: over.top + over.height / 2 };
+  expect(shellOf("n").contains(hitAt(spot.x, spot.y))).toBe(true);
+  const tabBox = boxOf(tabOf.element());
+  expect(tabBox.left).toBeGreaterThanOrEqual(boxOf(shellOf("p")).right);
+  expect(tabBox.width).toBeLessThan(48);
+
+  await userEvent.hover(shellOf("p"));
+  await expect.element(tabOf).toHaveAttribute("aria-expanded", "true");
+  await expect.element(column).toBeVisible();
+  expect(col.contains(hitAt(spot.x, spot.y))).toBe(true);
+  const edge = boxOf(shellOf("p")).right;
+  const way = Array.from({ length: 12 }, (_, i) => edge - 2 + i);
+  expect(way.filter((x) => !shellOf("p").contains(hitAt(x, over.top + 12)))).toEqual([]);
+
+  await column.getByRole("button", { name: "Add one" }).click();
+  await expect.poll(() => seen).toEqual([{ key: "add" }]);
+  await expect.element(tabOf).toHaveAttribute("aria-expanded", "true");
+
+  await userEvent.hover(shellOf("n"), { position: cornerOf(shellOf("n")) });
+  await rafs(2);
+  expect(tabOf.element()).toHaveAttribute("aria-expanded", "true");
+  at.clock.advance(foldDelayMs - 10);
+  await rafs(2);
+  expect(tabOf.element()).toHaveAttribute("aria-expanded", "true");
+  await userEvent.hover(shellOf("p"));
+  at.clock.advance(foldDelayMs);
+  await rafs(2);
+  expect(tabOf.element()).toHaveAttribute("aria-expanded", "true");
+
+  await userEvent.hover(shellOf("n"), { position: cornerOf(shellOf("n")) });
+  at.clock.advance(foldDelayMs);
+  await expect.element(tabOf).toHaveAttribute("aria-expanded", "false");
+  expect(getComputedStyle(col).visibility).toBe("hidden");
+  expect(shellOf("n").contains(hitAt(spot.x, spot.y))).toBe(true);
+});
+
+test("kit-control-fold: from the tab, one press opens a folded column; it stays open while the shown focus is in it, and folds when the focus leaves; a press out of it folds it; the mark of Find opens it (OnePressOnTheTabOpens, OutOfUseItFolds)", async () => {
+  const server = await boot([
+    { id: "p", x: 0, y: 0, controls: "placed" },
+    { id: "n", x: 360, y: 0 },
+  ]);
+  const at = await tab(server);
+  await rested(at, 2);
+
+  const tabOf = page.getByRole("button", { name: "Right controls of Frame p" });
+  const column = page.getByRole("group", { name: "Right controls of Frame p" });
+  const away = () => userEvent.hover(shellOf("n"), { position: cornerOf(shellOf("n")) });
+  await away();
+  at.clock.advance(foldDelayMs);
+
+  tabOf.element().focus();
+  await userEvent.keyboard("{Enter}");
+  await expect.element(tabOf).toHaveAttribute("aria-expanded", "true");
+  await userEvent.tab();
+  await expect.poll(() => document.activeElement?.textContent).toBe("Add one");
+  await userEvent.tab();
+  await expect.poll(() => document.activeElement?.textContent).toBe("Fail");
+  expect(tabOf.element()).toHaveAttribute("aria-expanded", "true");
+  await userEvent.tab();
+  await expect.element(tabOf).toHaveAttribute("aria-expanded", "false");
+
+  tabOf.element().focus();
+  await userEvent.keyboard("{Enter}");
+  await expect.element(column).toBeVisible();
+  await userEvent.keyboard("{Enter}");
+  await expect.element(tabOf).toHaveAttribute("aria-expanded", "false");
+  await userEvent.keyboard("{Enter}");
+  await expect.element(tabOf).toHaveAttribute("aria-expanded", "true");
+  await userEvent.click(shellOf("n"), { position: cornerOf(shellOf("n")) });
+  await expect.element(tabOf).toHaveAttribute("aria-expanded", "false");
+
+  await page.getByRole("button", { name: "Find" }).click();
+  await userEvent.keyboard("Frame p{Enter}");
+  await expect.poll(() => shellOf("p").hasAttribute("data-found")).toBe(true);
+  await expect.element(tabOf).toHaveAttribute("aria-expanded", "true");
+  at.clock.advance(foldDelayMs);
+  await rafs(2);
+  expect(tabOf.element()).toHaveAttribute("aria-expanded", "true");
 });
 
 function panesSeen() {

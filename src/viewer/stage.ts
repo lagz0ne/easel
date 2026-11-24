@@ -110,6 +110,8 @@ export const offeredAxes = data<
 
 export const zoomShown = data({ label: "viewer.zoomShown", initial: 100 });
 
+export const foundFrame = data<string | null>({ label: "viewer.foundFrame", initial: null });
+
 export const paintScript = `<script>(()=>{const v=__V__;const post=()=>requestAnimationFrame(()=>requestAnimationFrame(()=>parent.postMessage({easel:"painted",v},"*")));const settle=()=>Promise.race([document.fonts?document.fonts.ready:null,new Promise(r=>setTimeout(r,1500))]).then(post,post);if(document.readyState==="complete")settle();else addEventListener("load",settle,{once:true});addEventListener("message",(e)=>{const d=e.data;if(e.source!==parent||!d||d.easel!=="part")return;const el=document.elementFromPoint(d.x,d.y);const r=el&&el!==document.body&&el!==document.documentElement?el.getBoundingClientRect():null;parent.postMessage({easel:"part",x:d.x,y:d.y,box:r&&{x:r.left,y:r.top,w:r.width,h:r.height}},"*")});})()</script>`;
 
 const paintPost = z.object({ easel: z.literal("painted"), v: z.number() });
@@ -185,10 +187,11 @@ export const stage = resource({
     offered: offeredAxes.controller,
     shown: shownControls.controller,
     panes: shownPanes.controller,
+    mark: foundFrame.controller,
     popPlace,
   },
   factory: (
-    { live, hold, done, paints, zoom, part, hover, offered, shown, panes, popPlace },
+    { live, hold, done, paints, zoom, part, hover, offered, shown, panes, mark, popPlace },
     ctx,
   ) => {
     let cam = { x: 0, y: 0, z: 1 };
@@ -847,6 +850,7 @@ export const stage = resource({
         closing.clear();
         if (closed) return;
 
+        mark.set(null);
         live.set([]);
         hold.set([]);
         shown.set({});
@@ -1010,6 +1014,7 @@ export const stage = resource({
         at.endMark();
         shell.el.dataset.found = "";
         found = shell;
+        mark.set(shell.box.id);
       },
 
       rebox: (list: readonly Box[]) => {
@@ -1053,6 +1058,7 @@ export const stage = resource({
         if (!found) return;
         delete found.el.dataset.found;
         found = null;
+        if (!closed) mark.set(null);
       },
 
       show: (x: number, y: number) => {
