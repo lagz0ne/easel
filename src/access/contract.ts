@@ -104,14 +104,14 @@ export const loginApi = rpc({
   },
 });
 
-export const browserApi = rpc({
+export const browserContracts = {
   "browser.start": {
     input: z.object({ name: name.optional() }),
     output: z.discriminatedUnion("kind", [
       z.object({
         kind: z.literal("pending"),
         code: z.string(),
-        request: z.string(),
+        request,
         expiresAt: z.number(),
       }),
       z.object({ kind: z.literal("name") }),
@@ -136,7 +136,9 @@ export const browserApi = rpc({
       slow,
     ]),
   },
-});
+};
+
+export const browserApi = rpc(browserContracts);
 
 export const openApi = rpc({
   "browser.link": {

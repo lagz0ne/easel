@@ -582,6 +582,12 @@ login.wait.do exits{denied,expired,granted,pending,slow} reads{?} writes{?} call
 look.get.do exits{found,gone} reads{} writes{} calls{kit.currentKit,kit.readKitAt}
 look.set.do exits{stale,unchanged,unreadable,updated} reads{} writes{} calls{kit.contrast,kit.currentKit,kit.lookValues,kit.mergeLook,kit.rootBlock,kit.saveLook}
 look.undo.do exits{none,stale,updated} reads{} writes{} calls{kit.undoLook}
+map.derive exits{value} reads{} writes{} calls{?}
+map.exampleCall exits{decode,encode,failed,invalid,link,missing,refused,value} reads{} writes{} calls{}
+map.exampleWatch exits{value} reads{} writes{} calls{}
+map.place exits{value} reads{} writes{} calls{}
+map.readView exits{found,none} reads{} writes{} calls{}
+map.text exits{value} reads{} writes{} calls{}
 mcp.agentImage exits{value} reads{} writes{} calls{}
 mcp.answer exits{value} reads{} writes{} calls{mcp.answerSignedIn}
 mcp.answerResult exits{value} reads{} writes{} calls{mcp.answerText,mcp.imageContent}
