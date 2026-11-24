@@ -68,6 +68,10 @@ Each chart's page has the chart, its rules in plain words, and what the model le
 | [viewer-request-shot](viewer-request-shot.md)                 | viewer | One screenshot on a request: a paste or a part of the frame, Remove, a refusal, Escape in the pick  |
 | [viewer-image-drop](viewer-image-drop.md)                     | viewer | A person drops or pastes an image on the canvas: a frame at that place, one at a time, a refusal    |
 | [viewer-image-drop-any-paste](viewer-image-drop-any-paste.md) | viewer | Why the canvas looks at the target of a paste: else it takes the screenshot of a request too        |
+| [viewer-walk](viewer-walk.md)                                 | viewer | The person walks a flow: a press on an action, no link, Back, Restart, Leave, a request in the walk |
+| [viewer-walk-any-post](viewer-walk-any-post.md)               | viewer | Why the walk takes only an action name from the frame: else a frame shows a screen with no link     |
+| [flows-links](flows-links.md)                                 | flows  | The links of a flow: a put with no action, a move to another page, a delete; each break is told     |
+| [flows-links-unchecked](flows-links-unchecked.md)             | flows  | Why a put looks at the actions of the screen: else a link looks whole, and leads from no action     |
 | [kit-piece](kit-piece.md)                                     | kit    | Two agents change one piece: the first change on a revision wins, the other gets `stale`            |
 | [kit-look](kit-look.md)                                       | kit    | The look: a change, a refused unreadable look, one step back, and what a viewer saw                 |
 | [kit-look-unbound](kit-look-unbound.md)                       | kit    | Why a request keeps its kit version: with the frame version only, its Before is wrong               |
@@ -88,10 +92,10 @@ Each chart's page has the chart, its rules in plain words, and what the model le
 | [board-switch-board-only](board-switch-board-only.md)         | pieces | Why the address holds the frame values: else a reload loses them                                    |
 
 `queue-two-step`, `frames-writes-two-step`, `fixer-claim-unsafe`, `kit-look-unbound`,
-`kit-look-hello-once`, `kit-app-frame-no-close`, `kit-runtime-same-text`, `viewer-pages-old-page`, `viewer-overlays-today`, `design-change-unchecked`, `board-switch-board-only` and `access-browser-two-step` break on purpose. Each shows the bug that a
+`kit-look-hello-once`, `kit-app-frame-no-close`, `kit-runtime-same-text`, `viewer-pages-old-page`, `viewer-overlays-today`, `design-change-unchecked`, `board-switch-board-only`, `viewer-walk-any-post`, `flows-links-unchecked` and `access-browser-two-step` break on purpose. Each shows the bug that a
 design prevents: one write for a claim or a save, the fixer's two guards (the process-group stop
 and the check again before the push), a request that keeps its kit version, a piece script that
-says hello until it gets a port, a page that posts `close` before it removes an app frame, a put that compares the runtime too, a pick of a request that asks for the frame, not for an old page, a card with `Close` that stops above the dock on a phone, a `design.put` that checks the ready frames, an address that holds the frame values, and a sign-in link that one write checks and uses. Its row in `charts.tsv` says `breaks`.
+says hello until it gets a port, a page that posts `close` before it removes an app frame, a put that compares the runtime too, a pick of a request that asks for the frame, not for an old page, a card with `Close` that stops above the dock on a phone, a `design.put` that checks the ready frames, an address that holds the frame values, a walk that takes only an action name from a frame, a put that looks at the actions of its screen, and a sign-in link that one write checks and uses. Its row in `charts.tsv` says `breaks`.
 
 ## Files
 
