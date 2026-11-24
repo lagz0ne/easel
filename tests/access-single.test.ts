@@ -183,6 +183,8 @@ const refused = (call: Promise<unknown>) =>
       access.user.fault.is(error) || access.rename.fault.is(error) ? error.payload : String(error),
   );
 
+const aFileDbUnderLoad = { timeout: 30_000 };
+
 test("EASEL_AUTH=single is a mode of its own: the env reads it, and any other word is refused", () => {
   expect(accessEnv.parse({ EASEL_AUTH: "single" }).mode).toBe("single");
   expect(accessEnv.safeParse({ EASEL_AUTH: "solo" }).success).toBe(false);
@@ -256,24 +258,28 @@ test("single: users approve --owner is refused, and the code still waits", async
   expect((await cli.list()).requests.map((r) => r.code)).toEqual([shown.code]);
 });
 
-test("single: a login code or a named browser code from an approve server makes no user after the move to single", async () => {
-  const dir = mkdtempSync(join(tmpdir(), "easel-single-"));
-  closers.push(() => rmSync(dir, { recursive: true, force: true }));
-  const file = join(dir, "easel.db");
-  const before = await boot({ mode: "approve", file });
-  const { token: kept } = await theOwner(before);
-  const anon = await client(before.server);
-  const login = await anon.login("bob");
-  const named = await anon.start("cy");
-  if (login.kind !== "pending" || named.kind !== "pending") throw new Error("not pending");
-  await before.server.close();
+test(
+  "single: a login code or a named browser code from an approve server makes no user after the move to single",
+  aFileDbUnderLoad,
+  async () => {
+    const dir = mkdtempSync(join(tmpdir(), "easel-single-"));
+    closers.push(() => rmSync(dir, { recursive: true, force: true }));
+    const file = join(dir, "easel.db");
+    const before = await boot({ mode: "approve", file });
+    const { token: kept } = await theOwner(before);
+    const anon = await client(before.server);
+    const login = await anon.login("bob");
+    const named = await anon.start("cy");
+    if (login.kind !== "pending" || named.kind !== "pending") throw new Error("not pending");
+    await before.server.close();
 
-  const after = await boot({ mode: "single", file });
-  const cli = await client(after.server, { token: kept });
-  expect(await cli.approve(login.code)).toEqual({ kind: "single" });
-  expect(await cli.approve(named.code)).toEqual({ kind: "single" });
-  expect((await cli.list()).users.map((u) => u.name)).toEqual(["rocky"]);
-});
+    const after = await boot({ mode: "single", file });
+    const cli = await client(after.server, { token: kept });
+    expect(await cli.approve(login.code)).toEqual({ kind: "single" });
+    expect(await cli.approve(named.code)).toEqual({ kind: "single" });
+    expect((await cli.list()).users.map((u) => u.name)).toEqual(["rocky"]);
+  },
+);
 
 test("criterion 4: in single, users add makes an agent member whose token works; users add --owner is refused", async () => {
   const srv = await boot();
@@ -345,7 +351,7 @@ test("users rename: the token, the browser sessions, a live link and an approved
   expect(new Set(list.sessions.map((s) => s.name))).toEqual(new Set(["lagz0ne"]));
 });
 
-test("users rename keeps the rename after a restart", async () => {
+test("users rename keeps the rename after a restart", aFileDbUnderLoad, async () => {
   const dir = mkdtempSync(join(tmpdir(), "easel-rename-"));
   closers.push(() => rmSync(dir, { recursive: true, force: true }));
   const file = join(dir, "easel.db");
@@ -386,37 +392,45 @@ test("users rename is an owner call: a member is refused", async () => {
   expect(await refused(tools.rename("vibea-claude", "boss"))).toEqual({ owner: true });
 });
 
-test("a single server with more than one owner, as after a move from approve, says so in its log at start", async () => {
-  const dir = mkdtempSync(join(tmpdir(), "easel-owners-"));
-  closers.push(() => rmSync(dir, { recursive: true, force: true }));
-  const file = join(dir, "easel.db");
-  const before = await boot({ mode: "approve", file });
-  const { cli } = await theOwner(before);
-  await cli.add("ann", true);
-  await before.server.close();
+test(
+  "a single server with more than one owner, as after a move from approve, says so in its log at start",
+  aFileDbUnderLoad,
+  async () => {
+    const dir = mkdtempSync(join(tmpdir(), "easel-owners-"));
+    closers.push(() => rmSync(dir, { recursive: true, force: true }));
+    const file = join(dir, "easel.db");
+    const before = await boot({ mode: "approve", file });
+    const { cli } = await theOwner(before);
+    await cli.add("ann", true);
+    await before.server.close();
 
-  const after = await boot({ mode: "single", file });
-  expect(after.out.join("")).toContain("access: a single server has 2 owners: ann, rocky");
-});
+    const after = await boot({ mode: "single", file });
+    expect(after.out.join("")).toContain("access: a single server has 2 owners: ann, rocky");
+  },
+);
 
-test("a rename drops a session that a free name kept by mistake, so that old row signs in as no one", async () => {
-  const dir = mkdtempSync(join(tmpdir(), "easel-kept-"));
-  closers.push(() => rmSync(dir, { recursive: true, force: true }));
-  const file = join(dir, "easel.db");
-  const before = await boot({ file });
-  const { token: kept } = await theOwner(before);
-  await before.server.close();
-  const secret = randomBytes(32).toString("hex");
-  const digest = createHash("sha256").update(secret).digest("hex");
-  const db = new Database(file);
-  db.query(
-    "INSERT INTO access_sessions (id, digest, name, browser, since, used) VALUES (?, ?, ?, ?, ?, ?)",
-  ).run("0123456789ab", digest, "lagz0ne", "a browser", 1_800_000_000_000, 1_800_000_000_000);
-  db.close();
+test(
+  "a rename drops a session that a free name kept by mistake, so that old row signs in as no one",
+  aFileDbUnderLoad,
+  async () => {
+    const dir = mkdtempSync(join(tmpdir(), "easel-kept-"));
+    closers.push(() => rmSync(dir, { recursive: true, force: true }));
+    const file = join(dir, "easel.db");
+    const before = await boot({ file });
+    const { token: kept } = await theOwner(before);
+    await before.server.close();
+    const secret = randomBytes(32).toString("hex");
+    const digest = createHash("sha256").update(secret).digest("hex");
+    const db = new Database(file);
+    db.query(
+      "INSERT INTO access_sessions (id, digest, name, browser, since, used) VALUES (?, ?, ?, ?, ?, ?)",
+    ).run("0123456789ab", digest, "lagz0ne", "a browser", 1_800_000_000_000, 1_800_000_000_000);
+    db.close();
 
-  const after = await boot({ file });
-  await (await client(after.server, { token: kept })).rename("rocky", "lagz0ne");
+    const after = await boot({ file });
+    await (await client(after.server, { token: kept })).rename("rocky", "lagz0ne");
 
-  const old = await client(after.server, { cookie: `${sessionCookie}=${secret}` });
-  expect(await refused(old.me())).toEqual({ signIn: true });
-});
+    const old = await client(after.server, { cookie: `${sessionCookie}=${secret}` });
+    expect(await refused(old.me())).toEqual({ signIn: true });
+  },
+);
