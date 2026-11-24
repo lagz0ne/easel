@@ -145,6 +145,7 @@ export const mcpCall = operation({
     answerResult,
     "canvas.create": framesApi["canvas.create"],
     "canvas.list": framesApi["canvas.list"],
+    "canvas.delete": framesApi["canvas.delete"],
     "canvas.share": framesApi["canvas.share"],
     "canvas.unshare": framesApi["canvas.unshare"],
     "frame.put": framesApi["frame.put"],

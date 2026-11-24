@@ -81,7 +81,7 @@ const openRow = z
   .object({ canvas: z.string(), hash: z.string().nullable(), pw_gen: z.number() })
   .nullable();
 
-const endPasses = operation({
+export const endPasses = operation({
   label: "frames.endPasses",
   input: z.object({ canvas: z.string() }),
   depends: { bumpKeys, invalidate: framesBoard.invalidate },
@@ -93,9 +93,13 @@ const endPasses = operation({
         frames: canvas,
         pages: canvas,
         docs: canvas,
+        kept: canvas,
+        removed: canvas,
         requests: canvas,
         messages: canvas,
         serverClock: canvas,
+        kit: canvas,
+        client: canvas,
       },
     });
   },

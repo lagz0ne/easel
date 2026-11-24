@@ -314,6 +314,10 @@ export const framesContracts = {
     input: z.null(),
     output: z.object({ canvases: z.array(canvasInfo) }),
   },
+  "canvas.delete": {
+    input: z.strictObject({ canvas: canvasKey }),
+    output: z.discriminatedUnion("kind", [z.object({ kind: z.literal("deleted") }), gone]),
+  },
   "canvas.share": {
     input: z.strictObject({ canvas: canvasKey, password: sharePassword.nullable().optional() }),
     output: z.discriminatedUnion("kind", [
@@ -443,6 +447,7 @@ type KindOf<A extends FramesAddress> =
 export const framesSuccessKinds = {
   "canvas.create": ["created"],
   "canvas.list": "always",
+  "canvas.delete": ["deleted"],
   "canvas.share": ["shared"],
   "canvas.unshare": ["unshared"],
   "frame.put": ["created", "updated", "unchanged"],

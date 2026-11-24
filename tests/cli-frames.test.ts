@@ -545,6 +545,24 @@ test("rm exits 0, deleted; a second rm exits 1, gone", async () => {
   expect(a.lines()).toEqual([{ kind: "deleted" }, { kind: "gone" }]);
 });
 
+test("canvas rm exits 0, deleted, and canvas ls no longer lists it; a second canvas rm exits 1, gone, and says how to list the canvases", async () => {
+  const srv = await boot();
+  const { a } = await withFrame(srv);
+
+  expect(await a.run({ kind: "canvas rm", canvas: "flow" })).toBe(0);
+  expect(await a.run({ kind: "canvas rm", canvas: "flow" })).toBe(1);
+  expect(await a.run({ kind: "canvas ls" })).toBe(0);
+  expect(a.lines()).toEqual([{ kind: "deleted" }, { kind: "gone" }, { canvases: [] }]);
+
+  const plain = await easel(srv, { json: false, path: join(a.dir, "hosts.json") });
+  expect(await plain.run({ kind: "canvas new", name: "Flow" })).toBe(0);
+  plain.out.splice(0);
+  expect(await plain.run({ kind: "canvas rm", canvas: "flow" })).toBe(0);
+  expect(plain.out.join("")).toBe("deleted flow, with its frames, pages, requests and link\n");
+  expect(await plain.run({ kind: "canvas rm", canvas: "flow" })).toBe(1);
+  expect(plain.err.join("")).toContain("no canvas flow: `easel canvas ls` lists the canvases");
+});
+
 test("ready and explore: each kind of frame.ready and frame.explore, and put --ready; an unsettled frame exits 1 with each finding on stderr", async () => {
   const srv = await boot();
   const a = await easel(srv, { json: false });
@@ -632,6 +650,7 @@ test("each frames command without a sign-in exits 2, refused", async () => {
   const commands: FramesCommand[] = [
     { kind: "canvas new", name: "x" },
     { kind: "canvas ls" },
+    { kind: "canvas rm", canvas: "flow" },
     { kind: "put", canvas: "flow", file },
     { kind: "ls", canvas: "flow" },
     { kind: "get", canvas: "flow", id: "0123456789ab" },
@@ -651,6 +670,7 @@ test("each frames command whose server is gone exits 69: cannot reach the server
   const commands: FramesCommand[] = [
     { kind: "canvas new", name: "x" },
     { kind: "canvas ls" },
+    { kind: "canvas rm", canvas: "flow" },
     { kind: "put", canvas: "flow", file },
     { kind: "ls", canvas: "flow" },
     { kind: "get", canvas: "flow", id: "0123456789ab" },
@@ -695,6 +715,7 @@ test("each frames command on a server without frames exits 76, missing, and name
   const commands: Array<[FramesCommand, string]> = [
     [{ kind: "canvas new", name: "x" }, "canvas.create"],
     [{ kind: "canvas ls" }, "canvas.list"],
+    [{ kind: "canvas rm", canvas: "flow" }, "canvas.delete"],
     [{ kind: "put", canvas: "flow", file }, "frame.put"],
     [{ kind: "ls", canvas: "flow" }, "frame.list"],
     [{ kind: "get", canvas: "flow", id: "0123456789ab" }, "frame.get"],

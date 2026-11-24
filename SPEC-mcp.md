@@ -94,7 +94,7 @@ its tool comes in the ship of its call.
 | ----------------- | -------------------- | ----------------------- |
 | `list_canvases`   | `canvas.list`        | readOnly                |
 | `create_canvas`   | `canvas.create`      |                         |
-| `delete_canvas`   | `canvas.delete`      | destructive, later      |
+| `delete_canvas`   | `canvas.delete`      | destructive             |
 | `share_canvas`    | `canvas.share`       | destructive, idempotent |
 | `unshare_canvas`  | `canvas.unshare`     | destructive, idempotent |
 | `list_frames`     | `frame.list`         | readOnly                |

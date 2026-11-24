@@ -30,6 +30,7 @@ import {
   type PutInput,
   putInput,
 } from "./contract";
+import { deleteCanvas } from "./delete.server";
 import { createPage, deletePage, listPages, orderPages, renamePage } from "./pages.server";
 import { shotFrame } from "./pictures.server";
 import { endedRefusal, lockedRefusal, passMeta } from "./share";
@@ -462,6 +463,7 @@ export const moveFrameTo = operation({
 export const framesOps = {
   "canvas.create": createCanvas,
   "canvas.list": listCanvases,
+  "canvas.delete": deleteCanvas,
   "canvas.share": shareCanvas,
   "canvas.unshare": unshareCanvas,
   "frame.put": putFrame,

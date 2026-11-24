@@ -65,6 +65,7 @@ export const framesCommand = z.discriminatedUnion("kind", [
   }),
   z.object({ kind: z.literal("ready"), canvas: canvasKey, id: frameId }),
   z.object({ kind: z.literal("explore"), canvas: canvasKey, id: frameId }),
+  z.object({ kind: z.literal("canvas rm"), canvas: canvasKey }),
 ]);
 
 export type FramesCommand = z.infer<typeof framesCommand>;
@@ -110,6 +111,7 @@ const badFlag = {
 const address = z.enum([
   "canvas.create",
   "canvas.list",
+  "canvas.delete",
   "frame.put",
   "frame.list",
   "frame.get",
@@ -258,6 +260,48 @@ export const canvasLs = operation({
       : "no canvas yet: make one with `easel canvas new <name>`";
     say.run({ input: { json: reply.value, text } });
     return exitOf.run({ input: { address: "canvas.list" } });
+  },
+});
+
+export const canvasRm = operation({
+  label: "cli.canvasRm",
+  input: framesCommand.options[9],
+  depends: {
+    say,
+    exitOf: framesExitOf,
+    framesFault,
+    deadline: framesDeadline,
+    drop: frames.api["canvas.delete"],
+  },
+  run: async ({ say, exitOf, framesFault, deadline, drop }, { input }) => {
+    const stop = deadline.run({ input: "canvas.delete" });
+    const reply = await drop.settle({ input: { canvas: input.canvas }, signal: stop.signal });
+    stop.abort();
+    if (reply.status === "cancelled") return framesFault.run({ input: reply.reason });
+    if (reply.status === "failed") return framesFault.run({ input: reply.error });
+
+    const answer = reply.value;
+    switch (answer.kind) {
+      case "deleted":
+        say.run({
+          input: {
+            json: answer,
+            text: `deleted ${input.canvas}, with its frames, pages, requests and link`,
+          },
+        });
+        break;
+      case "gone":
+        say.run({
+          input: {
+            json: answer,
+            text: `no canvas ${input.canvas}: \`easel canvas ls\` lists the canvases`,
+            error: true,
+          },
+        });
+        break;
+    }
+
+    return exitOf.run({ input: { address: "canvas.delete", kind: answer.kind } });
   },
 });
 
@@ -1114,6 +1158,7 @@ export const shot = operation({
 const canvasCommand = z.discriminatedUnion("kind", [
   framesCommand.options[0],
   framesCommand.options[1],
+  framesCommand.options[9],
 ]);
 
 const frameCommand = z.discriminatedUnion("kind", [
@@ -1129,13 +1174,15 @@ const frameCommand = z.discriminatedUnion("kind", [
 const canvasRun = operation({
   label: "cli.canvasCommand",
   input: canvasCommand,
-  depends: { canvasNew, canvasLs },
+  depends: { canvasNew, canvasLs, canvasRm },
   run: (ops, { input }) => {
     switch (input.kind) {
       case "canvas new":
         return ops.canvasNew.run({ input });
       case "canvas ls":
         return ops.canvasLs.run();
+      case "canvas rm":
+        return ops.canvasRm.run({ input });
     }
   },
 });

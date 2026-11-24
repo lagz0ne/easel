@@ -48,6 +48,12 @@ export const tools = {
     annotations: write,
     description: `Make a canvas with a name: it answers the key, or \`taken\` when a canvas has that key. ${kitFirst}`,
   },
+  delete_canvas: {
+    address: "canvas.delete",
+    annotations: destructive,
+    description:
+      "Delete a canvas with its frames, pages, kept versions, requests and messages; its link ends, and each open tab says so. It answers `gone` when no canvas has the key.",
+  },
   share_canvas: {
     address: "canvas.share",
     annotations: destructiveAgain,

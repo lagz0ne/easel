@@ -46,6 +46,8 @@ const help = `easel: the canvas CLI. Every command takes --json (one JSON value 
   easel errors tick                                stamp the fixer's tick (owner)
   easel canvas new <name>                          make a canvas; prints its key
   easel canvas ls                                  the canvases: key, name, when made, shared
+  easel canvas rm <canvas>                         delete a canvas with its frames, pages, kept versions, requests
+                                                   and messages; its link ends; exit 1 when no canvas has the key
   easel put <canvas> <file|dir|-> [--name N] [--size WxH] [--page P] [--at x,y]
                                                    make a frame from a file, a folder, or stdin with -; it goes on page P
                                                    (else the first page) at x,y (else right of the frames of the page, at y 0)
@@ -244,6 +246,15 @@ const framesInvocations = [
     .transform(({ values }): unknown => ({
       at: values.server,
       command: { kind: "frames", act: { kind: "canvas ls" } },
+    })),
+  z
+    .object({
+      positionals: z.tuple([z.literal("canvas"), z.literal("rm"), z.string()]),
+      values: z.strictObject(common),
+    })
+    .transform(({ positionals: [, , canvas], values }): unknown => ({
+      at: values.server,
+      command: { kind: "frames", act: { kind: "canvas rm", canvas } },
     })),
   z
     .object({

@@ -52,7 +52,7 @@ finds each address that is in neither list or in both (fact rule 2).
 
 - [x] `tools/list` gives the 31 tools of the built calls, and no other. The 6 calls that are not
       built yet (`canvas.delete`, `frame.move`, `kit.guide`, `kit.list`, `kit.get`, `kit.put`)
-      are marked "later" in SPEC-mcp.
+      are marked "later" in SPEC-mcp. `canvas.delete` is built now: see "canvas.delete" below.
 - [x] The fact rule 2 test fails when a test contract adds one call that is in neither list.
 - [x] Each description has two sentences at most (judged rule 3). The queue tools add the sentence
       on the frame that a request allows.
@@ -770,3 +770,18 @@ Decisions of 2026-11-23 (the coordinator, for the spec):
 
 - [x] Criteria 2 to 6 of SPEC-pages hold, each with its proof.
 - [x] A look at the viewer with `agent-browser` on a local server.
+
+### canvas.delete: delete a canvas
+
+SPEC-frames § Make a canvas, step 4, and judged rules 12 and 13.
+
+- [x] `canvas.delete` answers `deleted` or `gone`. It deletes the canvas with its frames, pages,
+      kept versions, removed frames, requests, messages, deliveries, link and passes. The key
+      generation of the canvas goes up, so a picture key of the canvas does not come back.
+- [x] It sends the refusal to each live watch of each pass before it answers, as unshare does.
+- [x] An owner and a member may call it; a guest is refused (docs/actors.md).
+- [x] `easel canvas rm <canvas>` exits 0 on `deleted` and 1 on `gone`. The tool `delete_canvas`
+      (destructive) comes in the same ship, as SPEC-mcp says for a "later" row.
+- [x] Tests: `tests/canvas-delete.test.ts`, `tests/cli-frames.test.ts`, `tests/cli-cmd.test.ts`.
+
+**Estimated scope:** S.

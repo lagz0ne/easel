@@ -526,7 +526,7 @@ test(
 );
 
 test(
-  "frames on the real server: a guest is refused (2), a document a little over 1 MiB answers tooBig on the socket, and bad put flags are one usage line (64)",
+  "frames on the real server: a guest is refused (2), a document a little over 1 MiB answers tooBig on the socket, bad put flags are one usage line (64), and canvas rm exits 0 then 1",
   slow,
   async () => {
     const srv = await serve();
@@ -592,6 +592,14 @@ test(
       out: `${JSON.stringify({ kind: "gone" })}\n`,
     });
     expect(await main(["explore", "flow", id, "--json"], env)).toEqual({
+      code: 1,
+      out: `${JSON.stringify({ kind: "gone" })}\n`,
+    });
+    expect(await main(["canvas", "rm", "flow", "--json"], env)).toEqual({
+      code: 0,
+      out: `${JSON.stringify({ kind: "deleted" })}\n`,
+    });
+    expect(await main(["canvas", "rm", "flow", "--json"], env)).toEqual({
       code: 1,
       out: `${JSON.stringify({ kind: "gone" })}\n`,
     });
