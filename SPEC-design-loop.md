@@ -55,22 +55,30 @@ Prior art:
 
 ### The loop
 
-4. The dispatcher of easel pushes each waiting request of `design-system` and `product` to a new
-   kind of channel, `webhook` (the user, 2026-11-24: "Dispatcher in easel to push to an adapter on
-   top of current paseo. Adapter will lead to spawning agent").
-   - A webhook delivery is an HTTP `POST` of the request (canvas, number, text, frame, page) to the
-     address of the channel. It is signed as the Standard Webhooks spec says (`webhook-id`,
-     `webhook-timestamp`, `webhook-signature`: HMAC-SHA-256 with the secret of the channel), as
-     Stripe and GitHub sign theirs. The retries, the `failed` state and `easel deliveries` are the
-     same as for a GitHub channel (SPEC-queue § The dispatcher).
-   - A channel can name canvases. It gets only the requests of those canvases.
-   - The secret of a channel is write-only, as the token of a GitHub channel.
-5. **The Paseo adapter** is a small service on the machine, beside the Paseo daemon. It checks the
-   signature and the time of each delivery, and refuses an old one or a repeat (`webhook-id`). For
-   a good one, it starts an agent in the easel workspace with `paseo run`. The prompt of the agent
-   names the canvas and the number of the request, and tells it to claim the request with
-   `easel next`. So the claim, the lease and the result stay in easel. A request that the agent
-   does not claim waits, and the next waiting period delivers it again.
+4. The dispatcher of easel publishes each waiting request of `design-system` and `product` to
+   NATS, as the hub's work queue uses it (the user, 2026-11-24: "Dispatcher in easel to push to an
+   adapter on top of current paseo. Adapter will lead to spawning agent", then "We can use nats
+   just like the work queue").
+   - A new kind of channel, `nats`, names a subject. The dispatcher publishes one message for each
+     waiting period of a request to `easel.requests.<canvas>`, in a JetStream stream with
+     work-queue retention. The message holds the canvas, the number, the frame and the page of the
+     request, not its text. The message id is the request and its period, so JetStream drops a
+     repeat.
+   - The NATS is the hub's own (`hub-nats`, JetStream). easel connects with its own nkey, which
+     may only publish to `easel.requests.>`. The nkey seed is write-only, as the token of a GitHub
+     channel.
+   - A publish that fails is tried again as a GitHub delivery is (SPEC-queue § The dispatcher), and
+     `easel deliveries` shows it. A channel can name canvases. It gets only the requests of those
+     canvases.
+5. **The Paseo adapter** is a small service on the machine, beside the Paseo daemon, with its own
+   nkey that may only read `easel.requests.>`. It is a durable pull consumer of the stream. For
+   each message, it starts an agent in the easel workspace with `paseo run`, then acks the message.
+   The prompt of the agent names the canvas and the number of the request, and tells it to claim
+   the request with `easel next`. So the claim, the lease and the result stay in easel.
+   - The limit of agents at the same time is `max_ack_pending` of the consumer. A message over the
+     limit waits in the stream.
+   - A message that the adapter does not ack in time comes again (`ack_wait`). A request that no
+     agent claims waits in easel, and its next waiting period publishes it again.
 6. The agent changes the frame (a new version), or the code, or both. It resolves the request only
    when `/api/version` shows the build with the change.
 7. A change of the code that changes a screen writes its live screen again. The request says
@@ -111,8 +119,9 @@ Prior art:
    `Live` page shows the change. No step happens outside easel and the repository.
 5. **The proof.** `bun run design:proof` prints OK against the canvases of easel, and it fails if
    a live screen uses a color that is not in the design system.
-6. **The adapter.** A request on `product` starts a Paseo agent within 1 minute of the delivery.
-   A delivery with a wrong signature, an old time or a repeated id starts no agent.
+6. **The adapter.** A request on `product` starts a Paseo agent within 1 minute of the
+   publish. A repeat of the same waiting period starts no second agent. With the limit at 2 and 3
+   requests, the third agent starts only when one of the first two ends.
 7. **An image.** `easel put product shot.png` makes an image frame. A person pastes a screenshot
    into a request. The agent that claims it gets both images and says what it sees in its result.
 
@@ -123,9 +132,10 @@ Prior art:
 - Always: a frame that a person marked ready changes only through a request.
 - Ask first: a change of the look of the design system (it changes each frame of the team).
 - Ask first: the hours when the design agent runs, and its cost limit.
-- Ask first: the address of the adapter on the machine (it is hub work, by a hub request).
+- Ask first: the hub work (a hub request): easel's container must reach `hub-nats`, which listens
+  on loopback only today, and the two nkeys (`easel`, `easel-paseo`) and the stream.
 - Never: the loop deletes a frame or a canvas.
-- Never: the adapter is open to the internet. Only easel can reach it.
+- Never: `hub-nats` is open to the internet. Only the docker network of the machine reaches it.
 
 ## Out of scope (deferred)
 
@@ -137,8 +147,10 @@ Prior art:
 
 ## Decisions
 
-1. **The design agent** (the user, 2026-11-24): the dispatcher pushes to a Paseo adapter, and
-   the adapter starts the agent (§ The loop, rules 4-5).
+1. **The design agent** (the user, 2026-11-24): the dispatcher publishes to the hub's NATS, as the
+   work queue does, and a Paseo adapter consumes it and starts the agent (§ The loop, rules 4-5).
+   A webhook was the other way. NATS needs no public address and no signature, and its acks and
+   redelivery do the retries.
 2. **The live screens** (the user, 2026-11-24): image frames, put by a job after each deploy
    (§ Images).
 
@@ -146,5 +158,5 @@ Prior art:
 
 1. **The canvas names.** I recommend `design-system` (it exists) and `product`. Doop had
    `easel · Design system` and `easel · Product design`.
-2. **The hours and the cost limit of the design agents.** For example: at most 2 agents at the
-   same time, and at most 20 in a day. The adapter refuses more, and the request waits.
+2. **The limits of the design agents.** I recommend at most 2 at the same time
+   (`max_ack_pending`) and at most 20 in a day. A message over a limit waits in the stream.
