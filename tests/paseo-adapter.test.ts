@@ -291,3 +291,148 @@ test(
   },
   slow,
 );
+
+const reports = (paseo: { easelCalls: () => Array<{ args: string[] }> }) =>
+  paseo.easelCalls().map((call) => call.args);
+
+const stateReports = (paseo: { easelCalls: () => Array<{ args: string[] }> }) =>
+  reports(paseo).filter((args) => args.includes("--running"));
+
+test(
+  "the adapter reports its state to easel with the easel CLI, for its channel, as the user of EASEL_PASEO_EASEL_CONFIG: the agents that run and the starts of the day",
+  async () => {
+    const { paseo, adapter } = await setup();
+
+    await adapter.until(() => stateReports(paseo).length > 0, "a state report");
+    const [first] = paseo.easelCalls();
+    expect(first).toEqual({
+      args: ["channel", "report", "loop", "--running", "0", "--today", "0", "--json"],
+      configHome: join(paseo.dir, ".config/easel-agent"),
+    });
+  },
+  slow,
+);
+
+test(
+  "the adapter sends the same state again only after EASEL_PASEO_REPORT_MS, so easel knows that it is there",
+  async () => {
+    const { paseo, adapter } = await setup({ EASEL_PASEO_REPORT_MS: "400" });
+
+    await adapter.until(() => stateReports(paseo).length >= 3, "3 state reports", 5000);
+    await Bun.sleep(150);
+    const count = stateReports(paseo).length;
+    expect(count).toBeLessThan(10);
+  },
+  slow,
+);
+
+test(
+  "the limits come from easel: with 1 agent at the same time, the second request waits, and the report says it is at the running limit",
+  async () => {
+    const { nats, paseo, adapter } = await setup();
+    paseo.setLimits({ running: 1, perDay: 20 });
+
+    await adapter.event("limits");
+    for (const n of [1, 2]) await nats.publish("product", request("product", n), `product:${n}:1`);
+    await adapter.until(() => paseo.runs().length === 1, "1 start");
+    expect(await adapter.event("busy")).toMatchObject({ running: 1, limit: 1 });
+    await adapter.until(
+      () => stateReports(paseo).some((args) => args.includes("--at")),
+      "a report at the limit",
+    );
+    const atLimit = stateReports(paseo).find((args) => args.includes("--at")) ?? [];
+    expect(valueAfter(atLimit, "--at")).toEqual(["running"]);
+    expect(valueAfter(atLimit, "--running")).toEqual(["1"]);
+    expect(paseo.runs()).toHaveLength(1);
+    expect(await nats.state()).toEqual({ waiting: 1, unacked: 0 });
+  },
+  slow,
+);
+
+test(
+  "a day limit from easel holds: with 1 start in a day, the next request waits, and the report says it is at the day limit",
+  async () => {
+    const { nats, paseo, adapter } = await setup();
+    paseo.setLimits({ running: 2, perDay: 1 });
+
+    await adapter.event("limits");
+    await nats.publish("product", request("product", 1), "product:1:1");
+    await adapter.event("started");
+    await nats.publish("product", request("product", 2), "product:2:1");
+    expect(await adapter.event("day-limit")).toMatchObject({ starts: 1, limit: 1 });
+    await adapter.until(
+      () => stateReports(paseo).some((args) => valueAfter(args, "--at")[0] === "day"),
+      "a report at the day limit",
+    );
+    expect(paseo.runs()).toHaveLength(1);
+  },
+  slow,
+);
+
+test(
+  "each start is reported to easel with the request, its waiting period and the agent",
+  async () => {
+    const { nats, paseo, adapter } = await setup();
+
+    await nats.publish("product", request("product", 7), "product:7:1000");
+    await adapter.event("started");
+    await adapter.until(
+      () => reports(paseo).some((args) => args.includes("--started")),
+      "the start report",
+    );
+    const started = reports(paseo).find((args) => args.includes("--started")) ?? [];
+    expect(started).toEqual([
+      "channel",
+      "report",
+      "loop",
+      "--started",
+      "product:7:1000",
+      "--agent",
+      "agent-1",
+      "--json",
+    ]);
+  },
+  slow,
+);
+
+test(
+  "a failed start is reported to easel with the cause and the time until the next try",
+  async () => {
+    const { nats, paseo, adapter } = await setup({ EASEL_PASEO_NAK_MS: "60000" });
+    paseo.failRuns(true);
+
+    await nats.publish("product", request("product", 9), "product:9:1");
+    await adapter.event("start-failed");
+    await adapter.until(
+      () => reports(paseo).some((args) => args.includes("--failed")),
+      "the failure report",
+    );
+    const failed = reports(paseo).find((args) => args.includes("--failed")) ?? [];
+    expect(valueAfter(failed, "--failed")).toEqual(["product:9:1000"]);
+    expect(valueAfter(failed, "--cause")).toEqual(["Failed to create agent: the daemon is down"]);
+    expect(valueAfter(failed, "--retry")).toEqual(["60000"]);
+  },
+  slow,
+);
+
+test(
+  "when easel cannot be reached, the adapter logs it one time, keeps its limits, and still starts agents",
+  async () => {
+    const { nats, paseo, adapter } = await setup();
+    paseo.failEasel(true);
+
+    expect(await adapter.event("report-failed")).toMatchObject({
+      call: "state",
+      exit: 1,
+      cause: "easel: the server cannot be reached",
+    });
+    await nats.publish("product", request("product", 3), "product:3:1");
+    expect(await adapter.event("started")).toMatchObject({ ref: "product:3" });
+    expect(adapter.lines.filter((line) => line.event === "report-failed")).toHaveLength(1);
+
+    paseo.failEasel(false);
+    await adapter.event("report-ok");
+    expect(adapter.lines.filter((line) => line.event === "report-failed")).toHaveLength(1);
+  },
+  slow,
+);

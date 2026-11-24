@@ -1,6 +1,8 @@
 import { homedir } from "node:os";
 import { join } from "node:path";
 
+const easelOfThisCommit = [process.execPath, join(import.meta.dir, "../../cmds/easel.ts")];
+
 export type Config = {
   url: string;
   seedFile: string;
@@ -12,12 +14,15 @@ export type Config = {
   provider: string;
   mode: string;
   easelConfig: string;
+  easel: string[];
+  channel: string;
   stateDir: string;
   maxRunning: number;
   maxPerDay: number;
   pollMs: number;
   nakMs: number;
   permitMs: number;
+  reportMs: number;
 };
 
 type Env = Record<string, string | undefined>;
@@ -48,11 +53,14 @@ export function configFrom(env: Env): Config {
     provider: text("EASEL_PASEO_PROVIDER", "claude"),
     mode: text("EASEL_PASEO_MODE", "auto"),
     easelConfig: text("EASEL_PASEO_EASEL_CONFIG", join(home, ".config/easel-agent")),
+    easel: env.EASEL_PASEO_EASEL ? [env.EASEL_PASEO_EASEL] : easelOfThisCommit,
+    channel: text("EASEL_PASEO_CHANNEL", "loop"),
     stateDir: text("EASEL_PASEO_STATE_DIR", join(home, ".local/state/easel-paseo-adapter")),
     maxRunning: positiveNumber(env, "EASEL_PASEO_MAX_RUNNING", 2),
     maxPerDay: positiveNumber(env, "EASEL_PASEO_MAX_PER_DAY", 20),
     pollMs: positiveNumber(env, "EASEL_PASEO_POLL_MS", 5000),
     nakMs: positiveNumber(env, "EASEL_PASEO_NAK_MS", 60_000),
     permitMs: positiveNumber(env, "EASEL_PASEO_PERMIT_MS", 3000),
+    reportMs: positiveNumber(env, "EASEL_PASEO_REPORT_MS", 30_000),
   };
 }

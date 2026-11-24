@@ -5,6 +5,7 @@ import { connect, nkeyAuthenticator } from "@nats-io/transport-node";
 
 import { adapterLoop } from "./adapter";
 import { configFrom } from "./config";
+import { easelCli } from "./easel";
 import { log } from "./log";
 import { paseoCli } from "./paseo";
 import { permitLoop } from "./permits";
@@ -44,6 +45,7 @@ log("bound", {
   maxAckPending: bound.config.max_ack_pending ?? null,
   maxRunning: config.maxRunning,
   maxPerDay: config.maxPerDay,
+  channel: config.channel,
   mode: config.mode,
   workspace: config.workspaceDir,
 });
@@ -65,8 +67,14 @@ void nc.closed().then((error) => {
 
 const paseo = paseoCli(config.paseo);
 
+const easel = easelCli({
+  command: config.easel,
+  configHome: config.easelConfig,
+  channel: config.channel,
+});
+
 await Promise.all([
-  adapterLoop({ consumer, paseo, config })(() => stopping),
+  adapterLoop({ consumer, paseo, easel, config })(() => stopping),
   permitLoop({ paseo, config })(() => stopping),
 ]);
 

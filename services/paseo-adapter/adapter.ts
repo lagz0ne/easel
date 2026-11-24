@@ -1,6 +1,7 @@
 import type { Consumer, JsMsg } from "@nats-io/jetstream";
 
 import type { Config } from "./config";
+import type { Easel, Limits, StarterState } from "./easel";
 import { log } from "./log";
 import { isActive } from "./paseo";
 import type { Failed, Paseo } from "./paseo";
@@ -11,48 +12,80 @@ import { countStart, startsOn, utcDay } from "./starts";
 
 const minimumExpiresMs = 1000;
 
-export type Adapter = { consumer: Consumer; paseo: Paseo; config: Config };
+export type Adapter = { consumer: Consumer; paseo: Paseo; easel: Easel; config: Config };
 
 type Step = "fetched" | "wait";
 
-export function adapterLoop({ consumer, paseo, config }: Adapter) {
+const sameState = (a: StarterState | null, b: StarterState) =>
+  a !== null && a.running === b.running && a.today === b.today && a.at === b.at;
+
+export function adapterLoop({ consumer, paseo, easel, config }: Adapter) {
   let dayLogged = "";
   let busy = false;
+  let limits: Limits = { running: config.maxRunning, perDay: config.maxPerDay };
+  let reported: StarterState | null = null;
+  let reportedAt = 0;
+  let reportFailed = false;
 
-  const underDayLimit = (day: string) => {
-    const starts = startsOn(config.stateDir, day);
-    if (starts < config.maxPerDay) return true;
+  const tookAnswer = (answer: Awaited<ReturnType<Easel["state"]>>, call: string) => {
+    if (answer.kind === "failed") {
+      if (!reportFailed) log("report-failed", { call, exit: answer.exit, cause: answer.cause });
+      reportFailed = true;
+      return false;
+    }
 
-    if (dayLogged !== day) log("day-limit", { day, starts, limit: config.maxPerDay });
+    if (reportFailed) log("report-ok", { call });
+    reportFailed = false;
+
+    if (answer.limits.running !== limits.running || answer.limits.perDay !== limits.perDay) {
+      log("limits", { running: answer.limits.running, perDay: answer.limits.perDay });
+    }
+    limits = answer.limits;
+    return true;
+  };
+
+  const atOf = (running: number, today: number): StarterState["at"] => {
+    if (today >= limits.perDay) return "day";
+    return running >= limits.running ? "running" : null;
+  };
+
+  const reportState = async (running: number, today: number) => {
+    const now: StarterState = { running, today, at: atOf(running, today) };
+    if (sameState(reported, now) && Date.now() - reportedAt < config.reportMs) return;
+
+    tookAnswer(await easel.state(now), "state");
+    reported = now;
+    reportedAt = Date.now();
+  };
+
+  const underDayLimit = (day: string, starts: number) => {
+    if (starts < limits.perDay) return true;
+
+    if (dayLogged !== day) log("day-limit", { day, starts, limit: limits.perDay });
     dayLogged = day;
     return false;
   };
 
-  const underRunLimit = async () => {
-    const listed = await paseo.agents(designLabel);
-    if (listed.kind === "failed") {
-      log("paseo-failed", { call: "ls", exit: listed.exit, cause: listed.cause });
-      return false;
-    }
-
-    const running = listed.value.filter(isActive).length;
-    if (running < config.maxRunning) {
+  const underRunLimit = (running: number) => {
+    if (running < limits.running) {
       busy = false;
       return true;
     }
-    if (!busy) log("busy", { running, limit: config.maxRunning });
+    if (!busy) log("busy", { running, limit: limits.running });
     busy = true;
     return false;
   };
 
-  const nakFailed = (msg: JsMsg, ref: string, failed: Failed) => {
+  const nakFailed = async (msg: JsMsg, ref: string, period: number | null, failed: Failed) => {
     msg.nak(config.nakMs);
     log("start-failed", { ref, exit: failed.exit, cause: failed.cause, retryMs: config.nakMs });
+    if (period === null) return;
+    tookAnswer(await easel.failed(`${ref}:${period}`, failed.cause, config.nakMs), "failed");
   };
 
   const start = async (msg: JsMsg, request: DesignRequest, ref: string) => {
     const workspace = await paseo.workspaceOf(config.workspaceDir);
-    if (workspace.kind === "failed") return nakFailed(msg, ref, workspace);
+    if (workspace.kind === "failed") return nakFailed(msg, ref, request.period, workspace);
 
     const started = await paseo.run({
       title: agentTitle(request),
@@ -64,7 +97,7 @@ export function adapterLoop({ consumer, paseo, config }: Adapter) {
       env: { EASEL_CONFIG_HOME: config.easelConfig },
       labels: { ...designLabel, "easel-request": ref },
     });
-    if (started.kind === "failed") return nakFailed(msg, ref, started);
+    if (started.kind === "failed") return nakFailed(msg, ref, request.period, started);
 
     const starts = countStart(config.stateDir, utcDay());
     msg.ack();
@@ -75,6 +108,8 @@ export function adapterLoop({ consumer, paseo, config }: Adapter) {
       period: request.period,
       starts,
     });
+    tookAnswer(await easel.started(`${ref}:${request.period}`, started.value.agentId), "started");
+    reportedAt = 0;
   };
 
   const handle = async (msg: JsMsg) => {
@@ -87,7 +122,7 @@ export function adapterLoop({ consumer, paseo, config }: Adapter) {
 
     const ref = requestRef(parsed.request);
     const same = await paseo.agents({ ...designLabel, "easel-request": ref });
-    if (same.kind === "failed") return nakFailed(msg, ref, same);
+    if (same.kind === "failed") return nakFailed(msg, ref, null, same);
 
     const live = same.value.find(isActive);
     if (!live) return start(msg, parsed.request, ref);
@@ -96,8 +131,17 @@ export function adapterLoop({ consumer, paseo, config }: Adapter) {
   };
 
   const step = async (): Promise<Step> => {
-    if (!underDayLimit(utcDay())) return "wait";
-    if (!(await underRunLimit())) return "wait";
+    const day = utcDay();
+    const today = startsOn(config.stateDir, day);
+    const listed = await paseo.agents(designLabel);
+    if (listed.kind === "failed") {
+      log("paseo-failed", { call: "ls", exit: listed.exit, cause: listed.cause });
+      return "wait";
+    }
+    const running = listed.value.filter(isActive).length;
+    await reportState(running, today);
+    if (!underDayLimit(day, today)) return "wait";
+    if (!underRunLimit(running)) return "wait";
 
     const msg = await consumer.next({ expires: Math.max(config.pollMs, minimumExpiresMs) });
     if (msg) await handle(msg);

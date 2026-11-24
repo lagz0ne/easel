@@ -146,6 +146,12 @@ export function fakePaseo() {
     `#!/bin/sh\nexec "${process.execPath}" "${join(root, "tests/support/fake-paseo.ts")}" "$@"\n`,
     { mode: 0o755 },
   );
+  const easelBin = join(dir, "fake-easel");
+  writeFileSync(
+    easelBin,
+    `#!/bin/sh\nexec "${process.execPath}" "${join(root, "tests/support/fake-easel.ts")}" "$@"\n`,
+    { mode: 0o755 },
+  );
 
   const calls = (): string[][] => {
     const file = join(dir, "calls.jsonl");
@@ -172,6 +178,21 @@ export function fakePaseo() {
   };
   const failRuns = (on: boolean) =>
     on ? writeFileSync(join(dir, "fail"), "") : rmSync(join(dir, "fail"), { force: true });
+  const easelCall = z.object({ args: z.array(z.string()), configHome: z.string().nullable() });
+  const easelCalls = () => {
+    const file = join(dir, "easel-calls.jsonl");
+    if (!existsSync(file)) return [];
+    return readFileSync(file, "utf8")
+      .trim()
+      .split("\n")
+      .map((line) => easelCall.parse(JSON.parse(line)));
+  };
+  const setLimits = (limits: { running: number; perDay: number }) =>
+    writeFileSync(join(dir, "easel-limits.json"), JSON.stringify(limits));
+  const failEasel = (on: boolean) =>
+    on
+      ? writeFileSync(join(dir, "easel-fail"), "")
+      : rmSync(join(dir, "easel-fail"), { force: true });
 
   return {
     dir,
@@ -185,6 +206,10 @@ export function fakePaseo() {
     permits,
     denies: () => calls().filter((args) => args[0] === "permit" && args[1] === "deny"),
     failRuns,
+    easelBin,
+    easelCalls,
+    setLimits,
+    failEasel,
     close: () => rmSync(dir, { recursive: true, force: true }),
   };
 }
@@ -212,6 +237,7 @@ export function startAdapter(nats: HubNats, paseo: FakePaseo, more: Record<strin
       EASEL_PASEO_STATE_DIR: stateDir,
       EASEL_PASEO_POLL_MS: "100",
       EASEL_PASEO_PERMIT_MS: "100",
+      EASEL_PASEO_EASEL: paseo.easelBin,
       ...more,
     },
     stdout: "pipe",
