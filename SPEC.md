@@ -76,7 +76,9 @@ and the list of commands by module.
 3. **Size.** The server sets `ws.maxPayload` itself, not by default. A `tooBig` answer is measured
    on the document's UTF-8 bytes, not its string length ([frames](SPEC-frames.md)). `maxPayload`
    sits above that limit, so a document a little too big gets `tooBig`, not a closed socket. It is
-   16 MiB, so an image frame of 10 MiB in base64 fits (SPEC-frames § Image frames).
+   16 MiB, so an image frame of 10 MiB in base64 fits (SPEC-frames § Image frames). Over HTTP, a
+   route takes a body of 1 MiB at most, and `/mcp` takes 16 MiB, as the socket does
+   ([mcp](SPEC-mcp.md)).
    `frame.shot` answers a picture URL, and the client
    fetches the picture over HTTP, so no picture crosses the socket.
 4. **Rate limits.** A limit counts per client address. The address comes from `X-Forwarded-For`,

@@ -134,7 +134,7 @@ const shadows: ReadonlyArray<readonly [string, ReadonlyArray<readonly number[]>]
 ];
 
 export const srgbOf = operation({
-  label: "kit.srgbOf",
+  label: "kit.seedSrgbOf",
   input: z.object({ hex: z.string(), alpha: z.number().optional() }),
   run: (_, { input: { hex, alpha = 1 } }) => ({
     colorSpace: "srgb",

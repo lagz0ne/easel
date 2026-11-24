@@ -25,8 +25,12 @@ Prior art:
 
 ## Built on Tinker
 
-- `/mcp` is one more entry in the server's `routes` table, beside `/api/telemetry`. Its handler is
-  an operation.
+- `/mcp` has its own route table, `largeRoutes`, apart from the `routes` table of
+  `/api/telemetry` and the other routes. Its handler is an operation.
+- Each route table is one handler of `serve`, with its own `maxBody` (Tinker 0.34.7). A route in
+  `routes` takes a body of 1 MiB at most. `/mcp` takes 16 MiB (`mcpMaxBody`, the socket's
+  `maxPayload`), so `put_frame` with an image of 10 MiB in base64 fits. The MCP transport has the
+  same limit. A larger body gets 413.
 - A refusal or a throw inside a route becomes a bare 500. So the handler runs the `user` guard
   itself, once per request, and builds the 401 itself.
 - A tool call then runs the contract's operation through the same api capsule that the socket

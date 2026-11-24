@@ -4,7 +4,7 @@ import { createScope } from "@tinkered/core";
 
 import { defineMain } from "~/base/main";
 import { health } from "~/components/health";
-import { routes } from "~/components/requests/index.server";
+import { largeRoutes, routes } from "~/components/requests/index.server";
 import { telemetryEnv } from "~/components/telemetry/env.server";
 import { telemetry } from "~/components/telemetry/index.server";
 
@@ -39,7 +39,7 @@ import { fontRoute } from "@/kit/fonts.server";
 import { kitOps } from "@/kit/ops.server";
 import { portClient, portServer } from "@/kit/port-link";
 import { runtimeRoute } from "@/kit/runtime.server";
-import { mcpHttp, mcpMeta } from "@/mcp/http.server";
+import { mcpHttp, mcpMaxBody, mcpMeta } from "@/mcp/http.server";
 import { mcpFetch } from "@/mcp/server";
 import { ops } from "@/ops";
 import { opsOwnerOps, opsServer, opsUserOps, ready } from "@/ops/ops.server";
@@ -158,15 +158,21 @@ export default defineMain(async ({ env, args, signal, stdout, stderr, exit }) =>
       "GET /api/images/{canvas}/{sha}": imageRoute,
       "GET /api/runtime/{kit}/{sha}/{file}": runtimeRoute,
       "GET /api/fonts/{dir}/{file}": fontRoute,
-      "POST /mcp": mcpHttp.route,
-      "GET /mcp": mcpHttp.route,
-      "DELETE /mcp": mcpHttp.route,
       "GET /.well-known/oauth-protected-resource": mcpHttp.resource,
       "GET /.well-known/oauth-protected-resource/mcp": mcpHttp.resource,
       "GET /.well-known/oauth-authorization-server": mcpHttp.issuer,
       "GET /oauth/authorize": mcpHttp.authorize,
       "POST /oauth/authorize": mcpHttp.authorize,
       "POST /oauth/token": mcpHttp.token,
+    },
+  });
+  const mcpTable = largeRoutes({
+    stop: signal,
+    maxBody: mcpMaxBody,
+    table: {
+      "POST /mcp": mcpHttp.route,
+      "GET /mcp": mcpHttp.route,
+      "DELETE /mcp": mcpHttp.route,
     },
   });
   const app = createScope({
@@ -176,7 +182,7 @@ export default defineMain(async ({ env, args, signal, stdout, stderr, exit }) =>
         port: Number(set.PORT),
         pages,
         websocket: door,
-        handlers: [table],
+        handlers: [table, mcpTable],
         paths: ["/install.sh", "/mcp", "/.well-known/*", "/oauth/*", "/auth/*"],
         development: env.NODE_ENV !== "production",
         stdout,
@@ -233,6 +239,7 @@ export default defineMain(async ({ env, args, signal, stdout, stderr, exit }) =>
         scope: mcpScope.ready,
       }),
       table,
+      mcpTable,
     ],
   });
 

@@ -13,11 +13,22 @@ const ns = tag<{ readonly op: Routes[keyof Routes]; readonly ns: Ns }>({ label: 
 
 const table = tag<Routes>({ label: "routes.table" });
 
+const maxBody = tag<number>({ label: "routes.maxBody" });
+
+const largeTable = tag<Routes>({ label: "routes.large.table" });
+
+const largeMaxBody = tag<number>({ label: "routes.large.maxBody" });
+
 const failures: Readonly<Record<string, number>> = { DataValidationFailed: 400, Cancelled: 503 };
 
 export const routes = capsule({
   label: "routes",
-  config: { table: table.required, stop: backendStop.required, ns: ns.all },
+  config: {
+    table: table.required,
+    stop: backendStop.required,
+    ns: ns.all,
+    maxBody: maxBody.optional,
+  },
   exports: { request, reply, ns, stop: requestStop },
   hooks: {
     async start({ config, next }) {
@@ -95,7 +106,18 @@ export const routes = capsule({
         }
         return winner;
       };
-      return { fetch };
+      return config.maxBody.present ? { fetch, maxBody: config.maxBody.value } : { fetch };
     },
   },
+});
+
+export const largeRoutes = capsule({
+  label: "routes.large",
+  config: {
+    table: largeTable.required,
+    stop: backendStop.required,
+    ns: ns.all,
+    maxBody: largeMaxBody.optional,
+  },
+  hooks: routes.hooks,
 });

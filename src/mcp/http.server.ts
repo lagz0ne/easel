@@ -3,6 +3,7 @@ import type { Scope } from "@tinkered/core";
 import { z } from "zod";
 
 import { userApi } from "@/access/contract";
+import { socketMaxPayload } from "@/frames/contract";
 
 import {
   authorizationServer,
@@ -13,6 +14,8 @@ import {
   token,
 } from "./oauth.server";
 import { mcpServer } from "./server";
+
+export const mcpMaxBody = socketMaxPayload;
 
 const mcpScope = tag<Promise<Scope.Handle>>({ label: "mcp.scope" });
 
@@ -54,7 +57,10 @@ const answerSignedIn = operation({
     const server = await mcpServer.run();
     const { WebStandardStreamableHTTPServerTransport } =
       await import("@modelcontextprotocol/sdk/server/webStandardStreamableHttp.js");
-    const link = new WebStandardStreamableHTTPServerTransport({ enableJsonResponse: true });
+    const link = new WebStandardStreamableHTTPServerTransport({
+      enableJsonResponse: true,
+      maxRequestBodySize: mcpMaxBody,
+    });
     await server.connect(link);
     try {
       return await link.handleRequest(request);

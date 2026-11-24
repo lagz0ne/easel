@@ -132,13 +132,16 @@ test("a guest: the public transport answers out; the signed calls are refused, t
   expect(guest.resolve(board.faults).get().notes?.message).toContain("notes: refused");
 });
 
-test("the guest signs in later: the next request asks again, and the board fills without a new scope", async () => {
+test("the guest signs in later: a refused key waits until an invalidate, then the board fills without a new scope", async () => {
   const { server, sessions } = await boot();
   const ann = await client(server, "s2");
 
   expect(ann.resolve(board.faults).get().notes?.fault).toBe("refused");
   sessions.set("s2", "ann");
   expect(await ann.run(api["note.add"], { input: "now in" })).toBe(1);
+  await tick(50);
+  expect(ann.resolve(board.faults).get().notes?.fault).toBe("refused");
+  await ann.run(board.invalidate, { input: { notes: {} } });
   const end = Date.now() + 3000;
   let value: unknown = null;
   while (value === null && Date.now() < end) {

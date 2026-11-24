@@ -96,7 +96,7 @@ const saysChanged = operation({
 });
 
 const showAnswer = operation({
-  label: "viewer.showAnswer",
+  label: "viewer.showGateAnswer",
   input: z.object({ link: z.string(), again: z.boolean(), answer: settled }),
   depends: { pages: gates.controller, passes: heldPasses.controller, saysChanged },
   run: ({ pages, passes, saysChanged }, { input }) => {
