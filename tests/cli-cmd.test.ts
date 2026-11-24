@@ -191,6 +191,49 @@ test("usage is 64, --help is 0, a hosts file that is not one is 78, no server is
   );
 });
 
+test("with EASEL_CONFIG_HOME set, the CLI reads the hosts file in that folder, before XDG_CONFIG_HOME and HOME, and --help says so", async () => {
+  const dir = home();
+  const agentConfig = join(dir, "easel-agent");
+  mkdirSync(join(agentConfig, "easel"), { recursive: true });
+  writeFileSync(join(agentConfig, "easel", "hosts.json"), "{ not json");
+  const env = { HOME: dir, XDG_CONFIG_HOME: join(dir, "xdg"), EASEL_CONFIG_HOME: agentConfig };
+
+  expect(await main(["whoami", "--json"], env)).toEqual({
+    code: 78,
+    out: `${JSON.stringify({ config: join(agentConfig, "easel", "hosts.json") })}\n`,
+  });
+  expect((await main(["--help"], env)).out).toContain("$EASEL_CONFIG_HOME/easel/hosts.json");
+});
+
+test(
+  "whoami with EASEL_CONFIG_HOME answers as the user of that hosts file, not the user of HOME",
+  slow,
+  async () => {
+    const srv = await serve();
+    const ann = home();
+    const setup = await easel(
+      ann,
+      "login",
+      srv.origin,
+      "--name",
+      "ann",
+      "--setup",
+      srv.setupCode(),
+    );
+    expect(setup.code).toBe(0);
+    const other = home();
+    const agentConfig = join(other, "easel-agent");
+    mkdirSync(join(agentConfig, "easel"), { recursive: true });
+    writeFileSync(join(agentConfig, "easel", "hosts.json"), readFileSync(hostsOf(ann), "utf8"));
+
+    expect(await main(["whoami"], { HOME: other })).toMatchObject({ code: 64 });
+    expect(await main(["whoami"], { HOME: other, EASEL_CONFIG_HOME: agentConfig })).toEqual({
+      code: 0,
+      out: `ann (owner) on ${srv.origin}\n`,
+    });
+  },
+);
+
 test("a server that is not there is unreachable (69)", async () => {
   const dir = home();
   const free = Bun.serve({ port: 0, fetch: () => new Response(null) });

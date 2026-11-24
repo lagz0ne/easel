@@ -61,6 +61,7 @@ export function adapterLoop({ consumer, paseo, config }: Adapter) {
       workspace: workspace.value,
       provider: config.provider,
       mode: config.mode,
+      env: { EASEL_CONFIG_HOME: config.easelConfig },
       labels: { ...designLabel, "easel-request": ref },
     });
     if (started.kind === "failed") return nakFailed(msg, ref, started);

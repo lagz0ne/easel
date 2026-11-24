@@ -11,6 +11,7 @@ export type Config = {
   workspaceDir: string;
   provider: string;
   mode: string;
+  easelConfig: string;
   stateDir: string;
   maxRunning: number;
   maxPerDay: number;
@@ -46,6 +47,7 @@ export function configFrom(env: Env): Config {
     workspaceDir: text("EASEL_PASEO_WORKSPACE_DIR", join(home, "dev/easel")),
     provider: text("EASEL_PASEO_PROVIDER", "claude"),
     mode: text("EASEL_PASEO_MODE", "auto"),
+    easelConfig: text("EASEL_PASEO_EASEL_CONFIG", join(home, ".config/easel-agent")),
     stateDir: text("EASEL_PASEO_STATE_DIR", join(home, ".local/state/easel-paseo-adapter")),
     maxRunning: positiveNumber(env, "EASEL_PASEO_MAX_RUNNING", 2),
     maxPerDay: positiveNumber(env, "EASEL_PASEO_MAX_PER_DAY", 20),

@@ -56,6 +56,6 @@ export function agentPrompt(request: DesignRequest) {
     "5. Resolve with `easel resolve <claim> --text <what changed>` only when /api/version shows the build with the change. Name the build.",
     "6. If you cannot do it, give it back with `easel release <claim> --reason <why>`.",
     "",
-    "Write to easel only with the easel CLI or the easel MCP tools, as the member vibea-claude.",
+    "Login: the easel CLI and the easel MCP tools act as the member vibea-claude. EASEL_CONFIG_HOME is set for you. Before you claim, run `easel whoami`: if it does not say vibea-claude, do not use the easel CLI, and use only the easel MCP tools. Never use another login, and never change the login files.",
   ].join("\n");
 }

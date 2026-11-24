@@ -71,6 +71,9 @@ test(
     expect(valueAfter(args, "--cwd")).toEqual([paseo.workspaceDir]);
     expect(valueAfter(args, "--provider")).toEqual(["claude"]);
     expect(valueAfter(args, "--mode")).toEqual(["auto"]);
+    expect(valueAfter(args, "--env")).toEqual([
+      `EASEL_CONFIG_HOME=${join(paseo.dir, ".config/easel-agent")}`,
+    ]);
     expect(valueAfter(args, "--label").sort()).toEqual([
       "easel-loop=design",
       "easel-request=product:7",
@@ -82,6 +85,9 @@ test(
     expect(prompt).toContain("/api/version");
     expect(prompt).toContain("You run non-interactive and unattended");
     expect(prompt).toContain("Never ask the user");
+    expect(prompt).toContain("act as the member vibea-claude");
+    expect(prompt).toContain("`easel whoami`");
+    expect(prompt).toContain("Never use another login");
 
     await adapter.until(async () => (await nats.state()).unacked === 0, "the ack");
     expect(await nats.state()).toEqual({ waiting: 0, unacked: 0 });

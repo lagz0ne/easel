@@ -24,13 +24,21 @@ function natsBinary() {
   return found;
 }
 
+const jsonOrNull = (text: string): unknown => {
+  try {
+    return JSON.parse(text);
+  } catch {
+    return null;
+  }
+};
+
 async function portOf(dir: string, pid: number) {
   for (let i = 0; i < 400; i++) {
     const file = readdirSync(dir).find((name) => name.endsWith(`_${pid}.ports`));
     if (file) {
       const read = z
         .object({ nats: z.array(z.string()).min(1) })
-        .safeParse(JSON.parse(readFileSync(join(dir, file), "utf8")));
+        .safeParse(jsonOrNull(readFileSync(join(dir, file), "utf8")));
       if (read.success) return Number(new URL(read.data.nats[0] ?? "").port);
     }
     await Bun.sleep(25);

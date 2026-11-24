@@ -89,6 +89,7 @@ export type RunInput = {
   workspace: string;
   provider: string;
   mode: string;
+  env: Record<string, string>;
   labels: Record<string, string>;
 };
 
@@ -128,6 +129,7 @@ export function paseoCli(bin: string) {
         input.workspace,
         "--cwd",
         input.cwd,
+        ...Object.entries(input.env).flatMap(([key, value]) => ["--env", `${key}=${value}`]),
         ...labelFlags(input.labels),
         input.prompt,
       ],

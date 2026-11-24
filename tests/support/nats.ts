@@ -30,11 +30,19 @@ const portsFile = z.object({
 
 export const inbox = "_INBOX_easel_dispatch";
 
+const jsonOrNull = (text: string): unknown => {
+  try {
+    return JSON.parse(text);
+  } catch {
+    return null;
+  }
+};
+
 async function portOf(dir: string, pid: number) {
   for (let i = 0; i < 200; i++) {
     const file = readdirSync(dir).find((name) => name.endsWith(`_${pid}.ports`));
     if (file) {
-      const read = portsFile.safeParse(JSON.parse(readFileSync(join(dir, file), "utf8")));
+      const read = portsFile.safeParse(jsonOrNull(readFileSync(join(dir, file), "utf8")));
       if (read.success) {
         return {
           port: Number(new URL(read.data.nats[0] ?? "").port),

@@ -107,6 +107,8 @@ const help = `easel: the canvas CLI. Every command takes --json (one JSON value 
   easel channel rm <name>                          remove a channel; its issues stay on GitHub (owner)
 
 With EASEL_TOKEN set, the CLI sends that token to EASEL_SERVER, and reads and writes no hosts file.
+The hosts file is $EASEL_CONFIG_HOME/easel/hosts.json; with no EASEL_CONFIG_HOME, it is
+$XDG_CONFIG_HOME/easel/hosts.json, or ~/.config/easel/hosts.json.
 
 Exit: 0 success, 1 another answer, 2 refused, 64 usage, 65 invalid, 69 unreachable, 70 failed,
 76 missing, 78 a hosts file that cannot be read.
@@ -860,9 +862,17 @@ const argv = z
   );
 
 const configEnv = z
-  .object({ XDG_CONFIG_HOME: z.string().optional(), HOME: z.string().optional() })
+  .object({
+    EASEL_CONFIG_HOME: z.string().optional(),
+    XDG_CONFIG_HOME: z.string().optional(),
+    HOME: z.string().optional(),
+  })
   .transform((env) =>
-    join(env.XDG_CONFIG_HOME || join(env.HOME ?? "", ".config"), "easel", "hosts.json"),
+    join(
+      env.EASEL_CONFIG_HOME || env.XDG_CONFIG_HOME || join(env.HOME ?? "", ".config"),
+      "easel",
+      "hosts.json",
+    ),
   );
 
 const origin = z
