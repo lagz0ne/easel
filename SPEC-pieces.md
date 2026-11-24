@@ -110,50 +110,81 @@ in a specific component or page. Change of localization." Prior art: the toolbar
 Storybook (one theme and one locale for each story on the page) and the parameters of one story
 that change them for that story only; the matrix of Chromatic (one story in each mode).
 
-10. **A switch** is a config tag of the design system with a fixed list of values:
-    `switch({ label: "theme", values: ["light", "dark"], default: "light" })`. `design/` declares
-    the switches of the team. easel gives three: `locale` (`en`, `vi`), `theme` (`light`, `dark`)
-    and `fixture` (below). A frame takes a switch in the config of its capsule, as it takes an
-    axis now (`config: { theme, fixture }`).
+10. **A switch is a plain Tinker tag** with a fixed list of values in its `parse`:
+    `tag({ label: "theme", parse: z.enum(["light", "dark"]), default: "light" })`. There is no
+    `switch()` helper. The name of the switch is the label of the tag. The values of its control
+    come from the schema of the parse (`z.toJSONSchema(parse).enum`), and its first value is the
+    default when the tag has no default. A frame takes a switch in the config of its capsule, as
+    it takes an axis now (`config: { theme, fixture, plan }`). easel gives three switches:
+    `locale` (`en`, `vi`), `theme` (`light`, `dark`) and `fixture` (rule 15). A tag of the team
+    with a fixed list of values is a switch of the team (X9), with no code of easel.
+    - Decided by the coordinator on 2026-11-24, under the direction "the prototype is the app"
+      (SPEC-prototype). Reason: the app declares its configuration as tags for its own logic, so a
+      kind of state of the team (a billing plan) gets a control with no code of easel. A new kind
+      of switch of a later ship (the backend, the answer of a call: SPEC-prototype ship 5) is one
+      more tag, not a second control system.
+    - Where the value comes from (Tinker, measured on 0.34.7). Each frame is its own scope in its
+      own iframe, so one frame has one value for each switch. The viewer finds it: the frame
+      value (rule 12), else the board value (rule 11), else the default of the tag. The frame
+      gets it in the call of its capsule (`frame({ theme: "dark" })`). Tinker's own levels do not
+      give this rule in one frame: a tag of the scope (`createScope({ tags })`) wins over the call
+      of a capsule, and a namespace tag reaches an operation but not a resource that the scope
+      builds (a View). So one level is enough, and the viewer holds the rule.
 11. **The board value.** The dock of the viewer shows each switch that a frame on the board takes,
     one control for each. A pick gives the value to each frame that takes the switch, and each
     live document draws again in a new scope, as a pick of the locale does now. A frame that does
     not take the switch does not change. A frame with its own value (rule 12) keeps it, and does
-    not draw again. The locale pick of the dock becomes the `locale` switch.
+    not draw again. The locale pick of the dock becomes the `locale` switch: it keeps its own
+    button. The other switches are in one menu of the dock, `States`, one group for each.
 12. **The frame value.** The controls of a frame (E10) show each switch that it takes. A pick there
-    is for that frame only, and the control says that the frame has its own value. `Use the
-board` gives the frame the board value again.
+    is for that frame only, and the control says that the frame has its own value.
+    `Use the board` gives the frame the board value again. Prior art: the variable mode of a frame in
+    Figma, which is `Auto` (the mode of its parent) until a person picks a mode.
 13. **Where a value is kept.** The board values and the frame values are of the tab, as the locale
-    pick is now. They are in the address of the page (`?theme=dark&locale=vi&f.<frame>.theme=light`),
-    so a link opens the board in the same state, and a reload keeps it. A pick writes no frame and
-    no kit version.
-14. **Theme.** The look has a value for each theme: the `light` values are the look of today, and
-    the `dark` values are the same names with other values (`look.set` takes a patch for each
-    theme). The `look` capsule takes the `theme` switch, so each component and each frame on the
-    look follows it with no code of its own.
-15. **Fixtures: the shape is code, the values are data** (as the texts; decision 1). The user asked
-    on 2026-11-23 for fixtures to be "a part of the tooling".
-    - The shape is a type in code: `fixtureShape({ label: "requests", of: z.array(request) })` in
-      `design/` (shared by many frames) or in a frame.
-    - The values are data in the kit version: each shape has named fixtures (`empty`, `one`,
-      `many`, `error`). `fixtures.set` writes them with a base, makes a new kit version, and reaches
-      each live frame as a new text does. No frame and no code changes.
-    - A fixture is checked against its shape when it is written, with no code run on the server:
-      easel type-checks the JSON as a value of the type of the shape (`const f: Shape = <json>`).
-      The frame parses it again at its start; a fixture that does not parse shows the refusal of
-      the frame (as `SampleInvalid` now).
-    - A frame gets typed data: `load(requests).set(fixture.of(requestsShape))`.
-    - The `fixture` switch has the names of the fixtures. The board value shows each frame with
-      that fixture, if its shape has it; a frame with no fixture of that name keeps its own value
-      and says so.
-    - The tools: `easel fixtures ls`, `easel fixtures get <shape> [<name>]`,
-      `easel fixtures set <shape> <name> <file.json> [--base <rev>]`; MCP `list_fixtures`,
-      `set_fixtures`. `fixtures.list` gives each shape, its type as text, its fixtures, and the
-      frames that use it.
+    pick is now. They are in the address of the page (`?theme=dark&locale=vi&f.<frame>.theme=light`,
+    with the name of the switch), so a link opens the board in the same state, and a reload keeps
+    it. A pick writes no frame and no kit version.
+14. **Theme.** A frame takes `theme` when its CSS follows the color scheme: `prefers-color-scheme`
+    or `light-dark()`, as the CSS of easel itself (`src/design/tokens.css`). easel sets the
+    `color-scheme` of the iframe of the frame, and the `prefers-color-scheme` of a document in an
+    iframe follows it (CSS Color Adjustment 1; measured in Chrome 158). So an HTML frame shows the
+    theme with no new document. An app frame with `theme` in the config of its capsule also gets
+    the value, and draws again in a new scope. The look gets a value for each theme: the `light`
+    values are the look of today, and the `dark` values are the same names with other values, in
+    a `prefers-color-scheme: dark` block. The `dark` values of the look are not written until the
+    user gives them: an agent does not change a look value.
+15. **Fixtures: the shape is a real cell, the values are data** (as the texts; decision 1). The
+    user asked on 2026-11-23 for fixtures to be "a part of the tooling".
+    - The shape is the `parse` of a real cell of the app or of the frame: no copy of a shape that
+      can drift from the cell. Decided by the coordinator on 2026-11-24 (it replaces
+      `fixtureShape`).
+    - A frame names the cells that take a fixture: `mount({ View, frame, fixtures: { requests } })`.
+      The key is the label of the cell.
+    - The values are data in the kit version: each cell has named fixtures (`empty`, `one`,
+      `many`, `error`). `fixtures.set` writes them with a base, makes a new kit version, and
+      reaches each live frame as a new text does. No frame and no code changes.
+    - The check: no code runs on the server. easel keeps the value as JSON. The frame parses it
+      with the `parse` of the cell at its start, and gives it to the cell before the first draw
+      (as a preset of Tinker). A fixture that does not parse shows the refusal of the frame,
+      `FixtureInvalid`, with the cell, the name and the issues. A check at the write, by the type
+      of the cell, comes with the type check of decision 3.
+    - The `fixture` switch has the names of the fixtures of the cells that the frame names. The
+      board value shows each frame with that fixture, if a cell of the frame has it; a frame with
+      no fixture of that name shows its own data, and its control says so.
+    - The tools: `easel fixtures ls`, `easel fixtures get <cell> [<name>]`,
+      `easel fixtures set <cell> <name> <file.json> [--base <rev>]`; MCP `list_fixtures`,
+      `set_fixtures`. `fixtures.list` gives each cell and the names of its fixtures.
 16. **Show a component in each state.** `matrix({ of: StateBadge, by: { theme, state } })` makes a
     frame that shows one component in each value of the switches and props that it names, side by
     side, with a label for each (the Chromatic matrix). A page of the design system is a frame of
     matrices. The same works for a frame: `matrix({ of: RequestsView, by: { fixture } })`.
+
+The switches land in small ships, each green and live (E10.2):
+
+1. The board value of `theme`, `locale` and each tag of a frame, in the address (X6, X8, X9).
+2. The frame value, with `Use the board`, in the address (X7, X8).
+3. Fixtures: `fixtures.set`, `fixtures.list`, the `fixture` switch (X10).
+4. `matrix()` (X11).
 
 ### A change of the design system
 
@@ -196,7 +227,7 @@ type DesignFinding = Finding & { frame?: { canvas: string; id: string } }
               | { kind: "tooBig"; maxBytes: number }
 "design.types": { kind: "found"; kit: number; files: Record<string, string> }
 "fixtures.list": { kind: "found"; kit: number; rev: number;
-                   shapes: { label: string; type: string; names: string[]; frames: string[] }[] }
+                   cells: { label: string; names: string[] }[] }
 "fixtures.set":  { kind: "updated" | "unchanged"; rev: number; kit: number }
                | { kind: "stale"; rev: number; kit: number }
                | { kind: "invalid"; findings: Finding[] } | { kind: "tooBig"; maxBytes: number }
@@ -208,8 +239,8 @@ type DesignFinding = Finding & { frame?: { canvas: string; id: string } }
 - The switches of a board are read from the frames (`kit.capsules` lists the switches that each
   frame takes). A pick is not a call: it changes the address of the page and the axes of the
   documents.
-- `fixtures.set` takes `{ shape, fixtures: Record<name, unknown>, base? }`. The fixtures of a kit
-  version are 256 KiB at most.
+- `fixtures.set` takes `{ cell, fixtures: Record<name, unknown>, base? }`. The fixtures of a kit
+  version are 256 KiB at most. A fixture with the value `null` is removed.
 - MCP: `get_design`, `put_design`, `design_types`. CLI: `easel design get -o <dir>`,
   `easel design put <dir> --base <rev>`, `easel design types -o <dir>`.
 
