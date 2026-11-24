@@ -256,8 +256,8 @@ The ship 1 stay "name, askForCode, browser.start fault link" is now the move to
     form of a story map (Patton: the steps as the backbone, the details of each step under it, in
     order). The fit criterion of J7 holds: the steps go from left to right, the main path is on
     the top row, each other outcome is below it, and two runs give the same places. The text of
-    `bun scripts/map.ts` keeps the exact rows. Deferred to ship 4, with the arrows: a section
-    with empty places (as `grid-row` of CSS grid).
+    `bun scripts/map.ts` keeps the exact rows. A section with empty places (as `grid-row` of CSS
+    grid) is deferred: see "Out of scope".
 16. **A second run changes only what changed.** The same pixels put nothing. A pixel is the same
     when each channel differs by 8 of 255 at most: two takes of one screen differ by 1 on the
     anti-aliased edges of a field (raster noise), and pixelmatch, under the `toHaveScreenshot` of
@@ -274,13 +274,13 @@ The ship 1 stay "name, askForCode, browser.start fault link" is now the move to
     arrow. A strip under each picture has the state, then one line for each move out of it:
     `askForCode · pending → code`, `askForCode · link fault → name · askForCode failed`,
     `askForCode · approved → in (postForm)`. A run state says `the moves of <first state>`; a
-    state with no move says `no move: the end of the map`. The arrows come with the walk (ship 4),
-    where the viewer draws the moves of the shown state.
+    state with no move says `no move: the end of the map`. In the walk (ship 4), the bar lists the
+    moves of the shown state (decision 27). Arrows on the map are deferred: see "Out of scope".
 18. **The list of maps (J9) is the frame `Maps` on the page `Live`.** It is an HTML frame with a
     row for each map: its page, its cell, its first state and its count of states. Each map has
     its own page, so the pages of the canvas list the maps too. The frame `Live · status` stays
-    the frame of the E11 job, so two writers never write one frame. The walk from the list in
-    one press comes with ship 4.
+    the frame of the E11 job, so two writers never write one frame. Ship 4 adds a Walk button to
+    each row (decision 29).
 
 The writer is `vibea-claude` (the `EASEL_TOKEN` of the E11 job). Ship 2 has no model: the job is a
 bounded run, and no person changes a state in it.
@@ -400,6 +400,12 @@ The model is changed (decisions 23 to 31 below): [viewer-walk](docs/statecharts/
 holds `EachStepIsAMove` on its 19 states, and
 [viewer-walk-any-post](docs/statecharts/viewer-walk-any-post.md) breaks it in 2 steps.
 
+Built on 2026-11-24: the model in e7b4431, the wait for the run status in 93a6e46, the walk frame
+in 69d9a86, and the walk of the viewer in 12bae23. `bun scripts/map-screens.ts` puts the frame
+`<name> · walk` on the page of each map. The proofs are `tests/map-walk.test.ts`,
+`tests/browser/map-walk.test.tsx` (the real press, the wait and the pick), `tests/viewer-walk.test.ts`
+and `tests/browser/viewer-walk.test.tsx` (J1 to J5 on the viewer).
+
 #### The decisions of ship 4
 
 Prior art for the walk: the presentation view of Figma prototypes (one screen at a time, with Back
@@ -458,6 +464,12 @@ Charles or the overrides of Chrome DevTools (a request waits until a person give
     at the same place: the picture and the screen have the same size. So the request is on that
     screen on the map, and its picture is the picture of that state. Figma puts a comment of the
     presentation view on the frame that shows.
+32. **The screen of the walk may send a form; a frame of the canvas may not.** The iframe of the
+    walk has `sandbox="allow-scripts allow-forms"`. Without `allow-forms`, the browser never fires
+    the submit of a form in the frame (the sandboxed forms flag of the HTML standard), and the
+    sign-in sends its name with a form. It has no `allow-same-origin`, so the screen stays in an
+    opaque origin and cannot read the viewer. A frame of the canvas keeps `allow-scripts` only.
+    CodeSandbox and the Storybook preview give their iframe `allow-forms` for the same reason.
 
 ### Ship 5: the backend switch (J10)
 
@@ -530,6 +542,16 @@ type MapCard = { title: string; about: string; sections: { head: string; lines: 
 - Never: the easel server imports or runs the code of a project.
 
 ## Out of scope (deferred)
+
+- **Arrows between the pictures of a map.** The strip under each picture (decision 17) and the
+  bar of the walk (decision 27) give the moves as text, and the arrange tools have no arrow. Add
+  arrows when a map has a move that goes back or skips a column (such as `denied → name`), and a
+  review reads the way wrong from the order of the columns.
+- **A section with empty places.** SPEC-arrange rule 6 packs a column with no gap, so the row of
+  a state shows only in `bun scripts/map.ts`. Add `grid-row` places to SPEC-arrange when a review
+  reads two states as one outcome because they are on the same row of two columns.
+- **The address of a walk.** A reload or a link starts the walk again at the first state. Add a
+  step in the address when a person must send a step of a walk to an other person.
 
 - **A screen that the code does not have yet.** An app frame with its own logic. Add it when a
   journey must be reviewed before its code is written.
