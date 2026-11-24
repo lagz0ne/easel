@@ -151,6 +151,29 @@ Each ship ends green and live.
 4. The proof: the map of `home.signInStep` has its 7 states, `lost` included, and the places of
    EXPLORE.md §4.
 
+Built on 2026-11-24 (00f36ec): `src/map/` and `scripts/map.ts`, proven by `tests/map.test.ts`.
+`bun scripts/map.ts home.signInStep` prints:
+
+```
+map home.signInStep, start name, view src/home/home.tsx
+
+         step 0   step 1   step 2
+row 0    name     code     in
+row 1                      denied
+row 2                      expired
+row 3             slow
+row 4             lost
+```
+
+Then 15 moves, 4 stays and the 2 calls. The facts that a person added by hand, and the Tinker
+issue that removes each:
+
+| Fact added by hand                                                                | Removed by |
+| --------------------------------------------------------------------------------- | ---------- |
+| `src/access/contract.ts` exports `browserContracts`, the literal of the contract. | #54        |
+| The view is read with oxc; it must `switch` on the `kind` of the cell.            | #58        |
+| The run forces one fault, `link`, for each call.                                  | #60        |
+
 ### Ship 2: the map on the canvas (J7, J9)
 
 5. The E11 job takes one frame for each state of each map: the real view with the sample of the
