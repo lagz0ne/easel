@@ -30,7 +30,7 @@ import type { ShowPlan } from "@/map/show";
 import type { MapJson } from "@/map/text";
 import { pressMarks } from "@/map/view";
 import type { WalkData } from "@/map/walk";
-import { walkDocument, walkFrameName, walkPageName } from "@/map/walk";
+import { walkAttribute, walkDocument, walkFrameName, walkPageName } from "@/map/walk";
 
 import { deriveOf } from "./map";
 import type { Derived } from "./map";
@@ -48,8 +48,8 @@ tinker.graph, what the state shows, its actions, each answer and the state that 
 frame "<name> · walk" (SPEC-prototype ship 4) is one HTML document with the real view, the cell
 and the actions, and the map as JSON: the viewer walks the map in it. A picture with the same
 pixels, and a card or a walk with the same text, put nothing; a changed one puts a new version of
-the same frame. The frame "Maps" on the page Live lists each map with its first state and its count
-of states.
+the same frame. The frame "Maps" on the page Live lists each map with its first state, its count
+of states, and a button that starts its walk.
 --dry <dir> writes the pictures, the cards, the walks and the list there, and puts nothing.
 
 The writes go to EASEL_SERVER with EASEL_TOKEN when both are set, else to the hosts file of
@@ -619,10 +619,10 @@ function listHtml(rows: Array<{ entry: MapEntry; map: MapJson; page: string }>) 
   const cells = rows
     .map(
       ({ entry, map }) =>
-        `<tr><td>${entry.name}</td><td>Map · ${entry.name}</td><td>${map.cell}</td><td>${map.start}</td><td>${map.states.length}</td></tr>`,
+        `<tr><td>${entry.name}</td><td>Map · ${entry.name}</td><td>${map.cell}</td><td>${map.start}</td><td>${map.states.length}</td><td><button type="button" ${walkAttribute}="${entry.name}" style="font:inherit;padding:4px 12px;border-radius:6px;border:1px solid var(--e-line);background:var(--e-bg);color:var(--e-text);cursor:pointer">Walk ${entry.name}</button></td></tr>`,
     )
     .join("");
-  return `<main style="font-family:var(--e-font);padding:32px;background:var(--e-bg);color:var(--e-text)"><h1 style="margin:0 0 8px">Maps</h1><p style="margin:0 0 16px;color:var(--e-muted)">Each map of the product: its page, its cell, its first state and its count of states. bun scripts/map-screens.ts puts them after each deploy.</p><table style="border-collapse:collapse;width:100%"><thead><tr><th align="left">Map</th><th align="left">Page</th><th align="left">Cell</th><th align="left">First state</th><th align="left">States</th></tr></thead><tbody>${cells}</tbody></table></main>`;
+  return `<main style="font-family:var(--e-font);padding:32px;background:var(--e-bg);color:var(--e-text)"><h1 style="margin:0 0 8px">Maps</h1><p style="margin:0 0 16px;color:var(--e-muted)">Each map of the product: its page, its cell, its first state and its count of states. bun scripts/map-screens.ts puts them after each deploy. A press on Walk starts the walk of the map.</p><table style="border-collapse:collapse;width:100%"><thead><tr><th align="left">Map</th><th align="left">Page</th><th align="left">Cell</th><th align="left">First state</th><th align="left">States</th><th align="left">Walk</th></tr></thead><tbody>${cells}</tbody></table></main>`;
 }
 
 function putList(html: string) {

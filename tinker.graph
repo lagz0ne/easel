@@ -884,6 +884,7 @@ viewer.addOnce exits{added,badImage,full,gone,offFrame,slow,tooBig} reads{} writ
 viewer.agreeTo exits{value} reads{} writes{viewer.agreeing.set} calls{?}
 viewer.agreementWords exits{value} reads{} writes{} calls{}
 viewer.appOffers exits{value} reads{} writes{} calls{}
+viewer.askForIt exits{asked,stays} reads{viewer.walking.get} writes{viewer.requestMode.set,viewer.walking.set} calls{viewer.pickPlace,viewer.typeText}
 viewer.askProof exits{value} reads{} writes{} calls{}
 viewer.axesFor exits{value} reads{} writes{} calls{viewer.appOffers,viewer.frameValue}
 viewer.backToList exits{value} reads{} writes{viewer.panelOpen.set} calls{viewer.closeRequest}
@@ -901,7 +902,8 @@ viewer.docOffers exits{value} reads{} writes{} calls{viewer.docTakesTheme,viewer
 viewer.docTakesTheme exits{value} reads{} writes{} calls{}
 viewer.dragPick exits{value} reads{viewer.pickDrag.get} writes{viewer.pickDrag.set} calls{viewer.pickPart}
 viewer.enterPassword exits{value} reads{} writes{} calls{?,viewer.openInput,viewer.showGateAnswer,viewer.waitThenAsk}
-viewer.escape exits{value} reads{viewer.draft.get,viewer.findOpen.get,viewer.openedRequest.get,viewer.panelOpen.get} writes{viewer.draft.set,viewer.panelOpen.set,viewer.requestMode.set} calls{viewer.backToList,viewer.closeFind}
+viewer.escape exits{value} reads{viewer.findOpen.get,viewer.openedRequest.get,viewer.panelOpen.get,viewer.requestMode.get,viewer.walking.get} writes{viewer.panelOpen.set,viewer.requestMode.set,viewer.walking.set} calls{viewer.backToList,viewer.closeFind,viewer.escapeDraft}
+viewer.escapeDraft exits{closed,held,noDraft,picked} reads{viewer.draft.get} writes{viewer.draft.set,viewer.requestMode.set} calls{}
 viewer.fileOver exits{value} reads{viewer.imageDrop.get} writes{viewer.imageDrop.set} calls{}
 viewer.frameCause exits{value} reads{} writes{} calls{}
 viewer.frameOffers exits{value} reads{} writes{} calls{viewer.appOffers}
@@ -913,6 +915,7 @@ viewer.joinOffers exits{value} reads{} writes{} calls{}
 viewer.keepName exits{value} reads{} writes{} calls{}
 viewer.keptName exits{value} reads{} writes{} calls{}
 viewer.lastActOf exits{value} reads{} writes{} calls{}
+viewer.leaveWalk exits{left,stays} reads{viewer.draft.get} writes{viewer.requestMode.set,viewer.walking.set} calls{}
 viewer.limitWords exits{value} reads{} writes{} calls{}
 viewer.linesOf exits{value} reads{} writes{} calls{viewer.linesOfMessage,viewer.outdatedLine,viewer.proofOf,viewer.sofarStep,viewer.stateLine}
 viewer.linesOfMessage exits{value} reads{} writes{} calls{viewer.messageLine,viewer.stepWords}
@@ -970,6 +973,7 @@ viewer.shownState exits{value} reads{} writes{} calls{queue.stateOf}
 viewer.sofarStep exits{value} reads{} writes{} calls{viewer.headStep,viewer.questionStep,viewer.triesStep}
 viewer.startPick exits{value} reads{viewer.draft.get} writes{viewer.draft.set} calls{}
 viewer.startVisit exits{value} reads{viewer.visits.get} writes{viewer.visits.set} calls{}
+viewer.startWalk exits{value} reads{} writes{viewer.draft.set,viewer.findOpen.set,viewer.openedRequest.set,viewer.panelOpen.set,viewer.requestMode.set,viewer.walking.set} calls{}
 viewer.stateLine exits{value} reads{} writes{} calls{viewer.claimLines,viewer.triesLine}
 viewer.statesOf exits{value} reads{} writes{} calls{viewer.switchValue}
 viewer.stepBeforeSend exits{value} reads{?} writes{} calls{viewer.nameHere}
@@ -994,6 +998,12 @@ viewer.typeText exits{value} reads{viewer.draft.get} writes{viewer.draft.set} ca
 viewer.viewOf exits{value} reads{} writes{} calls{viewer.lastActOf,viewer.linesOf,viewer.outdatedOf,viewer.shownState,viewer.whereOf}
 viewer.waitOut exits{value} reads{} writes{} calls{}
 viewer.waitThenAsk exits{value} reads{viewer.gates.of} writes{viewer.gates.set} calls{viewer.saysChanged,viewer.waitOut}
+viewer.walkFree exits{value} reads{viewer.draft.get,viewer.requestMode.get} writes{} calls{}
+viewer.walkMove exits{held,moved,offMap} reads{} writes{viewer.walking.set} calls{viewer.walkFree}
+viewer.walkPick exits{picked,stays} reads{viewer.walking.get} writes{} calls{viewer.walkFree}
+viewer.walkPosted exits{held,ignored,moved,offMap,started,stayed,waits} reads{viewer.walking.get} writes{viewer.walking.set} calls{viewer.walkState}
+viewer.walkState exits{held,moved,offMap,started,stayed} reads{} writes{viewer.walking.set} calls{viewer.walkMove}
+viewer.walkStep exits{stays,went} reads{viewer.walking.get} writes{viewer.walking.set} calls{viewer.walkFree}
 viewer.whereOf exits{value} reads{} writes{} calls{}
 viewer.zoomKeyStep exits{value} reads{} writes{} calls{}
 viewer.zoomStep exits{value} reads{} writes{} calls{?}

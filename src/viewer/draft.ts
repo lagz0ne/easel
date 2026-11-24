@@ -10,6 +10,7 @@ import type { Shown } from "./follow";
 import { controlsFor, panelOpen } from "./follow";
 import { keepName, keptName, nameHere, signedInAs } from "./gate";
 import { openMenu, screenSize } from "./overlays";
+import { walking } from "./walking";
 
 const place = z.object({
   page: z.string(),
@@ -190,30 +191,44 @@ export const slashKey = resource({
   },
 });
 
+const escapeDraft = operation({
+  label: "viewer.escapeDraft",
+  depends: { drafts: drafts.controller, mode: requestMode.controller },
+  run: ({ drafts, mode }) => {
+    const draft = drafts.get();
+    if (!draft) return { kind: "noDraft" } as const;
+
+    if (heldDraft.safeParse(draft).success) return { kind: "held" } as const;
+    if (draft.picking) {
+      drafts.set({ ...draft, picking: false });
+      return { kind: "picked" } as const;
+    }
+
+    drafts.set(null);
+    mode.set(false);
+    return { kind: "closed" } as const;
+  },
+});
+
 export const escape = operation({
   label: "viewer.escape",
   depends: {
-    drafts: drafts.controller,
     mode: requestMode.controller,
     opened: openedRequest.controller,
     panel: panelOpen.controller,
     find: findOpen.controller,
+    walk: walking.controller,
     backToList,
     closeFind,
+    escapeDraft,
   },
-  run: ({ drafts, mode, opened, panel, find, backToList, closeFind }) => {
+  run: ({ mode, opened, panel, find, walk, backToList, closeFind, escapeDraft }) => {
     if (find.get()) return closeFind.run();
-
-    const draft = drafts.get();
-    if (heldDraft.safeParse(draft).success) return;
-    if (draft?.picking) return drafts.set({ ...draft, picking: false });
-    if (draft) {
-      drafts.set(null);
-      return mode.set(false);
-    }
+    if (escapeDraft.run().kind !== "noDraft") return;
 
     if (opened.get()) return backToList.run();
     if (panel.get()) return panel.set(false);
+    if (walk.get() && !mode.get()) return walk.set(null);
 
     mode.set(false);
   },

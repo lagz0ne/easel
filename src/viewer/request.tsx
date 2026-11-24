@@ -28,6 +28,7 @@ import type { Shown } from "./follow";
 import { pageList } from "./pages";
 import { Initial } from "./panel";
 import { hoverPart, partBox, stage } from "./stage";
+import { walking } from "./walking";
 
 export function RequestButton() {
   const on = useData(requestMode);
@@ -146,7 +147,7 @@ function ShotControls({ d }: { d: Draft }) {
   return d.shot ? <ShotChip shot={d.shot} /> : null;
 }
 
-function Composer({ d, lost }: { d: Draft; lost: boolean }) {
+export function Composer({ d, lost }: { d: Draft; lost: boolean }) {
   const paste = useRun(pasteShot);
   const type = useRun(typeText);
   const send = useRun(sendDraft);
@@ -272,7 +273,8 @@ type RequestsProps = {
 export function Requests({ canvas, page, list, lost }: RequestsProps) {
   const d = useData(drafts);
   const opened = useData(openedRequest);
-  const here = d?.canvas === canvas && d.place.page === page ? d : null;
+  const walk = useData(walking, (now) => now !== null);
+  const here = d?.canvas === canvas && d.place.page === page && !walk ? d : null;
 
   return (
     <div className="e-pins">

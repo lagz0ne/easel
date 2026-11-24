@@ -1874,3 +1874,129 @@ span.e-opt[data-picked="false"] {
   color: var(--e-accent);
   border-color: var(--e-accent);
 }
+
+.e-walk-mark {
+  display: inline-flex;
+  gap: var(--e-1);
+  align-items: center;
+}
+
+.e-walk-mark svg {
+  width: 10px;
+  height: 10px;
+  fill: currentColor;
+}
+
+.e-walk {
+  position: fixed;
+  inset: 0;
+  z-index: 5;
+  display: flex;
+  flex-direction: column;
+  font-family: var(--e-font);
+  font-size: var(--e-size-2);
+  color: var(--e-text);
+  background-color: var(--e-primary);
+}
+
+.e-walk-bar {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--e-2) var(--e-4);
+  align-items: center;
+  padding: var(--e-2) var(--e-4);
+  background-color: var(--e-surface);
+  border-bottom: 1px solid var(--e-line);
+}
+
+.e-walk-bar p {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--e-2);
+  align-items: center;
+  margin: 0;
+}
+
+.e-walk-title {
+  font-weight: 600;
+}
+
+.e-walk-steps {
+  color: var(--e-muted);
+}
+
+.e-walk-acts {
+  display: flex;
+  gap: var(--e-1);
+  margin-left: auto;
+}
+
+.e-walk-bar button {
+  padding: var(--e-1) var(--e-2);
+  font: inherit;
+  color: var(--e-text);
+  background-color: var(--e-bg);
+  border: 1px solid var(--e-line);
+  border-radius: var(--e-radius);
+  cursor: pointer;
+}
+
+.e-walk-bar button[aria-pressed="true"] {
+  color: var(--e-on-primary);
+  background-color: var(--e-primary);
+}
+
+.e-walk-bar button:disabled {
+  color: var(--e-faint);
+  cursor: default;
+}
+
+.e-walk-bar button:focus-visible {
+  outline: 2px solid var(--e-focus);
+  outline-offset: 2px;
+}
+
+.e-walk-told,
+.e-walk-wait {
+  flex-basis: 100%;
+}
+
+.e-walk-told {
+  color: var(--e-warn);
+}
+
+.e-walk-stage {
+  position: relative;
+  display: grid;
+  flex: 1;
+  place-items: center;
+  min-height: 0;
+  overflow: hidden;
+}
+
+.e-walk-screen {
+  position: relative;
+  overflow: hidden;
+}
+
+.e-walk-doc {
+  display: block;
+  border: 0;
+  transform-origin: 0 0;
+  background-color: var(--e-surface);
+}
+
+.e-walk-ask {
+  position: absolute;
+  inset: 0;
+  cursor: crosshair;
+}
+
+.e-walk-draft {
+  position: absolute;
+}
+
+.e-walk-note {
+  margin: var(--e-4);
+  color: var(--e-on-primary);
+}

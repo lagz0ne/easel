@@ -14,6 +14,8 @@ import type { ControlShown, PanePlace } from "@/kit/controls";
 import { kitFixtures } from "@/kit/fixtures";
 import { teamTexts } from "@/kit/texts";
 
+import { startWalk } from "./walk";
+
 export const liveCap = 12;
 export const readZoom = 0.3;
 export const goLiveMargin = 0.1;
@@ -125,7 +127,7 @@ export const zoomShown = data({ label: "viewer.zoomShown", initial: 100 });
 
 export const foundFrame = data<string | null>({ label: "viewer.foundFrame", initial: null });
 
-export const paintScript = `<script>(()=>{const v=__V__;const post=()=>requestAnimationFrame(()=>requestAnimationFrame(()=>parent.postMessage({easel:"painted",v},"*")));const settle=()=>Promise.race([document.fonts?document.fonts.ready:null,new Promise(r=>setTimeout(r,1500))]).then(post,post);if(document.readyState==="complete")settle();else addEventListener("load",settle,{once:true});addEventListener("message",(e)=>{const d=e.data;if(e.source!==parent||!d||d.easel!=="part")return;const el=document.elementFromPoint(d.x,d.y);const r=el&&el!==document.body&&el!==document.documentElement?el.getBoundingClientRect():null;parent.postMessage({easel:"part",x:d.x,y:d.y,box:r&&{x:r.left,y:r.top,w:r.width,h:r.height}},"*")});})()</script>`;
+export const paintScript = `<script>(()=>{const v=__V__;const post=()=>requestAnimationFrame(()=>requestAnimationFrame(()=>parent.postMessage({easel:"painted",v},"*")));const settle=()=>Promise.race([document.fonts?document.fonts.ready:null,new Promise(r=>setTimeout(r,1500))]).then(post,post);if(document.readyState==="complete")settle();else addEventListener("load",settle,{once:true});addEventListener("message",(e)=>{const d=e.data;if(e.source!==parent||!d||d.easel!=="part")return;const el=document.elementFromPoint(d.x,d.y);const r=el&&el!==document.body&&el!==document.documentElement?el.getBoundingClientRect():null;const w=el&&el.closest("[data-easel-walk]");parent.postMessage({easel:"part",x:d.x,y:d.y,box:r&&{x:r.left,y:r.top,w:r.width,h:r.height},walk:w?w.getAttribute("data-easel-walk"):null},"*")});})()</script>`;
 
 const paintPost = z.object({ easel: z.literal("painted"), v: z.number() });
 
@@ -153,6 +155,7 @@ const partPost = z.object({
   x: z.number(),
   y: z.number(),
   box: partArea.nullable(),
+  walk: z.string().nullable().optional(),
 });
 
 type PartAt = { id: string; x: number; y: number; box: z.infer<typeof partArea> | null };
@@ -204,9 +207,25 @@ export const stage = resource({
     panes: shownPanes.controller,
     mark: foundFrame.controller,
     popPlace,
+    startWalk,
   },
   factory: (
-    { live, hold, done, paints, zoom, part, hover, offered, themed, shown, panes, mark, popPlace },
+    {
+      live,
+      hold,
+      done,
+      paints,
+      zoom,
+      part,
+      hover,
+      offered,
+      themed,
+      shown,
+      panes,
+      mark,
+      popPlace,
+      startWalk,
+    },
     ctx,
   ) => {
     let cam = { x: 0, y: 0, z: 1 };
@@ -237,6 +256,7 @@ export const stage = resource({
     let sought: Goal | null = null;
     let pageNow: string | null = null;
     let hoverAt: { x: number; y: number } | null = null;
+    let walkAt: PartAt | null = null;
     let hoverFrame = 0;
     let lastPointer: { x: number; y: number } | null = null;
     const pointers = new Map<number, { x: number; y: number }>();
@@ -776,6 +796,20 @@ export const stage = resource({
 
         at.answerClick(event, post.data);
         at.answerHover(event, post.data);
+        at.answerWalk(event, post.data);
+      },
+
+      askWalk: (id: string, x: number, y: number) => {
+        walkAt = { id, x, y, box: null };
+        docs.get(id)?.contentWindow?.postMessage({ easel: "part", x, y }, "*");
+      },
+
+      answerWalk: (event: MessageEvent, { x, y, walk }: z.infer<typeof partPost>) => {
+        const asked = walkAt;
+        if (!asked || !walk || !at.answers(asked, event, x, y)) return;
+
+        walkAt = null;
+        startWalk.run({ input: { map: walk } });
       },
 
       answerClick: (event: MessageEvent, { x, y, box }: z.infer<typeof partPost>) => {

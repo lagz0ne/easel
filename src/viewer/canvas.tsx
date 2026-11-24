@@ -80,6 +80,7 @@ import {
   teamLocales,
   themeSwitch,
 } from "./switches";
+import { WalkLayer, WalkMark } from "./walk-view";
 import { zoomItems, zoomKeys, zoomStep } from "./zoom";
 
 type Stage = ReturnType<typeof stage.factory>;
@@ -417,6 +418,7 @@ const Shell = memo(function Shell({
     >
       <div className="e-label" data-label>
         <span className="e-label-name">{frame.name}</span>
+        <WalkMark name={frame.name} />
         {frame.status === "ready" ? <ReadyMark /> : null}
         <FrameStates canvas={canvas} id={frame.id} name={frame.name} />
         <DockedControls {...pane} place="top" />
@@ -1061,6 +1063,7 @@ function CanvasPage({ canvas, page, opening, signedIn, aim }: PageProps) {
 
           const frame = spot.frame ? list.find((f) => f.id === spot.frame?.id) : undefined;
           if (frame && asking) at.askPart(frame.id, spot.x - frame.x, spot.y - frame.y);
+          if (frame && !asking) at.askWalk(frame.id, spot.x - frame.x, spot.y - frame.y);
 
           const place = frame
             ? {
@@ -1107,6 +1110,7 @@ function CanvasPage({ canvas, page, opening, signedIn, aim }: PageProps) {
       <FindList canvas={canvas} page={page} list={list} />
       <CardAt canvas={canvas} page={page} list={list} />
       <ControlsPanel list={list} />
+      <WalkLayer canvas={canvas} />
     </main>
   );
 }
