@@ -120,6 +120,11 @@ You must know these terms to read any spec.
 | delivery        | noun | One time that the dispatcher gives a request to a channel, for one waiting period. It is sent, or failed with a cause. |
 | waiting period  | noun | One time that a request is waiting: from the post, or from a return to the queue, to the next claim.                   |
 | nkey            | noun | The key that a NATS client signs in with. Its seed is secret. Its public key starts with `U`.                          |
+| agree           | verb | To let a request start the work of an agent. Only an owner (the person) agrees. Not "approve", which is for a login.   |
+| agreement       | noun | The time and the owner that agreed to a request as it is now. A new text of a viewer ends it.                          |
+| starter         | noun | A service that starts an agent for each message on a NATS channel, such as the Paseo adapter. It reports to easel.     |
+| limit           | noun | The most agents that the starter of a channel runs at the same time, or starts in a UTC day. An owner sets it.         |
+| hold            | noun | The cause that a waiting request does not start an agent: no agreement, a limit, a failed start, a refusal, silence.   |
 
 ### Errors and the fixer
 
