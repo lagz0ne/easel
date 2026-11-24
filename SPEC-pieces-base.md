@@ -2,7 +2,9 @@
 
 Status: approved by the requirements of 2026-11-24 (E11, V5; the user: "Now onto the custom
 controller, copies, i18n, screen and flows"). The user granted autonomy for this round, so the
-agent decided the open points below. Not built yet.
+agent decided the open points below. Implemented: e656d71 (live at build 331), with the live
+proof of V5 on 2026-11-24 (one put of the Dock main gave rev 7; each Dock copy on `product`
+shows it, with no new frame version; `design:proof` OK).
 
 It adds to [SPEC-pieces](SPEC-pieces.md) (its base: the parts in the kit version, and rules 18 and
 19 for HTML copies), [SPEC-kit](SPEC-kit.md) (the kit version) and [SPEC-frames](SPEC-frames.md)

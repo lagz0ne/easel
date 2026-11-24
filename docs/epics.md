@@ -32,7 +32,7 @@ E4, E5.1, E5.2, E6, E8, part of E9, and E10. E7 is deferred.
 | E8  | One look, fast               | Agents make frames fast, and all frames of a team look like one product.                                                              | agent, user             | [kit](../SPEC-kit.md#journeys) 3                                                                                                      | Built: the look, the kit, its pieces and capsules; not all fit criteria are proven                                      | to do  |
 | E9  | One voice                    | All frames of a team say one thing in one way, and one change of a text reaches each frame.                                           | agent, user, person     | [kit](../SPEC-kit.md)                                                                                                                 | Each frame keeps its own texts; nothing keeps the texts of a team                                                       | to do  |
 | E10 | See each state of a frame    | A person sees a frame in each state of its design, with no agent.                                                                     | viewer, user            | [kit](../SPEC-kit.md#the-capsules): controls, panes                                                                                   | Built; no test names X1 to X5                                                                                           | to do  |
-| E11 | The design and the app agree | The person sees the live app beside the design, and an accepted design reaches the live app.                                          | person, agent           | [live-screens](../SPEC-live-screens.md), [design-loop](../SPEC-design-loop.md)                                                        | E11.1 built. E11.2: V4 and V7 built (2d362f0); #1 to #3 live at build 320. Not built: V5 (the copies that fall behind)  | active |
+| E11 | The design and the app agree | The person sees the live app beside the design, and an accepted design reaches the live app.                                          | person, agent           | [live-screens](../SPEC-live-screens.md), [design-loop](../SPEC-design-loop.md)                                                        | E11.1 built. E11.2: V4 and V7 built (2d362f0); #1 to #3 live at build 320. V5 built (e656d71), proven live at build 331 | active |
 | E12 | Screens and flows            | A person walks through the screens of a journey as a user of the product would, and sees its whole map, which comes from the product. | person, agent           | not designed                                                                                                                          | Not built                                                                                                               | to do  |
 
 ## Round 1: Show the design
@@ -1180,8 +1180,13 @@ Decided:
   menu, the name 16 px from the edges, and the dot of Requests (e76e007 and 5144a8d, live at
   build 320). The parts Count, Dock and Toolbar on `design-system` got the variants (each at
   v2), and the copies on `52b790a2057e` moved to them (Count and Dock rev 6, Toolbar rev 4).
-- Known gap (V5): the other copies of Count, Dock and Toolbar on `product` stay at their old
-  revisions. `design:proof` shows 3 S5 findings for them until each copy moves.
+- On 2026-11-24, V5 is built ([SPEC-pieces-base](../SPEC-pieces-base.md), e656d71, live at build
+  331). The parts are in the kit version, and easel fills each linked copy when it gives a
+  document. One put of the Dock on `design-system`, with the zoom menu of `product#1`, made Dock
+  rev 7. Each of the 88 frames on `product` with a Dock copy shows the new dock, and no frame
+  version of them changed. The live app has this zoom menu (build 320). Two hand edits of a Dock
+  copy moved into the copy as overrides. A second put (rev 8) moved the hover rules of the zoom
+  menu into the hover media query. `design:proof` is OK: the 3 S5 findings are closed.
 
 ## E12: Screens and flows
 
