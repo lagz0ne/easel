@@ -666,9 +666,11 @@ async function shownAt(page: Page, what: string) {
 /** Zoom in until the zoom is `pct`% or more, then the camera rests and the live frames paint. */
 async function zoomTo(page: Page, pct: number) {
   const zoom = page.getByRole("status", { name: "Zoom" });
+  const zoomInOfABaseBuild = page.getByRole("button", { name: "Zoom in" });
   for (let i = 0; i < 60; i++) {
     if (Number.parseFloat((await zoom.textContent()) ?? "0") >= pct) break;
-    await page.keyboard.press("Control+Equal");
+    if ((await zoomInOfABaseBuild.count()) > 0) await zoomInOfABaseBuild.click();
+    else await page.keyboard.press("Control+Equal");
   }
   await page.waitForFunction(() => document.querySelector(".e-card[hidden]") !== null, null, {
     timeout: 10_000,
