@@ -847,17 +847,19 @@ images, and the proof (D9-8) comes last.
 
 ### D9-7: the Live page
 
-- [ ] After each deploy, a job opens easel on a fixed fixture canvas, takes each screen at
+- [x] After each deploy, a job opens easel on a fixed fixture canvas, takes each screen at
       390×844 and 1440×900, light and dark, and puts each as an image frame on the page `Live` of
-      `product`, with the name of its proposal.
+      `product`, with the name of its proposal. Done: the job `screens` of deploy.yml
+      (SPEC-live-screens 1-8), live since build 294; 3 takes of build 305 gave next, same, same.
 
 **Dependencies:** D9-1, D9-6. **Estimated scope:** M.
 
 ### D9-8: the proof on easel
 
-- [ ] `bun run design:proof` reads the canvases of easel; it fails when a live screen uses a color
+- [x] `bun run design:proof` reads the canvases of easel; it fails when a live screen uses a color
       that is not in the design system. SPEC-design and `docs/design-canvas.md` name easel's
-      canvases, not Doop.
+      canvases, not Doop. Done (1f3c866): it found the black fill of the X icons (V6), fixed in
+      85d470e.
 
 **Dependencies:** D9-6, D9-7. **Estimated scope:** M.
 

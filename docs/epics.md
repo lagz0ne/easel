@@ -32,7 +32,7 @@ E4, E5.1, E5.2, E6, E8, part of E9, and E10. E7 is deferred.
 | E8  | One look, fast               | Agents make frames fast, and all frames of a team look like one product.                     | agent, user             | [kit](../SPEC-kit.md#journeys) 3                                                                                                      | Built: the look, the kit, its pieces and capsules; not all fit criteria are proven                                      | to do  |
 | E9  | One voice                    | All frames of a team say one thing in one way, and one change of a text reaches each frame.  | agent, user, person     | [kit](../SPEC-kit.md)                                                                                                                 | Each frame keeps its own texts; nothing keeps the texts of a team                                                       | to do  |
 | E10 | See each state of a frame    | A person sees a frame in each state of its design, with no agent.                            | viewer, user            | [kit](../SPEC-kit.md#the-capsules): controls, panes                                                                                   | Built; no test names X1 to X5                                                                                           | to do  |
-| E11 | The design and the app agree | The person sees the live app beside the design, and an accepted design reaches the live app. | person, agent           | [live-screens](../SPEC-live-screens.md), [design-loop](../SPEC-design-loop.md)                                                        | Spec approved; not built: the live screens, the build request and the proof on easel                                    | to do  |
+| E11 | The design and the app agree | The person sees the live app beside the design, and an accepted design reaches the live app. | person, agent           | [live-screens](../SPEC-live-screens.md), [design-loop](../SPEC-design-loop.md)                                                        | E11.1 built: the live screens and the proof on easel. Not built: E11.2 (the build request, V4, V7)                      | active |
 
 ## Round 1: Show the design
 
@@ -1097,7 +1097,7 @@ Decided:
 
 | ID    | Journey                                 | Actor         | Design                                          | Review |
 | ----- | --------------------------------------- | ------------- | ----------------------------------------------- | ------ |
-| E11.1 | See the live app beside the design      | person        | [live-screens](../SPEC-live-screens.md) 1-8, 12 | to do  |
+| E11.1 | See the live app beside the design      | person        | [live-screens](../SPEC-live-screens.md) 1-8, 12 | done   |
 | E11.2 | An accepted design reaches the live app | agent, person | [live-screens](../SPEC-live-screens.md) 9-12    | to do  |
 
 ### E11.1 See the live app beside the design
