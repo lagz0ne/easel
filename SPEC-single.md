@@ -1,8 +1,8 @@
 # Spec delta: `single`, one person and one project on a server
 
-Status: approved (the user, 2026-11-24: the ask; "for now, use easel.vibea.dev, yes"; the one
-project is `easel`, and the other canvases go after an export: "yes"; the person: "can be
-anyname, choose lagz0ne").
+Status: implemented (f0c3d6c, live on easel.vibea.dev since 2026-11-24). Approved (the user,
+2026-11-24: the ask; "for now, use easel.vibea.dev, yes"; the one project is `easel`, and the other
+canvases go after an export: "yes"; the person: "can be anyname, choose lagz0ne").
 
 ## Objective
 

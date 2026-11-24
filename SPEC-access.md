@@ -23,16 +23,20 @@ initial admin password.
 
 ## How a server is set up
 
-`EASEL_AUTH` picks one of two ways. The cmd reads it; nothing else does.
+`EASEL_AUTH` picks one of three ways. The cmd reads it; nothing else does.
 
 - `approve` (the default): a new user waits until an owner approves their code.
 - `open`: each login is granted at once, as an owner. For one person on their own machine. The
   server refuses every rpc call from a peer that is not this machine, and refuses to start when
   `PUBLIC_ORIGIN` is unset or is not a loopback address.
+- `single`: one person on a public server ([SPEC-single](SPEC-single.md)). The sign-in page has no
+  name field, and an approve signs the browser in as the owner who approves it. No login and no
+  approve makes a new person. The agents keep their member tokens (`easel users add`).
+  `EASEL_PROJECT` names the one project: it is the title of `/`.
 
-While an `approve` server has no user, each start prints a new one-time setup code to its log, and
-the code from the start before stops working: it answers `wrong`. The first login that gives it
-becomes the owner. Once used, it answers `taken`.
+While an `approve` or `single` server has no user, each start prints a new one-time setup code to
+its log, and the code from the start before stops working: it answers `wrong`. The first login
+that gives it becomes the owner. Once used, it answers `taken`.
 
 Users, tokens and pending codes are kept in the SQLite file, so they survive a restart.
 
