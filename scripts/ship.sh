@@ -131,7 +131,7 @@ for attempt in 1 2 3; do
       else git rm -q -f -- "$f" 2>/dev/null || true; fi
     done
   else
-    [[ ${#paths[@]} -eq 0 ]] || git reset -q -- "${paths[@]}"
+    git diff --name-only -z "$base" "$commit" | xargs -0 -r git reset -q --
   fi
   if SHIP_GATED=1 git push -q origin main 2>/dev/null; then
     log "shipped ${commit:0:7} to origin/main (gate $((SECONDS - t0)) s). It deploys now (deploy.yml, ~45 s); CI gates run after it, and a red one rolls the site back and opens a trunk-red issue."
