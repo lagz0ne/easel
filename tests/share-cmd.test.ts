@@ -118,6 +118,8 @@ test("every page and file the binary serves says Referrer-Policy: no-referrer", 
   expect(Object.keys(routes).toSorted()).toEqual(["/*", "/assets/app.js", "/index.html"]);
   for (const response of Object.values(routes)) {
     expect(response.headers.get("referrer-policy")).toBe("no-referrer");
+    expect(response.headers.get("content-security-policy")).toBe("frame-ancestors 'none'");
+    expect(response.headers.get("x-frame-options")).toBe("DENY");
   }
   expect(routes["/assets/app.js"]?.headers.get("cache-control")).toContain("immutable");
   expect(routes["/*"]?.headers.get("cache-control")).toBeNull();

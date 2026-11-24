@@ -33,6 +33,7 @@ const world = {
   denials: [] as string[],
   answer: Promise.withResolvers<Wait>(),
   start: { kind: "pending" } as { kind: "pending" } | { kind: "slow" },
+  link: "live" as "live" | "gone" | "slow",
 };
 
 const sessionGate = operation({
@@ -66,6 +67,17 @@ const wait = operation({
   label: "test.browserWait",
   input: browserApi["browser.wait"].input,
   run: () => world.answer.promise,
+});
+
+const peek = operation({
+  label: "test.browserPeek",
+  input: browserApi["browser.peek"].input,
+  run: () =>
+    world.link === "live"
+      ? { kind: "live" as const, name: "bo", expiresAt: now + 300_000 }
+      : world.link === "slow"
+        ? { kind: "slow" as const, retryIn: 20_000 }
+        : { kind: "gone" as const },
 });
 
 const approve = operation({
@@ -118,14 +130,15 @@ const putRow = operation({
 
 const putCode = operation({
   label: "test.putCode",
+  input: z.object({ name: z.string(), user: z.boolean() }),
   depends: { codes: waitingCodes.atScope.controller },
-  run: ({ codes }) =>
+  run: ({ codes }, { input }) =>
     codes.set({
       code: "LMNP-QRST",
-      name: "bo",
       since: now,
       expiresAt: now + 600_000,
       browser: true,
+      ...input,
     }),
 });
 
@@ -155,6 +168,7 @@ async function boot() {
   world.denials = [];
   world.answer = Promise.withResolvers<Wait>();
   world.start = { kind: "pending" };
+  world.link = "live";
   const server = await createScope({
     capsules: [
       exits({ store: localStorage }),
@@ -162,7 +176,9 @@ async function boot() {
         implement: { "users.me": me, "login.end": loginEnd },
         onStart: [sessionGate],
       }),
-      access.browser({ implement: { "browser.start": start, "browser.wait": wait } }),
+      access.browser({
+        implement: { "browser.start": start, "browser.wait": wait, "browser.peek": peek },
+      }),
       access.owner({
         implement: {
           "users.approve": approve,
@@ -310,7 +326,7 @@ for (const size of [phone, desk]) {
 test("an owner sees the codes that wait, and approves or denies each one on the home page", async () => {
   const server = await boot();
   world.signedIn = true;
-  server.run(putCode);
+  server.run(putCode, { input: { name: "bo", user: false } });
   await tab(server, "/", phone);
 
   await expect
@@ -322,7 +338,7 @@ test("an owner sees the codes that wait, and approves or denies each one on the 
     .not.toBeInTheDocument();
   expect(world.approvals).toEqual([{ code: "LMNP-QRST", owner: false }]);
 
-  server.run(putCode);
+  server.run(putCode, { input: { name: "bo", user: false } });
   await page.getByRole("button", { name: "Deny LMNP-QRST of bo" }).click();
   await expect.poll(() => world.denials).toEqual(["LMNP-QRST"]);
 });
@@ -331,7 +347,7 @@ test("a member sees no codes that wait", async () => {
   const server = await boot();
   world.signedIn = true;
   world.owner = false;
-  server.run(putCode);
+  server.run(putCode, { input: { name: "bo", user: false } });
   server.run(putRow, { input: { canvas: "shop", name: "Shop", inbox: 0, changed: now } });
   await tab(server, "/", phone);
 
@@ -385,9 +401,15 @@ test("/c/<canvas> with no session shows the sign-in page, not the canvas", async
   expect(page.getByRole("navigation", { name: "Canvas" }).elements()).toHaveLength(0);
 });
 
-test("/open posts the link of its # to /auth/open, and a page with no good link says that the link does not work", async () => {
+test("/open names the user of its link and posts the link to /auth/open only after a click on Sign in as; a link that is gone or not good says that the link does not work", async () => {
   const server = await boot();
   const good = await tab(server, `/open#${link}`, phone);
+  const button = page.getByRole("button", { name: "Sign in as bo" });
+  await expect.element(page.getByRole("heading", { name: "Sign in as bo" })).toBeVisible();
+  expect(good.posted).toEqual([]);
+  expect(page.getByRole("note").elements()).toHaveLength(0);
+
+  await button.click();
   await expect.element(page.getByText("Signing in.")).toBeVisible();
   expect(good.posted).toEqual([["/auth/open", { link }]]);
   document.body.replaceChildren();
@@ -397,4 +419,55 @@ test("/open posts the link of its # to /auth/open, and a page with no good link 
     .element(page.getByRole("heading", { name: "This sign-in link does not work" }))
     .toBeVisible();
   expect(bad.posted).toEqual([]);
+  document.body.replaceChildren();
+
+  world.link = "gone";
+  const gone = await tab(server, `/open#${link}`, phone);
+  await expect
+    .element(page.getByRole("heading", { name: "This sign-in link does not work" }))
+    .toBeVisible();
+  expect(gone.posted).toEqual([]);
+});
+
+test("/open past its limit of tries says to wait, and posts nothing", async () => {
+  const server = await boot();
+  world.link = "slow";
+  const shown = await tab(server, `/open#${link}`, phone);
+
+  await expect
+    .element(page.getByRole("status"))
+    .toHaveTextContent("Too many tries. Wait 20 s, then open the link again.");
+  expect(shown.posted).toEqual([]);
+});
+
+test("/open in a browser that is signed in as another user says so before the click", async () => {
+  const server = await boot();
+  world.signedIn = true;
+  await tab(server, `/open#${link}`, phone);
+
+  await expect
+    .element(page.getByRole("note"))
+    .toHaveTextContent("This browser is signed in as ann. The button signs it in as bo.");
+});
+
+test("an owner sees no Approve button for a browser code that asks for another user that is there, only Deny", async () => {
+  const server = await boot();
+  world.signedIn = true;
+  server.run(putCode, { input: { name: "bo", user: true } });
+  await tab(server, "/", phone);
+
+  await expect.element(page.getByText("Only bo can sign it in")).toBeVisible();
+  expect(page.getByRole("button", { name: "Approve LMNP-QRST of bo" }).elements()).toHaveLength(0);
+  await page.getByRole("button", { name: "Deny LMNP-QRST of bo" }).click();
+  await expect.poll(() => world.denials).toEqual(["LMNP-QRST"]);
+});
+
+test("an owner sees the Approve button for a browser code that asks for the owner's own name", async () => {
+  const server = await boot();
+  world.signedIn = true;
+  server.run(putCode, { input: { name: "ann", user: true } });
+  await tab(server, "/", phone);
+
+  await page.getByRole("button", { name: "Approve LMNP-QRST of ann" }).click();
+  await expect.poll(() => world.approvals).toEqual([{ code: "LMNP-QRST", owner: false }]);
 });

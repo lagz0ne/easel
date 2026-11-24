@@ -92,12 +92,14 @@ const approveBrowser = operation({
     users: users.atScope.controller,
     bytes: secretBytes,
     digestOf,
+    me: caller.required,
   },
-  run: async ({ waitingBrowser, store, users, bytes, digestOf }, { input, clock }) => {
+  run: async ({ waitingBrowser, store, users, bytes, digestOf, me }, { input, clock }) => {
     const code = waitingBrowser.run({ input: input.code });
     if (!code) return { kind: "gone" as const };
 
     const held = users.of({ name: code.name }).get();
+    if (held && held.name !== me.name) return { kind: "theirs" as const, name: held.name };
     if (held) {
       store.write({ codes: [{ ...code, state: "approved" }] });
       return {

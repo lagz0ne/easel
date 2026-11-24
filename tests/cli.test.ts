@@ -534,6 +534,38 @@ test("users: the list (always 0); approve, deny and revoke answer gone or last w
   ]);
 });
 
+async function browserCodeFor(srv: Srv, name: string) {
+  const page = await createScope({
+    capsules: [
+      exits({ file: process.env.TINKER_EXITS }),
+      memory.client({ peer: srv.server, headers: { "x-easel-peer": "192.0.2.4" } }),
+      access.browser({ remote: memory.client }),
+    ],
+  }).ready;
+  closers.push(() => page.close());
+  const shown = await page.run(access.browser["browser.start"], { input: { name } });
+  if (shown.kind !== "pending") throw new Error(`not pending: ${shown.kind}`);
+
+  return shown.code;
+}
+
+test("users approve of a browser code that asks for another user that is there answers theirs, exit 1: only that user can sign that browser in", async () => {
+  const srv = await boot();
+  const a = await easel(srv, { peer: "198.51.100.1", json: false });
+  expect(await a.run(login("ann", { setup: srv.setupCode() }))).toBe(0);
+  const { agent, code } = await pendingAgent(srv);
+  expect(await a.run(users({ kind: "approve", code, owner: false }))).toBe(0);
+  await agent.run({ kind: "resume" });
+  const asked = await browserCodeFor(srv, "agent");
+
+  expect(await a.run(users({ kind: "approve", code: asked, owner: false }))).toBe(1);
+  expect(a.err.join("")).toContain(
+    `code ${asked} asks to sign a browser in as agent, a user that is there. Only agent can sign that browser in, with \`easel open\`.`,
+  );
+  const own = await browserCodeFor(srv, "ann");
+  expect(await a.run(users({ kind: "approve", code: own, owner: false }))).toBe(0);
+});
+
 test("a member's users call is refused: exit 2, it needs an owner, and the token is kept", async () => {
   const srv = await boot();
   const a = await ann(srv);

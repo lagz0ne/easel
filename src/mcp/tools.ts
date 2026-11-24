@@ -271,6 +271,8 @@ export const noTool = {
   "login.end": "the CLI's session: `easel logout`",
   "browser.start": "a browser's sign-in page asks for its code",
   "browser.wait": "a browser's sign-in page waits for the approval of its code",
+  "browser.peek":
+    "a browser's /open page reads whose sign-in link it holds, before the person signs in",
   "browser.link": "a person signs a browser in with `easel open`",
   "users.end": "an owner ends a browser session: `easel users end`",
   "users.add": "its token is a secret, shown one time to an owner: `easel users add`",

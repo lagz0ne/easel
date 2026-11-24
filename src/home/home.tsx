@@ -7,8 +7,8 @@ import { authPaths } from "@/access/contract";
 
 import { codesBoard, homeBoard } from "./contract";
 import type { HomeRow, WaitingCode } from "./contract";
-import { askAgain, askForCode, signInStep } from "./signin";
-import type { Who } from "./signin";
+import { askAgain, askForCode, signInStep, useSignInLink } from "./signin";
+import type { OpenLink, Who } from "./signin";
 
 import "./home.css";
 
@@ -71,6 +71,7 @@ function CodeStep({ code, expiresAt }: { code: string; expiresAt: number }) {
         page. This page signs in when the owner approves it.
       </p>
       <p className="e-home-note">The code works until {until.format(expiresAt)}.</p>
+      <AnotherWay />
     </div>
   );
 }
@@ -117,15 +118,7 @@ export function SignIn() {
   );
 }
 
-export function OpenPage({ sent }: { sent: boolean }) {
-  if (sent) {
-    return (
-      <main className="e-home e-home-narrow">
-        <p role="status">Signing in.</p>
-      </main>
-    );
-  }
-
+function BadLink() {
   return (
     <main className="e-home e-home-narrow">
       <h1>This sign-in link does not work</h1>
@@ -137,6 +130,58 @@ export function OpenPage({ sent }: { sent: boolean }) {
       </p>
     </main>
   );
+}
+
+type AskProps = { link: string; name: string; now: string | null };
+
+function AskToSignIn({ link, name, now }: AskProps) {
+  const use = useRun(useSignInLink);
+  if (use.isSuccess) {
+    return (
+      <main className="e-home e-home-narrow">
+        <p role="status">Signing in.</p>
+      </main>
+    );
+  }
+
+  return (
+    <main className="e-home e-home-narrow">
+      <h1>Sign in as {name}</h1>
+      <p>
+        This link comes from <code>easel open</code>. Use it only if you ran that command.
+      </p>
+      {now !== null && now !== name ? (
+        <p role="note">
+          This browser is signed in as {now}. The button signs it in as {name}.
+        </p>
+      ) : null}
+      <button
+        type="button"
+        className="e-home-primary"
+        disabled={use.isPending}
+        onClick={() => use.run({ input: { link } })}
+      >
+        Sign in as {name}
+      </button>
+    </main>
+  );
+}
+
+export function OpenPage({ link }: { link: OpenLink }) {
+  switch (link.kind) {
+    case "bad":
+      return <BadLink />;
+    case "slow":
+      return (
+        <main className="e-home e-home-narrow">
+          <p role="status">
+            Too many tries. Wait {Math.ceil(link.retryIn / 1000)} s, then open the link again.
+          </p>
+        </main>
+      );
+    case "ask":
+      return <AskToSignIn link={link.link} name={link.name} now={link.now} />;
+  }
 }
 
 function Row({ row }: { row: HomeRow }) {
@@ -184,10 +229,11 @@ function CanvasList({ list }: { list: readonly HomeRow[] }) {
   );
 }
 
-function CodeRow({ row }: { row: WaitingCode }) {
+function CodeRow({ row, me }: { row: WaitingCode; me: string }) {
   const approve = useRun(access.owner["users.approve"]);
   const deny = useRun(access.owner["users.deny"]);
   const busy = approve.isPending || deny.isPending;
+  const theirs = row.user && row.name !== me;
 
   return (
     <li className="e-home-wait">
@@ -207,22 +253,26 @@ function CodeRow({ row }: { row: WaitingCode }) {
         >
           Deny
         </button>
-        <button
-          type="button"
-          className="e-home-primary"
-          disabled={busy}
-          aria-label={`Approve ${row.code} of ${row.name}`}
-          onClick={() => approve.run({ input: { code: row.code, owner: false } })}
-        >
-          Approve
-        </button>
+        {theirs ? (
+          <span className="e-home-meta">Only {row.name} can sign it in</span>
+        ) : (
+          <button
+            type="button"
+            className="e-home-primary"
+            disabled={busy}
+            aria-label={`Approve ${row.code} of ${row.name}`}
+            onClick={() => approve.run({ input: { code: row.code, owner: false } })}
+          >
+            Approve
+          </button>
+        )}
       </span>
       {approve.error || deny.error ? <p role="alert">No answer. Try again.</p> : null}
     </li>
   );
 }
 
-function Codes() {
+function Codes({ me }: { me: string }) {
   const part = codesBoard.codes.where({});
   const list = useData(part);
   if (!list.length) return null;
@@ -232,7 +282,7 @@ function Codes() {
       <h2 id="e-home-codes">Codes that wait for you</h2>
       <ul className="e-home-list">
         {list.map((row) => (
-          <CodeRow key={row.code} row={row} />
+          <CodeRow key={row.code} row={row} me={me} />
         ))}
       </ul>
     </section>
@@ -268,7 +318,7 @@ function Home({ name, owner }: { name: string; owner: boolean }) {
           <button type="submit">Sign out</button>
         </form>
       </header>
-      {owner ? <Codes /> : null}
+      {owner ? <Codes me={name} /> : null}
       <Listed list={list} ready={state?.status === "ready"} lost={state?.status === "fault"} />
     </main>
   );

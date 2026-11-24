@@ -29,6 +29,7 @@ export const limits = {
   "login.wait": 30,
   "browser.start": 5,
   "browser.wait": 30,
+  "browser.peek": 30,
 } as const;
 
 export const maxPending = { all: 20, address: 3 } as const;
@@ -90,7 +91,14 @@ export const addressKey = operation({
 
 export const admit = operation({
   label: "access.admit",
-  input: z.enum(["login.start", "login.setup", "login.wait", "browser.start", "browser.wait"]),
+  input: z.enum([
+    "login.start",
+    "login.setup",
+    "login.wait",
+    "browser.start",
+    "browser.wait",
+    "browser.peek",
+  ]),
   depends: { limiter, clientAddress, addressKey },
   run: ({ limiter, clientAddress, addressKey }, { input, clock }) => {
     const retryIn = limiter.hit(
@@ -118,13 +126,12 @@ export const inUse = operation({
 
 export const room = operation({
   label: "access.room",
-  input: z.string(),
+  input: z.object({ address: z.string(), from: z.enum(["cli", "browser"]) }),
   depends: { logins: logins.atScope.controller, codes: browserCodes.atScope.controller },
-  run: ({ logins, codes }, { input: address, clock }) => {
+  run: ({ logins, codes }, { input: { address, from }, clock }) => {
     const now = clock.currentTimeMillis();
-    const waiting = [...logins.get(), ...codes.get()].filter(
-      (l) => l.state === "pending" && l.expiresAt > now,
-    );
+    const held = from === "cli" ? logins.get() : codes.get();
+    const waiting = held.filter((l) => l.state === "pending" && l.expiresAt > now);
     const mine = waiting.filter((l) => l.address === address);
     const full =
       waiting.length >= maxPending.all ? waiting : mine.length >= maxPending.address ? mine : [];
@@ -168,7 +175,7 @@ export const startLogin = operation({
     }
 
     const address = clientAddress.run();
-    const full = room.run({ input: address });
+    const full = room.run({ input: { address, from: "cli" } });
     if (full) return full;
 
     const login = {

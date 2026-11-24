@@ -3,7 +3,11 @@ import { z } from "zod";
 const files: Record<string, string> =
   process.env.NODE_ENV === "production" ? (await import("./client-files.gen")).default : {};
 
-const noReferrer = { "referrer-policy": "no-referrer" };
+const noReferrer = {
+  "referrer-policy": "no-referrer",
+  "content-security-policy": "frame-ancestors 'none'",
+  "x-frame-options": "DENY",
+};
 
 const immutable = { ...noReferrer, "cache-control": "public, max-age=31536000, immutable" };
 

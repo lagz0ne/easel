@@ -114,14 +114,35 @@ export const askAgain = operation({
   run: ({ step }) => step.set({ kind: "name" }),
 });
 
-export const useSignInLink = operation({
-  label: "home.useSignInLink",
-  depends: { takeHash, post: postForm },
-  run: ({ takeHash, post }) => {
+export const readSignInLink = operation({
+  label: "home.readSignInLink",
+  input: z.object({ stop: z.instanceof(AbortSignal).optional() }),
+  depends: { takeHash, peek: access.browser["browser.peek"], whoAmI },
+  run: async ({ takeHash, peek, whoAmI }, { input }) => {
     const link = signInLink.safeParse(takeHash(openPath));
     if (!link.success) return { kind: "bad" as const };
 
-    post(authPaths.open, { link: link.data });
-    return { kind: "sent" as const };
+    const [shown, who] = await Promise.all([
+      peek.run({ input: { link: link.data }, signal: input.stop }),
+      whoAmI.run({ input }),
+    ]);
+    const now = who.kind === "in" ? who.name : null;
+    switch (shown.kind) {
+      case "gone":
+        return { kind: "bad" as const };
+      case "slow":
+        return { kind: "slow" as const, retryIn: shown.retryIn };
+      case "live":
+        return { kind: "ask" as const, link: link.data, name: shown.name, now };
+    }
   },
+});
+
+export type OpenLink = Awaited<ReturnType<typeof readSignInLink.run>>;
+
+export const useSignInLink = operation({
+  label: "home.useSignInLink",
+  input: z.object({ link: signInLink }),
+  depends: { post: postForm },
+  run: ({ post }, { input }) => post(authPaths.open, { link: input.link }),
 });

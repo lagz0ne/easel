@@ -271,6 +271,11 @@ const useLink = `UPDATE access_links SET used = 1
   WHERE digest = ? AND used = 0 AND expires_at > ?
     AND name IN (SELECT name FROM access_users) RETURNING name`;
 
+const liveLink = z.object({ name: z.string(), expiresAt: z.number() }).nullable();
+
+const peekLink = `SELECT name, expires_at AS expiresAt FROM access_links
+  WHERE digest = ? AND used = 0 AND expires_at > ? AND name IN (SELECT name FROM access_users)`;
+
 const sqlOfUse = operation({
   label: "access.sqlOfUse",
   input: z.custom<Use>(),
@@ -348,6 +353,8 @@ export const store = resource({
         showAccess.run({ input: { change: c, setupUsed: change.setupUsed === true } });
         showBrowser.run({ input: c });
       },
+      liveLink: (digest: string, now: number) =>
+        liveLink.parse(db.query(peekLink).get(digest, now)),
       use: (use: Use, now: number) => {
         const made = db.transaction(() => {
           const step = sqlOfUse.run({ input: use });

@@ -25,6 +25,7 @@ export const waitingCode = z.object({
   since: z.number(),
   expiresAt: z.number(),
   browser: z.boolean(),
+  user: z.boolean(),
 });
 
 export type WaitingCode = z.infer<typeof waitingCode>;

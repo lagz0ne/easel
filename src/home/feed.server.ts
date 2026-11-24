@@ -2,7 +2,7 @@ import { bunSqlite } from "@tinkered/bun/sqlite";
 import { capsule, operation, resource } from "@tinkered/core";
 import { z } from "zod";
 
-import { browserCodes, logins } from "@/access/store.server";
+import { browserCodes, logins, users } from "@/access/store.server";
 import { canvasInfo, frames, pages } from "@/frames/contract";
 import { canvases } from "@/frames/store.server";
 import { request, requests } from "@/queue/cells";
@@ -175,8 +175,12 @@ export const homeFeed = resource({
 const codesNow = operation({
   label: "home.codesNow",
   input: z.number(),
-  depends: { logins: logins.atScope.controller, codes: browserCodes.atScope.controller },
-  run: ({ logins, codes }, { input: now }): WaitingCode[] =>
+  depends: {
+    logins: logins.atScope.controller,
+    codes: browserCodes.atScope.controller,
+    users: users.atScope.controller,
+  },
+  run: ({ logins, codes, users }, { input: now }): WaitingCode[] =>
     [
       ...logins.get().map((row) => ({ ...row, browser: false })),
       ...codes.get().map((row) => ({ ...row, browser: true })),
@@ -188,6 +192,7 @@ const codesNow = operation({
         since,
         expiresAt,
         browser,
+        user: users.of({ name }).get() !== undefined,
       })),
 });
 

@@ -29,6 +29,8 @@ export const kindTexts: Readonly<Record<string, string>> = {
   closed: "wrongState: a viewer closed the request, so nothing was written. Stop the work on it.",
   lost: "lost: the claim is not yours now (its lease ended), so nothing was written. Stop this work, and call next_request.",
   last: "last: that is the last owner. Make another owner first.",
+  theirs:
+    "theirs: the code asks to sign a browser in as a user that is there. Only that user can sign that browser in, with easel open. Deny the code if that user did not ask.",
   notLive:
     "notLive: build {live} is live, not the build that you gave. Resolve it after that build deploys.",
   failing: "failing: the error was seen on build {seen}, so the fix did not hold.",

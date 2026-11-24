@@ -4,7 +4,7 @@ import type { Scope } from "@tinkered/core";
 import { baseVersion } from "~/components/health";
 
 import { HomePage, OpenPage } from "@/home/home";
-import { useSignInLink, whoAmI } from "@/home/signin";
+import { readSignInLink, whoAmI } from "@/home/signin";
 import { Board, IssuesHome, Thread } from "@/issues/board";
 import { TodoList } from "@/todo/todo-list";
 import { Canvas } from "@/viewer/canvas";
@@ -24,8 +24,9 @@ const index = createRoute({
 const open = createRoute({
   getParentRoute: () => root,
   path: "/open",
-  loader: ({ context }) => context.scope.run(useSignInLink),
-  component: () => <OpenPage sent={open.useLoaderData().kind === "sent"} />,
+  loader: ({ context, abortController }) =>
+    context.scope.run(readSignInLink, { input: { stop: abortController.signal } }),
+  component: () => <OpenPage link={open.useLoaderData()} />,
 });
 
 const canvas = createRoute({

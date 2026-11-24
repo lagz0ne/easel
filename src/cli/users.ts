@@ -134,6 +134,15 @@ export const approveUser = operation({
           input: { json: answer, text: `approved ${answer.user.name} (${answer.user.role})` },
         });
         break;
+      case "theirs":
+        say.run({
+          input: {
+            json: answer,
+            text: `code ${input.code} asks to sign a browser in as ${answer.name}, a user that is there. Only ${answer.name} can sign that browser in, with \`easel open\`. Deny the code if ${answer.name} did not ask.`,
+            error: true,
+          },
+        });
+        break;
       case "gone":
         say.run({
           input: {

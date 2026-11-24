@@ -101,15 +101,26 @@ that one write checks and a second write uses signs in two browsers.
 These points were open in the rules above. The build decided them so:
 
 - The sign-in page asks for a name first, then shows the code. When an owner approves it, a new
-  name becomes a member (`--owner` makes an owner). The name of a user signs the browser in as
-  that user, with its role. `easel users` marks each code `cli` or `browser`.
-- The cookie is `easel_session_secret`, with `Path=/` and `Max-Age` of 400 days. The server ends
-  the session after 30 days with no use, so the cookie then reads nothing.
+  name becomes a member (`--owner` makes an owner). `easel users` marks each code `cli` or
+  `browser`.
+- A code with the name of a user that is there signs the browser in as that user. Only that user
+  can approve it. Another owner gets `theirs`, and the home page shows no Approve button for it.
+  The user can always use `easel open`. (Prior art: RFC 8628 section 5.4. The person who approves
+  a device code must be the person that the device signs in as.)
+- The cookie is `__Host-easel_session`, with `Path=/`, `Secure`, no `Domain`, and `Max-Age` of 400
+  days. The server ends the session after 30 days with no use, so the cookie then reads nothing.
 - `easel open` puts the link after `#` (`/open#<link>`). A browser does not send that part, so no
-  log, proxy or `Referer` gets it. The page posts it to `/auth/open` and takes it out of the
-  address bar.
-- A sign-in post must come from the origin of easel (its `Origin` header), with a body of 4 KiB at
-  most.
+  log, proxy or `Referer` gets it. The page takes it out of the address bar. The page then shows
+  the name of the link's user and a button "Sign in as <name>". It says so when the browser has a
+  session of another user. Only the button posts the link to `/auth/open`. So a link that another
+  person sends cannot sign a browser in with no click.
+- A sign-in post must come from the origin of easel, with a body of 4 KiB at most. The server
+  reads `Sec-Fetch-Site` first (`same-origin` only), and `Origin` when the browser sends no
+  `Sec-Fetch-Site`. A page with `no-referrer` sends `Origin: null`.
+- Browser codes and CLI logins wait in their own pools (20 in all, 3 for each address). Many
+  browser codes do not block `easel login` or `easel open`.
+- Each page says `frame-ancestors 'none'` and `X-Frame-Options: DENY`. No other site can put a
+  page of easel in a frame.
 - On `easel users end` or a revoke, the server closes each socket of that session at once (code
   4401). The browser connects again, is refused, and shows the sign-in page.
 - The back button is on `/c/<canvas>`. A share link (`/s/<link>`) shows the canvas as before, with
@@ -136,3 +147,12 @@ These points were open in the rules above. The build decided them so:
   owner is there to approve them.
 - **Folders, search or stars on the home page.** Add them when the list has more than 30 canvases.
 - **Make a canvas from the home page.** Agents make canvases. Add it when a person needs to.
+- **Security review, 2026-11-24: the points that stay open.**
+  - A browser session of an owner can call `users.add`, which makes a CLI token. Limit owner
+    calls from a browser when an owner signs in on a shared computer.
+  - The database keeps the request id of a browser code as it is, not its digest. The id lives
+    10 minutes at most.
+  - A new sign-in in a browser does not end its old session. The old session ends after 30 days
+    with no use, or with `easel users end`.
+  - The limits for each address read the client address that `EASEL_TRUSTED_PROXIES` permits.
+    Check that the live server sets it to the address of its proxy.

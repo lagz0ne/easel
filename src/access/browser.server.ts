@@ -55,7 +55,7 @@ export const startBrowser = operation({
     if (slow) return slow;
 
     const address = clientAddress.run();
-    const full = room.run({ input: address });
+    const full = room.run({ input: { address, from: "browser" } });
     if (full) return full;
 
     const now = clock.currentTimeMillis();
@@ -146,7 +146,26 @@ export const makeLink = operation({
   },
 });
 
-export const browserOps = { "browser.start": startBrowser, "browser.wait": waitBrowser } as const;
+export const peekLink = operation({
+  label: "browser.peek.do",
+  input: browserApi["browser.peek"].input,
+  depends: { admit, store, digestOf },
+  run: async ({ admit, store, digestOf }, { input, clock }) => {
+    const slow = admit.run({ input: "browser.peek" });
+    if (slow) return slow;
+
+    const live = store.liveLink(digestOf.run({ input: input.link }), clock.currentTimeMillis());
+    if (live === null) return { kind: "gone" as const };
+
+    return { kind: "live" as const, name: live.name, expiresAt: live.expiresAt };
+  },
+});
+
+export const browserOps = {
+  "browser.start": startBrowser,
+  "browser.wait": waitBrowser,
+  "browser.peek": peekLink,
+} as const;
 
 export const openOps = { "browser.link": makeLink } as const;
 

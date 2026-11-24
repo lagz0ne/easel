@@ -214,8 +214,22 @@ test("the codes that wait: a pending code of the CLI and of a browser show, with
   scope.run(putCodes, { input: { state: "pending", expiresAt: start + 60_000 } });
   await settle();
   expect(scope.run(readCodes)).toEqual([
-    { code: "BCDF-GHJK", name: "bo", since: start, expiresAt: start + 60_000, browser: false },
-    { code: "LMNP-QRST", name: "bo", since: start, expiresAt: start + 60_000, browser: true },
+    {
+      code: "BCDF-GHJK",
+      name: "bo",
+      since: start,
+      expiresAt: start + 60_000,
+      browser: false,
+      user: false,
+    },
+    {
+      code: "LMNP-QRST",
+      name: "bo",
+      since: start,
+      expiresAt: start + 60_000,
+      browser: true,
+      user: false,
+    },
   ]);
   expect(JSON.stringify(scope.run(readCodes))).not.toContain("1".repeat(32));
 

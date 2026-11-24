@@ -121,6 +121,9 @@ async function client(server: Scope.Handle, held: { token?: string; cookie?: str
     start: (name: string) => scope.run(access.browser["browser.start"], { input: { name } }),
     wait: (request: string) => scope.run(access.browser["browser.wait"], { input: { request } }),
     link: () => scope.run(access.open["browser.link"], { input: null }),
+    peek: (link: string) => scope.run(access.browser["browser.peek"], { input: { link } }),
+    login: (name: string) =>
+      scope.run(access.login["login.start"], { input: { name, digest: token().digest } }),
     me: () => scope.run(access.user["users.me"], { input: null }),
     list: () => scope.run(access.owner["users.list"], { input: null }),
     approve: (code: string, asOwner?: boolean) =>
@@ -393,6 +396,76 @@ test("a link that ran out, or of a user that was revoked, signs in no browser", 
   expect(revokedReply.headers.get("set-cookie")).toBeNull();
   const wrong = await post(srv, signInWithLink, { path: "/auth/open", fields: { link: "nope" } });
   expect(wrong.headers.get("location")).toBe("/open");
+});
+
+test("browser.peek names the user of a live link and does not use it; a used link, a link that ran out, and a link of no user answer gone", async () => {
+  const srv = await boot();
+  const { ann } = await firstOwner(srv);
+  const bo = await cliMember(srv, ann);
+  const page = await client(srv.server);
+  const made = await bo.link();
+
+  expect(await page.peek(made.link)).toEqual({
+    kind: "live",
+    name: "bo",
+    expiresAt: made.expiresAt,
+  });
+  expect(await page.peek(made.link)).toMatchObject({ kind: "live" });
+  const reply = await post(srv, signInWithLink, {
+    path: "/auth/open",
+    fields: { link: made.link },
+  });
+  expect(cookieOf(reply)).toMatch(/^[0-9a-f]{64}$/);
+  expect(await page.peek(made.link)).toEqual({ kind: "gone" });
+
+  const late = await bo.link();
+  srv.clock.advance(linkLife + 1);
+  expect(await page.peek(late.link)).toEqual({ kind: "gone" });
+  const kept = await bo.link();
+  await ann.revoke("bo");
+  expect(await page.peek(kept.link)).toEqual({ kind: "gone" });
+  expect(await page.peek("c".repeat(64))).toEqual({ kind: "gone" });
+});
+
+test("browser.peek has its own limit: past 30 tries in a minute, slow", async () => {
+  const srv = await boot();
+  const page = await client(srv.server);
+  for (let n = 0; n < 30; n++) await page.peek("c".repeat(64));
+
+  expect(await page.peek("c".repeat(64))).toMatchObject({ kind: "slow" });
+});
+
+test("an owner cannot approve a browser code that asks for another user that is there: theirs, and the code still waits; the owner may approve a code with the owner's own name", async () => {
+  const srv = await boot();
+  const { ann } = await firstOwner(srv);
+  await cliMember(srv, ann);
+  const page = await client(srv.server);
+  const shown = await page.start("bo");
+  if (shown.kind !== "pending") throw new Error(`not pending: ${shown.kind}`);
+
+  expect(await ann.approve(shown.code)).toEqual({ kind: "theirs", name: "bo" });
+  expect((await ann.list()).requests).toEqual([
+    expect.objectContaining({ code: shown.code, browser: true }),
+  ]);
+  const reply = await post(srv, signInWithCode, {
+    path: "/auth/code",
+    fields: { request: shown.request },
+  });
+  expect(reply.headers.get("set-cookie")).toBeNull();
+
+  const own = await codeSignIn(srv, ann, "ann");
+  const signedIn = await client(srv.server, { cookie: own.cookie });
+  expect(await signedIn.me()).toEqual({ kind: "me", name: "ann", owner: true });
+});
+
+test("browser codes and CLI logins wait in their own pools: 3 browser codes from one address do not block a login.start from it", async () => {
+  const srv = await boot();
+  const page = await client(srv.server);
+  const answers = [];
+  for (let n = 0; n < 4; n++) answers.push((await page.start(`p${n}`)).kind);
+  expect(answers).toEqual(["pending", "pending", "pending", "slow"]);
+
+  expect(await page.login("cli")).toMatchObject({ kind: "pending" });
 });
 
 test("a browser session cannot make a sign-in link: browser.link refuses it { token: true }", async () => {

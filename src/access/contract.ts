@@ -46,7 +46,7 @@ const browserSession = z.object({
 
 export type Session = z.infer<typeof browserSession>;
 
-export const sessionCookie = "easel_session_secret";
+export const sessionCookie = "__Host-easel_session";
 
 export const sessionSecret = z.string().regex(/^[0-9a-f]{64}$/, "not a session secret");
 
@@ -121,6 +121,14 @@ export const browserApi = rpc({
       slow,
     ]),
   },
+  "browser.peek": {
+    input: z.object({ link: signInLink }),
+    output: z.discriminatedUnion("kind", [
+      z.object({ kind: z.literal("live"), name: z.string(), expiresAt: z.number() }),
+      z.object({ kind: z.literal("gone") }),
+      slow,
+    ]),
+  },
 });
 
 export const openApi = rpc({
@@ -159,7 +167,11 @@ export const ownerContracts = {
   },
   "users.approve": {
     input: z.object({ code, owner: z.boolean().optional() }),
-    output: z.discriminatedUnion("kind", [z.object({ kind: z.literal("approved"), user }), gone]),
+    output: z.discriminatedUnion("kind", [
+      z.object({ kind: z.literal("approved"), user }),
+      z.object({ kind: z.literal("theirs"), name: z.string() }),
+      gone,
+    ]),
   },
   "users.deny": {
     input: z.object({ code }),
@@ -189,6 +201,7 @@ type Address =
   | "login.wait"
   | "browser.start"
   | "browser.wait"
+  | "browser.peek"
   | "browser.link"
   | "users.me"
   | "login.end";
@@ -214,6 +227,7 @@ export const successKinds = {
   "login.wait": ["granted", "pending"],
   "browser.start": ["pending"],
   "browser.wait": ["approved", "pending"],
+  "browser.peek": ["live"],
   "browser.link": ["link"],
   "users.me": ["me"],
   "login.end": ["ended"],
