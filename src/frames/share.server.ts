@@ -98,6 +98,7 @@ export const endPasses = operation({
         requests: canvas,
         messages: canvas,
         shots: canvas,
+        holds: canvas,
         serverClock: canvas,
         kit: canvas,
         client: canvas,

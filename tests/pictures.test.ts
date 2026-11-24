@@ -265,6 +265,7 @@ async function boot(options: Boot = {}) {
           text: "Change it.",
           key: `pictures-key-${String(n).padStart(8, "0")}`,
           author: "Mai",
+          person: false,
           message: `msg${String(n).padStart(9, "0")}`,
           now,
         },

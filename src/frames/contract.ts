@@ -5,6 +5,7 @@ import { kit } from "@/kit/cells";
 import { runtimeLink } from "@/kit/runtime";
 import { findingShape, frameFiles } from "@/kit/schema";
 import { messages, requests, serverClock, shots } from "@/queue/cells";
+import { holds } from "@/queue/holds";
 
 import { sharePassword, sharePath } from "./share";
 
@@ -224,6 +225,7 @@ export const framesBoard = remoteData({
   requests,
   messages,
   shots,
+  holds,
   serverClock,
   kit,
   client: pageClient,

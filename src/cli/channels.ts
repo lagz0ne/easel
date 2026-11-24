@@ -230,7 +230,7 @@ const channelLs = operation({
     const lines = answer.channels.map((c) =>
       c.kind === "github"
         ? `${c.name}\t${c.kind}\t${c.repo}\tlabel ${c.label}\ttrigger ${c.trigger}\ttoken …${c.tokenEnd}`
-        : `${c.name}\t${c.kind}\t${c.url}\tsubject ${c.subject}\tinbox ${c.inbox}\tcanvases ${c.canvases.join(",") || "all"}\tkey ${c.key}`,
+        : `${c.name}\t${c.kind}\t${c.url}\tsubject ${c.subject}\tinbox ${c.inbox}\tcanvases ${c.canvases.join(",") || "all"}\tkey ${c.key}\tlimits ${c.limits.running} at the same time, ${c.limits.perDay} in a day`,
     );
     say.run({ input: { json: answer, text: lines.join("\n") || "no channel" } });
 
@@ -289,8 +289,12 @@ const deliveriesText = operation({
         const issue = d.ref === null ? "no issue" : `issue #${d.ref}`;
         const cause = d.cause === null ? "" : `\t${d.cause}`;
         const at = `${d.status} ${new Date(d.updated).toISOString()}`;
+        const start =
+          d.start === null
+            ? ""
+            : `\t${d.start.status === "started" ? `agent ${d.start.agent ?? ""} started` : `the start failed: ${d.start.cause ?? ""}`} ${new Date(d.start.at).toISOString()}`;
 
-        return `${d.channel}\t${period}\t${at}\tattempts ${d.attempts}\t${issue}${cause}`;
+        return `${d.channel}\t${period}\t${at}\tattempts ${d.attempts}\t${issue}${cause}${start}`;
       })
       .join("\n");
   },

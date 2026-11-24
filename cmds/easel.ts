@@ -105,6 +105,14 @@ const help = `easel: the canvas CLI. Every command takes --json (one JSON value 
                                                    prefix of the key (_INBOX when none); --canvas: only these (owner)
   easel channel ls                                 the channels; the last 4 characters of each token, the public key of each nkey (owner)
   easel channel rm <name>                          remove a channel; its issues stay on GitHub (owner)
+  easel agree <canvas> <n>                         let a request of a viewer start an agent (owner)
+  easel channel limits <name> [--running <n>] [--per-day <n>]
+                                                   the most agents that the starter of a nats channel runs
+                                                   at the same time (1 to 20) and starts in a UTC day (owner)
+  easel channel report <name> --running <n> --today <n> [--at running|day]
+  easel channel report <name> --started <canvas>:<n>:<period> --agent <id>
+  easel channel report <name> --failed <canvas>:<n>:<period> --cause <t> --retry <ms>
+                                                   the starter of a nats channel says what it does; prints the limits
 
 With EASEL_TOKEN set, the CLI sends that token to EASEL_SERVER, and reads and writes no hosts file.
 The hosts file is $EASEL_CONFIG_HOME/easel/hosts.json; with no EASEL_CONFIG_HOME, it is
@@ -155,6 +163,14 @@ const options = {
   subject: { type: "string" },
   "seed-file": { type: "string" },
   inbox: { type: "string" },
+  running: { type: "string" },
+  "per-day": { type: "string" },
+  today: { type: "string" },
+  started: { type: "string" },
+  agent: { type: "string" },
+  failed: { type: "string" },
+  cause: { type: "string" },
+  retry: { type: "string" },
   at: { type: "string" },
   page: { type: "string" },
   file: { type: "string", short: "f" },
@@ -717,6 +733,64 @@ const channelInvocations = [
     })),
   z
     .object({
+      positionals: z.tuple([z.literal("agree"), z.string(), z.string()]),
+      values: z.strictObject(common),
+    })
+    .transform(({ positionals: [, canvas, n], values }): unknown => ({
+      at: values.server,
+      command: { kind: "starts", act: { kind: "agree", canvas, n } },
+    })),
+  z
+    .object({
+      positionals: z.tuple([z.literal("channel"), z.literal("limits"), z.string()]),
+      values: z.strictObject({
+        ...common,
+        running: z.string().optional(),
+        "per-day": z.string().optional(),
+      }),
+    })
+    .transform(({ positionals: [, , name], values }): unknown => ({
+      at: values.server,
+      command: {
+        kind: "starts",
+        act: { kind: "limits", name, running: values.running, perDay: values["per-day"] },
+      },
+    })),
+  z
+    .object({
+      positionals: z.tuple([z.literal("channel"), z.literal("report"), z.string()]),
+      values: z.strictObject({
+        ...common,
+        running: z.string().optional(),
+        today: z.string().optional(),
+        at: z.string().optional(),
+        started: z.string().optional(),
+        agent: z.string().optional(),
+        failed: z.string().optional(),
+        cause: z.string().optional(),
+        retry: z.string().optional(),
+      }),
+    })
+    .transform(({ positionals: [, , name], values }): unknown => ({
+      at: values.server,
+      command: {
+        kind: "starts",
+        act: {
+          kind: "report",
+          name,
+          running: values.running,
+          today: values.today,
+          at: values.at,
+          started: values.started,
+          agent: values.agent,
+          failed: values.failed,
+          cause: values.cause,
+          retry: values.retry,
+        },
+      },
+    })),
+  z
+    .object({
       positionals: z.tuple([z.literal("deliveries"), z.string(), z.string()]),
       values: z.strictObject(common),
     })
@@ -992,6 +1066,7 @@ const main = defineMain(async (ctx) => {
       queue.api({ remote: ws.client }),
       queue.viewer({ remote: ws.client }),
       queue.channels({ remote: ws.client }),
+      queue.starts({ remote: ws.client }),
       cli({
         stdout,
         stderr,

@@ -7,6 +7,7 @@ import type { Capsule, Observe, Scope } from "@tinkered/core";
 import { makeTestClock, memory } from "@tinkered/core/testing";
 import type { preset } from "@tinkered/core/testing";
 import { expect } from "vite-plus/test";
+import type { z } from "zod";
 
 import { access } from "@/access";
 import { owner, user } from "@/access/guards.server";
@@ -22,6 +23,8 @@ import { channelOps } from "@/queue/channels.server";
 import { dispatchServer, dispatchState } from "@/queue/dispatch.server";
 import { mayAct } from "@/queue/guards.server";
 import { queueOps, requestOps } from "@/queue/ops.server";
+import type { reportInput } from "@/queue/starts";
+import { startsOps } from "@/queue/starts.server";
 import { queueServer } from "@/queue/store.server";
 
 export const closers: Array<() => unknown> = [];
@@ -42,6 +45,7 @@ export async function boot(
     github?: (request: Request) => Promise<Response>;
     observe?: Observe.Config;
     extra?: readonly Capsule.Installable[];
+    agreement?: boolean;
   } = {},
 ) {
   const out: string[] = [];
@@ -55,6 +59,7 @@ export async function boot(
     queue.api,
     queue.viewer,
     queue.channels,
+    queue.starts,
   ];
   const clock = makeTestClock({ now: start });
   const scope = createScope({
@@ -76,8 +81,12 @@ export async function boot(
       frames.viewer({ implement: shareOps }),
       queue.api({ implement: queueOps, onStart: [user] }),
       queue.viewer({ implement: requestOps, onStart: [mayAct] }),
-      dispatchServer(more.github ? { fetch: more.github, base: "https://github.test" } : {}),
+      dispatchServer({
+        ...(more.github ? { fetch: more.github, base: "https://github.test" } : {}),
+        agreement: more.agreement ?? false,
+      }),
       queue.channels({ implement: channelOps, onStart: [user, owner] }),
+      queue.starts({ implement: startsOps, onStart: [user] }),
       memory.server({ services }),
       ...(more.extra ?? []),
     ],
@@ -118,6 +127,7 @@ export async function client(
       queue.viewer({ remote: memory.client }),
       access.owner({ remote: memory.client }),
       queue.channels({ remote: memory.client }),
+      queue.starts({ remote: memory.client }),
     ],
   }).ready;
   closers.push(() => scope.close());
@@ -185,6 +195,12 @@ export async function client(
     channels: () => scope.run(queue.channels["channel.list"], { input: {} }),
     removeChannel: (name = "gh") =>
       scope.run(queue.channels["channel.remove"], { input: { name } }),
+    agree: (canvas: string, n: number) =>
+      scope.run(queue.starts["request.agree"], { input: { canvas, n } }),
+    limits: (input: { name: string; running?: number; perDay?: number }) =>
+      scope.run(queue.starts["channel.limits"], { input }),
+    report: (input: z.input<typeof reportInput>) =>
+      scope.run(queue.starts["channel.report"], { input }),
   };
 }
 
@@ -244,7 +260,10 @@ export const faultOf = (call: Promise<unknown>) =>
   call.then(
     () => null,
     (error: unknown) =>
-      queue.viewer.fault.is(error) || queue.api.fault.is(error) || queue.channels.fault.is(error)
+      queue.viewer.fault.is(error) ||
+      queue.api.fault.is(error) ||
+      queue.channels.fault.is(error) ||
+      queue.starts.fault.is(error)
         ? { fault: error.fault, payload: error.payload }
         : { fault: "other", payload: String(error) },
   );

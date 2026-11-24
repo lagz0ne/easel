@@ -4,12 +4,14 @@ import { z } from "zod";
 
 import { quiet } from "~/components/telemetry/records";
 
+import { agreementRule } from "./agreement.server";
 import { requestStatus } from "./cells";
-import { delivery, deliveryKind } from "./channels";
+import { delivery, deliveryKind, deliveryStart } from "./channels";
 import { channelColumns, channelRow, makeDispatchTables, storedChannel } from "./channels.server";
 import { maxTries, queueApi, stateOf } from "./contract";
 import { githubBase, githubCall, githubFetch, githubMessage, scrub } from "./github.server";
 import { natsCall } from "./nats.server";
+import { makeStartTables, showHolds } from "./starts.server";
 
 export const roundMs = 1000;
 
@@ -28,7 +30,7 @@ const due = deliveryKey.extend({ attempts: z.number(), created: z.number() });
 const periodSql = "COALESCE(r.claimed_until, r.updated)";
 
 const waitingSql = `r.status = 'open' AND (r.claimed_until IS NULL OR r.claimed_until <= $now)
-  AND r.tries < $max`;
+  AND r.tries < $max AND (r.agreed_at IS NOT NULL OR $open = 1)`;
 
 const newPeriods = `SELECT r.id AS request, c.name AS channel, 'waiting' AS kind, ${periodSql} AS period
   FROM queue_requests r JOIN queue_channels c ON ${periodSql} >= c.created
@@ -69,11 +71,11 @@ export const startDelivery = operation({
 
 const dispatchRound = operation({
   label: "queue.dispatchRound",
-  depends: { connection: bunSqlite.connection, startDelivery },
-  run: async ({ connection, startDelivery }, { clock }) => {
+  depends: { connection: bunSqlite.connection, startDelivery, agreementRule },
+  run: async ({ connection, startDelivery, agreementRule }, { clock }) => {
     const db = connection.db.$client;
     const now = clock.currentTimeMillis();
-    const at = { $now: now, $max: maxTries };
+    const at = { $now: now, $max: maxTries, $open: agreementRule ? 0 : 1 };
 
     const starts = [...db.query(newPeriods).all(at), ...db.query(newOuts).all()];
     for (const start of starts) {
@@ -510,10 +512,31 @@ const attemptDelivery = operation({
   },
 });
 
+const deliveryRow = delivery
+  .omit({ start: true })
+  .extend({
+    startStatus: deliveryStart.shape.status.nullable(),
+    startAgent: z.string().nullable(),
+    startCause: z.string().nullable(),
+    startAt: z.number().nullable(),
+  })
+  .transform(({ startStatus, startAgent, startCause, startAt, ...kept }) => ({
+    ...kept,
+    start:
+      startStatus === null
+        ? null
+        : {
+            status: startStatus,
+            agent: startAgent,
+            cause: startCause,
+            at: startAt ?? kept.updated,
+          },
+  }));
+
 const dispatchCounts = resource({
   label: "queue.dispatchCounts",
   target: "scope",
-  factory: () => ({ rounds: 0, busy: new Set<string>() }),
+  factory: () => ({ rounds: 0, holdsFailed: 0, busy: new Set<string>() }),
 });
 
 const traced = namespace({});
@@ -524,9 +547,10 @@ const dispatchEvery = operation({
     dispatchRound,
     attempt: attemptDelivery.controller,
     endAttempt,
+    showHolds,
     counts: dispatchCounts,
   },
-  run: async ({ dispatchRound, attempt, endAttempt, counts }, { clock, signal }) => {
+  run: async ({ dispatchRound, attempt, endAttempt, showHolds, counts }, { clock, signal }) => {
     while (!signal.aborted) {
       const slept = await clock.sleep(roundMs, signal).then(
         () => true,
@@ -550,6 +574,9 @@ const dispatchEvery = operation({
           .catch(() => undefined)
           .finally(() => counts.busy.delete(key));
       }
+      await showHolds.run().catch(() => {
+        counts.holdsFailed += 1;
+      });
       counts.rounds += 1;
     }
   },
@@ -590,11 +617,15 @@ export const listDeliveries = operation({
 
     const deliveries = db
       .query(
-        `SELECT request, channel, kind, period, attempts, status, cause, ref, next, created, updated
-         FROM queue_deliveries WHERE request = $id ORDER BY created, rowid`,
+        `SELECT d.request, d.channel, d.kind, d.period, d.attempts, d.status, d.cause, d.ref,
+           d.next, d.created, d.updated, s.status AS startStatus, s.agent AS startAgent,
+           s.cause AS startCause, s.created AS startAt
+         FROM queue_deliveries d LEFT JOIN queue_starts s ON s.request = d.request
+           AND s.channel = d.channel AND s.period = d.period AND d.kind = 'waiting'
+         WHERE d.request = $id ORDER BY d.created, d.rowid`,
       )
       .all({ $id: found.id })
-      .map((row) => delivery.parse(row));
+      .map((row) => deliveryRow.parse(row));
     const channels = z
       .object({ count: z.number() })
       .parse(db.query("SELECT COUNT(*) AS count FROM queue_channels").get()).count;
@@ -605,7 +636,7 @@ export const listDeliveries = operation({
 
 export const dispatchServer = capsule({
   label: "dispatchServer",
-  config: { fetch: githubFetch, base: githubBase },
+  config: { fetch: githubFetch, base: githubBase, agreement: agreementRule },
   exports: { dispatchState },
   hooks: {
     async start({ run, load, next }) {
@@ -613,6 +644,11 @@ export const dispatchServer = capsule({
         makeDispatchTables,
         {},
         { role: "setup", explain: "Makes channels and deliveries" },
+      );
+      await run(
+        makeStartTables,
+        {},
+        { role: "setup", explain: "Makes the starts, the limits and the agreements" },
       );
       await load(dispatcher, {
         role: "state",

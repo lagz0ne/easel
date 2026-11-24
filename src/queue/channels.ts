@@ -64,6 +64,7 @@ export const natsInfo = z.object({
   inbox: z.string(),
   canvases: z.array(z.string()),
   key: z.string(),
+  limits: z.object({ running: z.number(), perDay: z.number() }),
   created: z.number(),
 });
 
@@ -74,6 +75,13 @@ export type ChannelInfo = z.infer<typeof channelInfo>;
 export const deliveryKind = z.enum(["waiting", "out"]);
 
 export const deliveryStatus = z.enum(["pending", "sent", "failed"]);
+
+export const deliveryStart = z.object({
+  status: z.enum(["started", "failed"]),
+  agent: z.string().nullable(),
+  cause: z.string().nullable(),
+  at: z.number(),
+});
 
 export const delivery = z.object({
   request: z.string(),
@@ -87,6 +95,7 @@ export const delivery = z.object({
   next: z.number().nullable(),
   created: z.number(),
   updated: z.number(),
+  start: deliveryStart.nullable(),
 });
 
 export type Delivery = z.infer<typeof delivery>;

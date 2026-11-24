@@ -12,12 +12,17 @@ afterEach(async () => {
   for (const close of closers.splice(0).reverse()) await close();
 }, slow);
 
-async function setup(env: Record<string, string> = {}, before?: (dir: string) => void) {
+async function setup(
+  env: Record<string, string> = {},
+  before?: (dir: string) => void,
+  limits?: { running: number; perDay: number },
+) {
   const nats = await hubNats();
   closers.push(() => nats.close());
   const paseo = fakePaseo();
   closers.push(() => paseo.close());
   before?.(join(paseo.dir, "state"));
+  if (limits) paseo.setLimits(limits);
   const adapter = startAdapter(nats, paseo, env);
   closers.push(() => adapter.stop());
   await adapter.event("bound");
@@ -329,8 +334,7 @@ test(
 test(
   "the limits come from easel: with 1 agent at the same time, the second request waits, and the report says it is at the running limit",
   async () => {
-    const { nats, paseo, adapter } = await setup();
-    paseo.setLimits({ running: 1, perDay: 20 });
+    const { nats, paseo, adapter } = await setup({}, undefined, { running: 1, perDay: 20 });
 
     await adapter.event("limits");
     for (const n of [1, 2]) await nats.publish("product", request("product", n), `product:${n}:1`);
@@ -352,8 +356,7 @@ test(
 test(
   "a day limit from easel holds: with 1 start in a day, the next request waits, and the report says it is at the day limit",
   async () => {
-    const { nats, paseo, adapter } = await setup();
-    paseo.setLimits({ running: 2, perDay: 1 });
+    const { nats, paseo, adapter } = await setup({}, undefined, { running: 2, perDay: 1 });
 
     await adapter.event("limits");
     await nats.publish("product", request("product", 1), "product:1:1");

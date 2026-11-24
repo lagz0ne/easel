@@ -43,8 +43,14 @@ export const whoActs = operation({
   label: "queue.whoActs",
   depends: { pass: sender.optional, me: caller.optional },
   run: ({ pass, me }) => {
-    if (pass.present) return pass.value;
-    if (me.present) return { name: me.value.name, key: `user ${me.value.name}` };
+    if (pass.present) return { ...pass.value, person: false };
+    if (me.present) {
+      return {
+        name: me.value.name,
+        key: `user ${me.value.name}`,
+        person: me.value.role === "owner",
+      };
+    }
     throw new Error("a viewer's call ran without mayAct");
   },
 });

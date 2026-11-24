@@ -255,7 +255,7 @@ async function withNats(e: Easel) {
   return { nats, seedFile, setNats };
 }
 
-test("channel set of a nats channel saves it and exits 0; channel ls shows the url, the subject, the canvases and the public key, and no output holds the seed", async () => {
+test("channel set of a nats channel saves it and exits 0; channel ls shows the url, the subject, the canvases, the public key and the limits, and no output holds the seed", async () => {
   const e = await easel();
   const { nats, setNats } = await withNats(e);
 
@@ -269,8 +269,8 @@ test("channel set of a nats channel saves it and exits 0; channel ls shows the u
   const listed = e.text();
   expect(listed).toBe(
     [
-      `all\tnats\t${nats.url}\tsubject easel.requests\tinbox ${inbox}\tcanvases all\tkey ${nats.publicKey}`,
-      `loop\tnats\t${nats.url}\tsubject easel.requests\tinbox ${inbox}\tcanvases product,design-system\tkey ${nats.publicKey}`,
+      `all\tnats\t${nats.url}\tsubject easel.requests\tinbox ${inbox}\tcanvases all\tkey ${nats.publicKey}\tlimits 2 at the same time, 20 in a day`,
+      `loop\tnats\t${nats.url}\tsubject easel.requests\tinbox ${inbox}\tcanvases product,design-system\tkey ${nats.publicKey}\tlimits 2 at the same time, 20 in a day`,
       "",
     ].join("\n"),
   );

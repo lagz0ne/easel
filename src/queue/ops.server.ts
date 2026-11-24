@@ -85,6 +85,7 @@ export const addRequest = operation({
         page: "page" in input ? (input.page ?? null) : null,
         id,
         author: who.name,
+        person: who.person,
         message: newId.run(),
         now: clock.currentTimeMillis(),
       },
@@ -114,7 +115,13 @@ const actOn = operation({
     if (slow) return slow;
 
     return changeRequest.run({
-      input: { ...input, from: who.name, message: newId.run(), now: clock.currentTimeMillis() },
+      input: {
+        ...input,
+        from: who.name,
+        person: who.person,
+        message: newId.run(),
+        now: clock.currentTimeMillis(),
+      },
     });
   },
 });

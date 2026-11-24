@@ -8,6 +8,7 @@ import { frameStatus } from "@/frames/contract";
 import { sanitizedImage } from "@/frames/images.server";
 import { firstPageOf, hasPage } from "@/frames/store.server";
 
+import { agreementRule } from "./agreement.server";
 import { message, messages, request, requests } from "./cells";
 import { maxOpen, maxTries, stateOf } from "./contract";
 
@@ -41,6 +42,8 @@ CREATE TABLE IF NOT EXISTS queue_requests (
   created INTEGER NOT NULL,
   updated INTEGER NOT NULL,
   page TEXT,
+  agreed_at INTEGER,
+  agreed_by TEXT,
   UNIQUE (canvas, n),
   UNIQUE (canvas, key)
 );
@@ -115,7 +118,8 @@ const messageRow = message.extend({
 });
 
 const waitingIn = `status = 'open' AND (claimed_until IS NULL OR claimed_until <= $now)
-  AND tries < $max AND ($canvas IS NULL OR canvas = $canvas) AND ($n IS NULL OR n = $n)`;
+  AND tries < $max AND ($canvas IS NULL OR canvas = $canvas) AND ($n IS NULL OR n = $n)
+  AND (agreed_at IS NOT NULL OR $open = 1)`;
 
 export const claimSql = `UPDATE queue_requests SET claimed_by = $me, claimed_until = $until,
   claimed_at = $now, claim_digest = $digest, tries = tries + 1, updated = $now,
@@ -185,6 +189,7 @@ const addWrite = z.object({
   text: z.string(),
   key: z.string(),
   author: z.string(),
+  person: z.boolean(),
   message: z.string(),
   now: z.number(),
   shot: z
@@ -311,11 +316,12 @@ export const saveRequest = operation({
         db
           .query(
             `INSERT INTO queue_requests (id, canvas, n, frame_id, version, kit, x, y, page, author, key,
-               status, tries, queued_at, created, updated)
+               status, tries, queued_at, created, updated, agreed_at, agreed_by)
              SELECT $id, $canvas, COALESCE(MAX(n), 0) + 1, $frame, $version,
                MIN(COALESCE($kit, $past), (SELECT MAX(version) FROM kit_versions)), $x, $y, $page,
                $author, $key,
-               'open', 0, $now, $now, $now
+               'open', 0, $now, $now, $now, CASE WHEN $person THEN $now END,
+               CASE WHEN $person THEN $author END
              FROM queue_requests WHERE canvas = $canvas
              RETURNING ${requestColumns}`,
           )
@@ -331,6 +337,7 @@ export const saveRequest = operation({
             $page: page,
             $author: input.author,
             $key: input.key,
+            $person: Number(input.person),
           }),
       );
       const first = messageRow.parse(
@@ -369,6 +376,7 @@ const viewerWrite = z.object({
   canvas: z.string(),
   n: z.number(),
   from: z.string(),
+  person: z.boolean(),
   text: z.string().nullable(),
   option: z.number().nullable(),
   message: z.string(),
@@ -397,6 +405,18 @@ const viewerSql = {
       claim_digest = NULL`,
     where: "status IN ('open', 'asking', 'person')",
   },
+} as const;
+
+const newTextAgreement = `, agreed_at = CASE WHEN $person THEN $now END,
+  agreed_by = CASE WHEN $person THEN $from END`;
+
+const setOfWrite = {
+  edit: `${viewerSql.edit.set}${newTextAgreement}`,
+  note: `${viewerSql.note.set}${newTextAgreement}`,
+  answer: `${viewerSql.answer.set}${newTextAgreement}`,
+  accept: viewerSql.accept.set,
+  reopen: `${viewerSql.reopen.set}${newTextAgreement}`,
+  close: viewerSql.close.set,
 } as const;
 
 const missedChange = operation({
@@ -440,11 +460,15 @@ export const changeRequest = operation({
       const sql = viewerSql[input.kind];
       const changed = db
         .query(
-          `UPDATE queue_requests SET ${sql.set}, updated = $now
+          `UPDATE queue_requests SET ${setOfWrite[input.kind]}, updated = $now
            WHERE canvas = $canvas AND n = $n AND (${sql.where})
            RETURNING ${requestColumns}`,
         )
-        .get({ ...at, $from: input.from });
+        .get({
+          ...at,
+          $from: input.from,
+          $person: Number(input.person),
+        });
       if (changed === null) {
         const now = db
           .query(`SELECT ${requestColumns} FROM queue_requests WHERE canvas = $canvas AND n = $n`)
@@ -507,8 +531,8 @@ const claimedRow = request.extend({ claimVersion: z.number().nullable() });
 export const claimRow = operation({
   label: "queue.claimRow",
   input: claimWrite,
-  depends: { connection: bunSqlite.connection },
-  run: async ({ connection }, { input }) => {
+  depends: { connection: bunSqlite.connection, agreementRule },
+  run: async ({ connection, agreementRule }, { input }) => {
     const row = connection.db.$client.query(claimSql).get({
       $me: input.me,
       $digest: input.digest,
@@ -517,6 +541,7 @@ export const claimRow = operation({
       $canvas: input.canvas,
       $n: input.n,
       $max: maxTries,
+      $open: agreementRule ? 0 : 1,
     });
     return row === null ? null : claimedRow.parse(row);
   },
@@ -788,14 +813,17 @@ export const readClaimed = operation({
 export const notesSinceClaim = operation({
   label: "queue.notesSinceClaim",
   input: z.object({ request: z.string(), since: z.number() }),
-  depends: { connection: bunSqlite.connection },
-  run: async ({ connection }, { input }) =>
+  depends: { connection: bunSqlite.connection, agreementRule },
+  run: async ({ connection, agreementRule }, { input }) =>
     connection.db.$client
       .query(
         `SELECT ${messageColumns} FROM queue_messages
-         WHERE request = $request AND kind = 'note' AND created >= $since ORDER BY created, rowid`,
+         WHERE request = $request AND kind = 'note' AND created >= $since
+           AND ($open = 1 OR created <= (SELECT COALESCE(agreed_at, -1) FROM queue_requests
+             WHERE id = $request))
+         ORDER BY created, rowid`,
       )
-      .all({ $request: input.request, $since: input.since })
+      .all({ $request: input.request, $since: input.since, $open: agreementRule ? 0 : 1 })
       .map((m) => messageRow.parse(m)),
 });
 
@@ -824,15 +852,34 @@ const firstPageOfOldAsks = `UPDATE queue_requests SET page = (SELECT p.key FROM 
   WHERE p.canvas = queue_requests.canvas ORDER BY p.ord, p.rowid LIMIT 1)
   WHERE frame_id IS NULL AND page IS NULL`;
 
+const agreeOldRequests = operation({
+  label: "queue.agreeOldRequests",
+  depends: { connection: bunSqlite.connection },
+  run: async ({ connection }) => {
+    const db = connection.db.$client;
+    const columns = db.query("PRAGMA table_info(queue_requests)").all();
+    if (columns.some((c) => z.object({ name: z.literal("agreed_at") }).safeParse(c).success)) {
+      return;
+    }
+
+    db.transaction(() => {
+      db.exec("ALTER TABLE queue_requests ADD COLUMN agreed_at INTEGER");
+      db.exec("ALTER TABLE queue_requests ADD COLUMN agreed_by TEXT");
+      db.exec("UPDATE queue_requests SET agreed_at = created, agreed_by = author");
+    })();
+  },
+});
+
 const load = operation({
   label: "queue.load",
   depends: {
+    agreeOldRequests,
     connection: bunSqlite.connection,
     requestCells: requests.atScope.controller,
     messageCells: messages.atScope.controller,
     out: stdout,
   },
-  run: async ({ connection, requestCells, messageCells, out }) => {
+  run: async ({ agreeOldRequests, connection, requestCells, messageCells, out }) => {
     const db = connection.db.$client;
     db.exec(schema);
     for (const [table, column] of addedColumns) {
@@ -848,6 +895,7 @@ const load = operation({
       db.exec("ALTER TABLE queue_requests ADD COLUMN page TEXT");
     }
     db.exec(firstPageOfOldAsks);
+    await agreeOldRequests.run();
 
     const requestRows = db.query(`SELECT ${requestColumns} FROM queue_requests`).all();
     const messageRows = db

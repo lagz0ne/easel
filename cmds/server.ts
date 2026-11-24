@@ -50,6 +50,7 @@ import { channelOps } from "@/queue/channels.server";
 import { dispatchServer } from "@/queue/dispatch.server";
 import { mayAct } from "@/queue/guards.server";
 import { queueOps, requestOps } from "@/queue/ops.server";
+import { startsOps } from "@/queue/starts.server";
 import { queueServer } from "@/queue/store.server";
 import { release } from "@/release";
 import { todo } from "@/todo";
@@ -118,6 +119,7 @@ export default defineMain(async ({ env, args, signal, stdout, stderr, exit }) =>
       queue.api,
       queue.viewer,
       queue.channels,
+      queue.starts,
       home.board,
       home.codes,
     ],
@@ -214,6 +216,7 @@ export default defineMain(async ({ env, args, signal, stdout, stderr, exit }) =>
       queue.viewer({ implement: requestOps, onStart: [mayAct] }),
       dispatchServer({ fetch }),
       queue.channels({ implement: channelOps, onStart: [user, owner] }),
+      queue.starts({ implement: startsOps, onStart: [user] }),
       homeServer(),
       home.board({ serve: true, onStart: [user] }),
       home.codes({ serve: true, onStart: [user, owner] }),

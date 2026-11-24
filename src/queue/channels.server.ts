@@ -280,11 +280,27 @@ export const readChannels = operation({
       .map((row) => channelRow.parse(row)),
 });
 
+const limitsOf = operation({
+  label: "queue.channelLimitsOf",
+  input: z.string(),
+  depends: { connection: bunSqlite.connection },
+  run: async ({ connection }, { input: name }) =>
+    z
+      .object({ running: z.number(), perDay: z.number() })
+      .parse(
+        connection.db.$client
+          .query(
+            "SELECT max_running AS running, max_per_day AS perDay FROM queue_channels WHERE name = $name",
+          )
+          .get({ $name: name }),
+      ),
+});
+
 const infoOf = operation({
   label: "queue.channelInfoOf",
   input: storedChannel,
-  depends: { userKeyOf },
-  run: ({ userKeyOf }, { input: { token, ...stored } }) => {
+  depends: { userKeyOf, limitsOf },
+  run: async ({ userKeyOf, limitsOf }, { input: { token, ...stored } }) => {
     const { name, kind, created } = stored;
     switch (kind) {
       case "github": {
@@ -302,7 +318,18 @@ const infoOf = operation({
       case "nats": {
         const { url, subject, inbox, canvases } = stored;
         const key = userKeyOf.run({ input: token }) ?? "";
-        return channelInfo.parse({ name, kind, url, subject, inbox, canvases, key, created });
+        const limits = await limitsOf.run({ input: name });
+        return channelInfo.parse({
+          name,
+          kind,
+          url,
+          subject,
+          inbox,
+          canvases,
+          key,
+          limits,
+          created,
+        });
       }
     }
   },
@@ -314,7 +341,9 @@ export const listChannels = operation({
   depends: { readChannels, infoOf },
   run: async ({ readChannels, infoOf }) => ({
     kind: "listed" as const,
-    channels: (await readChannels.run()).map((stored) => infoOf.run({ input: stored })),
+    channels: await Promise.all(
+      (await readChannels.run()).map((stored) => infoOf.run({ input: stored })),
+    ),
   }),
 });
 

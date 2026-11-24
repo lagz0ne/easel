@@ -24,6 +24,7 @@ import {
 import { json, stderr, stdout } from "./output";
 import { pagesCommand, pagesRun } from "./pages";
 import { queueCommand, queueRun } from "./queue";
+import { startsCommand, startsRun } from "./starts";
 import { textsCommand, textsRun } from "./texts";
 import {
   addUser,
@@ -75,13 +76,18 @@ const canvasCommand = z.discriminatedUnion("kind", [
   z.object({ kind: z.literal("share"), act: shareCommand }),
 ]);
 
+const workCommand = z.discriminatedUnion("kind", [
+  z.object({ kind: z.literal("queue"), act: queueCommand }),
+  z.object({ kind: z.literal("channel"), act: channelCommand }),
+  z.object({ kind: z.literal("starts"), act: startsCommand }),
+]);
+
 export const command = z.discriminatedUnion("kind", [
   ...shellCommand.options,
   z.object({ kind: z.literal("mcp") }),
   z.object({ kind: z.literal("open"), noBrowser: z.boolean() }),
   ...canvasCommand.options,
-  z.object({ kind: z.literal("queue"), act: queueCommand }),
-  z.object({ kind: z.literal("channel"), act: channelCommand }),
+  ...workCommand.options,
   z.object({ kind: z.literal("look"), act: lookCommand }),
   z.object({ kind: z.literal("texts"), act: textsCommand }),
 ]);
@@ -170,16 +176,32 @@ const canvasRun = operation({
   },
 });
 
+const workRun = operation({
+  label: "cli.workRun",
+  input: workCommand,
+  depends: { queueRun, channelRun, startsRun },
+  run: (ops, { input }) => {
+    switch (input.kind) {
+      case "queue":
+        return ops.queueRun.run({ input: input.act });
+      case "channel":
+        return ops.channelRun.run({ input: input.act });
+      case "starts":
+        return ops.startsRun.run({ input: input.act });
+    }
+  },
+});
+
 const run = operation({
   label: "cli.run",
   input: command,
-  depends: { shell, canvasRun, queueRun, channelRun, lookRun, textsRun, mcpRun, openBrowser },
+  depends: { shell, canvasRun, workRun, lookRun, textsRun, mcpRun, openBrowser },
   run: (ops, { input }) => {
-    const { shell, canvasRun, queueRun, channelRun, lookRun, textsRun, mcpRun } = ops;
+    const { shell, canvasRun, workRun, lookRun, textsRun, mcpRun } = ops;
     const onCanvas = canvasCommand.safeParse(input);
     if (onCanvas.success) return canvasRun.run({ input: onCanvas.data });
-    if (input.kind === "queue") return queueRun.run({ input: input.act });
-    if (input.kind === "channel") return channelRun.run({ input: input.act });
+    const work = workCommand.safeParse(input);
+    if (work.success) return workRun.run({ input: work.data });
 
     if (input.kind === "look") return lookRun.run({ input: input.act });
     if (input.kind === "texts") return textsRun.run({ input: input.act });
