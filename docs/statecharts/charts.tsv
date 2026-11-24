@@ -57,3 +57,9 @@ access-browser-two-step	models/access/Browser.tla	models/access/BrowserTwoStep.c
 access-single	models/access/Single.tla	models/access/Single.cfg	models/access/Single.view.mjs	holds
 access-single-approve	models/access/Single.tla	models/access/SingleApprove.cfg	models/access/Single.view.mjs	breaks
 viewer-request-shot	models/viewer/RequestShot.tla	models/viewer/RequestShot.cfg	models/viewer/RequestShot.view.mjs	holds
+live-screens	models/live/LiveScreens.tla	models/live/LiveScreens.cfg	models/live/LiveScreens.view.mjs	holds
+live-screens-put-each-take	models/live/LiveScreens.tla	models/live/LiveScreensPutEachTake.cfg	models/live/LiveScreens.view.mjs	breaks
+design-build	models/live/DesignBuild.tla	models/live/DesignBuild.cfg	models/live/DesignBuild.view.mjs	holds
+design-build-no-check	models/live/DesignBuild.tla	models/live/DesignBuildNoCheck.cfg	models/live/DesignBuild.view.mjs	breaks
+starts	models/starts/Starts.tla	models/starts/Starts.cfg	models/starts/Starts.view.mjs	holds
+starts-no-agreement	models/starts/Starts.tla	models/starts/StartsNoAgreement.cfg	models/starts/Starts.view.mjs	breaks
