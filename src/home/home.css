@@ -275,6 +275,7 @@
 }
 
 .e-back-btn {
+  position: relative;
   display: flex;
   flex: none;
   align-items: center;
@@ -285,9 +286,28 @@
   border-radius: var(--e-radius);
 }
 
-.e-back-btn:hover {
-  color: var(--e-text);
-  background-color: var(--e-hover);
+.e-back-btn::before {
+  position: absolute;
+  inset: 0;
+  width: 28px;
+  height: 28px;
+  margin: auto;
+  content: "";
+  border-radius: var(--e-radius);
+}
+
+.e-back-btn svg {
+  position: relative;
+}
+
+@media (hover: hover) and (pointer: fine) {
+  .e-back-btn:hover {
+    color: var(--e-text);
+  }
+
+  .e-back-btn:hover::before {
+    background-color: var(--e-hover);
+  }
 }
 
 .e-back-name {
