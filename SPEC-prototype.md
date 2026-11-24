@@ -291,6 +291,97 @@ The facts that a person adds by hand in ship 2, and what removes each:
    the state that it leads to, the effects, and from `tinker.graph` what each action reads,
    writes and calls. A line with `?` (#59) says "not known".
 
+Built on 2026-11-24 (decisions 19 to 22 below). `bun scripts/map-screens.ts` puts a card beside
+each picture of each map: `src/map/card.ts` makes it from the map and `tinker.graph`, and
+`tests/map-card.test.ts` proves it. The card of `code`:
+
+```
+sign-in · code
+The state code of the cell home.signInStep, in the view src/home/home.tsx.
+Shows
+  kind: code
+  code: KDWB-RTQM
+  expiresAt: 1795514700000
+Action home.copyApproveCommand
+  reads: nothing
+  writes: nothing
+  calls: nothing
+  no call → code · copyApproveCommand done, effects: home.writeClipboard
+Action home.codeAtOnce, from an earlier state
+  browser.wait approved → in, effects: home.postForm
+  browser.wait denied → denied
+  browser.wait expired → expired
+Action home.askForCode, from an earlier state
+  (the same three answers)
+```
+
+#### The decisions of ship 3
+
+19. **A card is a frame of its own, beside the picture of its state.** Each state has the HTML
+    frame `<name> · <state> · card`. The cards of a step are a column of the section, after the
+    column of the pictures of that step, in the same order. A card is as tall as the picture
+    beside it, or taller when its lines need it, so each card is level with its picture. "Beside
+    each row" of rule 7 is so "beside each state": the section has no rows (decision 15), and a
+    row of rule 11 holds the states of several steps.
+
+    Prior art: Swagger UI and the tRPC panel show the doc of each operation beside it, made from
+    its contract; Storybook Docs (autodocs) puts a table made from the types of a component beside
+    its story. Other ways: the card text in the strip of the picture (a picture: the text cannot
+    be selected or found, and each change of the code makes new pixels), one card for each row
+    of rule 11 (it does not sit beside one screen), or a card written by hand (it drifts).
+
+20. **The card is a use case of the state, from the code.** In this order:
+    - the title `<name> · <state>`, and the cell and the view of the state;
+    - `Shows`: each field of the sample of the state (decision 3);
+    - one section `Action <label>` for each action of the state, in the order of the view. It has
+      the graph lines (decision 21), then each answer and the state that it leads to, with the
+      effects: `browser.start slow → slow`, `browser.start name → stays on name`,
+      `no answer yet → name · askForCode pending`, `no call → name`. The answers are in the order
+      of the contract, the fault last, and an answer with no call after them, as the ranks of
+      decision 11;
+    - one section `Action <label>, from an earlier state` for each move out of the state by an
+      action that it does not offer: the run of `askForCode` goes on in `code` and waits for the
+      approval;
+    - `Moves: no move: the end of the map` when the state has no action and no move;
+    - for a run state (decision 12): the press and its status, the graph lines of its action, the
+      answer that led to it, and `the moves of <first state>: see the card of <first state>`.
+
+    Prior art: a use case of Cockburn (the main success scenario, then each extension with its
+    condition and where it goes), which the rows of the map already follow (decision 11); the
+    status codes of an operation in Swagger UI, each with its schema. Other ways: one line for
+    each trial (it repeats each answer for each path), or only the moves of the caption (it does
+    not say what the state shows, or what an action reads and writes).
+
+21. **The graph lines come from `tinker.graph` of the commit.** The job reads `tinker.graph` of
+    the repository (the file that `tinker check` keeps). An action gets `reads`, `writes` and
+    `calls` from its line, and an empty list is `nothing`. A `?` in a list is `not known`, and
+    the card then has the section `Not known` that names #59. An action with no line (an open,
+    such as `home.codeAtOnce`, is a resource and the graph lists operations) gets one line:
+    `reads, writes, calls: not known: tinker.graph has no line for <label>`. The run of decision 5
+    finds the calls that the graph does not know; the card shows them as answers.
+
+22. **A second run puts nothing, and the map has room for the frame names.**
+    - A card with the same text and the same size puts nothing. Other text puts a new version
+      (`--id --base`); another size is `easel move --size`. A card of a state that the map does
+      not have now goes to the section of decision 16 with its picture.
+    - The viewer keeps a frame name at one size on the screen (SPEC-arrange rule 13), about 24 px
+      high with its buttons. At 10% zoom the gap of 80 px of a section is 8 px on the screen, so
+      the name of a frame covered the strip of the frame above it. The section of a map has the
+      gap 320 (`easel section --gap`): (24 + 8) / 0.1, so at 10% zoom the name and 8 px of space
+      fit between two frames. Figma keeps a frame name at one size on the screen too, and hides
+      it when the frame is too small; that is a change of the viewer for each canvas, so it waits
+      for a case that the gap does not fix.
+    - The strip draws the arrow `→` apart from the text, with its middle on the middle of an `x`
+      of the same font (from `measureText`), so the arrow does not sit low.
+
+    Proven on a new local server: the first run put 10 pictures and 10 cards and set the gap 320;
+    a run with no change put nothing. At 10% zoom the frame names are 24 px high and cover no
+    strip. The card uses the classes of the kit (`bg-card`, `text-sm/5`, `font-semibold`), so it
+    has the look of the kit, as each frame has. Two runs under load put a new picture of
+    `name · askForCode pending` and `name · askForCode failed`: the press of decision 13 waits a
+    fixed 200 ms, so the picture can come before or after the run settles. That is ship 2 code;
+    it is left open.
+
 ### Ship 4: the walk (J1 to J5)
 
 8. A press on a screen runs the real operation in the board worker (frame-apps build-order item
@@ -312,7 +403,7 @@ The facts that a person adds by hand in ship 2, and what removes each:
     designed frame. A new answer in the code is a finding, as a new exit with no test is a finding
     of `tinker check`. It replaces the model `flows-links`: no drawn link is left to break.
 
-## Contract (ship 1, ship 2)
+## Contract (ship 1 to ship 3)
 
 ```ts
 type Answer = { call: string; kind: string; fault: boolean }
@@ -335,6 +426,12 @@ type MapJson = {
 - `actions` of a state are in the order of the view.
 - `run` is null for a state of the cell. For a run state (decision 12) it names the first state,
   the action, the import name of the press in the view, and the status.
+
+The card (ship 3) is made from this contract and `tinker.graph`, and adds nothing to it:
+
+```ts
+type MapCard = { title: string; about: string; sections: { head: string; lines: string[] }[] }
+```
 
 ## Models
 

@@ -15,6 +15,41 @@ export const mapFrameName = operation({
   run: (_, { input }) => `${input.map} · ${input.state}`,
 });
 
+export const readableLabel = { zoom: 0.1, height: 24, clear: 8 } as const;
+
+export const mapGap = Math.ceil((readableLabel.height + readableLabel.clear) / readableLabel.zoom);
+
+export const captionLook = { line: 22, pad: 14 } as const;
+
+export const cardMark = "card";
+
+export const mapPictureHeight = operation({
+  label: "map.pictureHeight",
+  input: z.object({ screen: z.number(), lines: z.number() }),
+  run: (_, { input }) => input.screen + 2 * captionLook.pad + input.lines * captionLook.line,
+});
+
+export const mapCaptionParts = operation({
+  label: "map.captionParts",
+  input: z.string(),
+  run: (_, { input }) => {
+    const arrow = "→";
+    return input.split(arrow).flatMap((text, at) => {
+      const before = at === 0 ? [] : [{ text: arrow, arrow: true }];
+      return text ? [...before, { text, arrow: false }] : before;
+    });
+  },
+});
+
+const glyphBox = z.object({ ascent: z.number(), descent: z.number() });
+
+export const mapArrowLift = operation({
+  label: "map.arrowLift",
+  input: z.object({ text: glyphBox, arrow: glyphBox }),
+  run: (_, { input: { text, arrow } }) =>
+    (text.descent - text.ascent) / 2 - (arrow.descent - arrow.ascent) / 2,
+});
+
 export const mapColumns = operation({
   label: "map.columns",
   input: z.array(z.object({ state: z.string(), column: z.number(), row: z.number() })),
@@ -26,6 +61,18 @@ export const mapColumns = operation({
         .toSorted((a, b) => a.row - b.row)
         .map((state) => state.state),
     );
+  },
+});
+
+export const mapBoard = operation({
+  label: "map.board",
+  input: z.object({ map: z.string(), columns: z.array(z.array(z.string())) }),
+  depends: { mapFrameName },
+  run: ({ mapFrameName }, { input }) => {
+    const named = input.columns.map((column) =>
+      column.map((state) => mapFrameName.run({ input: { map: input.map, state } })),
+    );
+    return named.flatMap((column) => [column, column.map((name) => `${name} · ${cardMark}`)]);
   },
 });
 

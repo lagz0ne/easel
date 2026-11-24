@@ -3,7 +3,20 @@ import { createScope, data, operation, rpc } from "@tinkered/core";
 import { afterEach, expect, test } from "vite-plus/test";
 import { z } from "zod";
 
-import { mapCaption, mapColumns, mapFrameName, mapOrder, mapRelation } from "@/map/canvas";
+import {
+  captionLook,
+  mapArrowLift,
+  mapBoard,
+  mapCaption,
+  mapCaptionParts,
+  mapColumns,
+  mapFrameName,
+  mapGap,
+  mapOrder,
+  mapPictureHeight,
+  mapRelation,
+  readableLabel,
+} from "@/map/canvas";
 import { showPlans, showScope } from "@/map/show";
 import type { MapJson } from "@/map/text";
 
@@ -115,6 +128,46 @@ test("the caption of a state lists each move out of it, and a run state names it
     "idle · go failed",
     "the moves of idle",
   ]);
+});
+
+test("at 10% zoom, the label of a frame and a clear space fit in the gap above it", () => {
+  expect(readableLabel.zoom).toBe(0.1);
+  expect(mapGap * readableLabel.zoom).toBeGreaterThanOrEqual(
+    readableLabel.height + readableLabel.clear,
+  );
+  expect(mapGap).toBeLessThanOrEqual(800);
+});
+
+test("the board puts the card column of each step after its picture column, in the same order", async () => {
+  const app = await scope();
+  const columns = [["idle"], ["done", "refused"]];
+  expect(app.run(mapBoard, { input: { map: "fix", columns } })).toEqual([
+    ["fix · idle"],
+    ["fix · idle · card"],
+    ["fix · done", "fix · refused"],
+    ["fix · done · card", "fix · refused · card"],
+  ]);
+});
+
+test("a picture is the screen and a line of its caption for each line", async () => {
+  const app = await scope();
+  expect(app.run(mapPictureHeight, { input: { screen: 768, lines: 3 } })).toBe(
+    768 + 2 * captionLook.pad + 3 * captionLook.line,
+  );
+});
+
+test("the arrow of a caption is a part of its own, lifted so its middle is the middle of the text", async () => {
+  const app = await scope();
+  expect(app.run(mapCaptionParts, { input: "go · done → done (post)" })).toEqual([
+    { text: "go · done ", arrow: false },
+    { text: "→", arrow: true },
+    { text: " done (post)", arrow: false },
+  ]);
+  expect(app.run(mapCaptionParts, { input: "done" })).toEqual([{ text: "done", arrow: false }]);
+
+  const text = { ascent: 4, descent: 0 };
+  expect(app.run(mapArrowLift, { input: { text, arrow: { ascent: 2, descent: 2 } } })).toBe(-2);
+  expect(app.run(mapArrowLift, { input: { text, arrow: { ascent: 4, descent: 0 } } })).toBe(0);
 });
 
 test("a new frame goes below the state above it, after the top of the column before, or in the section", async () => {

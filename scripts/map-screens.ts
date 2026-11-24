@@ -8,8 +8,23 @@ import { z } from "zod";
 
 import { maps, mapShot, mapsName } from "@/live/screens";
 import type { MapEntry } from "@/live/screens";
-import { mapCaption, mapColumns, mapFrameName, mapOrder, mapRelation } from "@/map/canvas";
+import {
+  captionLook,
+  cardMark,
+  mapArrowLift,
+  mapBoard,
+  mapCaption,
+  mapCaptionParts,
+  mapColumns,
+  mapFrameName,
+  mapGap,
+  mapOrder,
+  mapPictureHeight,
+  mapRelation,
+} from "@/map/canvas";
 import type { Relation } from "@/map/canvas";
+import { mapCard, mapCardHtml, mapGraph } from "@/map/card";
+import type { MapGraph } from "@/map/card";
 import { showPlans, shownMark } from "@/map/show";
 import type { ShowPlan } from "@/map/show";
 import type { MapJson } from "@/map/text";
@@ -25,10 +40,13 @@ the map of its cell (bun scripts/map.ts), builds the page cmds/map-show.html wit
 cell, and takes one picture of each state: the real view, with the sample of the state as a preset
 of the cell, and for a state of a run the press of its action with the answer of its move. Each
 picture goes to the page "Map · <name>" as the frame "<name> · <state>", in the section of the map:
-the steps from the start as columns, each column in the order of the rows of the map. A picture
-with the same pixels puts nothing; a changed one puts a new version of the same frame. The frame
-"Maps" on the page Live lists each map with its first state and its count of states.
---dry <dir> writes the pictures and the list there, and puts nothing.
+the steps from the start as columns, each column in the order of the rows of the map. Beside each
+column of pictures, a column of cards: the frame "<name> · <state> · card" tells, from the code and
+tinker.graph, what the state shows, its actions, each answer and the state that it leads to. A
+picture with the same pixels and a card with the same text put nothing; a changed one puts a new
+version of the same frame. The frame "Maps" on the page Live lists each map with its first state
+and its count of states.
+--dry <dir> writes the pictures, the cards and the list there, and puts nothing.
 
 The writes go to EASEL_SERVER with EASEL_TOKEN when both are set, else to the hosts file of
 EASEL_CONFIG_HOME (~/.config/easel-agent when not set): the member vibea-claude.
@@ -60,6 +78,10 @@ const work = mkdtempSync(join(root, "dist", "map-show-"));
 
 type Shot = { state: string; png: Buffer | null; why: string | null };
 
+type Card = { state: string; name: string; html: string; size: { w: number; h: number } };
+
+type Lifts = { title: number; line: number };
+
 type Frame = z.infer<typeof listed>["frames"][number];
 
 const listed = z.object({
@@ -70,6 +92,8 @@ const listed = z.object({
       name: z.string(),
       page: z.string().nullable(),
       version: z.number(),
+      w: z.number(),
+      h: z.number(),
       section: z.string().nullable().optional(),
     }),
   ),
@@ -77,7 +101,12 @@ const listed = z.object({
 
 const laidOut = z.object({
   sections: z.array(
-    z.object({ key: z.string(), name: z.string(), columns: z.array(z.array(z.string())) }),
+    z.object({
+      key: z.string(),
+      name: z.string(),
+      gap: z.number(),
+      columns: z.array(z.array(z.string())),
+    }),
   ),
 });
 
@@ -173,7 +202,13 @@ function serve(out: string) {
   });
 }
 
-async function takeOne(browser: Browser, url: string, map: MapJson, plan: ShowPlan): Promise<Shot> {
+async function takeOne(
+  browser: Browser,
+  lifts: Lifts,
+  url: string,
+  map: MapJson,
+  plan: ShowPlan,
+): Promise<Shot> {
   const context = await browser.newContext({
     viewport: { width: mapShot.width, height: mapShot.height },
     deviceScaleFactor: 1,
@@ -200,7 +235,8 @@ async function takeOne(browser: Browser, url: string, map: MapJson, plan: ShowPl
         () => true,
         () => false,
       );
-    if (!marked) return { state: plan.state, png: null, why: `not shown: ${errors.join("; ")}` };
+    const failed = (why: string) => ({ state: plan.state, png: null, why });
+    if (!marked) return failed(`not shown: ${errors.join("; ")}`);
     const told = await tab.evaluate(
       (mark) => document.documentElement.getAttribute(mark),
       shownMark,
@@ -210,29 +246,62 @@ async function takeOne(browser: Browser, url: string, map: MapJson, plan: ShowPl
       .loose()
       .parse(JSON.parse(told ?? "{}"));
     if (detail.kind !== "shown" && detail.kind !== "pressed") {
-      return { state: plan.state, png: null, why: JSON.stringify(detail) };
+      return failed(JSON.stringify(detail));
     }
-    if (errors.length) return { state: plan.state, png: null, why: errors[0] ?? "" };
+    if (errors.length) return failed(errors[0] ?? "");
 
     await tab.addStyleTag({ content: "*{caret-color:transparent !important}" });
     await tab.evaluate(() => document.fonts.ready.then(() => undefined));
     const raw = await tab.screenshot({ type: "png" });
     const lines = scope.run(mapCaption, { input: { map, state: plan.state } });
-    return { state: plan.state, png: await captioned(browser, raw, lines), why: null };
+    const parts = lines.map((line) => scope.run(mapCaptionParts, { input: line }));
+    return { state: plan.state, png: await captioned(browser, raw, parts, lifts), why: null };
   } finally {
     await context.close();
   }
 }
 
-async function captioned(browser: Browser, png: Buffer, lines: string[]) {
+const captionFonts = { title: "600 15px sans-serif", line: "14px sans-serif" } as const;
+
+async function arrowLifts(browser: Browser): Promise<Lifts> {
+  const tab = await browser.newPage();
+  try {
+    const boxes = await tab.evaluate((fonts) => {
+      const pen = document.createElement("canvas").getContext("2d");
+      if (!pen) throw new Error("no 2d context");
+
+      pen.textBaseline = "middle";
+      const boxOf = (font: string, text: string) => {
+        pen.font = font;
+        const box = pen.measureText(text);
+        return { ascent: box.actualBoundingBoxAscent, descent: box.actualBoundingBoxDescent };
+      };
+      return {
+        title: { text: boxOf(fonts.title, "x"), arrow: boxOf(fonts.title, "→") },
+        line: { text: boxOf(fonts.line, "x"), arrow: boxOf(fonts.line, "→") },
+      };
+    }, captionFonts);
+    return {
+      title: scope.run(mapArrowLift, { input: boxes.title }),
+      line: scope.run(mapArrowLift, { input: boxes.line }),
+    };
+  } finally {
+    await tab.close();
+  }
+}
+
+async function captioned(
+  browser: Browser,
+  png: Buffer,
+  lines: Array<Array<{ text: string; arrow: boolean }>>,
+  lifts: Lifts,
+) {
   const tab = await browser.newPage();
   try {
     const data = await tab.evaluate(
-      async ({ src, lines }) => {
+      async ({ src, lines, lifts, look, fonts }) => {
         const image = await createImageBitmap(await (await fetch(src)).blob());
-        const line = 22;
-        const pad = 14;
-        const strip = pad * 2 + line * lines.length;
+        const strip = look.pad * 2 + look.line * lines.length;
         const board = document.createElement("canvas");
         board.width = image.width;
         board.height = image.height + strip;
@@ -243,14 +312,27 @@ async function captioned(browser: Browser, png: Buffer, lines: string[]) {
         pen.fillRect(0, 0, board.width, board.height);
         pen.drawImage(image, 0, 0);
         pen.textBaseline = "middle";
-        lines.forEach((text, at) => {
+        lines.forEach((parts, at) => {
           pen.fillStyle = at === 0 ? "#1f1f1d" : "#61615e";
-          pen.font = at === 0 ? "600 15px sans-serif" : "14px sans-serif";
-          pen.fillText(text, 14, image.height + pad + line * at + line / 2);
+          pen.font = at === 0 ? fonts.title : fonts.line;
+          const lift = at === 0 ? lifts.title : lifts.line;
+          const y = image.height + look.pad + look.line * at + look.line / 2;
+
+          let x = 14;
+          for (const part of parts) {
+            pen.fillText(part.text, x, part.arrow ? y + lift : y);
+            x += pen.measureText(part.text).width;
+          }
         });
         return board.toDataURL("image/png");
       },
-      { src: `data:image/png;base64,${png.toString("base64")}`, lines },
+      {
+        src: `data:image/png;base64,${png.toString("base64")}`,
+        lines,
+        lifts,
+        look: captionLook,
+        fonts: captionFonts,
+      },
     );
     return Buffer.from(data.slice(data.indexOf(",") + 1), "base64");
   } finally {
@@ -353,22 +435,47 @@ type Board = {
   words: string[];
 };
 
+function placeNew(board: Board, name: string, file: string, flags: string[]) {
+  const { page, section, columns, ids, words } = board;
+  const to = scope.run(mapRelation, { input: { section, columns, ids, state: name } });
+  const made = written.parse(
+    easel(["put", canvas, file, "--name", name, ...flags, ...placeFlags(to, page)]),
+  );
+  ids[name] = made.id;
+  words.push(`${name}: new`);
+}
+
 async function putState(browser: Browser, board: Board, state: string, shot: Shot | undefined) {
-  const { entry, page, section, columns, ids, words } = board;
+  const { entry, columns, ids, words } = board;
   const name = scope.run(mapFrameName, { input: { map: entry.name, state } });
   const frame = board.byName.get(name);
-  if (frame) ids[state] = frame.id;
-  if (!shot?.png) return void words.push(`${state}: failed: ${shot?.why ?? "no picture"}`);
+  if (frame) ids[name] = frame.id;
+  if (!shot?.png) return void words.push(`${name}: failed: ${shot?.why ?? "no picture"}`);
 
-  const file = join(work, `${entry.name}-${columns.flat().indexOf(state)}.png`);
+  const file = join(work, `${entry.name}-${columns.flat().indexOf(name)}.png`);
   writeFileSync(file, shot.png);
   const put = await putShot(browser, frame, file, shot.png);
-  if (put) return void words.push(`${state}: ${put}`);
+  if (put) return void words.push(`${name}: ${put}`);
 
-  const to = scope.run(mapRelation, { input: { section, columns, ids, state } });
-  const made = written.parse(easel(["put", canvas, file, "--name", name, ...placeFlags(to, page)]));
-  ids[state] = made.id;
-  words.push(`${state}: new`);
+  placeNew(board, name, file, []);
+}
+
+function putCard(board: Board, card: Card) {
+  const { entry, columns, ids, words } = board;
+  const frame = board.byName.get(card.name);
+  const file = join(work, `${entry.name}-${columns.flat().indexOf(card.name)}.html`);
+  writeFileSync(file, card.html);
+  const size = `${card.size.w}x${card.size.h}`;
+  if (!frame) return placeNew(board, card.name, file, ["--size", size]);
+
+  ids[card.name] = frame.id;
+  const old = join(work, `old-${frame.id}.html`);
+  easel(["get", canvas, frame.id, "-o", old]);
+  const sameText = readFileSync(old, "utf8") === card.html;
+  const sameSize = frame.w === card.size.w && frame.h === card.size.h;
+  if (!sameText) easel(["put", canvas, file, "--id", frame.id, "--base", String(frame.version)]);
+  if (!sameSize) easel(["move", canvas, frame.id, "--size", size]);
+  words.push(`${card.name}: ${sameText && sameSize ? "same" : "next"}`);
 }
 
 function moveGone(board: Board) {
@@ -388,17 +495,23 @@ function moveGone(board: Board) {
 function putOrder(board: Board) {
   const { page, section, columns, ids, words } = board;
   const layout = laidOut.parse(easel(["layout", canvas, "--page", page]));
-  const now = layout.sections.find((each) => each.name === section)?.columns ?? [];
-  const want = columns.map((column) => column.flatMap((state) => ids[state] ?? []));
-  const moves = scope.run(mapOrder, { input: { section, want, now } });
+  const laid = layout.sections.find((each) => each.name === section);
+  const want = columns.map((column) => column.flatMap((name) => ids[name] ?? []));
+  const moves = scope.run(mapOrder, { input: { section, want, now: laid?.columns ?? [] } });
 
   for (const move of moves) easel(["move", canvas, move.id, ...placeFlags(move.to, page)]);
   if (moves.length) words.push(`order: ${moves.length} moves`);
+  if (laid && laid.gap !== mapGap) {
+    easel(["section", canvas, section, "--page", page, "--gap", String(mapGap)]);
+    words.push(`gap: ${mapGap}`);
+  }
 }
 
-async function putMap(browser: Browser, entry: MapEntry, map: MapJson, shots: Shot[]) {
+async function putMap(browser: Browser, done: Done) {
+  const { entry, map, shots, cards } = done;
   const page = pageKey(`Map · ${entry.name}`);
-  const columns = scope.run(mapColumns, { input: map.states });
+  const states = scope.run(mapColumns, { input: map.states });
+  const columns = scope.run(mapBoard, { input: { map: entry.name, columns: states } });
   const board: Board = {
     entry,
     page,
@@ -409,18 +522,34 @@ async function putMap(browser: Browser, entry: MapEntry, map: MapJson, shots: Sh
     words: [],
   };
 
-  for (const state of columns.flat()) {
-    await putState(
-      browser,
-      board,
-      state,
-      shots.find((each) => each.state === state),
-    );
+  for (const [at, column] of states.entries()) {
+    for (const state of column) {
+      await putState(
+        browser,
+        board,
+        state,
+        shots.find((each) => each.state === state),
+      );
+    }
+    for (const name of columns[at * 2 + 1] ?? []) {
+      const card = cards.find((each) => each.name === name);
+      if (card) putCard(board, card);
+    }
   }
 
   moveGone(board);
   putOrder(board);
   return { page, words: board.words };
+}
+
+function cardsOf(entry: MapEntry, map: MapJson, graph: MapGraph): Card[] {
+  return map.states.map(({ state }) => {
+    const card = scope.run(mapCard, { input: { map, name: entry.name, state, graph } });
+    const lines = scope.run(mapCaption, { input: { map, state } }).length;
+    const least = scope.run(mapPictureHeight, { input: { screen: mapShot.height, lines } });
+    const name = `${scope.run(mapFrameName, { input: { map: entry.name, state } })} · ${cardMark}`;
+    return { state, name, ...scope.run(mapCardHtml, { input: { card, least } }) };
+  });
 }
 
 function listHtml(rows: Array<{ entry: MapEntry; map: MapJson; page: string }>) {
@@ -450,7 +579,14 @@ function putList(html: string) {
   return "next";
 }
 
-async function mapOne(browser: Browser, entry: MapEntry) {
+type Done = { entry: MapEntry; map: MapJson; shots: Shot[]; cards: Card[] };
+
+async function mapOne(
+  browser: Browser,
+  lifts: Lifts,
+  graph: MapGraph,
+  entry: MapEntry,
+): Promise<Done> {
   const derived = await deriveOf(entry.cell);
   if (!derived?.view) throw new Error(`map-screens: no view of ${entry.cell} in src/`);
 
@@ -469,14 +605,14 @@ async function mapOne(browser: Browser, entry: MapEntry) {
     const url = `http://127.0.0.1:${server.port}`;
     const shots = await Promise.all(
       plans.map((plan) =>
-        takeOne(browser, url, derived.map, plan).catch((error: unknown) => ({
+        takeOne(browser, lifts, url, derived.map, plan).catch((error: unknown) => ({
           state: plan.state,
           png: null,
           why: error instanceof Error ? (error.message.split("\n")[0] ?? "") : String(error),
         })),
       ),
     );
-    return { entry, map: derived.map, shots };
+    return { entry, map: derived.map, shots, cards: cardsOf(entry, derived.map, graph) };
   } finally {
     await server.stop(true);
   }
@@ -493,12 +629,15 @@ try {
     process.exitCode = 64;
   }
 
+  const lifts = await arrowLifts(browser);
+  const graph = scope.run(mapGraph, { input: readFileSync(join(root, "tinker.graph"), "utf8") });
   const done = [];
-  for (const entry of chosen) done.push(await mapOne(browser, entry));
+  for (const entry of chosen) done.push(await mapOne(browser, lifts, graph, entry));
 
   let failed = 0;
   const rows = [];
-  for (const { entry, map, shots } of done) {
+  for (const each of done) {
+    const { entry, map, shots, cards } = each;
     failed += shots.filter((shot) => !shot.png).length;
     if (dryDir) {
       mkdirSync(dryDir, { recursive: true });
@@ -507,12 +646,13 @@ try {
         if (shot.png) writeFileSync(join(dryDir, `${name}.png`), shot.png);
         console.log(`map-screens: ${name}: ${shot.png ? "taken" : `failed: ${shot.why}`}`);
       }
+      for (const card of cards) writeFileSync(join(dryDir, `${card.name}.html`), card.html);
       rows.push({ entry, map, page: `Map · ${entry.name}` });
       continue;
     }
 
-    const put = await putMap(browser, entry, map, shots);
-    for (const word of put.words) console.log(`map-screens: ${entry.name} · ${word}`);
+    const put = await putMap(browser, each);
+    for (const word of put.words) console.log(`map-screens: ${word}`);
     rows.push({ entry, map, page: put.page });
   }
 
