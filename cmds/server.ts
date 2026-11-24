@@ -57,6 +57,8 @@ import { queueServer } from "@/queue/store.server";
 import { release } from "@/release";
 import { todo } from "@/todo";
 import { todoOps } from "@/todo/ops.server";
+import { words } from "@/words";
+import { wordsOps } from "@/words/ops.server";
 
 import { clientEntry, files, sitePagesOf } from "./pages";
 import { runtime } from "./runtime";
@@ -121,6 +123,7 @@ export default defineMain(async ({ env, args, signal, stdout, stderr, exit }) =>
       frames.viewer,
       frames.pass,
       kit.api,
+      words.api,
       queue.api,
       queue.viewer,
       queue.channels,
@@ -139,6 +142,7 @@ export default defineMain(async ({ env, args, signal, stdout, stderr, exit }) =>
     ops.owner,
     frames.api,
     kit.api,
+    words.api,
     queue.api,
   ];
   const mcpChannel = new MessageChannel();
@@ -217,6 +221,7 @@ export default defineMain(async ({ env, args, signal, stdout, stderr, exit }) =>
       frames.viewer({ implement: shareOps }),
       frames.pass({ implement: passOps, onStart: [mayName] }),
       kit.api({ implement: kitOps, onStart: [user] }),
+      words.api({ implement: wordsOps, onStart: [user] }),
       queueServer({ stdout }),
       queue.api({ implement: queueOps, onStart: [user] }),
       queue.viewer({ implement: requestOps, onStart: [mayAct] }),

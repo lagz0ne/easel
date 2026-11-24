@@ -9,6 +9,7 @@ import { framesApi, maxImagePixels } from "@/frames/contract";
 import { kitApi } from "@/kit/contract";
 import { opsOwnerApi, opsUserApi } from "@/ops/contract";
 import { queueApi } from "@/queue/contract";
+import { wordsApi } from "@/words/contract";
 
 import { answerText } from "./texts";
 import { contracts, successLists, tools } from "./tools";
@@ -178,7 +179,7 @@ export const faultResult = operation({
       return { isError: true, content: [{ type: "text", text: issuesText.parse(error.payload) }] };
     }
 
-    const apis = [framesApi, kitApi, queueApi, ownerApi, opsUserApi, opsOwnerApi];
+    const apis = [framesApi, kitApi, wordsApi, queueApi, ownerApi, opsUserApi, opsOwnerApi];
     if (!apis.some((api) => api.fault.is(error))) throw error;
 
     const { fault, address, payload, traceId, execution } = rpcFault.parse(error);
@@ -244,6 +245,7 @@ export const mcpCall = operation({
     "look.undo": kitApi["look.undo"],
     "texts.list": kitApi["texts.list"],
     "texts.set": kitApi["texts.set"],
+    "texts.uses": wordsApi["texts.uses"],
     "request.next": queueApi["request.next"],
     "request.extend": queueApi["request.extend"],
     "request.release": queueApi["request.release"],

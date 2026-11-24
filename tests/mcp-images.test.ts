@@ -29,6 +29,7 @@ import { kit } from "@/kit";
 import { agentSide, mcpLink } from "@/mcp/server";
 import { ops } from "@/ops";
 import { queue } from "@/queue";
+import { words } from "@/words";
 
 import { base64, jpegOf, pngOf, webpOf } from "./support/images";
 
@@ -97,6 +98,7 @@ async function agent(srv: Srv, send: (request: Request) => Promise<Response> = s
       access.owner({ remote: memory.client }),
       frames.api({ remote: memory.client }),
       kit.api({ remote: memory.client }),
+      words.api({ remote: memory.client }),
       queue.api({ remote: memory.client }),
       ops.user({ remote: memory.client }),
       ops.owner({ remote: memory.client }),

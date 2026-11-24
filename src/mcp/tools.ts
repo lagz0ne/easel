@@ -6,10 +6,12 @@ import { framesContracts, framesSuccessKinds } from "@/frames/contract";
 import { kitContracts, kitSuccessKinds } from "@/kit/contract";
 import { opsOwnerContracts, opsSuccessKinds, opsUserContracts } from "@/ops/contract";
 import { queueContracts, queueSuccessKinds } from "@/queue/contract";
+import { wordsContracts, wordsSuccessKinds } from "@/words/contract";
 
 export const contracts = {
   ...framesContracts,
   ...kitContracts,
+  ...wordsContracts,
   ...queueContracts,
   ...ownerContracts,
   ...opsUserContracts,
@@ -19,6 +21,7 @@ export const contracts = {
 export const successLists = {
   ...framesSuccessKinds,
   ...kitSuccessKinds,
+  ...wordsSuccessKinds,
   ...queueSuccessKinds,
   ...successKinds,
   ...opsSuccessKinds,
@@ -182,6 +185,12 @@ export const tools = {
     annotations: write,
     description:
       'Write texts of the team by text key, as { "trial.start": { "en": "Start", "vi": "Bắt đầu" } }: a new text key needs `en`, and each change makes a new kit version. With `base`, a change on an older revision answers `stale`, and no call removes a text key.',
+  },
+  list_text_uses: {
+    address: "texts.uses",
+    annotations: readOnly,
+    description:
+      "List each text of the team with the frames that use it (`uses: []` is not used), the text keys that frames use and the team does not have, each text with no key, and `missing.vi`, the text keys with no vi text. Give `canvas` to read the frames of one canvas only.",
   },
   next_request: {
     address: "request.next",

@@ -20,6 +20,7 @@ import { mcpHttp, mcpMeta } from "@/mcp/http.server";
 import { mcpLink } from "@/mcp/server";
 import { ops } from "@/ops";
 import { queue } from "@/queue";
+import { words } from "@/words";
 
 import { boot, closers, viewer } from "./support/queue";
 import type { Server } from "./support/queue";
@@ -30,7 +31,16 @@ afterEach(async () => {
 
 const origin = "https://easel.test";
 
-const apis = [access.user, access.owner, frames.api, kit.api, queue.api, ops.user, ops.owner];
+const apis = [
+  access.user,
+  access.owner,
+  frames.api,
+  kit.api,
+  words.api,
+  queue.api,
+  ops.user,
+  ops.owner,
+];
 
 async function bootHttp() {
   const channel = new MessageChannel();

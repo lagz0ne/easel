@@ -23,6 +23,7 @@ import { kit } from "@/kit";
 import { mcpLink } from "@/mcp/server";
 import { ops } from "@/ops";
 import { queue } from "@/queue";
+import { words } from "@/words";
 
 const closers: Array<() => unknown> = [];
 
@@ -81,6 +82,7 @@ async function easel(srv: Srv) {
       access.owner({ remote: memory.client }),
       frames.api({ remote: memory.client }),
       kit.api({ remote: memory.client }),
+      words.api({ remote: memory.client }),
       queue.api({ remote: memory.client }),
       ops.user({ remote: memory.client }),
       ops.owner({ remote: memory.client }),
@@ -136,7 +138,7 @@ test("easel mcp lists list_canvases with its schemas, and a call answers the use
 
   const { client, served } = await mcp(a);
   const { tools } = await client.listTools();
-  expect(tools).toHaveLength(41);
+  expect(tools).toHaveLength(42);
   for (const tool of tools) {
     expect([tool.name, tool.inputSchema.type, tool.outputSchema?.type]).toEqual([
       tool.name,

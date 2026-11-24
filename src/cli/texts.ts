@@ -1,11 +1,15 @@
 import { operation } from "@tinkered/core";
 import { z } from "zod";
 
+import { loginApi } from "@/access/contract";
+import { canvasKey } from "@/frames/contract";
 import { kit } from "@/kit";
 import { textsListOutput, textsSetOutput } from "@/kit/contract";
 import { textKey, textsPatch } from "@/kit/texts";
+import { words } from "@/words";
+import { type TextUse, textsUsesOutput } from "@/words/contract";
 
-import { exits } from "./exit";
+import { callDeadline, exits, faultExit } from "./exit";
 import {
   jsonOf,
   lookDeadline,
@@ -27,6 +31,7 @@ export const textsCommand = z.discriminatedUnion("kind", [
     base: z.string().optional(),
   }),
   z.object({ kind: z.literal("setFile"), file: z.string().min(1), base: z.string().optional() }),
+  z.object({ kind: z.literal("uses"), canvas: z.string().optional() }),
 ]);
 
 export type TextsCommand = z.infer<typeof textsCommand>;
@@ -206,14 +211,91 @@ export const textsSet = operation({
   },
 });
 
+const usesLine = z
+  .array(z.custom<TextUse>())
+  .transform((uses) =>
+    uses.length === 0
+      ? "not used"
+      : `used in ${uses.map((u) => `${u.canvas}/${u.id} "${u.name}"`).join(", ")}`,
+  );
+
+const usesTell = operation({
+  label: "cli.textsUsesTell",
+  input: textsUsesOutput,
+  run: (_, { input: answer }) => {
+    const lines = answer.texts.map((text) => {
+      const vi =
+        text.vi === undefined ? "  vi: not translated" : `  vi: ${JSON.stringify(text.vi)}`;
+      return `${text.key}  en: ${JSON.stringify(text.en)}${vi}\n  ${usesLine.parse(text.uses)}`;
+    });
+    const unknown = answer.unknown.map(
+      (one) => `${one.key}  not in the texts of the team\n  ${usesLine.parse(one.uses)}`,
+    );
+
+    const missing =
+      answer.missing.vi.length === 0
+        ? "vi: each text of the team has a vi text"
+        : `vi: ${answer.missing.vi.length} not translated: ${answer.missing.vi.join(", ")}`;
+    const own = `${answer.own.length} texts with no key (no translation): --json lists each, with its uses`;
+    const read = `${answer.frames} frames read, ${answer.pictures} of them images (easel cannot read their words)`;
+    const tail = `texts revision ${answer.rev}, kit version ${answer.kit}`;
+    return [...lines, ...unknown, missing, own, read, tail].join("\n");
+  },
+});
+
+const usesFault = operation({
+  label: "cli.textsUsesFault",
+  input: z.unknown(),
+  depends: { faultExit },
+  run: ({ faultExit }, { input: error }) => {
+    const known = words.api.fault.is(error)
+      ? loginApi.fault.make(
+          error.address,
+          error.fault,
+          error.payload,
+          error.traceId,
+          error.execution,
+        )
+      : error;
+    return faultExit.run({ input: known });
+  },
+});
+
+export const textsUsesCli = operation({
+  label: "cli.textsUses",
+  input: textsCommand.options[3],
+  depends: { say, usesTell, usage: lookUsage, fault: usesFault, call: words.api["texts.uses"] },
+  run: async ({ say, usesTell, usage, fault, call }, { input, clock, signal }) => {
+    const canvas = canvasKey.optional().safeParse(input.canvas);
+    if (!canvas.success) return usage.run({ input: "--canvas takes a canvas key" });
+
+    const stop = new AbortController();
+    const late = loginApi.fault.make("texts.uses", "link", { late: callDeadline }, undefined);
+    clock.sleep(callDeadline, AbortSignal.any([signal, stop.signal])).then(
+      () => stop.abort(late),
+      () => undefined,
+    );
+    const ask = canvas.data === undefined ? {} : { canvas: canvas.data };
+    const reply = await call.settle({ input: ask, signal: stop.signal });
+    stop.abort();
+    if (reply.status === "cancelled") return fault.run({ input: reply.reason });
+    if (reply.status === "failed") return fault.run({ input: reply.error });
+
+    say.run({ input: { json: reply.value, text: usesTell.run({ input: reply.value }) } });
+    return exits.ok;
+  },
+});
+
 export const textsRun = operation({
   label: "cli.texts",
   input: textsCommand,
-  depends: { textsLs, textsSet },
+  depends: { textsLs, textsSet, textsUsesCli },
   run: (ops, { input }) => {
     switch (input.kind) {
       case "ls":
         return ops.textsLs.run({ input });
+      case "uses":
+        return ops.textsUsesCli.run({ input });
       case "set":
       case "setFile":
         return ops.textsSet.run({ input });

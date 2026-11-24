@@ -240,7 +240,7 @@ cli.startsFault exits{value} reads{} writes{} calls{cli.faultExit}
 cli.startsInvalid exits{value} reads{} writes{} calls{cli.say}
 cli.startsUsage exits{value} reads{} writes{} calls{cli.say}
 cli.status exits{value} reads{} writes{} calls{?,cli.deadline,cli.exitOf,cli.faultExit,cli.say}
-cli.texts exits{value} reads{} writes{} calls{cli.textsLs,cli.textsSet}
+cli.texts exits{value} reads{} writes{} calls{cli.textsLs,cli.textsSet,cli.textsUses}
 cli.textsInvalid exits{value} reads{} writes{} calls{cli.say}
 cli.textsLs exits{value} reads{} writes{} calls{?,cli.lookDeadline,cli.lookExitOf,cli.lookFault,cli.say,cli.textsTell}
 cli.textsReadFile exits{value} reads{} writes{} calls{cli.lookUsage,cli.readPatch,cli.textsInvalid}
@@ -249,6 +249,9 @@ cli.textsReadSet exits{value} reads{} writes{} calls{cli.lookUsage,cli.textsRead
 cli.textsSet exits{value} reads{} writes{} calls{?,cli.lookDeadline,cli.lookExitOf,cli.lookFault,cli.textsReadSet,cli.textsTellSet}
 cli.textsTell exits{value} reads{} writes{} calls{}
 cli.textsTellSet exits{value} reads{} writes{} calls{cli.say}
+cli.textsUses exits{value} reads{} writes{} calls{?,cli.lookUsage,cli.say,cli.textsUsesFault,cli.textsUsesTell}
+cli.textsUsesFault exits{value} reads{} writes{} calls{cli.faultExit}
+cli.textsUsesTell exits{value} reads{} writes{} calls{}
 cli.tokenOf exits{value} reads{} writes{} calls{}
 cli.tooBigText exits{value} reads{} writes{} calls{}
 cli.unsettledLines exits{value} reads{} writes{} calls{}
@@ -787,6 +790,7 @@ texts.merge exits{invalid,merged} reads{} writes{} calls{texts.mergeOne}
 texts.mergeOne exits{value} reads{} writes{} calls{texts.localeFindings}
 texts.paramsOf exits{value} reads{} writes{} calls{}
 texts.set.do exits{invalid,stale,tooBig,unchanged,updated} reads{} writes{} calls{kit.saveTexts,texts.change}
+texts.uses.do exits{found} reads{} writes{} calls{kit.readKit,words.collectUses,words.readFrameDocs}
 todo.add.do exits{value} reads{} writes{todo.list.set} calls{}
 todo.remove.do exits{gone,removed} reads{todo.list.of} writes{todo.list.delete} calls{}
 todo.toggle.do exits{gone,toggled} reads{todo.list.of} writes{todo.list.set} calls{}
@@ -906,3 +910,11 @@ viewer.waitThenAsk exits{value} reads{viewer.gates.of} writes{viewer.gates.set} 
 viewer.whereOf exits{value} reads{} writes{} calls{}
 viewer.zoomKeyStep exits{value} reads{} writes{} calls{}
 viewer.zoomStep exits{value} reads{} writes{} calls{?}
+words.addUses exits{value} reads{} writes{} calls{}
+words.appTexts exits{value} reads{} writes{} calls{}
+words.collectUses exits{value} reads{} writes{} calls{words.addUses,words.frameTextsOf}
+words.frameTextsOf exits{value} reads{} writes{} calls{words.appTexts,words.htmlTexts}
+words.htmlTexts exits{value} reads{} writes{} calls{}
+words.markupAttributes exits{value} reads{} writes{} calls{}
+words.plainText exits{value} reads{} writes{} calls{}
+words.readFrameDocs exits{value} reads{} writes{} calls{}

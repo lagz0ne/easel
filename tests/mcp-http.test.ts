@@ -34,6 +34,7 @@ import type { BuiltRuntime } from "@/kit/runtime.server";
 import { mcpHttp, mcpMeta } from "@/mcp/http.server";
 import { ops } from "@/ops";
 import { queue } from "@/queue";
+import { words } from "@/words";
 
 const closers: Array<() => unknown> = [];
 
@@ -67,6 +68,7 @@ async function boot() {
       access.owner({ remote: portClient }),
       frames.api({ remote: portClient }),
       kit.api({ remote: portClient }),
+      words.api({ remote: portClient }),
       queue.api({ remote: portClient }),
       ops.user({ remote: portClient }),
       ops.owner({ remote: portClient }),
@@ -189,7 +191,7 @@ test("a client with a live token lists the tools over HTTP, and a call runs as i
   const { ann } = await team(srv);
   const mcp = await client(srv, ann);
 
-  expect((await mcp.listTools()).tools).toHaveLength(41);
+  expect((await mcp.listTools()).tools).toHaveLength(42);
   const answer = await mcp.callTool({ name: "list_canvases", arguments: {} });
   expect(answer).toMatchObject({ isError: false, structuredContent: { canvases: [] } });
   const made = await mcp.callTool({ name: "create_canvas", arguments: { name: "Flow" } });

@@ -20,6 +20,7 @@ import { kit } from "@/kit";
 import { mcpLink } from "@/mcp/server";
 import { ops } from "@/ops";
 import { queue } from "@/queue";
+import { words } from "@/words";
 
 const help = `easel: the canvas CLI. Every command takes --json (one JSON value per line) and --server <url>.
 
@@ -100,6 +101,8 @@ const help = `easel: the canvas CLI. Every command takes --json (one JSON value 
   easel texts set <text key> "<text>" [--locale vi] [--base <rev>]
                                                    write one text; a new text key needs its en text first
   easel texts set -f <file.json> [--base <rev>]    write texts from a file: {"<text key>": {"en": "...", "vi": "..."}}
+  easel texts uses [--canvas <k>]                  each text of the team with the frames that use it, or not used; the
+                                                   text keys with no vi text; the texts with no key (--json lists them)
   easel next [--canvas <k>] [--n <n>] [--wait <s>] [--lease <s>]
                                                    claim the oldest waiting request; prints it and its claim
   easel extend <claim> [--lease <s>]               start the lease again (30 to 3600 s, 300 when none)
@@ -776,6 +779,15 @@ const textsInvocations = [
       at: values.server,
       command: { kind: "texts", act: { kind: "setFile", file: values.file, base: values.base } },
     })),
+  z
+    .object({
+      positionals: z.tuple([z.literal("texts"), z.literal("uses")]),
+      values: z.strictObject({ ...common, canvas: oneCanvas }),
+    })
+    .transform(({ values }): unknown => ({
+      at: values.server,
+      command: { kind: "texts", act: { kind: "uses", canvas: values.canvas } },
+    })),
 ] as const;
 
 const channelInvocations = [
@@ -1175,6 +1187,7 @@ const main = defineMain(async (ctx) => {
       ops.owner({ remote: ws.client }),
       frames.api({ remote: ws.client }),
       kit.api({ remote: ws.client }),
+      words.api({ remote: ws.client }),
       queue.api({ remote: ws.client }),
       queue.viewer({ remote: ws.client }),
       queue.channels({ remote: ws.client }),

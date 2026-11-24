@@ -18,12 +18,15 @@ import { stdinText } from "@/cli/frames";
 import { textsRun } from "@/cli/texts";
 import type { TextsCommand } from "@/cli/texts";
 import { frames } from "@/frames";
-import { framesOps } from "@/frames/ops.server";
+import { framesLoads, framesOps, mayRead } from "@/frames/ops.server";
 import { framesServer } from "@/frames/store.server";
 import { kit } from "@/kit";
 import { kitApi } from "@/kit/contract";
 import { kitOps } from "@/kit/ops.server";
 import { maxTextsBytes } from "@/kit/texts";
+import { words } from "@/words";
+import { wordsApi } from "@/words/contract";
+import { wordsOps } from "@/words/ops.server";
 
 const closers: Array<() => unknown> = [];
 
@@ -36,6 +39,14 @@ const origin = "https://easel.test";
 const brokenList = operation({
   label: "test.brokenTextsList",
   input: kitApi["texts.list"].input,
+  run: () => {
+    throw new Error("a bug on the server");
+  },
+});
+
+const brokenUses = operation({
+  label: "test.brokenTextsUses",
+  input: wordsApi["texts.uses"].input,
   run: () => {
     throw new Error("a bug on the server");
   },
@@ -66,8 +77,15 @@ async function boot(options: { broken?: boolean } = {}) {
       access.user({ implement: userOps, onStart: [user] }),
       access.owner({ implement: ownerOps, onStart: [user] }),
       frames.api({ implement: framesOps, onStart: [user] }),
+      frames.board({ serve: true, load: framesLoads, onStart: [mayRead] }),
       kit.api({ implement, onStart: [user] }),
-      memory.server({ services: [access.login, access.user, access.owner, frames.api, kit.api] }),
+      words.api({
+        implement: options.broken ? { "texts.uses": brokenUses } : wordsOps,
+        onStart: [user],
+      }),
+      memory.server({
+        services: [access.login, access.user, access.owner, frames.api, kit.api, words.api],
+      }),
     ],
   }).ready;
   closers.push(() => server.close());
@@ -101,6 +119,7 @@ async function easel(srv: Srv, options: Options = {}) {
       access.owner({ remote: memory.client }),
       frames.api({ remote: memory.client }),
       kit.api({ remote: memory.client }),
+      words.api({ remote: memory.client }),
       cli({
         stdout: { write: (chunk: string) => out.push(chunk) },
         stderr: { write: (chunk: string) => err.push(chunk) },
@@ -123,6 +142,9 @@ async function easel(srv: Srv, options: Options = {}) {
     },
     path: (name: string) => join(dir, name),
     run: (command: TextsCommand) => scope.run(textsRun, { input: command }),
+    put: (html: string) =>
+      scope.run(frames.api["frame.put"], { input: { canvas: "shop", html, name: "Hero" } }),
+    canvas: () => scope.run(frames.api["canvas.create"], { input: { name: "shop" } }),
     viaCli: (command: TextsCommand) =>
       scope.run(cli.run, { input: { kind: "texts", act: command } }),
     login: () =>
@@ -278,6 +300,49 @@ test("texts with no sign-in are refused (2); a server that throws exits 70 with 
   expect(a.err.splice(0).join("")).toMatch(/^the server failed \(trace /);
   expect(await a.run({ kind: "set", key: "trial.start", text: "Start" })).toBe(70);
   expect(a.err.splice(0).join("")).toMatch(/^the server failed \(trace /);
+  expect(await a.run({ kind: "uses" })).toBe(70);
+  expect(a.err.splice(0).join("")).toMatch(/^the server failed \(trace /);
+  expect(await stranger.run({ kind: "uses" })).toBe(2);
+  expect(stranger.lines()).toEqual([{ refused: { signIn: true } }]);
+});
+
+test("texts uses prints each text of the team with its uses or not used, the text keys with no vi text, and the count of texts with no key (exit 0); --json gives the answer; a bad --canvas exits 64", async () => {
+  const srv = await boot();
+  const a = await ann(srv, { json: false });
+  await a.canvas();
+  await a.run({ kind: "set", key: "trial.start", text: "Start" });
+  a.out.splice(0);
+  const put = await a.put('<h1>Plans</h1><button data-easel-text="trial.start">Start</button>');
+  if (put.kind !== "created") throw new Error("not created");
+
+  expect(await a.viaCli({ kind: "uses" })).toBe(0);
+  expect(a.out.splice(0).join("")).toBe(
+    [
+      'trial.start  en: "Start"  vi: not translated',
+      `  used in shop/${put.id} "Hero"`,
+      'ui.close  en: "Close"  vi: "Đóng"',
+      "  not used",
+      'ui.empty  en: "Nothing here yet"  vi: "Chưa có gì"',
+      "  not used",
+      "vi: 1 not translated: trial.start",
+      "1 texts with no key (no translation): --json lists each, with its uses",
+      "1 frames read, 0 of them images (easel cannot read their words)",
+      "texts revision 2, kit version 2",
+      "",
+    ].join("\n"),
+  );
+
+  const json = await easel(srv, { dir: a.dir });
+  expect(await json.run({ kind: "uses", canvas: "shop" })).toBe(0);
+  expect(json.lines()).toMatchObject([
+    { kind: "found", frames: 1, own: [{ text: "Plans" }], missing: { vi: ["trial.start"] } },
+  ]);
+  expect(await json.run({ kind: "uses", canvas: "Not A Key" })).toBe(64);
+  expect(json.lines()).toEqual([{ usage: "--canvas takes a canvas key" }]);
+  await a.run({ kind: "set", key: "trial.start", text: "Bắt đầu", locale: "vi" });
+  a.out.splice(0);
+  expect(await a.run({ kind: "uses", canvas: "shop" })).toBe(0);
+  expect(a.out.splice(0).join("")).toContain("vi: each text of the team has a vi text\n");
 });
 
 type Cmd = typeof import("../cmds/easel");
@@ -311,6 +376,8 @@ test("the easel command reads texts ls, texts set <text key> <text> with --local
     ["texts", "set", "trial.start", "Bắt đầu", "--locale", "vi", "--base", "2"],
     ["texts", "set", "-f", "texts.json", "--base", "2"],
     ["texts", "set", "--file", "-"],
+    ["texts", "uses"],
+    ["texts", "uses", "--canvas", "shop"],
   ];
   for (const args of read) {
     expect(await main([...args, "--json"])).toEqual({ code: 64, out: noServer });
@@ -327,4 +394,5 @@ test("the easel command reads texts ls, texts set <text key> <text> with --local
   expect(help).toContain("  easel texts ls ");
   expect(help).toContain('  easel texts set <text key> "<text>" [--locale vi] [--base <rev>]\n');
   expect(help).toContain("  easel texts set -f <file.json> [--base <rev>] ");
+  expect(help).toContain("  easel texts uses [--canvas <k>] ");
 });
