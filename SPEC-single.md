@@ -81,6 +81,10 @@ The mode changes who can get a session, so the model comes first. It is a varian
 - The rules of access-browser still hold: a link signs in at most one browser, and after a
   revoke, no browser of that user reads a canvas.
 
+The chart is [access-single](docs/statecharts/access-single.md). Its twin,
+[access-single-approve](docs/statecharts/access-single-approve.md), breaks on purpose: a sign-in
+page with a name field and an approve that makes a user add a person.
+
 ## Success criteria
 
 1. On a phone with no session, `/` shows a code with no name field. After

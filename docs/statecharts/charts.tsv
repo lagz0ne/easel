@@ -54,4 +54,6 @@ viewer-overlays	models/viewer/ViewerOverlays.tla	models/viewer/ViewerOverlays.cf
 viewer-overlays-today	models/viewer/ViewerOverlays.tla	models/viewer/ViewerOverlaysToday.cfg	models/viewer/ViewerOverlays.view.mjs	breaks
 access-browser	models/access/Browser.tla	models/access/Browser.cfg	models/access/Browser.view.mjs	holds
 access-browser-two-step	models/access/Browser.tla	models/access/BrowserTwoStep.cfg	models/access/Browser.view.mjs	breaks
+access-single	models/access/Single.tla	models/access/Single.cfg	models/access/Single.view.mjs	holds
+access-single-approve	models/access/Single.tla	models/access/SingleApprove.cfg	models/access/Single.view.mjs	breaks
 viewer-request-shot	models/viewer/RequestShot.tla	models/viewer/RequestShot.cfg	models/viewer/RequestShot.view.mjs	holds
