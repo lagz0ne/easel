@@ -70,7 +70,7 @@ test(
     expect(valueAfter(args, "--workspace")).toEqual(["wks_easel"]);
     expect(valueAfter(args, "--cwd")).toEqual([paseo.workspaceDir]);
     expect(valueAfter(args, "--provider")).toEqual(["claude"]);
-    expect(valueAfter(args, "--mode")).toEqual(["bypassPermissions"]);
+    expect(valueAfter(args, "--mode")).toEqual(["auto"]);
     expect(valueAfter(args, "--label").sort()).toEqual([
       "easel-loop=design",
       "easel-request=product:7",
@@ -80,6 +80,8 @@ test(
     expect(prompt).toContain("`easel next --canvas product --n 7`");
     expect(prompt).toContain("`easel release <claim> --reason <why>`");
     expect(prompt).toContain("/api/version");
+    expect(prompt).toContain("You run non-interactive and unattended");
+    expect(prompt).toContain("Never ask the user");
 
     await adapter.until(async () => (await nats.state()).unacked === 0, "the ack");
     expect(await nats.state()).toEqual({ waiting: 0, unacked: 0 });
@@ -236,6 +238,50 @@ test(
     await adapter.until(async () => (await nats.state()).unacked === 0, "the term");
     expect(await nats.state()).toEqual({ waiting: 0, unacked: 0 });
     expect(paseo.runs()).toEqual([]);
+  },
+  slow,
+);
+
+test(
+  "the adapter denies at once each pending permission request of a design agent, with a message that no person is here, and leaves the requests of other agents alone; the log names the agent and the tool, not the text",
+  async () => {
+    const { paseo, adapter } = await setup();
+    paseo.setAgents([
+      {
+        id: "agent-design",
+        name: "design product#5",
+        status: "running",
+        cwd: paseo.workspaceDir,
+        labels: { "easel-loop": "design", "easel-request": "product:5" },
+      },
+      { id: "agent-other", name: "other work", status: "running", cwd: "/elsewhere", labels: {} },
+    ]);
+    paseo.setPermits([
+      {
+        id: "permission-1",
+        agentId: "agent-design",
+        name: "AskUserQuestion",
+        description: "Red / Blue",
+      },
+      { id: "permission-2", agentId: "agent-other", name: "Bash", description: "rm -rf build" },
+    ]);
+
+    const denied = await adapter.event("denied");
+    expect(denied).toMatchObject({
+      agent: "agent-design",
+      request: "permission-1",
+      tool: "AskUserQuestion",
+    });
+    expect(adapter.raw.join("\n")).not.toContain("Red / Blue");
+
+    const [args] = paseo.denies();
+    expect(args?.slice(0, 4)).toEqual(["permit", "deny", "agent-design", "permission-1"]);
+    expect(valueAfter(args ?? [], "--message")[0]).toContain("No person is here");
+    expect(valueAfter(args ?? [], "--message")[0]).toContain("easel release <claim> --reason");
+
+    await Bun.sleep(600);
+    expect(paseo.permits().map((one) => one.id)).toEqual(["permission-2"]);
+    expect(paseo.denies()).toHaveLength(1);
   },
   slow,
 );

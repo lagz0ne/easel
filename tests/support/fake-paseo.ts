@@ -67,9 +67,47 @@ function workspaces() {
   );
 }
 
+const permit = z.object({
+  id: z.string(),
+  agentId: z.string(),
+  name: z.string(),
+  description: z.string(),
+});
+
+const permitsFile = join(dir, "permits.json");
+
+const permits = () =>
+  existsSync(permitsFile)
+    ? z.array(permit).parse(JSON.parse(readFileSync(permitsFile, "utf8")))
+    : [];
+
+function listPermits() {
+  const shown = permits().map((one) => ({ ...one, agentShortId: one.agentId.slice(0, 7) }));
+  process.stdout.write(JSON.stringify(shown));
+}
+
+function deny() {
+  const [, , agentId, id] = args;
+  const found = permits().find((one) => one.agentId === agentId && one.id === id);
+  if (!found) {
+    process.stderr.write(`Permission request ${id} not found\n`);
+    process.exit(1);
+  }
+
+  writeFileSync(
+    permitsFile,
+    JSON.stringify(permits().filter((one) => one !== found && one.id !== id)),
+  );
+  process.stdout.write(
+    JSON.stringify([{ requestId: id, agentId, name: found.name, result: "denied" }]),
+  );
+}
+
 appendFileSync(join(dir, "calls.jsonl"), `${JSON.stringify(args)}\n`);
 
 if (args[0] === "ls") list();
 else if (args[0] === "run") run();
 else if (args[0] === "workspace" && args[1] === "ls") workspaces();
+else if (args[0] === "permit" && args[1] === "ls") listPermits();
+else if (args[0] === "permit" && args[1] === "deny") deny();
 else process.exit(2);

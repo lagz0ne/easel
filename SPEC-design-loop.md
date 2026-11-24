@@ -88,6 +88,14 @@ Prior art:
      not a request gets a term and a log line.
    - A message that the adapter does not ack in time comes again (`ack_wait`). A request that no
      agent claims waits in easel, and its next waiting period publishes it again.
+   - The agents run in Claude's auto mode (`--mode auto`), and they are non-interactive: no
+     agent ever waits for a person (the user, 2026-11-24: "Actually they should be in non
+     interactive mode even"). The reason: a viewer with a share link can write a request, so a
+     request must not steer an agent that has full rights, or an agent that waits for a person.
+     The prompt tells the agent that it runs unattended and must never ask the user. The adapter
+     denies at once each permission request of its agents (a question to the user is one, as
+     `AskUserQuestion`), with the message that no person is here. A denied action means: do it
+     another way, or release the request with a reason.
    - The adapter is `services/paseo-adapter/` in the repository, and runs as the user unit
      `easel-paseo-adapter.service` (its README has the unit and the environment).
 6. The agent changes the frame (a new version), or the code, or both. It resolves the request only

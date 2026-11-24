@@ -153,6 +153,15 @@ export function fakePaseo() {
   };
   const setAgents = (list: z.infer<typeof fakeAgent>[]) =>
     writeFileSync(join(dir, "agents.json"), JSON.stringify(list));
+  const setPermits = (
+    list: Array<{ id: string; agentId: string; name: string; description: string }>,
+  ) => writeFileSync(join(dir, "permits.json"), JSON.stringify(list));
+  const permits = () => {
+    const file = join(dir, "permits.json");
+    return existsSync(file)
+      ? z.array(z.looseObject({ id: z.string() })).parse(JSON.parse(readFileSync(file, "utf8")))
+      : [];
+  };
   const failRuns = (on: boolean) =>
     on ? writeFileSync(join(dir, "fail"), "") : rmSync(join(dir, "fail"), { force: true });
 
@@ -164,6 +173,9 @@ export function fakePaseo() {
     runs: () => calls().filter((args) => args[0] === "run"),
     agents,
     setAgents,
+    setPermits,
+    permits,
+    denies: () => calls().filter((args) => args[0] === "permit" && args[1] === "deny"),
     failRuns,
     close: () => rmSync(dir, { recursive: true, force: true }),
   };
@@ -191,6 +203,7 @@ export function startAdapter(nats: HubNats, paseo: FakePaseo, more: Record<strin
       EASEL_PASEO_WORKSPACE_DIR: paseo.workspaceDir,
       EASEL_PASEO_STATE_DIR: stateDir,
       EASEL_PASEO_POLL_MS: "100",
+      EASEL_PASEO_PERMIT_MS: "100",
       ...more,
     },
     stdout: "pipe",

@@ -13,6 +13,12 @@ const workspaceList = z.array(
 
 const runAnswer = z.looseObject({ agentId: z.string() });
 
+const permitList = z.array(
+  z.looseObject({ id: z.string(), agentId: z.string(), name: z.string() }),
+);
+
+export type Permit = z.infer<typeof permitList>[number];
+
 export type Agent = z.infer<typeof agentList>[number];
 
 export type Failed = { kind: "failed"; exit: number; cause: string };
@@ -128,7 +134,16 @@ export function paseoCli(bin: string) {
       runAnswer,
     );
 
-  return { agents, workspaceOf, run };
+  const permits = async () => json(bin, ["permit", "ls", "--json"], permitList);
+
+  const deny = async (permit: Permit, message: string) =>
+    json(
+      bin,
+      ["permit", "deny", permit.agentId, permit.id, "--message", message, "--json"],
+      z.unknown(),
+    );
+
+  return { agents, workspaceOf, run, permits, deny };
 }
 
 export type Paseo = ReturnType<typeof paseoCli>;

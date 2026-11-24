@@ -16,6 +16,7 @@ export type Config = {
   maxPerDay: number;
   pollMs: number;
   nakMs: number;
+  permitMs: number;
 };
 
 type Env = Record<string, string | undefined>;
@@ -44,11 +45,12 @@ export function configFrom(env: Env): Config {
     paseo: text("EASEL_PASEO_BIN", "paseo"),
     workspaceDir: text("EASEL_PASEO_WORKSPACE_DIR", join(home, "dev/easel")),
     provider: text("EASEL_PASEO_PROVIDER", "claude"),
-    mode: text("EASEL_PASEO_MODE", "bypassPermissions"),
+    mode: text("EASEL_PASEO_MODE", "auto"),
     stateDir: text("EASEL_PASEO_STATE_DIR", join(home, ".local/state/easel-paseo-adapter")),
     maxRunning: positiveNumber(env, "EASEL_PASEO_MAX_RUNNING", 2),
     maxPerDay: positiveNumber(env, "EASEL_PASEO_MAX_PER_DAY", 20),
     pollMs: positiveNumber(env, "EASEL_PASEO_POLL_MS", 5000),
     nakMs: positiveNumber(env, "EASEL_PASEO_NAK_MS", 60_000),
+    permitMs: positiveNumber(env, "EASEL_PASEO_PERMIT_MS", 3000),
   };
 }

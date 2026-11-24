@@ -4,11 +4,10 @@ import type { Config } from "./config";
 import { log } from "./log";
 import { isActive } from "./paseo";
 import type { Failed, Paseo } from "./paseo";
+import { designLabel } from "./permits";
 import { agentPrompt, agentTitle, parseRequest, requestRef } from "./request";
 import type { DesignRequest } from "./request";
 import { countStart, startsOn, utcDay } from "./starts";
-
-const designLabel = { "easel-loop": "design" };
 
 const minimumExpiresMs = 1000;
 

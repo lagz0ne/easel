@@ -24,6 +24,11 @@ is not part of the easel server binary. Nothing in `src/` or `cmds/` imports it.
    and logs `started`.
 7. If `paseo run` fails, the adapter naks the message with a delay of 60 s, and logs
    `start-failed` with the cause. The message comes again after the delay.
+8. The agents run in Claude's auto mode, and they are non-interactive. While a design agent
+   runs, the adapter reads `paseo permit ls --json` every 3 s. It denies each pending request of
+   a design agent with `paseo permit deny`, and logs `denied` with the agent, the request id and
+   the tool. A question to the user (`AskUserQuestion`) is a permission request too. The adapter
+   never touches the requests of other agents, and never logs the text of a request.
 
 The consumer has `max_ack_pending` 2, but the adapter acks a message right after the start. So
 the adapter also counts the running agents itself (step 3).
@@ -35,8 +40,8 @@ bun run services/paseo-adapter/main.ts
 ```
 
 The log is one JSON line for each event on stdout: `bound`, `started`, `repeat`, `busy`,
-`day-limit`, `malformed`, `start-failed`, `paseo-failed`, `step-failed`, `closed`, `stopping`
-and `stopped`. The log never shows the seed.
+`day-limit`, `malformed`, `start-failed`, `denied`, `deny-failed`, `paseo-failed`, `step-failed`,
+`permit-failed`, `closed`, `stopping` and `stopped`. The log never shows the seed.
 
 ## Environment
 
@@ -50,12 +55,13 @@ and `stopped`. The log never shows the seed.
 | `EASEL_PASEO_BIN`           | `paseo`                                       |
 | `EASEL_PASEO_WORKSPACE_DIR` | `~/dev/easel`                                 |
 | `EASEL_PASEO_PROVIDER`      | `claude`                                      |
-| `EASEL_PASEO_MODE`          | `bypassPermissions`                           |
+| `EASEL_PASEO_MODE`          | `auto`                                        |
 | `EASEL_PASEO_STATE_DIR`     | `~/.local/state/easel-paseo-adapter`          |
 | `EASEL_PASEO_MAX_RUNNING`   | `2`                                           |
 | `EASEL_PASEO_MAX_PER_DAY`   | `20`                                          |
 | `EASEL_PASEO_POLL_MS`       | `5000`: the wait over a limit, and the fetch  |
 | `EASEL_PASEO_NAK_MS`        | `60000`: the delay after a failed `paseo run` |
+| `EASEL_PASEO_PERMIT_MS`     | `3000`: the permission check while agents run |
 
 ## The user unit
 

@@ -7,6 +7,7 @@ import { adapterLoop } from "./adapter";
 import { configFrom } from "./config";
 import { log } from "./log";
 import { paseoCli } from "./paseo";
+import { permitLoop } from "./permits";
 
 const causeOf = (error: unknown) => (error instanceof Error ? error.message : String(error));
 
@@ -43,6 +44,7 @@ log("bound", {
   maxAckPending: bound.config.max_ack_pending ?? null,
   maxRunning: config.maxRunning,
   maxPerDay: config.maxPerDay,
+  mode: config.mode,
   workspace: config.workspaceDir,
 });
 
@@ -61,7 +63,12 @@ void nc.closed().then((error) => {
   process.exit(1);
 });
 
-await adapterLoop({ consumer, paseo: paseoCli(config.paseo), config })(() => stopping);
+const paseo = paseoCli(config.paseo);
+
+await Promise.all([
+  adapterLoop({ consumer, paseo, config })(() => stopping),
+  permitLoop({ paseo, config })(() => stopping),
+]);
 
 await nc.drain();
 
