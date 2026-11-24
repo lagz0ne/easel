@@ -20,19 +20,20 @@ E10 lets a person see each state of a frame with no agent. E11 keeps the design 
 in step. Round 1 (below) holds E1, E2, E3,
 E4, E5.1, E5.2, E6, E8, part of E9, and E10. E7 is deferred.
 
-| ID  | Epic                         | Outcome                                                                                      | Actors                  | Journeys                                                                                                                              | Status                                                                                                                  | Review |
-| --- | ---------------------------- | -------------------------------------------------------------------------------------------- | ----------------------- | ------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------- | ------ |
-| E1  | Get in                       | A person or an agent gets a token when an owner approves it.                                 | team lead, owner, agent | [access](../SPEC-access.md#journeys), [cli](../SPEC-cli.md#journeys)                                                                  | Built                                                                                                                   | ready  |
-| E2  | Make frames                  | An agent puts HTML frames on a canvas and changes them safely.                               | agent                   | [frames](../SPEC-frames.md#make-a-canvas): make a canvas, make and change frames                                                      | Built, except `frame.move`                                                                                              | ready  |
-| E3  | Share and look               | A person opens a link and sees the frames change at once.                                    | agent, viewer           | [frames](../SPEC-frames.md#share-a-canvas): share, open; [viewer](../SPEC-viewer.md#journeys) 7; [design](../SPEC-design.md#journeys) | Built                                                                                                                   | ready  |
-| E4  | Comment and get a change     | A viewer asks for a change. An agent makes it and replies.                                   | viewer, agent           | [queue](../SPEC-queue.md#journeys) 3; [viewer](../SPEC-viewer.md#ask-for-a-change): ask for a change, follow the requests             | Built; a GitHub run can get the CLI and sign in ([cli](../SPEC-cli.md#sign-in-with-no-file)), but no real run is proven | active |
-| E5  | Work through MCP             | An agent with no shell does all of E2, E3 and E4.                                            | agent                   | [mcp](../SPEC-mcp.md#journeys) 3                                                                                                      | Specified; no MCP server yet                                                                                            | active |
-| E6  | Watch production             | The company sees the health, the errors and the copies of each easel.                        | company                 | [ops](../SPEC-ops.md#journeys) 5                                                                                                      | Built, except backups                                                                                                   | ready  |
-| E7  | Fix errors with no person    | An agent fixes a production error and proves the fix.                                        | fixer, tick, probe      | [fixer](../SPEC-fixer.md#journeys) 5                                                                                                  | Not built                                                                                                               | to do  |
-| E8  | One look, fast               | Agents make frames fast, and all frames of a team look like one product.                     | agent, user             | [kit](../SPEC-kit.md#journeys) 3                                                                                                      | Built: the look, the kit, its pieces and capsules; not all fit criteria are proven                                      | to do  |
-| E9  | One voice                    | All frames of a team say one thing in one way, and one change of a text reaches each frame.  | agent, user, person     | [kit](../SPEC-kit.md)                                                                                                                 | Each frame keeps its own texts; nothing keeps the texts of a team                                                       | to do  |
-| E10 | See each state of a frame    | A person sees a frame in each state of its design, with no agent.                            | viewer, user            | [kit](../SPEC-kit.md#the-capsules): controls, panes                                                                                   | Built; no test names X1 to X5                                                                                           | to do  |
-| E11 | The design and the app agree | The person sees the live app beside the design, and an accepted design reaches the live app. | person, agent           | [live-screens](../SPEC-live-screens.md), [design-loop](../SPEC-design-loop.md)                                                        | E11.1 built. E11.2: V4 and V7 built (2d362f0); #1 to #3 live at build 320. Not built: V5 (the copies that fall behind)  | active |
+| ID  | Epic                         | Outcome                                                                                                               | Actors                  | Journeys                                                                                                                              | Status                                                                                                                  | Review |
+| --- | ---------------------------- | --------------------------------------------------------------------------------------------------------------------- | ----------------------- | ------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------- | ------ |
+| E1  | Get in                       | A person or an agent gets a token when an owner approves it.                                                          | team lead, owner, agent | [access](../SPEC-access.md#journeys), [cli](../SPEC-cli.md#journeys)                                                                  | Built                                                                                                                   | ready  |
+| E2  | Make frames                  | An agent puts HTML frames on a canvas and changes them safely.                                                        | agent                   | [frames](../SPEC-frames.md#make-a-canvas): make a canvas, make and change frames                                                      | Built, except `frame.move`                                                                                              | ready  |
+| E3  | Share and look               | A person opens a link and sees the frames change at once.                                                             | agent, viewer           | [frames](../SPEC-frames.md#share-a-canvas): share, open; [viewer](../SPEC-viewer.md#journeys) 7; [design](../SPEC-design.md#journeys) | Built                                                                                                                   | ready  |
+| E4  | Comment and get a change     | A viewer asks for a change. An agent makes it and replies.                                                            | viewer, agent           | [queue](../SPEC-queue.md#journeys) 3; [viewer](../SPEC-viewer.md#ask-for-a-change): ask for a change, follow the requests             | Built; a GitHub run can get the CLI and sign in ([cli](../SPEC-cli.md#sign-in-with-no-file)), but no real run is proven | active |
+| E5  | Work through MCP             | An agent with no shell does all of E2, E3 and E4.                                                                     | agent                   | [mcp](../SPEC-mcp.md#journeys) 3                                                                                                      | Specified; no MCP server yet                                                                                            | active |
+| E6  | Watch production             | The company sees the health, the errors and the copies of each easel.                                                 | company                 | [ops](../SPEC-ops.md#journeys) 5                                                                                                      | Built, except backups                                                                                                   | ready  |
+| E7  | Fix errors with no person    | An agent fixes a production error and proves the fix.                                                                 | fixer, tick, probe      | [fixer](../SPEC-fixer.md#journeys) 5                                                                                                  | Not built                                                                                                               | to do  |
+| E8  | One look, fast               | Agents make frames fast, and all frames of a team look like one product.                                              | agent, user             | [kit](../SPEC-kit.md#journeys) 3                                                                                                      | Built: the look, the kit, its pieces and capsules; not all fit criteria are proven                                      | to do  |
+| E9  | One voice                    | All frames of a team say one thing in one way, and one change of a text reaches each frame.                           | agent, user, person     | [kit](../SPEC-kit.md)                                                                                                                 | Each frame keeps its own texts; nothing keeps the texts of a team                                                       | to do  |
+| E10 | See each state of a frame    | A person sees a frame in each state of its design, with no agent.                                                     | viewer, user            | [kit](../SPEC-kit.md#the-capsules): controls, panes                                                                                   | Built; no test names X1 to X5                                                                                           | to do  |
+| E11 | The design and the app agree | The person sees the live app beside the design, and an accepted design reaches the live app.                          | person, agent           | [live-screens](../SPEC-live-screens.md), [design-loop](../SPEC-design-loop.md)                                                        | E11.1 built. E11.2: V4 and V7 built (2d362f0); #1 to #3 live at build 320. Not built: V5 (the copies that fall behind)  | active |
+| E12 | Screens and flows            | A person walks through the screens of a journey as a user of the product would, and sees the whole flow on the board. | person, agent           | not designed                                                                                                                          | Not built                                                                                                               | to do  |
 
 ## Round 1: Show the design
 
@@ -44,15 +45,15 @@ E4, E5.1, E5.2, E6, E8, part of E9, and E10. E7 is deferred.
 - **Customer:** the user, one person. No one pays in this round.
 - **Base:** none.
 
-| Part  | Mark                                                                              | Epics or reason                                                                                                                                                                                                                                                                   |
-| ----- | --------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Value | in the round                                                                      | E1 (E1.4 for the one person), E2 (with E2.3 and E2.4), E3, E4.1 to E4.4, E4.5 (an agent that asks, and D6, D9, D11 to D13), E5.1, E5.2, E8, E9 (L1, L3, L5, L12), E10 and E11. The outcome needs each of them: see, change the states, comment, and drive the design through MCP. |
-| Get   | deferred (R1, R2)                                                                 | The one person runs the easel. Add it when a second person or team comes.                                                                                                                                                                                                         |
-| Pay   | deferred: no team pays in this round (R3)                                         | Add it when the first team pays.                                                                                                                                                                                                                                                  |
-| Help  | deferred (R4)                                                                     | The person and the company are the same. Add it when a second person or team comes.                                                                                                                                                                                               |
-| Run   | in the round: E6, except backups; by hand: updates (R6)                           | Deferred: a copy off the host (R5). Most of the content and the look of easel come from the code in the repository, so the repository is the copy. Add it when work that only easel holds is lost.                                                                                |
-| Trust | in the round: only the person starts the work of an agent (D11); deferred: R7, R8 | A share link can show the work to others, but an agent acts only for the person. R7 and R8 come back with a second person or team.                                                                                                                                                |
-| Learn | deferred (R9)                                                                     | The person gives feedback on the canvas each day. Add it when a second person or team comes.                                                                                                                                                                                      |
+| Part  | Mark                                                                              | Epics or reason                                                                                                                                                                                                                                                                                     |
+| ----- | --------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Value | in the round                                                                      | E1 (E1.4 for the one person), E2 (with E2.3 and E2.4), E3, E4.1 to E4.4, E4.5 (an agent that asks, and D6, D9, D11 to D13), E5.1, E5.2, E8, E9 (L1, L3, L5, L12), E10 (with E10.2), E11 and E12. The outcome needs each of them: see, change the states, comment, and drive the design through MCP. |
+| Get   | deferred (R1, R2)                                                                 | The one person runs the easel. Add it when a second person or team comes.                                                                                                                                                                                                                           |
+| Pay   | deferred: no team pays in this round (R3)                                         | Add it when the first team pays.                                                                                                                                                                                                                                                                    |
+| Help  | deferred (R4)                                                                     | The person and the company are the same. Add it when a second person or team comes.                                                                                                                                                                                                                 |
+| Run   | in the round: E6, except backups; by hand: updates (R6)                           | Deferred: a copy off the host (R5). Most of the content and the look of easel come from the code in the repository, so the repository is the copy. Add it when work that only easel holds is lost.                                                                                                  |
+| Trust | in the round: only the person starts the work of an agent (D11); deferred: R7, R8 | A share link can show the work to others, but an agent acts only for the person. R7 and R8 come back with a second person or team.                                                                                                                                                                  |
+| Learn | deferred (R9)                                                                     | The person gives feedback on the canvas each day. Add it when a second person or team comes.                                                                                                                                                                                                        |
 
 ### What works at once
 
@@ -129,8 +130,11 @@ Decided:
   agent.
 - Deferred: E5.3, work from a chat or a phone (D4, D5), and a cloud agent from a phone (C1). Add it
   when a person of a team wants the requests done with no computer.
-- Deferred: the rest of E9 (L2, L4, L6 to L11). Add it when the frames of a team name one thing in
-  two ways, or a person reviews or translates the words.
+- On 2026-11-24, the user moved i18n into the round ("Now onto the custom controller, copies, i18n,
+  screen and flows"). So L9 to L11, L13 and L14 are in the round: the person reviews and translates
+  the words.
+- Deferred: L2, L4, L6 to L8. Add them when the frames of a team name one thing in two ways, or a
+  change of the words is lost.
 - On 2026-11-23, the user moved a control for all frames into the round: "the control to turn dark
   mode or white mode for specific frame or every. Use of fixture and show them in a specific
   component or page. Change of localization". See [pieces](../SPEC-pieces.md) § Switches.
@@ -155,6 +159,13 @@ Closed before: L1, L3, L5 and L12 (CP-1 to CP-5 of [SPEC-copy](../SPEC-copy.md):
 and R8 (`8d452f6`: the design of the backups and the delete).
 
 ### Round 1 walk of the slice
+
+On 2026-11-24 (later), Round 1 was read again for the user's next ask: the person opens `product`,
+picks dark and Vietnamese for the whole board, sees one screen with an empty list beside the
+others, sees each text with its translation and what is missing, walks the journey of E4 from its
+first screen by presses, comments on one step, and sees an accepted change of the dock reach each
+screen. The walk added X6 to X11, L13, L14 and J1 to J9, moved L9 to L11 into the round, and kept
+V5 as the need for "copies".
 
 On 2026-11-24, Round 1 was read as the one person, with agents that do all the work: get in on a
 phone, see what waits, comment on a frame of `product` with a screenshot, see an agent start with
@@ -1032,11 +1043,13 @@ Decided:
   the texts that were wrong (E9.2).
 - **Failure end:** a text is used in no frame. The person sees it, and can remove it.
 
-| ID  | Requirement                                           | Fit criterion                                                                                                   |
-| --- | ----------------------------------------------------- | --------------------------------------------------------------------------------------------------------------- |
-| L9  | A person sees all the words of the team in one place. | A person of the team, with easel only, sees each visible text of each frame in one place, with no text missing. |
-| L10 | A person sees where a text is used.                   | For a text there, the person opens each frame that shows it within 1 minute.                                    |
-| L11 | A person sees the texts that no frame uses.           | A text that no frame shows is marked as not used where the person reviews the words.                            |
+| ID  | Requirement                                                                | Fit criterion                                                                                                                                                                           |
+| --- | -------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| L9  | A person sees all the words of the team in one place.                      | A person of the team, with easel only, sees each visible text of each frame in one place, with no text missing.                                                                         |
+| L10 | A person sees where a text is used.                                        | For a text there, the person opens each frame that shows it within 1 minute.                                                                                                            |
+| L11 | A person sees the texts that no frame uses.                                | A text that no frame shows is marked as not used where the person reviews the words.                                                                                                    |
+| L13 | Each language of the team is complete, or the person sees what is missing. | For each language, the person sees the count of texts with no translation, and each one. A frame in that language shows the text of the first language there, marked as not translated. |
+| L14 | An agent translates the words, and the person reviews them in one place.   | After an agent gives a second language for each key, the person sees each text beside its translation in one place, and each frame shows the new language with one pick (X6).           |
 
 ### E9 walk of the slice
 
@@ -1068,6 +1081,7 @@ person changes the state of the frame with them, in place.
 | ID    | Journey                     | Actor  | Design                                                                                         | Review |
 | ----- | --------------------------- | ------ | ---------------------------------------------------------------------------------------------- | ------ |
 | E10.1 | Change the state of a frame | viewer | [kit](../SPEC-kit.md#the-capsules): "The controls in the viewer", "A control in its own scope" | to do  |
+| E10.2 | See all frames in one state | person | [pieces](../SPEC-pieces.md#switches-one-state-for-one-frame-or-for-all-frames) rules 10-16     | to do  |
 
 Decided:
 
@@ -1092,6 +1106,25 @@ Decided:
 | X3  | A control can be a full tool, with its own state and icons. | A toolbar with a text field and buttons with icons works beside the frame as it does in a frame.                                                 |
 | X4  | A control does only what the frame lets it do.              | A control changes the frame only by the actions that the frame offers. A change that the frame refuses changes nothing, and says why.            |
 | X5  | The frame puts each control where it helps the review.      | Each control shows at the place that the frame gives it (above the frame, at one side, or in the panel), at the same size at each zoom.          |
+
+### E10.2 See all frames in one state
+
+- **Actor:** the person. The agents make the states.
+- **Need:** see each frame of the board in one state at one time (dark, Vietnamese, an empty list,
+  a free plan), and compare one frame in a different state, with no agent.
+- **Trigger:** the person reviews a board, or a set of screens in one state.
+- **Success end:** the person saw the board in each state that matters, and each frame showed it.
+- **Failure end:** a frame cannot show a state. The person sees which frame and why, and the other
+  frames still show the state.
+
+| ID  | Requirement                                                    | Fit criterion                                                                                                                                                   |
+| --- | -------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| X6  | One pick gives the whole board one state.                      | One pick of dark, of a language or of a data set changes each frame that has that state within 1 second, with no reload. A frame that does not have it stays.   |
+| X7  | One frame can show a state of its own beside the board.        | After a pick on one frame, only that frame changes, and it says that it has its own state. One step gives it the state of the board again.                      |
+| X8  | A link opens the board in the same state.                      | The person sends a link. A second browser opens it and shows each frame in the same state.                                                                      |
+| X9  | The team has its own kinds of state, with no change to easel.  | An agent adds a kind of state (for example a plan: free or pro). Within 1 minute, the person has a control for it, and no build of easel was needed.            |
+| X10 | The example data of the frames is named and kept in one place. | The person picks "empty", "one", "many" or "error" for the frames. One change of a data set by an agent shows in each frame that uses it, and no frame changed. |
+| X11 | The person sees one part in each of its states side by side.   | One frame shows a part in each value of its states, each with a label. A new state of the part shows there with no change to that frame.                        |
 
 ## E11: The design and the app agree
 
@@ -1149,3 +1182,62 @@ Decided:
   v2), and the copies on `52b790a2057e` moved to them (Count and Dock rev 6, Toolbar rev 4).
 - Known gap (V5): the other copies of Count, Dock and Toolbar on `product` stay at their old
   revisions. `design:proof` shows 3 S5 findings for them until each copy moves.
+
+## E12: Screens and flows
+
+A screen alone does not show a journey. A review needs the screens in the order of the journey,
+with the step that leads from one to the next. The agents make the screens and their links; the
+person walks the flow and comments on it.
+
+| ID    | Journey                   | Actor         | Design       | Review |
+| ----- | ------------------------- | ------------- | ------------ | ------ |
+| E12.1 | Walk through a flow       | person        | not designed | to do  |
+| E12.2 | See and keep a flow whole | agent, person | not designed | to do  |
+
+### E12.1 Walk through a flow
+
+- **Actor:** the person.
+- **Need:** go through the screens of a journey as a user of the product would: press a button
+  and get the next screen, from the start of the journey to its end.
+- **Trigger:** the person reviews a journey.
+- **Success end:** the person went from the first screen to the last by the actions on the
+  screens, and commented where a step was wrong.
+- **Failure end:** an action leads nowhere. The person sees that the step has no screen, and can
+  ask for it.
+
+| ID  | Requirement                                                          | Fit criterion                                                                                                                              |
+| --- | -------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------ |
+| J1  | The person walks a flow by the actions on its screens.               | On a flow of 5 screens, the person gets from the first to the last only by presses on the screens. Each next screen shows within 1 second. |
+| J2  | The person starts a flow in one step.                                | Each flow has a name and a first screen. From the board, one press starts it.                                                              |
+| J3  | The person always knows where they are in the flow, and can go back. | The person sees the name of the flow and of the screen. One step goes back to the screen before, and one step leaves the flow.             |
+| J4  | The person comments on a step of the flow.                           | A request made during the walk is on that screen, and its picture shows the screen as the person saw it.                                   |
+| J5  | A flow shows the same state on each screen.                          | With dark and Vietnamese picked (X6), each screen of the walk shows dark and Vietnamese.                                                   |
+
+### E12.2 See and keep a flow whole
+
+- **Actor:** agent. The person reads the board.
+- **Need:** see on the board how the screens of a flow connect, and keep the links right when a
+  screen changes or goes.
+- **Trigger:** an agent adds, changes or removes a screen or a link.
+- **Success end:** each link of each flow leads to a screen that is there, and the person sees the
+  flow as a map.
+- **Failure end:** a link leads to a screen that is gone. The agent is told before the person
+  meets it.
+
+| ID  | Requirement                                                          | Fit criterion                                                                                                                                 |
+| --- | -------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------- |
+| J6  | The agent links a screen to the next by the action that leads there. | The agent names the action on a screen and the screen that it leads to, with no position. The link holds when either screen moves or changes. |
+| J7  | The person sees a flow as a map on the board.                        | Each link shows as an arrow from its screen to the next, and the screens of a flow are in the order of the flow (E2.3).                       |
+| J8  | A broken link is found before the person meets it.                   | When a screen or an action that a link uses goes, the agent that made the change is told which links broke, and the map marks them.           |
+| J9  | The flows of a canvas are listed in one place.                       | The person sees each flow of a canvas, with its first screen and its count of screens, and starts any of them in one press.                   |
+
+Decided:
+
+- On 2026-11-24, the user moved screens and flows into the round: "Now onto the custom controller,
+  copies, i18n, screen and flows".
+- Prior art: the prototypes of Figma (a connection from a layer to a frame, a flow with a starting
+  point, a list of flows), and the prototype clicks of Doop (803 on 82 frames of our design).
+  Excalidraw binds an arrow to the elements at its ends, so it follows them (E2.3).
+- Deferred: data that goes from one screen to the next (a name typed on screen 1 shows on screen
+  2). Add it when a flow cannot be judged with example data (X10).
+- Deferred: a transition between screens (slide, fade). Add it when the person asks for it.
