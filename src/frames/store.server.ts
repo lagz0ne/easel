@@ -41,6 +41,7 @@ import {
 } from "./contract";
 import { boardKey } from "./keys.server";
 import { passwordCost } from "./password.server";
+import { clearance, frameGap, sectionSpace, touchSpace } from "./settings";
 
 export const canvases = data({
   label: "frames.canvases",
@@ -149,8 +150,6 @@ const genOf = "COALESCE((SELECT gen FROM frames_keygen WHERE canvas = ?), 0)";
 
 const sameRuntime = `((SELECT runtime FROM kit_versions WHERE version = frames_frames.kit)
   IS (SELECT runtime FROM kit_versions WHERE version = ?))`;
-
-export const frameGap = 80;
 
 const frameRow = z.object({
   canvas: z.string(),
@@ -347,8 +346,8 @@ const newPlace = operation({
     y: z.number().nullable(),
     db: z.custom<Database>(),
   }),
-  depends: { firstPageOf, hasPage },
-  run: ({ firstPageOf, hasPage }, { input: { canvas, x, y, db, ...asked } }) => {
+  depends: { firstPageOf, hasPage, frameGap },
+  run: ({ firstPageOf, hasPage, frameGap }, { input: { canvas, x, y, db, ...asked } }) => {
     const page = asked.page ?? firstPageOf.run({ input: { canvas, db } });
     if (page === null || !hasPage.run({ input: { canvas, page, db } })) return null;
     if (x !== null) return { page, x, y: y ?? 0 };
@@ -1515,7 +1514,15 @@ const load = operation({
 
 export const framesServer = capsule({
   label: "framesServer",
-  config: { stdout, runtime: kitRuntime, passwordCost },
+  config: {
+    stdout,
+    runtime: kitRuntime,
+    passwordCost,
+    frameGap,
+    sectionSpace,
+    clearance,
+    touchSpace,
+  },
   hooks: {
     async start({ run, next }) {
       await run(load, {}, { role: "setup", explain: "Reads canvases and frames" });

@@ -2,8 +2,11 @@ import { exits } from "@tinkered/cli/test";
 import { createScope } from "@tinkered/core";
 import { afterEach, expect, test } from "vite-plus/test";
 
-import { arrangeGap, clearance, sectionHead, sectionSpace } from "@/frames/arrange";
+import { arrangeGap, sectionHead } from "@/frames/arrange";
 import { findingsOf, layoutPage, type SectionRow } from "@/frames/arrange.server";
+import { framesDefaults } from "@/frames/settings";
+
+const { clearance, sectionSpace } = framesDefaults;
 
 const closers: Array<() => unknown> = [];
 

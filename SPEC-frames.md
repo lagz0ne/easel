@@ -43,9 +43,9 @@ that a manifest refers to and removes the rest.
 ### Make and change frames
 
 1. `easel put <canvas> page.html --name Cart` makes a frame to the right of the others: at y 0,
-   80 px right of the rightmost frame's right edge, or at 0,0 when it is the first. It is 1440×900
-   unless `--size 390x844` is given. It prints the id and version 1. Every open tab shows it, in
-   the look and the kit.
+   80 px (the default of the tag `frames.frameGap`) right of the rightmost frame's right edge, or at
+   0,0 when it is the first. It is 1440×900 unless `--size 390x844` is given. It prints the id and
+   version 1. Every open tab shows it, in the look and the kit.
 2. `easel ls <canvas>` lists the frames: id, name, box, version, open requests.
 3. `easel get <canvas> <id> -o page.html` writes the document and prints the version.
 4. `easel put <canvas> page.html --id <id> --base <version>` writes it again and prints the new

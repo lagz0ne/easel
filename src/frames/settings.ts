@@ -14,6 +14,10 @@ export const framesDefaults = {
   drawLimitMs: 20_000,
   proxyWaitMs: 10_000,
   proxyHeadBytes: 8 * 1024,
+  frameGap: 80,
+  sectionSpace: 160,
+  clearance: 80,
+  touchSpace: 16,
 } as const;
 
 export const opensPerMinute = tag({
@@ -73,5 +77,29 @@ export const proxyWaitMs = tag({
 export const proxyHeadBytes = tag({
   label: "pictures.proxyHeadBytes",
   default: framesDefaults.proxyHeadBytes,
+  parse: positive,
+});
+
+export const frameGap = tag({
+  label: "frames.frameGap",
+  default: framesDefaults.frameGap,
+  parse: positive,
+});
+
+export const sectionSpace = tag({
+  label: "frames.sectionSpace",
+  default: framesDefaults.sectionSpace,
+  parse: positive,
+});
+
+export const clearance = tag({
+  label: "frames.clearance",
+  default: framesDefaults.clearance,
+  parse: positive,
+});
+
+export const touchSpace = tag({
+  label: "frames.touchSpace",
+  default: framesDefaults.touchSpace,
   parse: positive,
 });

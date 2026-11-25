@@ -41,7 +41,9 @@ the person, 2026-11-25: packages to primitives, constants to tags, scripts to cm
 
 ## Touching
 
-- (nothing now)
+- 7d: `src/frames/settings.ts`, `src/frames/arrange.ts`, `src/frames/arrange.server.ts`,
+  `src/frames/store.server.ts`, `tests/arrange.test.ts`, `tests/arrange-api.test.ts`,
+  `tests/frames-settings.test.ts` (new), `SPEC-arrange.md`, `SPEC-frames.md`
 
 ## Plan
 
@@ -60,8 +62,10 @@ the person, 2026-11-25: packages to primitives, constants to tags, scripts to cm
 - [x] 7c. Tags: `silentAfterMs`, `perPass` and `perAddress` of `src/queue/`. The limits in the
       contracts (`maxRunningLimit`, `maxPerDayLimit`, `maxCause`, `maxChannelCanvases`) are wire
       limits: Not in. 3c82c33.
-- [ ] 7d. Tags: `frameGap` and the arrange values. `src/frames/` (the cases mission touches it:
-      agree with its lead first).
+- [ ] 7d. Tags: `frameGap` and the arrange values. `src/frames/`. The cases lead agreed after
+      T2 (dd65db7). Tags: `frameGap`, `sectionSpace`, `clearance`, `touchSpace`. Left as they are:
+      `sectionHead` (the viewer draws with it too, so the client and the server must agree),
+      `arrangeGap` (it is the stored default of a column), and the wire limit `maxLayoutFindings`.
 - [ ] 7e. Tags: the values of `src/kit` and `src/mcp`. Waits for dark look B (eae12f93) and
       the cases mission.
 - [x] 7f. Tags: 28 values of the viewer, in `src/viewer/settings.ts`. Left as they are: the

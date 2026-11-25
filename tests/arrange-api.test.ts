@@ -14,10 +14,11 @@ import { loginOps } from "@/access/login.server";
 import { accessServer } from "@/access/store.server";
 import { userOps } from "@/access/users.server";
 import { frames } from "@/frames";
-import { arrangeGap, sectionHead, sectionSpace } from "@/frames/arrange";
+import { arrangeGap, sectionHead } from "@/frames/arrange";
 import { framesContracts } from "@/frames/contract";
 import type { MoveInput, PutInput } from "@/frames/contract";
 import { framesLoads, framesOps, mayRead } from "@/frames/ops.server";
+import { framesDefaults } from "@/frames/settings";
 import { framesServer } from "@/frames/store.server";
 
 const closers: Array<() => unknown> = [];
@@ -204,17 +205,17 @@ test("two sections go from top to bottom in their order, 160 px apart; section.s
 
   expect((await boxes(e)).get(other.id)).toMatchObject({
     x: 0,
-    y: top + sectionSpace + sectionHead,
+    y: top + framesDefaults.sectionSpace + sectionHead,
   });
 
   expect(await e.section({ section: "Sign in", after: null })).toMatchObject({ kind: "set" });
   const first = await boxes(e);
   expect(first.get(other.id)).toMatchObject({ x: 0, y: sectionHead });
-  expect(first.get(a)).toMatchObject({ y: top + sectionSpace + sectionHead });
+  expect(first.get(a)).toMatchObject({ y: top + framesDefaults.sectionSpace + sectionHead });
 
   expect(await e.section({ section: "Checkout", wrap: 2, gap: 40 })).toMatchObject({ kind: "set" });
   const wrapped = await boxes(e);
-  const start = top + sectionSpace + sectionHead;
+  const start = top + framesDefaults.sectionSpace + sectionHead;
   expect(wrapped.get(a)).toMatchObject({ x: 0, y: start });
   expect(wrapped.get(b)).toMatchObject({ x: screen.w + 40, y: start });
   expect(wrapped.get(c)).toMatchObject({ x: 0, y: start + screen.h + 40 });

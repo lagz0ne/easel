@@ -5,12 +5,6 @@ export const arrangeGap = 80;
 
 export const sectionHead = 120;
 
-export const sectionSpace = 160;
-
-export const clearance = 80;
-
-export const touchSpace = 16;
-
 export const maxLayoutFindings = 20;
 
 export const sectionGap = z.number().int().min(16).max(800);

@@ -52,8 +52,9 @@ above them. The epics say "group" (G3). The glossary has "error group", so this 
 
 ## Current behavior
 
-- `frame.put` takes `page`, `x` and `y` for a new frame. With no place, the frame goes 80 px to
-  the right of the frames of its page, at y 0 (SPEC-pages rule 5).
+- `frame.put` takes `page`, `x` and `y` for a new frame. With no place, the frame goes 80 px (the
+  default of the tag `frames.frameGap`) to the right of the frames of its page, at y 0 (SPEC-pages
+  rule 5).
 - `frame.move` takes `x`, `y` and `page` (SPEC-pages rule 6). No call changes the size of a
   frame. A new image version changes it.
 - No call says that two frames touch.
@@ -74,8 +75,8 @@ above them. The epics say "group" (G3). The glossary has "error group", so this 
    - `below: <id>`: the frame goes under that frame, in its column.
    - `section: <name>`: the frame goes in a new column at the end of that section. A section
      that the page does not have is made, after the other sections of the page.
-   - No place: as today, 80 px to the right of the frames of its page, at y 0. It is an exact
-     place.
+   - No place: as today, 80 px (the default of the tag `frames.frameGap`) to the right of the
+     frames of its page, at y 0. It is an exact place.
 2. `after` and `below` name a frame that is in a section. A frame with an exact place answers
    `placed`, with its id. The page is the page of that frame: `page` with `after` or `below` is
    `invalid`. Two kinds of place in one call are `invalid`.
@@ -95,10 +96,11 @@ above them. The epics say "group" (G3). The glossary has "error group", so this 
    the tallest column of the line before. With no wrap, all the columns are on one line (a row).
 8. A section box is its frames and a head of 120 px above them, where the viewer shows the name.
 9. The sections of a page go from top to bottom, in their order, at x 0, from y 0. 160 px
-   separate two sections.
+   (the default of the tag `frames.sectionSpace`) separate two sections.
 10. An exact frame is fixed. A section that is placed with `at` is fixed too. A section in the
-    flow never comes closer than 80 px to a fixed box. When it would, easel moves it down, below
-    that box, and it starts again from that place (G4).
+    flow never comes closer than 80 px (the default of the tag `frames.clearance`) to a fixed
+    box. When it would, easel moves it down, below that box, and it starts again from that place
+    (G4).
 11. After each change of a page (a new frame, a move, a new size, a delete, a section change),
     easel computes each place of the sections of that page again, in the same write. So a frame
     that gets wider moves the columns after it, and a frame that goes leaves no hole (G2). A
@@ -118,8 +120,8 @@ above them. The epics say "group" (G3). The glossary has "error group", so this 
 
 ### The check (G5)
 
-14. Two frames **touch** when their boxes are closer than 16 px on both axes, or are on each
-    other.
+14. Two frames **touch** when their boxes are closer than 16 px (the default of the tag
+    `frames.touchSpace`) on both axes, or are on each other.
 15. A frame is a **stray** of a section when it is not in the section, and its box is on the box of
     the section (its head too). A person reads it as a part of the section.
 16. A frame of a section is never out of its section: easel places it. A test proves it.

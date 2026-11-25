@@ -5,15 +5,13 @@ import { z } from "zod";
 
 import {
   arrangeGap,
-  clearance,
   type Finding,
   finding,
   maxLayoutFindings,
   sectionHead,
   sectionInfo,
-  sectionSpace,
-  touchSpace,
 } from "./arrange";
+import { clearance, sectionSpace, touchSpace } from "./settings";
 
 const slot = z.object({
   id: z.string(),
@@ -51,7 +49,8 @@ export const layoutPage = operation({
     slots: z.array(slot),
     fixed: z.array(box),
   }),
-  run: (_, { input }) => {
+  depends: { sectionSpace, clearance },
+  run: ({ sectionSpace, clearance }, { input }) => {
     const shaped = input.sections
       .toSorted((a, b) => a.ord - b.ord || a.key.localeCompare(b.key))
       .flatMap((section) => {
@@ -141,7 +140,8 @@ const framed = box.extend({ section: z.string().nullable() });
 export const findingsOf = operation({
   label: "frames.findingsOf",
   input: z.object({ frames: z.array(framed), sections: z.array(sectionInfo) }),
-  run: (_, { input }): Finding[] => {
+  depends: { touchSpace },
+  run: ({ touchSpace }, { input }): Finding[] => {
     const all = input.frames.toSorted((a, b) => a.x - b.x);
     const touches = all.flatMap((a, i) => {
       const near: Finding[] = [];
