@@ -41,12 +41,7 @@ the person, 2026-11-25: packages to primitives, constants to tags, scripts to cm
 
 ## Touching
 
-- `src/queue/settings.ts`, `src/queue/ops.server.ts`, `src/queue/starts.ts`,
-  `src/queue/starts.server.ts` (7c)
-- `src/live/settings.ts`, `src/live/takes.server.ts` (8)
-- `src/viewer/settings.ts` (new), `src/viewer/stage.ts`, `src/viewer/fold.ts`,
-  `src/viewer/follow.ts`, `src/viewer/gate.ts` (7f)
-- `tinker.graph`: the lines `queue.*`, `liveScreens.*` and `viewer.*` only, shipped with `-p`
+- (nothing now)
 
 ## Plan
 
@@ -60,15 +55,19 @@ the person, 2026-11-25: packages to primitives, constants to tags, scripts to cm
 - [x] 7a. Tags: sign-in (524f731), share links, passwords and pictures (c7b50ee), error sink
       and dispatch (1d60d43).
 - [ ] 7b. Tags: the CLI `shotTries` and `callDeadline`. `src/cli/`. Check: a test in a scope.
-      Waits: `src/cli/frames.ts` and `src/cli/look.ts` (it reads `callDeadline`) are dirty from
-      other missions.
-- [ ] 7c. Tags: `silentAfterMs`, `perPass` and `perAddress` of `src/queue/`. The limits in the
+      Waits: `src/cli/look.ts` reads `callDeadline`, and it has uncommitted work of dark look B.
+      Both values go in one ship after that work ships.
+- [x] 7c. Tags: `silentAfterMs`, `perPass` and `perAddress` of `src/queue/`. The limits in the
       contracts (`maxRunningLimit`, `maxPerDayLimit`, `maxCause`, `maxChannelCanvases`) are wire
-      limits: Not in.
+      limits: Not in. 3c82c33.
 - [ ] 7d. Tags: `frameGap` and the arrange values. `src/frames/` (the cases mission touches it:
       agree with its lead first).
 - [ ] 7e. Tags: the values of `src/kit` and `src/mcp`. Waits for dark look B (eae12f93) and
       the cases mission.
-- [ ] 7f. Tags: the 36 values of the viewer, in the browser scope. `src/viewer/`.
-- [ ] 8. A small noise limit for the pixel compare of `live-screens` (8 of 255, as `map-screens`),
-      so raster noise does not give a false `differs`. `src/live/takes.server.ts`.
+- [x] 7f. Tags: 28 values of the viewer, in `src/viewer/settings.ts`. Left as they are: the
+      1500 ms font wait in the iframe script of `paintScript` (it is not a unit), the chunk size of
+      `draft.ts`, the steps of the zoom label, the wire limit `maxImageBytes`, and `drop.ts` (it
+      has uncommitted work of another mission). `viewer.noAnswerDays` is also read on the server
+      (the home inbox): an install sets it in both scopes. 82d93ce.
+- [x] 8. A small noise limit for the pixel compare of `live-screens` (8 of 255, as `map-screens`),
+      so raster noise does not give a false `differs`. `src/live/takes.server.ts`. 3c82c33.
