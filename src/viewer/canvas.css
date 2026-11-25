@@ -684,6 +684,33 @@
   border: 0;
 }
 
+.e-grow {
+  display: grid;
+  flex: 1;
+  min-width: 0;
+}
+
+.e-grow::after {
+  overflow: hidden;
+  white-space: pre-wrap;
+  visibility: hidden;
+  content: attr(data-value) " ";
+  overflow-wrap: anywhere;
+}
+
+.e-grow > textarea,
+.e-grow::after {
+  grid-area: 1 / 1;
+  max-height: calc(6 * var(--e-leading-2));
+  font-size: var(--e-size-2);
+  line-height: var(--e-leading-2);
+}
+
+.e-grow > textarea {
+  overflow-y: auto;
+  overflow-wrap: anywhere;
+}
+
 .e-box textarea:focus {
   outline: none;
 }

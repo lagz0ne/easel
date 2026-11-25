@@ -1012,6 +1012,31 @@ test("a note, as a chat: the textbox Add a note and Send at the end of a request
   ]);
 });
 
+test("the box of a note looks as the box of a new request: the initial of the viewer beside it; it starts at one line, grows with the text, and at six lines it stops and scrolls (product#7)", async () => {
+  const server = await boot(() => {
+    stored(1, "Add a short FAQ here.");
+  });
+  await tab(server);
+
+  await openIt(1);
+  const reply = dialog(1).element().querySelector(".e-reply");
+  expect(reply?.querySelector(".e-row > .e-avatar")?.textContent).toBe("M");
+  const box = dialog(1).getByRole("textbox", { name: "Add a note" });
+  const height = () => box.element().getBoundingClientRect().height;
+  const oneLine = height();
+  expect(oneLine).toBe(20);
+
+  await box.fill("One.\nTwo.\nThree.");
+  await expect.poll(height).toBe(3 * oneLine);
+
+  await box.fill(Array.from({ length: 12 }, (_, i) => `Line ${i + 1}.`).join("\n"));
+  await expect.poll(height).toBe(6 * oneLine);
+  expect(box.element().scrollHeight).toBeGreaterThan(6 * oneLine);
+
+  await box.fill("");
+  await expect.poll(height).toBe(oneLine);
+});
+
 test("another viewer acted first (wrongState): nothing is saved, the popover shows the new state, keeps the text, and says who; after an accept, Send opens it again (Follow the requests 16, E4.2 M20)", async () => {
   const server = await boot(() => {
     const r = stored(1, "Make the Team plan stand out.", {

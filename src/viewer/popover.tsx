@@ -298,25 +298,27 @@ function BoxField({
 
   return (
     <div className="e-box" data-busy={busy} aria-invalid={here.step === "notSent"}>
-      <textarea
-        aria-label={boxTexts[box].name}
-        placeholder={
-          asks ? "Write an answer…" : (hintsInState[`${box}.${v.shown}`] ?? boxTexts[box].hint)
-        }
-        rows={2}
-        value={here.text}
-        readOnly={busy}
-        autoFocus={box === "correct" || box === "note"}
-        onFocus={(event) =>
-          event.currentTarget.setSelectionRange(here.text.length, here.text.length)
-        }
-        onChange={(event) => type.run({ input: { ...at, text: event.target.value } })}
-        onKeyDown={(event) => {
-          if (event.key !== "Enter" || event.shiftKey) return;
-          event.preventDefault();
-          event.currentTarget.form?.requestSubmit();
-        }}
-      />
+      <div className="e-grow" data-value={here.text}>
+        <textarea
+          aria-label={boxTexts[box].name}
+          placeholder={
+            asks ? "Write an answer…" : (hintsInState[`${box}.${v.shown}`] ?? boxTexts[box].hint)
+          }
+          rows={1}
+          value={here.text}
+          readOnly={busy}
+          autoFocus={box === "correct" || box === "note"}
+          onFocus={(event) =>
+            event.currentTarget.setSelectionRange(here.text.length, here.text.length)
+          }
+          onChange={(event) => type.run({ input: { ...at, text: event.target.value } })}
+          onKeyDown={(event) => {
+            if (event.key !== "Enter" || event.shiftKey) return;
+            event.preventDefault();
+            event.currentTarget.form?.requestSubmit();
+          }}
+        />
+      </div>
       {sends ? (
         <button type="submit" className="e-send" aria-label="Send" disabled={busy || stuck}>
           <svg viewBox="0 0 16 16" aria-hidden="true">
@@ -325,6 +327,16 @@ function BoxField({
         </button>
       ) : null}
     </div>
+  );
+}
+
+function MyAvatar() {
+  const me = useData(myName({}));
+
+  return (
+    <span className="e-avatar" aria-hidden="true">
+      <Initial name={me} />
+    </span>
   );
 }
 
@@ -343,8 +355,13 @@ function BoxForm({ v, box, here }: { v: RequestView; box: Box; here: Acts }) {
         run.run({ input: { canvas: v.r.canvas, n: v.r.n, now: v.shown, act } });
       }}
     >
-      <BoxField v={v} box={box} here={here} stuck={stuck} />
-      <Notice v={v} here={here} />
+      <div className="e-row">
+        <MyAvatar />
+        <div className="e-field">
+          <BoxField v={v} box={box} here={here} stuck={stuck} />
+          <Notice v={v} here={here} />
+        </div>
+      </div>
       <BoxActs v={v} box={box} here={here} />
     </form>
   );

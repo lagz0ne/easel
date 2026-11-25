@@ -176,26 +176,28 @@ export function Composer({ d, lost }: { d: Draft; lost: boolean }) {
         </span>
         <div className="e-field">
           <div className="e-box" data-busy={busy} aria-invalid={refused || d.step === "unknown"}>
-            <textarea
-              aria-label="Request"
-              rows={2}
-              value={d.text}
-              readOnly={busy || d.step === "unknown"}
-              aria-invalid={refused || d.step === "unknown"}
-              autoFocus
-              onChange={(event) => type.run({ input: event.target.value })}
-              onPaste={(event) => {
-                const file = event.clipboardData.files[0] ?? null;
-                if (file === null) return;
-                event.preventDefault();
-                paste.run({ input: file });
-              }}
-              onKeyDown={(event) => {
-                if (event.key !== "Enter" || event.shiftKey) return;
-                event.preventDefault();
-                event.currentTarget.form?.requestSubmit();
-              }}
-            />
+            <div className="e-grow" data-value={d.text}>
+              <textarea
+                aria-label="Request"
+                rows={1}
+                value={d.text}
+                readOnly={busy || d.step === "unknown"}
+                aria-invalid={refused || d.step === "unknown"}
+                autoFocus
+                onChange={(event) => type.run({ input: event.target.value })}
+                onPaste={(event) => {
+                  const file = event.clipboardData.files[0] ?? null;
+                  if (file === null) return;
+                  event.preventDefault();
+                  paste.run({ input: file });
+                }}
+                onKeyDown={(event) => {
+                  if (event.key !== "Enter" || event.shiftKey) return;
+                  event.preventDefault();
+                  event.currentTarget.form?.requestSubmit();
+                }}
+              />
+            </div>
             {naming ? null : (
               <button type="submit" className="e-send" aria-label="Send" disabled={busy}>
                 <svg viewBox="0 0 16 16" aria-hidden="true">
