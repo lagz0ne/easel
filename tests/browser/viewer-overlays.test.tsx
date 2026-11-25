@@ -226,14 +226,16 @@ test("on a phone, Escape closes the menu Pages, gives the focus back to Pages, a
   await expect.poll(() => card().elements()).toHaveLength(0);
 });
 
-test("on a phone, the card has the full width and stops above the dock: Requests can be pressed, and Close requests closes the card (TheDockIsFree, OnePressClosesTheTop)", async () => {
+test("on a phone, the card is a bottom drawer of the full width, and its content stops above the dock: Requests can be pressed, and Close requests closes the card (TheDockIsFree, OnePressClosesTheTop)", async () => {
   await tab(await serve(), phone);
 
   await requestsButton().click();
   await expect.element(card()).toBeVisible();
   const sheet = rectOf(card().element());
   expect([sheet.left, sheet.width]).toEqual([0, phone.width]);
-  expect(sheet.bottom).toBeLessThanOrEqual(rectOf(dock().element()).top);
+  expect(sheet.bottom).toBe(phone.height);
+  const content = card().element().lastElementChild;
+  expect(content && rectOf(content).bottom).toBeLessThanOrEqual(rectOf(dock().element()).top);
   for (const button of dock().getByRole("button").elements()) {
     expect(pressable(button), button.getAttribute("aria-label") ?? "").toBe(true);
   }
