@@ -27,21 +27,20 @@ import { mapCard, mapCardHtml, mapGraph } from "@/map/card";
 import type { MapGraph } from "@/map/card";
 import { designedFile, mapCheck, mapsListHtml } from "@/map/check";
 import type { MapFinding } from "@/map/check";
+import { readDesigned } from "@/map/check-run.server";
 import { showPlans, shownMark, walkReplies } from "@/map/show";
 import type { ShowPlan } from "@/map/show";
+import { deriveOf } from "@/map/source.server";
+import type { Derived } from "@/map/source.server";
 import type { MapJson } from "@/map/text";
 import { pressMarks } from "@/map/view";
 import type { WalkData } from "@/map/walk";
 import { walkDocument, walkFrameName, walkPageName } from "@/map/walk";
 
-import { deriveOf } from "./map";
-import type { Derived } from "./map";
-import { readDesigned } from "./map-check";
-
 const usage = `bun scripts/map-screens.ts [--binary <file>] [--dry <dir>] [--map <name>] [--designed <file>]
 
 Puts each map of src/live/screens.ts on product (SPEC-prototype ship 2). For each map it derives
-the map of its cell (bun scripts/map.ts), builds the page cmds/map-show.html with the view of the
+the map of its cell (bun cmds/map.ts), builds the page cmds/map-show.html with the view of the
 cell, and takes one picture of each state: the real view, with the sample of the state as a preset
 of the cell, and for a state of a run the press of its action with the answer of its move. Each
 picture goes to the page "Map · <name>" as the frame "<name> · <state>", in the section of the map:
@@ -674,7 +673,7 @@ function findingsOf(entries: ReadonlyArray<{ entry: MapEntry; map: MapJson }>) {
   const chosen = new Set<string>(entries.map(({ entry }) => entry.name));
   const input = {
     maps: entries.map(({ entry, map }) => ({ name: entry.name, map })),
-    designed: readDesigned(designed),
+    designed: scope.run(readDesigned, { input: designed }),
   };
   return scope.run(mapCheck, { input }).filter((finding) => chosen.has(finding.map));
 }
@@ -685,7 +684,8 @@ async function mapOne(
   graph: MapGraph,
   entry: MapEntry,
 ): Promise<Done> {
-  const derived = await deriveOf(entry.cell);
+  const found = await scope.run(deriveOf, { input: { root, label: entry.cell } });
+  const derived = found.kind === "derived" ? found.derived : null;
   if (!derived?.view) throw new Error(`map-screens: no view of ${entry.cell} in src/`);
   const findings = findingsOf([{ entry, map: derived.map }]);
 

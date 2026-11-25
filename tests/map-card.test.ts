@@ -247,7 +247,7 @@ test("the html of a card escapes its text, and is as tall as its lines or as the
 test("the cards of the sign-in come from its code and from tinker.graph, with no fact by hand", async () => {
   const app = await scope();
   const root = new URL("..", import.meta.url).pathname;
-  const child = Bun.spawn([process.execPath, "scripts/map.ts", "home.signInStep", "--json"], {
+  const child = Bun.spawn([process.execPath, "cmds/map.ts", "home.signInStep", "--json"], {
     cwd: root,
     stdout: "pipe",
   });

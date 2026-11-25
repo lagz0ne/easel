@@ -246,10 +246,10 @@ const located = z.object({
 const fixes: Readonly<Record<string, readonly string[]>> = {
   "map/answer": [
     "fix: look at the picture of each state that it names: bun scripts/map-screens.ts --dry <dir>.",
-    "When a screen is not right, change the view. Then run bun scripts/map-check.ts --write.",
+    "When a screen is not right, change the view. Then run bun cmds/map-check.ts --write.",
     `Commit ${designedFile} with the change: its diff is the sign-off (SPEC-prototype decision 40).`,
   ],
-  "map/gone": [`fix: run bun scripts/map-check.ts --write, and commit ${designedFile}.`],
+  "map/gone": [`fix: run bun cmds/map-check.ts --write, and commit ${designedFile}.`],
 };
 
 export const mapCheckText = operation({
@@ -282,7 +282,7 @@ export const mapCheckText = operation({
       blocks.join("\n\n"),
       "",
       `map check: failed, ${total}.`,
-      "Next: fix each finding, then run bun scripts/map-check.ts again.",
+      "Next: fix each finding, then run bun cmds/map-check.ts again.",
       "",
     ].join("\n");
   },

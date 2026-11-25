@@ -69,7 +69,7 @@ hand. This delta copies no fact by hand.
    the project with the `@tinkered/core` of the project. A second copy of Tinker in the easel
    binary does not know the units of the project, and the easel server never runs the code of a
    team outside a sandbox. Storybook, `@xstate/graph` and Playwright run in the project for the
-   same reasons. So the map is made by `bun scripts/map.ts` in the repository, and in the E11 job
+   same reasons. So the map is made by `bun cmds/map.ts` in the repository, and in the E11 job
    that makes the live screens after each deploy. The job sends the map to easel with the CLI, as
    it sends the takes now (ship 2).
 3. **The states are the kinds of one cell.** A screen shows one cell of the code (here
@@ -142,7 +142,7 @@ Each ship ends green and live.
 
 ### Ship 1: the map of a cell (J6, J7)
 
-1. `bun scripts/map.ts <cell label> [--json]` finds the cell in `src/`, its view, its actions, their
+1. `bun cmds/map.ts <cell label> [--json]` finds the cell in `src/`, its view, its actions, their
    calls and the answers of each call. It runs the search and prints the map: the places as a
    table (the steps as columns, the rows), then each move and each stay.
 2. `--json` prints the map as JSON (the contract below).
@@ -152,7 +152,7 @@ Each ship ends green and live.
    EXPLORE.md §4.
 
 Built on 2026-11-24 (00f36ec): `src/map/` and `scripts/map.ts`, proven by `tests/map.test.ts`.
-`bun scripts/map.ts home.signInStep` prints:
+`bun cmds/map.ts home.signInStep` prints:
 
 ```
 map home.signInStep, start name, view src/home/home.tsx
@@ -256,7 +256,7 @@ The ship 1 stay "name, askForCode, browser.start fault link" is now the move to
     form of a story map (Patton: the steps as the backbone, the details of each step under it, in
     order). The fit criterion of J7 holds: the steps go from left to right, the main path is on
     the top row, each other outcome is below it, and two runs give the same places. The text of
-    `bun scripts/map.ts` keeps the exact rows. A section with empty places (as `grid-row` of CSS
+    `bun cmds/map.ts` keeps the exact rows. A section with empty places (as `grid-row` of CSS
     grid) is deferred: see "Out of scope".
 16. **A second run changes only what changed.** The same pixels put nothing. A pixel is the same
     when each channel differs by 8 of 255 at most: two takes of one screen differ by 1 on the
@@ -580,7 +580,7 @@ decision 34; the bar of the walk has the group `Answers`. The proofs are
     of `tinker check`. It replaces the model `flows-links`: no drawn link is left to break.
 
 Built on 2026-11-24 (decisions 40 to 45 below). `src/map/check.ts` makes the lines of the file and
-the findings; `bun scripts/map-check.ts` prints them, and `--write` writes `maps.designed`.
+the findings; `bun cmds/map-check.ts` prints them, and `--write` writes `maps.designed`.
 `bun scripts/map-screens.ts` marks the frame `Maps` and the cards. The proofs are
 `tests/map-check.test.ts`: one more answer of a fixture is one finding, and with the answer removed
 the check is OK (J8); the maps of easel are OK. Proven on a new local server: with one answer less
@@ -599,7 +599,7 @@ covered), and Pact (a provider fails when a consumer expects an interaction that
 have).
 
 40. **A state or an answer is designed when the file `maps.designed` names it.** The file is in
-    the repository, beside `tinker.graph`. `bun scripts/map-check.ts --write` writes it from the
+    the repository, beside `tinker.graph`. `bun cmds/map-check.ts --write` writes it from the
     maps of the code, and the commit that changes it is the sign-off: its diff shows each new state
     and answer. The check compares the maps of the code with the file. This is the baseline of
     Playwright and Chromatic, and the `tinker.graph` of Tinker. Other ways:
@@ -649,7 +649,7 @@ have).
     answer, each move to the state, and the state with no designed frame.
 
 43. **The check runs in the tests, and the job marks the map.**
-    - `tests/map-check.test.ts` runs `bun scripts/map-check.ts` on the maps of
+    - `tests/map-check.test.ts` runs `bun cmds/map-check.ts` on the maps of
       `src/live/screens.ts`. So `bun run check`, `bun run check:plain` (`tinker check` runs the
       tests), `ship.sh --full` and the CI `gates` fail on a finding, with no change of
       `package.json` or of `gates.yml`. The fast gate of `ship.sh` (style and types) does not run
@@ -719,7 +719,7 @@ type MapCard = { title: string; about: string; sections: { head: string; lines: 
 
 ## Success criteria
 
-1. **J6, J7.** `bun scripts/map.ts home.signInStep` prints the 7 states of the sign-in: `name` in
+1. **J6, J7.** `bun cmds/map.ts home.signInStep` prints the 7 states of the sign-in: `name` in
    step 0; `code`, `slow` and `lost` in step 1; `in`, `denied` and `expired` in step 2. Row 0 is
    `name`, `code`, `in`. A test proves it on the code of `src/home/signin.ts` and
    `src/home/home.tsx`.
@@ -776,7 +776,7 @@ type MapCard = { title: string; about: string; sections: { head: string; lines: 
   arrows when a map has a move that goes back or skips a column (such as `denied → name`), and a
   review reads the way wrong from the order of the columns.
 - **A section with empty places.** SPEC-arrange rule 6 packs a column with no gap, so the row of
-  a state shows only in `bun scripts/map.ts`. Add `grid-row` places to SPEC-arrange when a review
+  a state shows only in `bun cmds/map.ts`. Add `grid-row` places to SPEC-arrange when a review
   reads two states as one outcome because they are on the same row of two columns.
 - **Back to a state in the middle of a press.** Back gives the cell the value of that step, but
   not the rest of the press. So Back from `in` to `code` shows `code` with no call that waits,

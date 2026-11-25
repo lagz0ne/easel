@@ -275,7 +275,7 @@ test("the text of the check: each finding, its fix once for each rule, then what
   });
   const lines = text.split("\n");
   expect(lines[0]).toBe("maps.designed:2 map/gone m: state y: in maps.designed.");
-  expect(lines[1]).toBe("  fix: run bun scripts/map-check.ts --write, and commit maps.designed.");
+  expect(lines[1]).toBe("  fix: run bun cmds/map-check.ts --write, and commit maps.designed.");
   expect(lines[3]).toBe("src/a.ts:1 map/answer m: a.go sooner is a new answer.");
   expect(lines[4]).toMatch(/^ {2}fix: look at the picture of each state that it names/);
   expect(text).toContain(
@@ -286,7 +286,7 @@ test("the text of the check: each finding, its fix once for each rule, then what
   );
   expect(lines.slice(-3)).toEqual([
     "map check: failed, 4 findings.",
-    "Next: fix each finding, then run bun scripts/map-check.ts again.",
+    "Next: fix each finding, then run bun cmds/map-check.ts again.",
     "",
   ]);
 
@@ -323,7 +323,7 @@ test("the frame Maps marks a map with a finding, and says OK for a map with none
 });
 
 async function check(...args: string[]) {
-  const child = Bun.spawn([process.execPath, "scripts/map-check.ts", ...args], {
+  const child = Bun.spawn([process.execPath, "cmds/map-check.ts", ...args], {
     cwd: root,
     stdout: "pipe",
     stderr: "pipe",
@@ -367,7 +367,7 @@ test("the check on easel finds an answer that maps.designed does not have, and a
   expect(at).toBeGreaterThanOrEqual(waitAt);
   expect(
     found.out.endsWith(
-      "map check: failed, 2 findings.\nNext: fix each finding, then run bun scripts/map-check.ts again.\n",
+      "map check: failed, 2 findings.\nNext: fix each finding, then run bun cmds/map-check.ts again.\n",
     ),
   ).toBe(true);
 
@@ -379,5 +379,5 @@ test("the check on easel finds an answer that maps.designed does not have, and a
 test("a wrong argument exits 64 with the usage text", async () => {
   const wrong = await check("--what");
   expect(wrong.code).toBe(64);
-  expect(wrong.err).toContain("bun scripts/map-check.ts [--write] [--designed <file>]");
+  expect(wrong.err).toContain("bun cmds/map-check.ts [--write] [--designed <file>]");
 });

@@ -35,7 +35,7 @@ function browserStart(kind: string) {
 }
 
 async function mapOf(...args: string[]) {
-  const child = Bun.spawn([process.execPath, "scripts/map.ts", ...args], {
+  const child = Bun.spawn([process.execPath, "cmds/map.ts", ...args], {
     cwd: root,
     stdout: "pipe",
     stderr: "pipe",
@@ -223,7 +223,7 @@ test("a label that no module of src/ has exits 1, and a wrong argument exits 64"
   });
   const wrong = await mapOf("--json");
   expect(wrong.code).toBe(64);
-  expect(wrong.err).toContain("bun scripts/map.ts <cell label> [--json]");
+  expect(wrong.err).toContain("bun cmds/map.ts <cell label> [--json]");
 });
 
 test("the view gives the actions of each state, in the order that it draws them", async () => {
