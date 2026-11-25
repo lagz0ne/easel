@@ -25,11 +25,8 @@ import {
   pictureKey,
   pictureState,
 } from "./keys.server";
+import { drawLimitMs, drawsAtOnce, proxyHeadBytes, proxyWaitMs, slotWaitMs } from "./settings";
 import { readPicture, readStill } from "./store.server";
-
-export const drawsAtOnce = 2;
-export const slotWaitMs = 5_000;
-export const drawLimitMs = 20_000;
 
 const noStore = { "Cache-Control": "no-store" } as const;
 
@@ -99,10 +96,6 @@ const forbidden = "HTTP/1.1 403 Forbidden\r\nContent-Length: 0\r\n\r\n";
 
 const unreachable = "HTTP/1.1 502 Bad Gateway\r\nContent-Length: 0\r\n\r\n";
 
-const proxyHeadBytes = 8 * 1024;
-
-export const proxyWaitMs = 10_000;
-
 export const tunnelTarget = operation({
   label: "pictures.tunnelTarget",
   input: z.string(),
@@ -118,8 +111,8 @@ export const tunnelTarget = operation({
 const proxySockets = resource({
   label: "pictures.proxySockets",
   target: "scope",
-  depends: { dial: proxyDial },
-  factory: ({ dial }, ctx) => {
+  depends: { dial: proxyDial, proxyWaitMs },
+  factory: ({ dial, proxyWaitMs }, ctx) => {
     const open = new Set<Socket>();
     ctx.defer(() => {
       for (const socket of open) socket.destroy();
@@ -176,8 +169,8 @@ const proxySockets = resource({
 export const egressProxy = resource({
   label: "pictures.egressProxy",
   target: "scope",
-  depends: { tunnelTarget, sockets: proxySockets },
-  factory: ({ tunnelTarget, sockets }, ctx) => {
+  depends: { tunnelTarget, sockets: proxySockets, proxyHeadBytes },
+  factory: ({ tunnelTarget, sockets, proxyHeadBytes }, ctx) => {
     const server = createServer((client) => {
       sockets.keep(client);
       const headed = sockets.deadline(() => client.destroy());
@@ -301,8 +294,8 @@ const runtimeOrigin = "http://runtime.easel.invalid";
 export const drawPage = operation({
   label: "pictures.drawPage",
   input: drawInput,
-  depends: { browser: chromiumBrowser },
-  run: async ({ browser }, { input, signal }) => {
+  depends: { browser: chromiumBrowser, drawLimitMs },
+  run: async ({ browser, drawLimitMs }, { input, signal }) => {
     const chrome = await browser.open();
     const context = await chrome.createBrowserContext();
     const stopped = Promise.withResolvers<never>();
@@ -374,7 +367,10 @@ export const drawPage = operation({
 export const drawSlots = resource({
   label: "pictures.slots",
   target: "scope",
-  factory: (): { free: number; queue: Array<{ given: boolean; give: () => void }> } => ({
+  depends: { drawsAtOnce },
+  factory: ({
+    drawsAtOnce,
+  }): { free: number; queue: Array<{ given: boolean; give: () => void }> } => ({
     free: drawsAtOnce,
     queue: [],
   }),
@@ -383,8 +379,8 @@ export const drawSlots = resource({
 export const render = operation({
   label: "pictures.render",
   input: drawInput,
-  depends: { slots: drawSlots, drawPage },
-  run: async ({ slots, drawPage }, { input, clock, signal }) => {
+  depends: { slots: drawSlots, drawPage, slotWaitMs, drawLimitMs },
+  run: async ({ slots, drawPage, slotWaitMs, drawLimitMs }, { input, clock, signal }) => {
     if (slots.free > 0) {
       slots.free -= 1;
     } else {
@@ -807,7 +803,15 @@ export const chromiumCheck = operation({
 
 export const picturesServer = capsule({
   label: "picturesServer",
-  config: { chromium: chromiumPath, database: pictureDatabase },
+  config: {
+    chromium: chromiumPath,
+    database: pictureDatabase,
+    drawsAtOnce,
+    slotWaitMs,
+    drawLimitMs,
+    proxyWaitMs,
+    proxyHeadBytes,
+  },
   tags: [readiness({ name: "chromium", op: chromiumCheck })],
   hooks: {
     async start({ run, next }) {

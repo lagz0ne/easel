@@ -8,6 +8,7 @@ import { secretBytes } from "@/access/store.server";
 
 import { framesApi, framesBoard, frames } from "./contract";
 import { hashPassword, passwordMatches, wrongTries } from "./password.server";
+import { lockTime, maxWrongTries, opensPerMinute, passesPerLink, tryWindow } from "./settings";
 import {
   endedRefusal,
   lockedRefusal,
@@ -19,10 +20,6 @@ import {
   typedPassword,
 } from "./share";
 import { bumpKeys, canvases } from "./store.server";
-
-export const opensPerMinute = 30;
-
-export const passesPerLink = 1000;
 
 const schema = `
 CREATE TABLE IF NOT EXISTS frames_links (
@@ -291,9 +288,9 @@ const givePass = operation({
     gen: z.number(),
     now: z.number(),
   }),
-  depends: { connection: bunSqlite.connection },
-  run: async ({ connection }, { input }) => {
-    const db = connection.db.$client;
+  depends: { connection: bunSqlite.connection, passesPerLink },
+  run: async (deps, { input }) => {
+    const db = deps.connection.db.$client;
     const { link, name, digest, hash, gen, now } = input;
 
     return db.transaction(() => {
@@ -306,7 +303,7 @@ const givePass = operation({
       ).run(digest, link, name ?? null, now, still.pw_gen);
       db.query(
         "DELETE FROM frames_passes WHERE link = ?1 AND rowid NOT IN (SELECT rowid FROM frames_passes WHERE link = ?1 ORDER BY made DESC, rowid DESC LIMIT ?2)",
-      ).run(link, passesPerLink);
+      ).run(link, deps.passesPerLink);
       return "given" as const;
     })();
   },
@@ -324,6 +321,7 @@ export const openShare = operation({
     openLinkRow,
     passwordGate,
     givePass,
+    opensPerMinute,
   },
   run: async (
     {
@@ -335,6 +333,7 @@ export const openShare = operation({
       openLinkRow,
       passwordGate,
       givePass,
+      opensPerMinute,
     },
     { input, clock },
   ) => {
@@ -483,6 +482,7 @@ const loadShares = operation({
 
 export const shareServer = capsule({
   label: "shareServer",
+  config: { opensPerMinute, passesPerLink, maxWrongTries, tryWindow, lockTime },
   hooks: {
     async start({ run, next }) {
       await run(loadShares, {}, { role: "setup", explain: "Reads the share links" });

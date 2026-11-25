@@ -22,22 +22,19 @@ import { createCanvas, deleteFrame, framesLoads, putFrame } from "@/frames/ops.s
 import {
   chromiumBrowser,
   chromiumCheck,
-  drawLimitMs,
   drawPage,
   drawSlots,
-  drawsAtOnce,
   egressProxy,
   hostLookup,
   pictureCache,
   pictureRoute,
   picturesServer,
   proxyDial,
-  proxyWaitMs,
   publicAddress,
   render,
   shotFrame,
-  slotWaitMs,
 } from "@/frames/pictures.server";
+import { framesDefaults } from "@/frames/settings";
 import { bumpKeys, framesServer } from "@/frames/store.server";
 import { compose } from "@/kit/compose";
 import { inlineFonts } from "@/kit/fonts.server";
@@ -857,7 +854,7 @@ test("a request that waits 5 s for a slot answers 503 with Retry-After: 1", asyn
   const third = srv.get(address);
   await tick(20);
 
-  srv.clock.advance(slotWaitMs - 1);
+  srv.clock.advance(framesDefaults.slotWaitMs - 1);
   await tick(20);
   srv.clock.advance(1);
   const answer = await soon(third);
@@ -883,7 +880,7 @@ test("a draw that runs past 20 s answers 503 with Retry-After: 1, is stopped, an
   await until(() => srv.draws.seen.length === 1);
   await tick(20);
 
-  srv.clock.advance(drawLimitMs);
+  srv.clock.advance(framesDefaults.drawLimitMs);
   const answer = await soon(slow);
   expect(answer.status).toBe(503);
   expect(answer.headers.get("retry-after")).toBe("1");
@@ -908,7 +905,7 @@ test("a stopped draw has ended before its 503 goes out", async () => {
   await until(() => srv.draws.seen.length === 1);
   await tick(20);
 
-  srv.clock.advance(drawLimitMs);
+  srv.clock.advance(framesDefaults.drawLimitMs);
   await until(() => srv.draws.seen[0]?.stopped === true);
   await tick(50);
   expect(state.answered).toBe(false);
@@ -916,7 +913,7 @@ test("a stopped draw has ended before its 503 goes out", async () => {
   srv.draws.seen[0]?.end();
   const answer = await soon(slow);
   expect(answer.status).toBe(503);
-  expect(srv.server.resolve(drawSlots).free).toBe(drawsAtOnce);
+  expect(srv.server.resolve(drawSlots).free).toBe(framesDefaults.drawsAtOnce);
 });
 
 test("pictures.render itself answers late only once its stopped draw has ended", async () => {
@@ -938,15 +935,15 @@ test("pictures.render itself answers late only once its stopped draw has ended",
   await until(() => srv.draws.seen.length === 1);
   await tick(20);
 
-  srv.clock.advance(drawLimitMs);
+  srv.clock.advance(framesDefaults.drawLimitMs);
   await until(() => srv.draws.seen[0]?.stopped === true);
   await tick(50);
   expect(state.answered).toBe(false);
-  expect(srv.server.resolve(drawSlots).free).toBe(drawsAtOnce - 1);
+  expect(srv.server.resolve(drawSlots).free).toBe(framesDefaults.drawsAtOnce - 1);
 
   srv.draws.seen[0]?.end();
   expect(await soon(drawn)).toEqual({ kind: "late" });
-  expect(srv.server.resolve(drawSlots).free).toBe(drawsAtOnce);
+  expect(srv.server.resolve(drawSlots).free).toBe(framesDefaults.drawsAtOnce);
 });
 
 test("a draw that fails answers 503 with Retry-After: 1 and frees its slot", async () => {
@@ -1236,14 +1233,14 @@ test("the egress proxy gives each upstream connect 10 s, then tries the next; no
 
   const tunnel = await wholeProxy(srv, "CONNECT slow.test:443 HTTP/1.1\r\n\r\n");
   await until(() => dials.length === 1);
-  srv.clock.advance(proxyWaitMs - 1);
+  srv.clock.advance(framesDefaults.proxyWaitMs - 1);
   await tick(20);
   expect(dials).toEqual(["192.0.2.20"]);
 
   srv.clock.advance(1);
   await until(() => dials.length === 2);
   await tick(20);
-  srv.clock.advance(proxyWaitMs);
+  srv.clock.advance(framesDefaults.proxyWaitMs);
   expect(await soon(tunnel.answer)).toBe("HTTP/1.1 502 Bad Gateway\r\nContent-Length: 0\r\n\r\n");
 });
 
@@ -1258,7 +1255,7 @@ test("the egress proxy cuts off a client that sends no head in 10 s", async () =
   await new Promise((done) => socket.once("connect", done));
   await tick(20);
 
-  srv.clock.advance(proxyWaitMs - 1);
+  srv.clock.advance(framesDefaults.proxyWaitMs - 1);
   await tick(20);
   expect(state.closed).toBe(false);
   srv.clock.advance(1);
@@ -1534,7 +1531,7 @@ test("a dialog does not hold the slot: alert and confirm are dismissed and the d
   const got = await Promise.race([asked, tick(10_000).then(() => late)]);
   expect(got).not.toBe(late);
   expect((await asked).status).toBe(200);
-  expect(srv.server.resolve(drawSlots).free).toBe(drawsAtOnce);
+  expect(srv.server.resolve(drawSlots).free).toBe(framesDefaults.drawsAtOnce);
 }, 30_000);
 
 test("a real draw waits for the document's fonts; past 20 s it is stopped, and its slot and page are back", async () => {
@@ -1552,9 +1549,9 @@ test("a real draw waits for the document's fonts; past 20 s it is stopped, and i
 
   await tick(1_500);
   expect(state.answered).toBe(false);
-  srv.clock.advance(drawLimitMs);
+  srv.clock.advance(framesDefaults.drawLimitMs);
   expect((await asked).status).toBe(503);
-  expect(srv.server.resolve(drawSlots).free).toBe(drawsAtOnce);
+  expect(srv.server.resolve(drawSlots).free).toBe(framesDefaults.drawsAtOnce);
   expect(await pagesOpen(srv)).toBe(before);
 }, 30_000);
 
@@ -1575,7 +1572,7 @@ test("a request that goes away at once, while its draw starts, gives its slot ba
     setTimeout(() => stop.abort(), delay);
     await Promise.race([asked, tick(5_000)]);
 
-    await until(() => srv.server.resolve(drawSlots).free === drawsAtOnce);
+    await until(() => srv.server.resolve(drawSlots).free === framesDefaults.drawsAtOnce);
   }
 }, 60_000);
 

@@ -1,13 +1,8 @@
 import { operation, resource, tag } from "@tinkered/core";
 import { z } from "zod";
 
+import { lockTime, maxWrongTries, tryWindow } from "./settings";
 import { sharePassword } from "./share";
-
-export const maxWrongTries = 5;
-
-export const tryWindow = 60_000;
-
-export const lockTime = 60_000;
 
 export const passwordCost = tag<{ memoryCost: number; timeCost: number }>({
   label: "frames.passwordCost",
@@ -30,7 +25,8 @@ export const passwordMatches = operation({
 export const wrongTries = resource({
   label: "frames.wrongTries",
   target: "scope",
-  factory: () => {
+  depends: { maxWrongTries, tryWindow, lockTime },
+  factory: ({ maxWrongTries, tryWindow, lockTime }) => {
     const seen = new Map<string, { first: number; count: number; until: number | null }>();
     let swept = 0;
 
