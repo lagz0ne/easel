@@ -481,6 +481,37 @@ test("viewer-overlays Locale on a phone (390 x 844): the dock with Locale and St
   await expect.element(localeButton()).toHaveTextContent("VI");
 });
 
+test("viewer-overlays Requests on a phone (390 x 844): the list opens as a bottom drawer, as in Doop and the Drawer of shadcn: full width, on the bottom edge, with round top corners and a handle, and the canvas shows above it", async () => {
+  const server = await boot([{ id: "b", x: 0, y: 0, capsule: true }]);
+  const at = await tab(server);
+  await rested(at, 1);
+  await page.viewport(390, 844);
+  await expect.poll(() => innerWidth).toBe(390);
+
+  await page.getByRole("button", { name: "Requests" }).click();
+  const drawer = page.getByRole("complementary", { name: "Requests" });
+  await expect.element(drawer).toBeVisible();
+  const box = boxOf(drawer.element());
+  const style = getComputedStyle(drawer.element());
+  const handle = getComputedStyle(drawer.element(), "::before");
+  console.log(`size: the drawer is ${box.height.toFixed(0)} px high at 844 px`);
+  expect({
+    left: box.left,
+    right: box.right,
+    bottom: Math.round(box.bottom),
+    canvasAbove: box.top >= 844 * 0.15,
+    round: [style.borderTopLeftRadius !== "0px", style.borderBottomLeftRadius],
+    handle: [handle.content, handle.width, handle.height],
+  }).toEqual({
+    left: 0,
+    right: 390,
+    bottom: 844,
+    canvasAbove: true,
+    round: [true, "0px"],
+    handle: ['""', "36px", "4px"],
+  });
+});
+
 test("X1 kit-frame-axes: a capsule frame posts its axes; the page offers the locale and its data states; a pick composes it again with them, and an app frame with no axes is not drawn again", async () => {
   const server = await boot([
     { id: "a", x: 0, y: 0, app: true },

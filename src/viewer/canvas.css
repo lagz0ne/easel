@@ -1855,21 +1855,32 @@ span.e-opt[data-picked="false"] {
 @media (max-width: 639.98px) {
   .e-requests,
   .e-panel {
-    top: 0;
+    top: auto;
     right: 0;
-    bottom: calc(var(--e-4) + var(--e-dock-h) + var(--e-2));
+    bottom: 0;
     left: 0;
     width: auto;
     max-width: none;
-    border-top: 0;
-    border-right: 0;
-    border-left: 0;
-    border-radius: 0 0 var(--e-radius-l) var(--e-radius-l);
+    min-height: 45%;
+    max-height: 85%;
+    padding-bottom: env(safe-area-inset-bottom);
+    border: 1px solid var(--e-line, var(--e-card));
+    border-bottom: 0;
+    border-radius: var(--e-radius-l) var(--e-radius-l) 0 0;
+    box-shadow: var(--e-shadow);
   }
 
-  .e-panel {
-    border-bottom: 1px solid var(--e-line, var(--e-card));
-    box-shadow: var(--e-shadow);
+  .e-requests::before,
+  .e-panel::before {
+    flex: none;
+    align-self: center;
+    width: 36px;
+    height: 4px;
+    margin-top: var(--e-2);
+    content: "";
+    background-color: var(--e-muted);
+    border-radius: 2px;
+    opacity: 0.5;
   }
 }
 
