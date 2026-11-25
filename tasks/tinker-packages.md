@@ -65,8 +65,8 @@ the person, 2026-11-25: packages to primitives, constants to tags, scripts to cm
       `sectionHead` (the viewer draws with it too, so the client and the server must agree),
       `arrangeGap` (it is the stored default of a column), and the wire limit `maxLayoutFindings`.
       f52936d (build 408, gates and deploy green).
-- [ ] 7e. Tags: the values of `src/kit` and `src/mcp`. Waits for dark look B (eae12f93) and
-      the cases mission.
+- [ ] 7e. Tags: the values of `src/kit` and `src/mcp`. Waits for dark look B (eae12f93). The
+      cases mission is done (d396771).
 - [x] 7f. Tags: 28 values of the viewer, in `src/viewer/settings.ts`. Left as they are: the
       1500 ms font wait in the iframe script of `paintScript` (it is not a unit), the chunk size of
       `draft.ts`, the steps of the zoom label, the wire limit `maxImageBytes`, and `drop.ts` (it
