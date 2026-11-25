@@ -866,8 +866,9 @@ Decided:
 - The engine: Tailwind v4 `compile()` in Bun, pinned exactly to 4.3.5, with a new compiler for
   each make. A new Tailwind version is a new pin, and easel never makes again the CSS that it keeps.
 - Deferred: a look for each canvas. Add it when a team makes two products on one easel.
-- Deferred: frames in a light and a dark theme. Add it when a team asks for a dark theme of its
-  product.
+- On 2026-11-25, the user picked the dark values of the look: `B · lifted grey` (canvas
+  `design-system`, page `Look · dark`). So frames have a light and a dark theme. See
+  [pieces](../SPEC-pieces.md) decisions 4 to 7.
 - Deferred: take the look from a web site or a design file. Add it when the brand of a team takes
   more than 10 minutes to set.
 - Deferred: a page that shows the kit to people. Add it when a team asks to see the kit apart from

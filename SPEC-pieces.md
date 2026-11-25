@@ -61,6 +61,44 @@ Prior art:
    the put in each mode. Measured on 2026-11-23 on this host: one app frame with React, Tinker and
    the kit (185 files, about 100 000 lines) takes 0.28 s with TypeScript 7 (`tsc`), of which the
    check is 0.10 s. A put is not on the critical path of a viewer.
+4. **The dark look is a second context of the look, in the DTCG Resolver Module.** The user picked
+   the dark look `B · lifted grey` on 2026-11-25 (canvas `design-system`, page `Look · dark`). The
+   look stays one DTCG document:
+   - With no dark values, the look is the token file of today, with no change.
+   - With dark values, the look is a resolver document of DTCG 2025.10 (Resolver Module). The set
+     `look` has one inline source: the token file of today, the `light` values. The modifier
+     `theme` has the contexts `light` (`[]`, no change) and `dark` (one inline source with only
+     the colors that change, on the same paths), and the default `light`. The `resolutionOrder`
+     is `#/sets/look`, then `#/modifiers/theme`.
+   - What we followed in the text of the module: `version` is `2025.10`; a context is an array of
+     sources; a later source wins over an earlier one; a context can be an empty array
+     (Example 7); `default` is a key of `contexts`.
+   - Prior art: Figma variable modes (one collection, one value for each mode), Tokens Studio
+     themes (a base set and a set that overrides it), Style Dictionary (one build for each theme,
+     from the base and its overrides), and shadcn/ui (`:root`, then `.dark` with the same names).
+   - Not `$extensions`: a tool that does not know the key of easel cannot read it. The resolver
+     is the standard form, so a DTCG tool reads the dark values too.
+5. **The CSS of a dark value is `light-dark()`.** The `:root` block of the look writes
+   `--name: light-dark(<light>, <dark>)` for each color that changes. The same block sets
+   `color-scheme: light dark`. Rule 16 needs it: a matrix cell sets its own `color-scheme`, and each
+   element resolves `light-dark()` with its own scheme. A `prefers-color-scheme` block reads the
+   document, so all cells share one value.
+   - The line `color-scheme` is in the look block, which is not in a layer. So it wins over
+     `html { color-scheme: light }` in the `base` layer of the kit. An easel keeps its kit CSS
+     (K11), so a change of the seed does not reach it; the look block does.
+   - The viewer sets the `color-scheme` of the iframe of each frame that takes `theme` (rule 14),
+     with the default `light`. So a frame with no pick shows the light values.
+   - A look with no dark values writes the same block as today: no `light-dark()`, no
+     `color-scheme`.
+   - Prior art: CSS Color 5 `light-dark()` (Chrome 123, Firefox 120, Safari 17.5), and the
+     `color-scheme` property of CSS Color Adjustment 1.
+6. **K8 checks each context.** The pairs of K8 are measured on the `light` values, then on the
+   `dark` values, before the values become `light-dark()`. A pair that fails names its context:
+   `dark: input on background: 1.47:1, needs 3:1 (a field edge)`. A look with no dark values has
+   one context, and its pairs name no context, as today.
+7. **The dark values are data, not state, so no new model.** A person changes the dark values only
+   with `look.set` and `look.undo`, as the other look values: a new kit version on a base. The
+   state is the theme switch (rule 14), and the model `board-switch` holds it.
 
 ## New behavior
 
@@ -150,9 +188,11 @@ that change them for that story only; the matrix of Chromatic (one story in each
     iframe follows it (CSS Color Adjustment 1; measured in Chrome 158). So an HTML frame shows the
     theme with no new document. An app frame with `theme` in the config of its capsule also gets
     the value, and draws again in a new scope. The look gets a value for each theme: the `light`
-    values are the look of today, and the `dark` values are the same names with other values, in
-    a `prefers-color-scheme: dark` block. The `dark` values of the look are not written until the
-    user gives them: an agent does not change a look value.
+    values are the look of today, and the `dark` values are the same names with other values. The
+    `:root` block of the look writes `light-dark(<light>, <dark>)` for each color that changes, so
+    a matrix cell follows its own theme (rule 16; decisions 4 to 7). The `dark` values of the look
+    are not written until the user gives them: an agent does not change a look value. The user
+    gave them on 2026-11-25: the dark look `B · lifted grey`.
 15. **Fixtures: the shape is a real cell, the values are data** (as the texts; decision 1). The
     user asked on 2026-11-23 for fixtures to be "a part of the tooling".
     - The shape is the `parse` of a real cell of the app or of the frame: no copy of a shape that

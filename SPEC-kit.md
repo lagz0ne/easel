@@ -276,6 +276,15 @@ Inputs:
   changes nothing, so the whole file of `look.get` is a patch too. The same look values answer
   `unchanged`. An old `base` answers `stale` before the pairs are measured. `look.undo` takes
   `{ base }`.
+- The dark values (SPEC-pieces decisions 4 to 7): a patch can also be a resolver document of
+  DTCG 2025.10, with `version: "2025.10"`. Its `sets.look.sources[0]` is a patch of the `light`
+  values, as above. Its `modifiers.theme.contexts.dark[0]` is a patch of the dark values: only the
+  `color` group, on the paths of the look. There, a `$value` adds or replaces the dark value, with
+  the `$description` of the patch if it has one. A look with dark values is stored and given as
+  that resolver document. A dark value is not removed in this version; `look.undo` gives the look
+  from before it.
+- A `Pair` of `unreadable` has `theme: "light" | "dark"` when the look has dark values. The CLI
+  prints it first: `dark: input on background: 1.47:1, needs 3:1 (a field edge)`.
 - `tooBig`: a piece file over 64 KiB, or a kit whose made CSS and templates would be over 128 KiB,
   in UTF-8 bytes.
 
@@ -305,6 +314,9 @@ group) and a `$value`:
 | `dimension`  | `{ value, unit }`, `unit` is `px` or `rem`                             | `14px`, `0.875rem`        |
 | `fontFamily` | a name, or a list of names                                             | the names, with commas    |
 | `shadow`     | a layer `{ color, offsetX, offsetY, blur, spread, inset? }`, or a list | the layers, with commas   |
+
+A look with dark values is a resolver document of DTCG 2025.10 around this file (SPEC-pieces
+decision 4). Its `:root` block writes `light-dark(<light>, <dark>)` for each color that changes.
 
 A `$value` can be an alias, `{font.sans}`: the look value gets the value that the alias names. The
 CSS name of a color drops its group (`color.primary` is `--primary`). The other names join their
@@ -1079,7 +1091,7 @@ The statecharts [kit-piece](docs/statecharts/kit-piece.md), [kit-look](docs/stat
 
 ## Out of Scope (Deferred)
 
-From [E8](docs/epics.md#e8-one-look-fast): a look for each canvas, a dark theme, a look taken from
+From [E8](docs/epics.md#e8-one-look-fast): a look for each canvas, a look taken from
 a web site or a design file, a page that shows the kit to people, and images, icons and a team's
 own fonts kept in easel. easel holds only the two fonts of the seed (§ The seed).
 
