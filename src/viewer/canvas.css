@@ -1643,8 +1643,11 @@ span.e-opt[data-picked="false"] {
 }
 
 .e-shell[data-found] {
-  outline: calc(2px * var(--e-unzoom, 1)) solid var(--e-accent);
-  outline-offset: calc(2px * var(--e-unzoom, 1));
+  border-radius: calc(var(--e-radius-xs) * var(--e-unzoom, 1));
+  outline: calc(1px * var(--e-unzoom, 1)) solid var(--e-accent);
+  outline-offset: calc(1px * var(--e-unzoom, 1));
+  box-shadow: 0 0 0 calc(3px * var(--e-unzoom, 1))
+    color-mix(in srgb, var(--e-accent) 16%, transparent);
 }
 
 .e-shell[data-found] .e-label {
@@ -1826,15 +1829,7 @@ span.e-opt[data-picked="false"] {
     padding: 0 var(--e-1);
   }
 
-  .e-dock-locale {
-    min-width: 40px;
-  }
-
   .e-dock-sep {
-    display: none;
-  }
-
-  .e-dock-locale .e-icon {
     display: none;
   }
 

@@ -1112,7 +1112,7 @@ test("Find in the dock, or the key /, opens the list over the dock with all name
   expect(hint()).toBe("No frame name has this text.");
 });
 
-test("Enter takes the selected name: the list closes, the canvas shows the frame at its centre, never past 100%, and marks it with an accent ring; a pan ends the mark (Find a frame 3 to 4, E3 S15, Take, Pan, AMarkIsInView)", async () => {
+test("Enter takes the selected name: the list closes, the canvas shows the frame at its centre, never past 100%, and marks it with a thin accent ring in a soft halo; a pan ends the mark (Find a frame 3 to 4, E3 S15, Take, Pan, AMarkIsInView)", async () => {
   const server = await boot(grid);
   const at = await tab(server);
   await expect.poll(() => shells().length).toBe(200);
@@ -1133,11 +1133,14 @@ test("Enter takes the selected name: the list closes, the canvas shows the frame
   expect(fromCentre(found)).toBe(0);
   expect(zoomText()).toBe("100%");
   const ring = getComputedStyle(found);
-  expect([ring.outlineStyle, ring.outlineWidth, ring.outlineColor]).toEqual([
-    "solid",
-    "2px",
-    "rgb(26, 102, 201)",
-  ]);
+  expect([
+    ring.outlineStyle,
+    ring.outlineWidth,
+    ring.outlineOffset,
+    ring.outlineColor,
+    ring.borderRadius,
+  ]).toEqual(["solid", "1px", "1px", "rgb(26, 102, 201)", "4px"]);
+  expect(ring.boxShadow).toMatch(/0px 0px 0px 3px$/);
   expect(took).toBeLessThan(10_000);
 
   drag(30, 0);
