@@ -91,8 +91,8 @@ Each task lands green with `scripts/ship.sh`. A dirty file of another agent goes
         to that order; a source in a section of a person gets its case frames right after it (SPEC-cases
         decision 3 says so); `canvas rm` removes the case lists; an empty first list makes no section;
         a test proves that `parts publish` does not take a case frame as a main or a copy.
-  - T4b (`src/frames/store.server.ts`, after the 7d ship of tinker-packages): a move or a resize
-    of a source frame moves or resizes its case frames.
+  - [x] T4b (`src/frames/store.server.ts`, `src/frames/cases.server.ts`): a move or a resize
+        of a source frame moves or resizes its case frames.
   - Not in ship 1 (for ship 2, in the report): `base` required on `cases.set`; refuse
     `frame.move` and a mark on a case frame; a fixture only of a cell of the source frame.
   - Verify: `bun test tests/cases.test.ts tests/canvas-delete.test.ts`, then `check:plain`.

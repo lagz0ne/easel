@@ -6,35 +6,20 @@ import { z } from "zod";
 
 import { readKit } from "@/kit/store.server";
 
-import { sectionHead } from "./arrange";
-import { seatFrame } from "./arrange.server";
-import {
-  caseFrameLink,
-  caseFrameNameOf,
-  caseList,
-  groupNameOf,
-  maxCases,
-  valuesOfCase,
-} from "./cases";
-import { framesApi, keyOfName } from "./contract";
+import { caseFrameNameOf, caseList, maxCases, valuesOfCase } from "./cases";
+import { framesApi } from "./contract";
 import {
   arrangeAfter,
+  groupOf,
   layoutOf,
+  readCaseFrames,
   removeFrameRow,
+  seatCaseFrames,
   showArranged,
   showPages,
   showRemoved,
+  sourceRow,
 } from "./store.server";
-
-const sourceRow = z.object({
-  id: z.string(),
-  name: z.string(),
-  page: z.string(),
-  x: z.number(),
-  y: z.number(),
-  section: z.string().nullable(),
-  source: z.string().nullable(),
-});
 
 const readSource = operation({
   label: "frames.readSource",
@@ -87,24 +72,6 @@ const readList = operation({
 });
 
 const sectionName = z.object({ name: z.string() });
-
-const caseFrameRow = z.object({ id: z.string(), case_name: z.string() });
-
-const readCaseFrames = operation({
-  label: "frames.readCaseFrames",
-  input: z.object({
-    canvas: z.string(),
-    source: z.string(),
-    db: z.custom<Database>(),
-  }),
-  run: (_, { input: { canvas, source, db } }) =>
-    db
-      .query(
-        "SELECT id, case_name FROM frames_frames WHERE canvas = ? AND source = ? ORDER BY col, made",
-      )
-      .all(canvas, source)
-      .map((row) => caseFrameRow.parse(row)),
-});
 
 export const listCases = operation({
   label: "cases.list.do",
@@ -192,61 +159,6 @@ export const checkCases = operation({
       }
     }
     return { kind: "good" as const };
-  },
-});
-
-const groupOf = operation({
-  label: "frames.groupOf",
-  input: z.object({
-    canvas: z.string(),
-    source: sourceRow,
-    db: z.custom<Database>(),
-  }),
-  depends: { seatFrame },
-  run: ({ seatFrame }, { input: { canvas, source, db } }) => {
-    if (source.section !== null) return source.section;
-
-    const has = db.query("SELECT 1 FROM frames_sections WHERE canvas = ? AND page = ? AND key = ?");
-    const plain = groupNameOf.parse({
-      source: source.name,
-      id: source.id,
-      taken: false,
-    });
-    const taken = has.get(canvas, source.page, keyOfName.parse(plain)) !== null;
-    const name = taken
-      ? groupNameOf.parse({ source: source.name, id: source.id, taken: true })
-      : plain;
-    const key = keyOfName.parse(name);
-    const at = { kind: "section" as const, name, key, page: source.page };
-    seatFrame.run({ input: { canvas, id: source.id, at, db } });
-    db.query(
-      "UPDATE frames_sections SET at_x = ?, at_y = ? WHERE canvas = ? AND page = ? AND key = ?",
-    ).run(source.x, Math.max(0, source.y - sectionHead), canvas, source.page, key);
-    return key;
-  },
-});
-
-const sourceSeat = z.object({ page: z.string(), section: z.string(), col: z.number() });
-
-const seatCaseFrames = operation({
-  label: "frames.seatCaseFrames",
-  input: z.object({
-    canvas: z.string(),
-    source: z.string(),
-    frames: z.array(caseFrameLink),
-    db: z.custom<Database>(),
-  }),
-  depends: { seatFrame },
-  run: ({ seatFrame }, { input: { canvas, source, frames, db } }) => {
-    const seat = sourceSeat.parse(
-      db
-        .query("SELECT page, section, col FROM frames_frames WHERE canvas = ? AND id = ?")
-        .get(canvas, source),
-    );
-    frames.forEach((one, n) => {
-      const at = { ...seat, kind: "after" as const, col: seat.col + n, row: 0 };
-      seatFrame.run({ input: { canvas, id: one.id, at, db } });
-    });
   },
 });
 

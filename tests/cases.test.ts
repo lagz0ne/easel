@@ -451,3 +451,130 @@ test("X12 cases: an empty first list makes no section and changes no place", asy
     frames: [],
   });
 });
+
+const rowInOrder = (all: Map<string, { x: number; y: number }>, ids: string[]) => {
+  const xs = ids.map((id) => all.get(id)?.x ?? 0);
+  expect(xs).toEqual(xs.toSorted((a, b) => a - b));
+  expect(new Set(xs).size).toBe(ids.length);
+};
+
+async function newPage(e: Easel, name: string) {
+  const made = await e.agent.run(frames.api["page.create"], {
+    input: { canvas: "flow", name },
+  });
+  if (made.kind !== "created") throw new Error(made.kind);
+  return made.key;
+}
+
+test("X12 cases: a move of the source frame to an exact place on another page takes its case frames, right after it, in one section", async () => {
+  const e = await easel();
+  const answer = await setOk(e, dataCases);
+  const page = await newPage(e, "Two");
+
+  const moved = await e.agent.run(frames.api["frame.move"], {
+    input: { canvas: "flow", id: e.source.id, page, x: 100, y: 200 },
+  });
+  expect(moved).toMatchObject({ kind: "moved" });
+
+  const all = await e.listFrames();
+  const group = [e.source.id, ...answer.frames.map((one) => one.id)];
+  expect(group.map((id) => all.get(id)?.page)).toEqual(group.map(() => page));
+  expect(group.map((id) => all.get(id)?.section)).toEqual(group.map(() => "users list · cases"));
+  expect(all.get(e.source.id)).toMatchObject({ x: 100, y: 200 });
+  expect(answer.frames.every((one) => all.get(one.id)?.y === 200)).toBe(true);
+  rowInOrder(all, group);
+
+  const again = await setOk(e, dataCases.slice(0, 3), 1);
+  const after = await e.listFrames();
+  const kept = [e.source.id, ...again.frames.map((one) => one.id)];
+  expect(kept.map((id) => after.get(id)?.page)).toEqual(kept.map(() => page));
+  expect(kept.map((id) => after.get(id)?.section)).toEqual(kept.map(() => "users list · cases"));
+  rowInOrder(after, kept);
+  expect(await e.listCases()).toMatchObject({ kind: "found", section: "users list · cases" });
+});
+
+test("X12 cases: a move of the source frame into a section of another page takes its case frames, right after it", async () => {
+  const e = await easel();
+  const answer = await setOk(e, dataCases.slice(0, 2));
+  const page = await newPage(e, "Two");
+  const step = await e.agent.run(frames.api["frame.put"], {
+    input: {
+      canvas: "flow",
+      page,
+      html: "<p>step</p>",
+      name: "step",
+      section: "Checkout",
+      size: { w: 400, h: 300 },
+    },
+  });
+  if (step.kind !== "created") throw new Error(step.kind);
+
+  await e.agent.run(frames.api["frame.move"], {
+    input: { canvas: "flow", id: e.source.id, page, section: "Checkout" },
+  });
+
+  const all = await e.listFrames();
+  const row = [step.id, e.source.id, ...answer.frames.map((one) => one.id)];
+  expect(row.map((id) => all.get(id)?.page)).toEqual(row.map(() => page));
+  expect(row.map((id) => all.get(id)?.section)).toEqual(row.map(() => "Checkout"));
+  rowInOrder(all, row);
+  expect([...all.values()].filter((one) => one.page === "page-1")).toEqual([]);
+});
+
+test("X12 cases: a new size of the source frame gives each case frame the same size, in the same move", async () => {
+  const e = await easel();
+  const answer = await setOk(e, dataCases);
+
+  const moved = await e.agent.run(frames.api["frame.move"], {
+    input: { canvas: "flow", id: e.source.id, size: { w: 500, h: 320 } },
+  });
+  expect(moved).toMatchObject({ kind: "moved" });
+
+  const all = await e.listFrames();
+  const group = [e.source.id, ...answer.frames.map((one) => one.id)];
+  expect(group.map((id) => [all.get(id)?.w, all.get(id)?.h])).toEqual(group.map(() => [500, 320]));
+  rowInOrder(all, group);
+});
+
+test("X12 cases: a move of the source frame in its section or to an exact place on its page keeps its case frames right after it", async () => {
+  const e = await easel();
+  const putStep = async (name: string) => {
+    const made = await e.agent.run(frames.api["frame.put"], {
+      input: {
+        canvas: "flow",
+        html: `<p>${name}</p>`,
+        name,
+        section: "Checkout",
+        size: { w: 400, h: 300 },
+      },
+    });
+    if (made.kind !== "created") throw new Error(made.kind);
+    return made.id;
+  };
+  const step = await putStep("step");
+  const pay = await putStep("pay");
+  await e.agent.run(frames.api["frame.move"], {
+    input: { canvas: "flow", id: e.source.id, after: step },
+  });
+  const answer = await setOk(e, dataCases.slice(0, 2));
+  const cases = answer.frames.map((one) => one.id);
+
+  await e.agent.run(frames.api["frame.move"], {
+    input: { canvas: "flow", id: e.source.id, after: pay },
+  });
+  const inSection = await e.listFrames();
+  const row = [step, pay, e.source.id, ...cases];
+  expect(row.map((id) => inSection.get(id)?.section)).toEqual(row.map(() => "Checkout"));
+  rowInOrder(inSection, row);
+
+  await e.agent.run(frames.api["frame.move"], {
+    input: { canvas: "flow", id: e.source.id, x: 3000, y: 2000 },
+  });
+  const exact = await e.listFrames();
+  const group = [e.source.id, ...cases];
+  expect(exact.get(e.source.id)).toMatchObject({ x: 3000, y: 2000 });
+  expect(group.map((id) => exact.get(id)?.section)).toEqual(group.map(() => "users list · cases"));
+  expect(cases.every((id) => exact.get(id)?.y === 2000)).toBe(true);
+  rowInOrder(exact, group);
+  expect([step, pay].map((id) => exact.get(id)?.section)).toEqual(["Checkout", "Checkout"]);
+});

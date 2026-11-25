@@ -7,7 +7,7 @@ import { z } from "zod";
 import { kitRuntime } from "@/kit/runtime.server";
 import { kitStart, showKit } from "@/kit/store.server";
 
-import { boardSection, finding, sectionInfo, sections } from "./arrange";
+import { boardSection, finding, sectionHead, sectionInfo, sections } from "./arrange";
 import {
   arrangePage,
   bumpRev,
@@ -27,7 +27,7 @@ import {
   followSource,
   sourceOf,
 } from "./case-frames.server";
-import { caseValues } from "./cases";
+import { caseFrameLink, caseValues, groupNameOf } from "./cases";
 import {
   canvasInfo,
   firstPage,
@@ -1084,6 +1084,133 @@ const moveInput = z.object({
   rev: z.number().nullable(),
 });
 
+export const sourceRow = z.object({
+  id: z.string(),
+  name: z.string(),
+  page: z.string(),
+  x: z.number(),
+  y: z.number(),
+  section: z.string().nullable(),
+  source: z.string().nullable(),
+});
+
+const caseFrameRow = z.object({ id: z.string(), case_name: z.string() });
+
+export const readCaseFrames = operation({
+  label: "frames.readCaseFrames",
+  input: z.object({
+    canvas: z.string(),
+    source: z.string(),
+    db: z.custom<Database>(),
+  }),
+  run: (_, { input: { canvas, source, db } }) =>
+    db
+      .query(
+        "SELECT id, case_name FROM frames_frames WHERE canvas = ? AND source = ? ORDER BY col, made",
+      )
+      .all(canvas, source)
+      .map((row) => caseFrameRow.parse(row)),
+});
+
+export const groupOf = operation({
+  label: "frames.groupOf",
+  input: z.object({
+    canvas: z.string(),
+    source: sourceRow,
+    db: z.custom<Database>(),
+  }),
+  depends: { seatFrame },
+  run: ({ seatFrame }, { input: { canvas, source, db } }) => {
+    if (source.section !== null) return source.section;
+
+    const has = db.query("SELECT 1 FROM frames_sections WHERE canvas = ? AND page = ? AND key = ?");
+    const plain = groupNameOf.parse({
+      source: source.name,
+      id: source.id,
+      taken: false,
+    });
+    const taken = has.get(canvas, source.page, keyOfName.parse(plain)) !== null;
+    const name = taken
+      ? groupNameOf.parse({ source: source.name, id: source.id, taken: true })
+      : plain;
+    const key = keyOfName.parse(name);
+    const at = { kind: "section" as const, name, key, page: source.page };
+    seatFrame.run({ input: { canvas, id: source.id, at, db } });
+    db.query(
+      "UPDATE frames_sections SET at_x = ?, at_y = ? WHERE canvas = ? AND page = ? AND key = ?",
+    ).run(source.x, Math.max(0, source.y - sectionHead), canvas, source.page, key);
+    return key;
+  },
+});
+
+const sourceSeat = z.object({ page: z.string(), section: z.string(), col: z.number() });
+
+export const seatCaseFrames = operation({
+  label: "frames.seatCaseFrames",
+  input: z.object({
+    canvas: z.string(),
+    source: z.string(),
+    frames: z.array(caseFrameLink),
+    db: z.custom<Database>(),
+  }),
+  depends: { seatFrame },
+  run: ({ seatFrame }, { input: { canvas, source, frames, db } }) => {
+    const seat = sourceSeat.parse(
+      db
+        .query("SELECT page, section, col FROM frames_frames WHERE canvas = ? AND id = ?")
+        .get(canvas, source),
+    );
+    frames.forEach((one, n) => {
+      const at = { ...seat, kind: "after" as const, col: seat.col + n, row: 0 };
+      seatFrame.run({ input: { canvas, id: one.id, at, db } });
+    });
+  },
+});
+
+const dropSectionsWithNoFrame = operation({
+  label: "frames.dropSectionsWithNoFrame",
+  input: z.object({ canvas: z.string(), page: z.string(), db: z.custom<Database>() }),
+  run: (_, { input: { canvas, page, db } }) => {
+    db.query(
+      `DELETE FROM frames_sections WHERE canvas = ?1 AND page = ?2 AND key NOT IN
+         (SELECT section FROM frames_frames
+          WHERE canvas = ?1 AND page = ?2 AND section IS NOT NULL)`,
+    ).run(canvas, page);
+  },
+});
+
+const caseGroupFollowsSource = operation({
+  label: "frames.caseGroupFollowsSource",
+  input: z.object({ canvas: z.string(), source: z.string(), db: z.custom<Database>() }),
+  depends: { readCaseFrames, unseatFrame, dropSectionsWithNoFrame, groupOf, seatCaseFrames },
+  run: (deps, { input: { canvas, source, db } }) => {
+    const { readCaseFrames, unseatFrame, dropSectionsWithNoFrame, groupOf } = deps;
+    const caseFrames = readCaseFrames.run({ input: { canvas, source, db } });
+    if (caseFrames.length === 0) return [];
+
+    db.query(
+      `UPDATE frames_frames SET w = s.w, h = s.h
+       FROM (SELECT w, h FROM frames_frames WHERE canvas = ?1 AND id = ?2) AS s
+       WHERE frames_frames.canvas = ?1 AND frames_frames.source = ?2`,
+    ).run(canvas, source);
+    for (const one of caseFrames) unseatFrame.run({ input: { canvas, id: one.id, db } });
+    const now = sourceRow.parse(
+      db
+        .query(
+          "SELECT id, name, page, x, y, section, source FROM frames_frames WHERE canvas = ? AND id = ?",
+        )
+        .get(canvas, source),
+    );
+    if (now.section === null) {
+      dropSectionsWithNoFrame.run({ input: { canvas, page: now.page, db } });
+    }
+    groupOf.run({ input: { canvas, source: now, db } });
+    const frames = caseFrames.map((one) => ({ name: one.case_name, id: one.id }));
+    deps.seatCaseFrames.run({ input: { canvas, source, frames, db } });
+    return frames.map((one) => one.id);
+  },
+});
+
 const rowNow = operation({
   label: "frames.rowNow",
   input: z.object({ canvas: z.string(), id: z.string(), db: z.custom<Database>() }),
@@ -1176,7 +1303,15 @@ const applyMove = operation({
 const moveRow = operation({
   label: "frames.moveRow",
   input: moveInput.extend({ db: z.custom<Database>() }),
-  depends: { moveStart, moveSeat, applyMove, rowNow, pageState, arrangeAfter },
+  depends: {
+    moveStart,
+    moveSeat,
+    applyMove,
+    caseGroupFollowsSource,
+    rowNow,
+    pageState,
+    arrangeAfter,
+  },
   run: (deps, { input: { canvas, id, place, size, db, ...asked } }) => {
     const { moveStart, moveSeat, applyMove, rowNow, pageState, arrangeAfter } = deps;
     const start = moveStart.run({ input: { canvas, id, page: asked.page, rev: asked.rev, db } });
@@ -1190,12 +1325,28 @@ const moveRow = operation({
     const pages = [was.page, at === null ? page : at.page];
     const before = pageState.run({ input: { canvas, pages, db } });
     applyMove.run({ input: { canvas, was, page, place, size, at, db } });
+    const cases = deps.caseGroupFollowsSource.run({ input: { canvas, source: id, db } });
 
     const changed = pageState.run({ input: { canvas, pages, db } }) !== before;
     const done = arrangeAfter.run({ input: { canvas, pages, changed, db } });
     const moved = pageState.run({ input: { canvas, pages, db } }) !== before;
     const now = keyedRow.parse(rowNow.run({ input: { canvas, id, db } }));
-    return { kind: moved ? ("moved" as const) : ("unchanged" as const), was, now, done };
+    return { kind: moved ? ("moved" as const) : ("unchanged" as const), was, now, done, cases };
+  },
+});
+
+const leaveOldPage = operation({
+  label: "frames.leaveOldPage",
+  input: z.object({
+    canvas: z.string(),
+    from: z.string(),
+    to: z.string(),
+    ids: z.array(z.string()),
+  }),
+  depends: { cells: frames.atScope.controller },
+  run: ({ cells }, { input: { canvas, from, to, ids } }) => {
+    if (from === to) return;
+    for (const id of ids) cells.delete({ canvas, page: from, id });
   },
 });
 
@@ -1204,14 +1355,14 @@ export const moveFrame = operation({
   input: moveInput,
   depends: {
     connection: bunSqlite.connection,
-    cells: frames.atScope.controller,
+    leaveOldPage,
     moveRow,
     showPages,
     showArranged,
     layoutOf,
   },
   run: async (deps, { input }) => {
-    const { connection, cells, moveRow, showPages, showArranged, layoutOf } = deps;
+    const { connection, moveRow, showPages, showArranged, layoutOf } = deps;
     const db = connection.db.$client;
     const answer = db.transaction(() => moveRow.run({ input: { ...input, db } }))();
     switch (answer.kind) {
@@ -1224,10 +1375,11 @@ export const moveFrame = operation({
         break;
     }
 
-    const { was, now, done } = answer;
+    const { was, now, done, cases } = answer;
     const { canvas } = input;
-    if (was.page !== now.page) cells.delete({ canvas, page: was.page, id: was.id });
-    showArranged.run({ input: { canvas, done, also: [now.id], db } });
+    const ids = [was.id, ...cases];
+    deps.leaveOldPage.run({ input: { canvas, from: was.page, to: now.page, ids } });
+    showArranged.run({ input: { canvas, done, also: [now.id, ...cases], db } });
     if (was.page !== now.page) showPages.run({ input: { canvas, db } });
     return { kind: answer.kind, layout: layoutOf.run({ input: { page: now.page, done } }) };
   },

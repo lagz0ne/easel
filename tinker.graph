@@ -336,12 +336,14 @@ frames.bumpKeys exits{value} reads{?} writes{?} calls{frames.boardFrame,frames.b
 frames.bumpRev exits{value} reads{} writes{} calls{}
 frames.canvasIsThere exits{value} reads{} writes{} calls{}
 frames.caseFrameIdsOf exits{value} reads{} writes{} calls{}
+frames.caseGroupFollowsSource exits{value} reads{} writes{} calls{frames.dropSectionsWithNoFrame,frames.groupOf,frames.readCaseFrames,frames.seatCaseFrames,frames.unseatFrame}
 frames.changeSection exits{value} reads{} writes{} calls{frames.orderAfter}
 frames.checkCases exits{CaseInvalid,CasesTooMany,good} reads{} writes{} calls{}
 frames.deleteRows exits{value} reads{} writes{} calls{}
 frames.dropCaseList exits{value} reads{} writes{} calls{}
 frames.dropFrame exits{CaseFrame,deleted,gone} reads{} writes{} calls{frames.arrangeAfter,frames.caseFrameIdsOf,frames.dropCaseList,frames.layoutOf,frames.removeFrameRow,frames.showArranged,frames.showPages,frames.showRemoved,frames.sourceOf}
 frames.dropPageRow exits{deleted,gone,last,notEmpty} reads{} writes{} calls{frames.hasPage}
+frames.dropSectionsWithNoFrame exits{value} reads{} writes{} calls{}
 frames.endPasses exits{value} reads{} writes{} calls{?,frames.bumpKeys}
 frames.findingsOf exits{value} reads{} writes{} calls{}
 frames.firstPageOf exits{value} reads{} writes{} calls{}
@@ -358,6 +360,7 @@ frames.keptWrite exits{gone,marked,stale,unchanged} reads{} writes{} calls{}
 frames.layoutAnswer exits{value} reads{} writes{} calls{}
 frames.layoutOf exits{value} reads{} writes{} calls{frames.layoutAnswer}
 frames.layoutPage exits{value} reads{} writes{} calls{}
+frames.leaveOldPage exits{value} reads{?} writes{?} calls{}
 frames.liveLink exits{value} reads{} writes{} calls{}
 frames.load exits{value} reads{?} writes{?} calls{frames.addColumns,frames.boardFrame,frames.boardKept,frames.loadSections,frames.mountOldJs,frames.putOnFirstPages,kit.showKit,kit.start}
 frames.loadClient exits{value} reads{} writes{} calls{}
@@ -375,8 +378,8 @@ frames.markReady exits{gone,ready,unchanged} reads{} writes{} calls{frames.markF
 frames.mayName exits{refused,value} reads{} writes{} calls{access.digestOf,access.user,frames.passCanvas}
 frames.mayRead exits{refused,value} reads{} writes{} calls{access.user,frames.passCanvas}
 frames.mountOldJs exits{value} reads{} writes{} calls{}
-frames.moveFrame exits{changed,gone,moved,placed,unchanged} reads{?} writes{?} calls{frames.layoutOf,frames.moveRow,frames.showArranged,frames.showPages}
-frames.moveRow exits{changed,gone,moved,placed,unchanged} reads{} writes{} calls{frames.applyMove,frames.arrangeAfter,frames.moveSeat,frames.moveStart,frames.pageState,frames.rowNow}
+frames.moveFrame exits{changed,gone,moved,placed,unchanged} reads{} writes{} calls{frames.layoutOf,frames.leaveOldPage,frames.moveRow,frames.showArranged,frames.showPages}
+frames.moveRow exits{changed,gone,moved,placed,unchanged} reads{} writes{} calls{frames.applyMove,frames.arrangeAfter,frames.caseGroupFollowsSource,frames.moveSeat,frames.moveStart,frames.pageState,frames.rowNow}
 frames.moveSeat exits{exact,gone,none,placed,seat} reads{} writes{} calls{frames.seatOfPlace}
 frames.moveStart exits{changed,found,gone} reads{} writes{} calls{frames.hasPage,frames.revOf,frames.rowNow}
 frames.nameIsTaken exits{value} reads{} writes{} calls{}
