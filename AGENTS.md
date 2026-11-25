@@ -23,7 +23,7 @@ The person starts a few leads, and gives each lead one mission (the user decided
   open mission files in `tasks/`. Send each other lead one short message: your mission, and what
   you touch. Before you change a file that another open mission touches, message its lead and
   agree. After a ship that changes a thing that another mission uses, tell its lead. Keep
-  "Touching" current.
+  "Touching" current. Send a message to the lead that the `Lead:` line of the mission file names.
 - **Easel only.** The other leads are the agents that work in this repo (`~/dev/easel`).
   `ListAgents` also lists sessions of other projects: ignore them. When a name does not tell the
   repo, read the field `cwd` of `~/.paseo/agents/<workspace>/<id>.json`.
