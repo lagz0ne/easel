@@ -1110,6 +1110,7 @@ viewer.backToList exits{value} reads{} writes{viewer.panelOpen.set} calls{viewer
 viewer.callNamed exits{accepted,answered,closed,edited,full,gone,noted,reopened,slow,wrongState} reads{} writes{} calls{viewer.callOnce,viewer.keptName,viewer.namePass}
 viewer.callOnce exits{accepted,answered,closed,edited,full,gone,noted,reopened,slow,wrongState} reads{} writes{} calls{?}
 viewer.cancelBox exits{value} reads{} writes{viewer.acting.set} calls{}
+viewer.caseOverBoard exits{value} reads{} writes{} calls{}
 viewer.claimLines exits{value} reads{} writes{} calls{}
 viewer.closeCard exits{value} reads{} writes{viewer.panelOpen.set} calls{viewer.closeRequest}
 viewer.closeFind exits{value} reads{} writes{viewer.findOpen.set} calls{}

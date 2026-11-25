@@ -7,6 +7,7 @@ import { boardKit } from "@/kit/cells";
 import { fixtureSwitch, initialFixture } from "@/kit/fixtures";
 import { firstLocale } from "@/words/frame-words";
 
+import { caseOverBoard, frameCase } from "./cases";
 import { pageParam } from "./pages";
 import { axesPost, offeredAxes, schemeText, themedFrames } from "./stage";
 
@@ -331,6 +332,22 @@ export const dockOffers = resource({
   },
 });
 
+export const framePicks = resource({
+  label: "viewer.framePicks",
+  config: { canvas: statesCanvas.required, id: switchFrame.required },
+  depends: (c) => ({
+    now: picksNow({}),
+    shown: frameCase({ canvas: c.canvas, id: c.id }),
+    caseOverBoard,
+  }),
+  factory: ({ now, shown, caseOverBoard }): SwitchPicks => {
+    const [picks, values] = [now.get(), shown.get()];
+    if (values === null) return picks;
+
+    return { ...picks, board: caseOverBoard.run({ input: { board: picks.board, values } }) };
+  },
+});
+
 export const frameStates = resource({
   label: "viewer.frameStates",
   config: { canvas: statesCanvas.required, id: switchFrame.required },
@@ -338,7 +355,7 @@ export const frameStates = resource({
     doc: framesApi.board.docs.of({ canvas: c.canvas, id: c.id }),
     kit: framesApi.board.kit.of({ canvas: c.canvas }),
     offered: offeredAxes,
-    picks: picksNow({}),
+    picks: framePicks({ canvas: c.canvas, id: c.id }),
     docOffers,
     statesOf,
   }),
