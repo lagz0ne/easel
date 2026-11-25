@@ -118,16 +118,24 @@ shows `vi`, and each text with no translation shows its `en` text with a mark.
 
 5. `/texts` shows the page "Texts" to a signed-in person. A person who is not signed in sees the
    sign-in of the home page. The home page links to it ("Texts"), in its head.
-6. The head of the page gives the counts: the texts of the team, how many are not used, how many
-   have no `vi` text, the texts with no key, the frames read, and the image frames.
-7. The table of the texts of the team has a row for each text key: the text key, the `en` text,
-   the `vi` text, and the uses. A row with no `vi` text shows "Not translated". A row with no use
-   shows "Not used". So the person sees each text beside its translation (L14).
+6. The page is one table, as the table of the keys in Lokalise, Crowdin, Phrase and Tolgee
+   (user, 2026-11-25: "just make it a normal table like any other i18n and text management
+   system"). Its columns are Key, English, Vietnamese and Used in. Above the table, "Find a
+   text" finds a key or the words of a text, "Show" gives the count of each kind of text and
+   shows one kind, and "Group by" puts the rows in groups: by the key prefix (the first word of
+   the key) or by the canvas. A line under the table gives the count of the frames read and of
+   the image frames.
+7. Each text of the team is one row: the text key, the `en` text, the `vi` text, and the uses. A
+   row with no `vi` text shows "Not translated". A row with no use shows "Not used". So the
+   person sees each text beside its translation (L14). An unknown text key is a row with "Not in
+   the team" in English. A text with no key is a row with "No key" in Key; its mark says that it
+   has no translation.
 8. Each use is a link to `/c/<canvas>#frame-<id>`. The canvas opens on the page of that frame
    (the viewer finds it with `share.frame`), and the view goes to the frame and puts it in the
    middle (L10).
-9. A list of the texts with no key follows, with the uses of each, and the note "A text with no key
-   has no translation". A list of the unknown text keys comes before it when there is one.
+9. The texts with no key and the unknown text keys are rows of the same table. "Show" picks
+   them ("No key", "Not in the team"). In "Group by Key prefix", the texts with no key are the
+   last group; in "Group by Canvas", the texts with no use are the last group.
 
 ### The texts in a frame
 

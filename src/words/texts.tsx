@@ -1,10 +1,13 @@
 import { Link } from "@tanstack/react-router";
+import { SessionProvider, useController, useData } from "@tinkered/react";
 
 import { HomePage } from "@/home/home";
 import type { Site, Who } from "@/home/signin";
 import type { Text } from "@/kit/texts";
 
-import type { OwnText, TextsUses, TextUse, UsedText } from "./contract";
+import type { TextsUses, TextUse } from "./contract";
+import { textsGroup, textsShow, textsViewCell } from "./view";
+import type { TextsView } from "./view";
 
 import "@/home/home.css";
 import "./texts.css";
@@ -23,9 +26,11 @@ function Shown({ text }: { text: Text }) {
   );
 }
 
-function Mark({ kind, children }: { kind: "missing" | "unused"; children: string }) {
+type MarkProps = { kind: "missing" | "unused"; note?: string; children: string };
+
+function Mark({ kind, note, children }: MarkProps) {
   return (
-    <span className="e-texts-mark" data-mark={kind}>
+    <span className="e-texts-mark" data-mark={kind} title={note}>
       {children}
     </span>
   );
@@ -58,130 +63,252 @@ function Uses({ uses }: { uses: readonly TextUse[] }) {
   );
 }
 
-function TeamRow({ text }: { text: UsedText }) {
+type Line = {
+  id: string;
+  kind: "team" | "unknown" | "own";
+  is: Record<TextsView["show"], boolean>;
+  key?: string;
+  en?: Text;
+  vi?: Text;
+  uses: readonly TextUse[];
+};
+
+type Group = { name: string | null; lines: readonly Line[] };
+
+const lastGroups = ["No key", "Not used"];
+
+const showNames = {
+  all: "All texts",
+  missing: "Vietnamese: not translated",
+  unused: "Not used",
+  nokey: "No key",
+  unknown: "Not in the team",
+} satisfies Record<TextsView["show"], string>;
+
+const groupNames = {
+  none: "None",
+  prefix: "Key prefix",
+  canvas: "Canvas",
+} satisfies Record<TextsView["group"], string>;
+
+function KeyCell({ line }: { line: Line }) {
+  if (line.key === undefined) {
+    return (
+      <Mark kind="missing" note="A text with no key has no translation. An agent gives it a key.">
+        No key
+      </Mark>
+    );
+  }
+
+  return <code>{line.key}</code>;
+}
+
+function EnCell({ line }: { line: Line }) {
+  if (line.en === undefined) {
+    return (
+      <Mark kind="missing" note="A frame uses this key, and the texts of the team do not have it.">
+        Not in the team
+      </Mark>
+    );
+  }
+
+  return <Shown text={line.en} />;
+}
+
+function ViCell({ line }: { line: Line }) {
+  if (line.vi !== undefined) return <Shown text={line.vi} />;
+  if (line.kind !== "team") return null;
+
+  return <Mark kind="missing">Not translated</Mark>;
+}
+
+function TextRow({ line }: { line: Line }) {
   return (
-    <tr id={`text-${text.key}`}>
+    <tr id={line.kind === "team" ? `text-${line.key}` : undefined}>
       <th scope="row">
-        <code>{text.key}</code>
+        <KeyCell line={line} />
       </th>
       <td lang="en">
-        <Shown text={text.en} />
+        <EnCell line={line} />
       </td>
       <td lang="vi">
-        {text.vi === undefined ? (
-          <Mark kind="missing">Not translated</Mark>
-        ) : (
-          <Shown text={text.vi} />
-        )}
+        <ViCell line={line} />
       </td>
       <td>
-        <Uses uses={text.uses} />
+        <Uses uses={line.uses} />
       </td>
     </tr>
   );
 }
 
-function TeamTable({ texts }: { texts: readonly UsedText[] }) {
+function GroupBody({ group }: { group: Group }) {
   return (
-    <table className="e-texts-table">
-      <caption>Texts of the team</caption>
-      <thead>
-        <tr>
-          <th scope="col">Text key</th>
-          <th scope="col">English</th>
-          <th scope="col">Vietnamese</th>
-          <th scope="col">Used in</th>
+    <tbody>
+      {group.name === null ? null : (
+        <tr className="e-texts-group">
+          <th colSpan={4} scope="rowgroup">
+            {group.name} <span className="e-home-meta">{group.lines.length}</span>
+          </th>
         </tr>
-      </thead>
-      <tbody>
-        {texts.map((text) => (
-          <TeamRow key={text.key} text={text} />
-        ))}
-      </tbody>
-    </table>
-  );
-}
-
-function Missing({ keys }: { keys: readonly string[] }) {
-  if (keys.length === 0) {
-    return <p className="e-home-note">Each text of the team has a Vietnamese text.</p>;
-  }
-
-  return (
-    <ul className="e-texts-uses" aria-label="Not translated">
-      {keys.map((key) => (
-        <li key={key}>
-          <a href={`#text-${key}`}>
-            <code>{key}</code>
-          </a>
-        </li>
+      )}
+      {group.lines.map((line) => (
+        <TextRow key={line.id} line={line} />
       ))}
-    </ul>
+    </tbody>
   );
 }
 
-function Unknown({ list }: { list: TextsUses["unknown"] }) {
-  if (list.length === 0) return null;
+function Toolbar({ counts }: { counts: Readonly<Record<string, number>> }) {
+  const view = useData(textsViewCell);
+  const cell = useController(textsViewCell);
 
   return (
-    <section aria-labelledby="e-texts-unknown">
-      <h2 id="e-texts-unknown">Text keys that the team does not have</h2>
-      <ul className="e-texts-own">
-        {list.map((one) => (
-          <li key={one.key}>
-            <p className="e-texts-text">
-              <code>{one.key}</code>
-            </p>
-            <Uses uses={one.uses} />
-          </li>
+    <div className="e-texts-bar" role="search">
+      <input
+        type="search"
+        aria-label="Find a text"
+        placeholder="Find a key or a text"
+        value={view.find}
+        onChange={(event) => cell.update((was) => ({ ...was, find: event.target.value }))}
+      />
+      <label>
+        Show
+        <select
+          value={view.show}
+          onChange={(event) => {
+            const show = textsShow.safeParse(event.target.value);
+            if (show.success) cell.update((was) => ({ ...was, show: show.data }));
+          }}
+        >
+          {textsShow.options.map((show) => (
+            <option key={show} value={show}>
+              {showNames[show]} ({counts[show] ?? 0})
+            </option>
+          ))}
+        </select>
+      </label>
+      <label>
+        Group by
+        <select
+          value={view.group}
+          onChange={(event) => {
+            const group = textsGroup.safeParse(event.target.value);
+            if (group.success) cell.update((was) => ({ ...was, group: group.data }));
+          }}
+        >
+          {textsGroup.options.map((group) => (
+            <option key={group} value={group}>
+              {groupNames[group]}
+            </option>
+          ))}
+        </select>
+      </label>
+    </div>
+  );
+}
+
+function TextsTable({ uses }: { uses: TextsUses }) {
+  const view = useData(textsViewCell);
+  const lines: Line[] = [
+    ...uses.texts.map((text) => ({
+      id: `key ${text.key}`,
+      kind: "team" as const,
+      is: {
+        all: true,
+        missing: text.vi === undefined,
+        unused: text.uses.length === 0,
+        nokey: false,
+        unknown: false,
+      },
+      key: text.key,
+      en: text.en,
+      vi: text.vi,
+      uses: text.uses,
+    })),
+    ...uses.unknown.map((one) => ({
+      id: `unknown ${one.key}`,
+      kind: "unknown" as const,
+      is: { all: true, missing: false, unused: false, nokey: false, unknown: true },
+      key: one.key,
+      uses: one.uses,
+    })),
+    ...uses.own.map((one) => ({
+      id: `text ${one.text}`,
+      kind: "own" as const,
+      is: { all: true, missing: false, unused: false, nokey: true, unknown: false },
+      en: one.text,
+      uses: one.uses,
+    })),
+  ];
+  const counts = Object.fromEntries(
+    textsShow.options.map((show) => [show, lines.filter((line) => line.is[show]).length]),
+  );
+  const find = view.find.trim().toLowerCase();
+  const shown = lines.filter(
+    (line) =>
+      line.is[view.show] &&
+      JSON.stringify([line.key, line.en, line.vi]).toLowerCase().includes(find),
+  );
+  const placed = shown.flatMap((line) => {
+    switch (view.group) {
+      case "none":
+        return [{ name: "", line }];
+      case "prefix":
+        return [{ name: line.key?.split(".")[0] ?? "No key", line }];
+      case "canvas": {
+        const canvases = [...new Set(line.uses.map((use) => use.canvas))];
+        if (canvases.length === 0) return [{ name: "Not used", line }];
+        return canvases.map((canvas) => ({
+          name: canvas,
+          line: {
+            ...line,
+            id: `${line.id} ${canvas}`,
+            uses: line.uses.filter((use) => use.canvas === canvas),
+          },
+        }));
+      }
+    }
+  });
+  const grouped = Map.groupBy(placed, (one) => one.name);
+  const groups: Group[] = [...grouped.keys()]
+    .toSorted(
+      (a, b) =>
+        Number(lastGroups.includes(a)) - Number(lastGroups.includes(b)) || a.localeCompare(b),
+    )
+    .map((name) => ({
+      name: view.group === "none" ? null : name,
+      lines: (grouped.get(name) ?? []).map((one) => one.line),
+    }));
+
+  return (
+    <>
+      <Toolbar counts={counts} />
+      <table className="e-texts-table" aria-label="Texts">
+        <thead>
+          <tr>
+            <th scope="col">Key</th>
+            <th scope="col">English</th>
+            <th scope="col">Vietnamese</th>
+            <th scope="col">Used in</th>
+          </tr>
+        </thead>
+        {groups.map((group) => (
+          <GroupBody key={group.name ?? "all"} group={group} />
         ))}
-      </ul>
-    </section>
-  );
-}
-
-function OwnList({ list }: { list: readonly OwnText[] }) {
-  return (
-    <section aria-labelledby="e-texts-own">
-      <h2 id="e-texts-own">Texts with no key</h2>
+        {shown.length === 0 ? (
+          <tbody>
+            <tr>
+              <td colSpan={4} className="e-home-meta">
+                No text matches.
+              </td>
+            </tr>
+          </tbody>
+        ) : null}
+      </table>
       <p className="e-home-note">
-        A text with no key has no translation. An agent gives it a key: data-easel-text in an HTML
-        frame, or say in an app frame.
+        Frames read: {uses.frames}. Image frames: {uses.pictures} (easel cannot read their words).
       </p>
-      <ul className="e-texts-own" aria-label="Texts with no key">
-        {list.map((one) => (
-          <li key={one.text}>
-            <p className="e-texts-text">{one.text}</p>
-            <Uses uses={one.uses} />
-          </li>
-        ))}
-      </ul>
-    </section>
-  );
-}
-
-function Counts({ uses }: { uses: TextsUses }) {
-  const unused = uses.texts.filter((text) => text.uses.length === 0).length;
-
-  return (
-    <ul className="e-texts-counts" aria-label="Counts">
-      <li>
-        <strong>{uses.texts.length}</strong> texts of the team
-      </li>
-      <li>
-        <strong>{unused}</strong> not used
-      </li>
-      <li>
-        Vietnamese: <strong>{uses.missing.vi.length}</strong> not translated
-      </li>
-      <li>
-        <strong>{uses.own.length}</strong> texts with no key
-      </li>
-      <li>
-        <strong>{uses.frames}</strong> frames read, <strong>{uses.pictures}</strong> images: easel
-        cannot read their words
-      </li>
-    </ul>
+    </>
   );
 }
 
@@ -195,18 +322,9 @@ function Texts({ uses }: { uses: TextsUses | null }) {
       {uses === null ? (
         <p role="alert">No answer from easel. Open the page again.</p>
       ) : (
-        <>
-          <Counts uses={uses} />
-          <section aria-label="Texts of the team">
-            <TeamTable texts={uses.texts} />
-          </section>
-          <section aria-labelledby="e-texts-missing">
-            <h2 id="e-texts-missing">Vietnamese: not translated</h2>
-            <Missing keys={uses.missing.vi} />
-          </section>
-          <Unknown list={uses.unknown} />
-          <OwnList list={uses.own} />
-        </>
+        <SessionProvider>
+          <TextsTable uses={uses} />
+        </SessionProvider>
       )}
     </main>
   );

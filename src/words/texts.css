@@ -16,38 +16,12 @@
   margin: 0;
 }
 
-.e-texts-counts {
-  display: flex;
-  flex-wrap: wrap;
-  gap: var(--e-1) var(--e-4);
-  margin: 0 0 var(--e-5);
-  padding: 0;
-  list-style: none;
-  color: var(--e-muted);
-}
-
-.e-texts-counts strong {
-  font-weight: var(--e-w-medium);
-  color: var(--e-text);
-}
-
-.e-texts section {
-  margin-bottom: var(--e-6);
-}
-
 .e-texts-table {
   width: 100%;
   border-collapse: collapse;
   background-color: var(--e-surface);
   border: 1px solid var(--e-line);
   border-radius: var(--e-radius-l);
-}
-
-.e-texts-table caption {
-  padding-bottom: var(--e-2);
-  font-weight: var(--e-w-medium);
-  color: var(--e-muted);
-  text-align: left;
 }
 
 .e-texts-table th,
@@ -59,9 +33,53 @@
 }
 
 .e-texts-table thead th {
+  position: sticky;
+  top: 0;
+  z-index: 1;
   font-weight: var(--e-w-medium);
   color: var(--e-muted);
+  background-color: var(--e-surface);
   border-top: 0;
+}
+
+.e-texts-table .e-texts-group th {
+  font-weight: var(--e-w-medium);
+  background-color: var(--e-tint);
+}
+
+.e-texts-table summary {
+  cursor: pointer;
+  color: var(--e-muted);
+}
+
+.e-texts-bar {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--e-2) var(--e-4);
+  align-items: center;
+  margin-bottom: var(--e-3);
+}
+
+.e-texts-bar input {
+  flex: 1 1 240px;
+  width: auto;
+}
+
+.e-texts-bar label {
+  display: flex;
+  gap: var(--e-2);
+  align-items: center;
+  color: var(--e-muted);
+}
+
+.e-texts-bar select {
+  height: 40px;
+  padding: 0 var(--e-2);
+  font: inherit;
+  color: var(--e-text);
+  background-color: var(--e-surface);
+  border: 1px solid var(--e-field);
+  border-radius: var(--e-radius);
 }
 
 .e-texts-table tbody th {
@@ -96,31 +114,4 @@
 
 .e-texts-uses .e-home-meta {
   margin-left: var(--e-1);
-}
-
-.e-texts-own {
-  margin: 0;
-  padding: 0;
-  list-style: none;
-  background-color: var(--e-surface);
-  border: 1px solid var(--e-line);
-  border-radius: var(--e-radius-l);
-}
-
-.e-texts-own > li {
-  padding: var(--e-2) var(--e-3);
-}
-
-.e-texts-own > li + li {
-  border-top: 1px solid var(--e-divider);
-}
-
-.e-texts-own summary {
-  cursor: pointer;
-  color: var(--e-muted);
-}
-
-.e-texts-text {
-  margin: 0 0 var(--e-1);
-  overflow-wrap: anywhere;
 }

@@ -180,34 +180,84 @@ const textOf = (at: ReturnType<typeof page.getByRole>) => at.query()?.textConten
 
 const rowOf = (key: string) => page.getByRole("row", { name: new RegExp(`^${key} `) });
 
-test("L9, L11, L13, L14: /texts shows the counts, each text of the team beside its translation with its uses, Not used, Not translated, the text keys that the team does not have, and the texts with no key", async () => {
+const table = () => page.getByRole("table", { name: "Texts" });
+
+const firstCells = () =>
+  [...table().element().querySelectorAll("tbody th[scope=row]")].map((th) => th.textContent);
+
+const groupNames = () =>
+  [...table().element().querySelectorAll("tbody th[scope=rowgroup]")].map((th) => th.textContent);
+
+test("L9, L11, L13, L14: /texts is one table: each text beside its translation with its uses, Not used, Not translated, the text keys that the team does not have, and the texts with no key", async () => {
   await tab(await serve(), "/texts");
 
   await expect.element(page.getByRole("heading", { name: "Texts", level: 1 })).toBeVisible();
-  const counts = page.getByRole("list", { name: "Counts" });
-  await expect.element(counts).toBeVisible();
-  expect([...counts.element().querySelectorAll("li")].map((li) => li.textContent)).toEqual([
-    "3 texts of the team",
-    "1 not used",
-    "Vietnamese: 1 not translated",
-    "2 texts with no key",
-    "3 frames read, 1 images: easel cannot read their words",
+  await expect.element(table()).toBeVisible();
+  expect(firstCells()).toEqual([
+    "plan.name",
+    "trial.start",
+    "ui.close",
+    "cart.title",
+    "No key",
+    "No key",
   ]);
-
   await expect.poll(() => textOf(rowOf("trial.start"))).toContain("StartBắt đầu");
   await expect.element(rowOf("trial.start").getByRole("link", { name: "Cart" })).toBeVisible();
   await expect.poll(() => textOf(rowOf("plan.name"))).toContain("Not translated");
   await expect.poll(() => textOf(rowOf("ui.close"))).toContain("ĐóngNot used");
+  await expect.poll(() => textOf(rowOf("cart.title"))).toContain("Not in the team");
+  await expect.poll(() => textOf(table())).toContain("No keyYour order");
+  await expect.poll(() => textOf(table())).toContain("No keyCard number");
   await expect
-    .poll(() => textOf(page.getByRole("list", { name: "Not translated" })))
-    .toContain("plan.name");
-  await expect
-    .element(page.getByRole("heading", { name: "Text keys that the team does not have" }))
+    .element(page.getByText("Frames read: 3. Image frames: 1 (easel cannot read their words)."))
     .toBeVisible();
-  const own = page.getByRole("list", { name: "Texts with no key" });
-  await expect.poll(() => textOf(own)).toContain("Your order");
-  await expect.poll(() => textOf(own)).toContain("Card number");
   expect(world.asked).toBe(1);
+});
+
+test("L13: Show gives the count of each kind of text, and shows only that kind", async () => {
+  await tab(await serve(), "/texts");
+
+  const show = page.getByRole("combobox", { name: "Show" });
+  await expect.element(show).toBeVisible();
+  expect([...show.element().querySelectorAll("option")].map((one) => one.textContent)).toEqual([
+    "All texts (6)",
+    "Vietnamese: not translated (1)",
+    "Not used (1)",
+    "No key (2)",
+    "Not in the team (1)",
+  ]);
+  await show.selectOptions("Vietnamese: not translated (1)");
+  await expect.poll(firstCells).toEqual(["plan.name"]);
+  await show.selectOptions("No key (2)");
+  await expect.poll(() => textOf(table())).toContain("Card number");
+  expect(firstCells()).toEqual(["No key", "No key"]);
+  expect(world.asked).toBe(1);
+});
+
+test("Group by Key prefix puts each text under the first word of its key, and the texts with no key last", async () => {
+  await tab(await serve(), "/texts");
+
+  await page.getByRole("combobox", { name: "Group by" }).selectOptions("Key prefix");
+  await expect.poll(groupNames).toEqual(["cart 1", "plan 1", "trial 1", "ui 1", "No key 2"]);
+});
+
+test("Group by Canvas puts each text under each canvas that uses it, and the texts with no use last", async () => {
+  await tab(await serve(), "/texts");
+
+  await page.getByRole("combobox", { name: "Group by" }).selectOptions("Canvas");
+  await expect.poll(groupNames).toEqual(["shop 5", "Not used 1"]);
+});
+
+test("Find shows only the texts whose key or words have the typed words", async () => {
+  await tab(await serve(), "/texts");
+
+  await page.getByRole("searchbox", { name: "Find a text" }).fill("ORDER");
+  await expect.poll(() => textOf(table())).toContain("Your order");
+  expect(firstCells()).toEqual(["No key"]);
+  await page.getByRole("searchbox", { name: "Find a text" }).fill("bắt");
+  await expect.poll(firstCells).toEqual(["trial.start"]);
+  await page.getByRole("searchbox", { name: "Find a text" }).fill("nothing like this");
+  await expect.element(page.getByText("No text matches.")).toBeVisible();
 });
 
 test("L10: a use on /texts opens its canvas on the page of the frame, with the frame in the middle of the view", async () => {
