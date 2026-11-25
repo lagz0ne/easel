@@ -1,6 +1,6 @@
 # Mission: each package of easel runs on Tinker
 
-Lead: f45e95a (paseo name easel-95). Accepted: waiting for the person. The person approved the
+Lead: f45e95a (paseo name easel-95). Accepted: 2026-11-25, "Accept the top of tasks/tinker-packages.md." The person approved the
 7 steps on 2026-11-25 ("Go ahead with the plan."). Done: open.
 
 ## Mission
@@ -26,7 +26,8 @@ the person, 2026-11-25: packages to primitives, constants to tags, scripts to cm
 - Not in: a change of what a script does. Back when the person asks for it.
 - Must not: change a default value, a flag, an exit code or an output line of a script.
 - Must not: edit the uncommitted "dark look B" files (`scripts/design-proof.ts`, `src/kit/*`,
-  `src/cli/look.ts` and their tests) until the person gives them to an owner.
+  `src/cli/look.ts`, `tinker.graph` hunks and their tests). The lead of dark look B (eae12f93)
+  owns them.
 
 ## Verify
 
@@ -40,7 +41,12 @@ the person, 2026-11-25: packages to primitives, constants to tags, scripts to cm
 
 ## Touching
 
-- (nothing now)
+- `src/queue/settings.ts`, `src/queue/ops.server.ts`, `src/queue/starts.ts`,
+  `src/queue/starts.server.ts` (7c)
+- `src/live/settings.ts`, `src/live/takes.server.ts` (8)
+- `src/viewer/settings.ts` (new), `src/viewer/stage.ts`, `src/viewer/fold.ts`,
+  `src/viewer/follow.ts`, `src/viewer/gate.ts` (7f)
+- `tinker.graph`: the lines `queue.*`, `liveScreens.*` and `viewer.*` only, shipped with `-p`
 
 ## Plan
 
@@ -50,15 +56,19 @@ the person, 2026-11-25: packages to primitives, constants to tags, scripts to cm
 - [x] 4. `build-binary` is a cmd. 62f955a.
 - [x] 5. `speed`, `map-screens` and `live-screens` are cmds. 3e06548, 0bb8566, f271fb4.
 - [ ] 6. `design-proof` is a cmd: `scripts/design-proof.ts` to `cmds/design-proof.ts`,
-      `package.json` (`design:proof`). Waits: the file has the dirty "dark look B" edit.
+      `package.json` (`design:proof`). Waits: the lead of dark look B (eae12f93) tells me when its `design-proof.ts` ships.
 - [x] 7a. Tags: sign-in (524f731), share links, passwords and pictures (c7b50ee), error sink
       and dispatch (1d60d43).
 - [ ] 7b. Tags: the CLI `shotTries` and `callDeadline`. `src/cli/`. Check: a test in a scope.
-- [ ] 7c. Tags: the limits of the queue and of the starts. `src/queue/`, `src/paseo-adapter/`.
+      Waits: `src/cli/frames.ts` and `src/cli/look.ts` (it reads `callDeadline`) are dirty from
+      other missions.
+- [ ] 7c. Tags: `silentAfterMs`, `perPass` and `perAddress` of `src/queue/`. The limits in the
+      contracts (`maxRunningLimit`, `maxPerDayLimit`, `maxCause`, `maxChannelCanvases`) are wire
+      limits: Not in.
 - [ ] 7d. Tags: `frameGap` and the arrange values. `src/frames/` (the cases mission touches it:
       agree with its lead first).
-- [ ] 7e. Tags: the values of `src/kit` and `src/mcp`. Waits for "dark look B" and the cases
-      mission.
+- [ ] 7e. Tags: the values of `src/kit` and `src/mcp`. Waits for dark look B (eae12f93) and
+      the cases mission.
 - [ ] 7f. Tags: the 36 values of the viewer, in the browser scope. `src/viewer/`.
 - [ ] 8. A small noise limit for the pixel compare of `live-screens` (8 of 255, as `map-screens`),
       so raster noise does not give a false `differs`. `src/live/takes.server.ts`.
