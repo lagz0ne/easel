@@ -4,7 +4,7 @@ import { useData, useRun } from "@tinkered/react";
 import { z } from "zod";
 
 import { openMenu, setMenu } from "./overlays";
-import { boardOffers, frameStates, localeSwitch, pickBoard, pickFrame, picksNow } from "./switches";
+import { dockOffers, frameStates, localeSwitch, pickBoard, pickFrame, picksNow } from "./switches";
 import type { FrameState, SwitchOffer } from "./switches";
 
 export const pickSwitch = operation({
@@ -19,8 +19,8 @@ export const pickSwitch = operation({
 
 const statesIcon = "M12 3a9 9 0 1 0 0 18 9 9 0 0 0 0-18zM12 3v18M12 8h7M12 13h8M12 18h5";
 
-export function StatesPick() {
-  const offers = useData(boardOffers({})).filter((one) => one.name !== localeSwitch);
+export function StatesPick({ canvas }: { canvas: string }) {
+  const offers = useData(dockOffers({ canvas }));
   const { board } = useData(picksNow({}));
   const open = useData(openMenu, (m) => m === "states");
   const set = useRun(setMenu);
@@ -51,13 +51,45 @@ export function StatesPick() {
       <Menu.Portal>
         <Menu.Positioner className="e-menu-pos" side="top" sideOffset={8}>
           <Menu.Popup className="e-menu e-states" aria-label="States">
-            {shown.map(({ offer, value }) => (
-              <StateGroup key={offer.name} offer={offer} value={value} />
-            ))}
+            {shown.map(({ offer, value }) =>
+              offer.name === localeSwitch ? (
+                <LocaleGroup key={offer.name} offer={offer} value={value} />
+              ) : (
+                <StateGroup key={offer.name} offer={offer} value={value} />
+              ),
+            )}
           </Menu.Popup>
         </Menu.Positioner>
       </Menu.Portal>
     </Menu.Root>
+  );
+}
+
+function LocaleGroup({ offer, value }: { offer: SwitchOffer; value: string }) {
+  const pick = useRun(pickSwitch);
+  const items = offer.values.map((code) => ({
+    code,
+    name: new Intl.DisplayNames([code], { type: "language" }).of(code) ?? code,
+    short: code.split("-")[0]?.toUpperCase(),
+  }));
+  return (
+    <Menu.Group className="e-states-group" aria-label={offer.name}>
+      <Menu.GroupLabel className="e-states-name">{offer.name}</Menu.GroupLabel>
+      <Menu.RadioGroup value={value}>
+        {items.map(({ code, name, short }) => (
+          <Menu.RadioItem
+            key={code}
+            value={code}
+            lang={code}
+            aria-label={name}
+            onClick={() => pick.run({ input: { name: offer.name, value: code } })}
+          >
+            <span className="e-pages-name">{name}</span>
+            <span className="e-menu-n">{short}</span>
+          </Menu.RadioItem>
+        ))}
+      </Menu.RadioGroup>
+    </Menu.Group>
   );
 }
 

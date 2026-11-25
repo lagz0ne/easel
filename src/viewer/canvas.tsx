@@ -14,7 +14,7 @@ import { paneScript } from "@/kit/controls";
 import type { ControlShown, PanePlace } from "@/kit/controls";
 import { fixtureSwitch } from "@/kit/fixtures";
 import { teamTexts } from "@/kit/texts";
-import { firstLocale, frameWords, wordsFor } from "@/words/frame-words";
+import { frameWords, wordsFor } from "@/words/frame-words";
 
 import "./canvas.css";
 import "./arrange.css";
@@ -68,7 +68,7 @@ import {
   zoomShown,
 } from "./stage";
 import type { KitMessage } from "./stage";
-import { FrameStates, pickSwitch, StatesPick } from "./switch-pick";
+import { FrameStates, StatesPick } from "./switch-pick";
 import {
   appOffers,
   docTakesTheme,
@@ -749,74 +749,6 @@ function ControlsPanel({ list }: { list: readonly FrameInfo[] }) {
   );
 }
 
-function LocalePick({ canvas }: { canvas: string }) {
-  const offered = useData(offeredAxes, (all) =>
-    Object.values(all)
-      .flatMap((offer) => offer.locales)
-      .join(" "),
-  );
-  const texts = useData(frames.board.kit.of({ canvas }))?.texts ?? {};
-  const translated = Object.values(texts).some((text) => text.vi !== undefined);
-  const given = [...(translated ? teamLocales : []), ...offered.split(" ")];
-  const locales = [...new Set(given.filter((code) => code !== ""))].join(" ");
-  const locale = useData(picksNow({})).board[localeSwitch] ?? firstLocale;
-  const open = useData(openMenu, (m) => m === "locale");
-  const set = useRun(setMenu);
-  if (locales === "") return null;
-
-  const name = new Intl.DisplayNames([locale], { type: "language" }).of(locale) ?? locale;
-
-  return (
-    <Menu.Root
-      modal={false}
-      open={open}
-      onOpenChange={(next) => set.run({ input: { menu: "locale", open: next } })}
-    >
-      <Menu.Trigger
-        className="e-dock-btn e-dock-page e-dock-locale"
-        aria-label="Locale"
-        title={`Locale: ${name}`}
-      >
-        <Icon d={icons.locale} />
-        <span className="e-dock-page-name">{locale.split("-")[0]?.toUpperCase()}</span>
-      </Menu.Trigger>
-      <Menu.Portal>
-        <Menu.Positioner className="e-menu-pos" side="top" sideOffset={8}>
-          <LocaleMenu codes={locales.split(" ")} locale={locale} />
-        </Menu.Positioner>
-      </Menu.Portal>
-    </Menu.Root>
-  );
-}
-
-function LocaleMenu({ codes, locale }: { codes: readonly string[]; locale: string }) {
-  const pick = useRun(pickSwitch);
-  const items = codes.map((code) => ({
-    code,
-    name: new Intl.DisplayNames([code], { type: "language" }).of(code) ?? code,
-    short: code.split("-")[0]?.toUpperCase(),
-  }));
-
-  return (
-    <Menu.Popup className="e-menu e-locales" aria-label="Locale">
-      <Menu.RadioGroup value={locale}>
-        {items.map(({ code, name, short }) => (
-          <Menu.RadioItem
-            key={code}
-            value={code}
-            lang={code}
-            aria-label={name}
-            onClick={() => pick.run({ input: { name: localeSwitch, value: code } })}
-          >
-            <span className="e-pages-name">{name}</span>
-            <span className="e-menu-n">{short}</span>
-          </Menu.RadioItem>
-        ))}
-      </Menu.RadioGroup>
-    </Menu.Popup>
-  );
-}
-
 export function Icon({ d }: { d: string }) {
   return (
     <svg className="e-icon" viewBox="0 0 24 24" aria-hidden="true">
@@ -828,8 +760,6 @@ export function Icon({ d }: { d: string }) {
 const icons = {
   controls: "M21 4h-7M10 4H3M21 12h-9M8 12H3M21 20h-5M12 20H3M14 2v4M8 10v4M16 18v4",
   close: "M18 6 6 18M6 6l12 12",
-  locale:
-    "M12 21a9 9 0 1 0 0-18 9 9 0 0 0 0 18zM3 12h18M12 3a14 14 0 0 1 0 18M12 3a14 14 0 0 0 0 18",
 } as const;
 
 function Dock({ canvas, page }: { canvas: string; page: string }) {
@@ -839,8 +769,7 @@ function Dock({ canvas, page }: { canvas: string; page: string }) {
       <RequestsButton canvas={canvas} />
       <FindButton />
       <PagesButton canvas={canvas} page={page} />
-      <LocalePick canvas={canvas} />
-      <StatesPick />
+      <StatesPick canvas={canvas} />
       <span className="e-dock-sep" aria-hidden="true" />
       <ZoomPick />
     </div>

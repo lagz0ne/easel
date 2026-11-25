@@ -300,6 +300,37 @@ export const docOffers = operation({
 
 const statesCanvas = tag<string>({ label: "viewer.statesCanvas" });
 
+const dockCanvas = tag<string>({ label: "viewer.dockCanvas" });
+
+export const localeFirst = operation({
+  label: "viewer.localeFirst",
+  input: z.array(switchOffer),
+  run: (_, { input }): SwitchOffer[] => [
+    ...input.filter((offer) => offer.name === localeSwitch),
+    ...input.filter((offer) => offer.name !== localeSwitch),
+  ],
+});
+
+export const dockOffers = resource({
+  label: "viewer.dockOffers",
+  config: { canvas: dockCanvas.required },
+  depends: (c) => ({
+    board: boardOffers({}),
+    kit: framesApi.board.kit.of({ canvas: c.canvas }),
+    teamTranslated,
+    joinOffers,
+    localeFirst,
+  }),
+  factory: (deps) => {
+    const translated = deps.teamTranslated.run({ input: deps.kit.get() ?? null });
+    const team = translated
+      ? [{ name: localeSwitch, values: teamLocales, default: firstLocale }]
+      : [];
+    const joined = deps.joinOffers.run({ input: [...team, ...deps.board.get()] });
+    return deps.localeFirst.run({ input: joined });
+  },
+});
+
 export const frameStates = resource({
   label: "viewer.frameStates",
   config: { canvas: statesCanvas.required, id: switchFrame.required },

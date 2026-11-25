@@ -1,9 +1,10 @@
 ---- MODULE ViewerOverlays ----
 \* SPEC-viewer.md § The page, item 5 (user report, 2026-11-24): what lies over the canvas in one
 \* tab, on a phone (a narrow screen) and on a wide screen. The dock holds Request, Requests, Find,
-\* Pages, Locale and Zoom. The card Requests shows the list or one request. Five menus open from a
-\* button: Pages, Locale and Zoom (in the dock), the list menu (Open or Done, in the head of the
-\* list) and More (in the head of a request). Find opens its list over the dock.
+\* Pages, States and Zoom. The card Requests shows the list or one request. Five menus open from a
+\* button: Pages, States and Zoom (in the dock), the list menu (Open or Done, in the head of the
+\* list) and More (in the head of a request). Find opens its list over the dock. The locale is a
+\* group of States, not a button of its own (product#27, 2026-11-25).
 \*
 \* The rules: one menu at most is open. A press out of a menu, or Escape, closes it. No overlay
 \* covers the dock. One press closes the top overlay, and so does Escape. On a phone, Find and the
@@ -16,7 +17,7 @@
 \* Design is how the page behaves:
 \*   "fixed"  the menus of Base UI (one at a time; an outside press and Escape close them), a
 \*            Close button in the head of the list, and a card that stops above the dock on a
-\*            phone. Locale is a menu too (2026-11-24), in the place of a select of the browser.
+\*            phone. States is a menu too, and holds the locale (product#27, 2026-11-25).
 \*            Zoom is a menu too (product#1, 2026-11-24), in the place of Zoom out, Zoom in and Fit.
 \*   "today"  the page before 2026-11-24: each menu opens and closes only by its own button or a
 \*            pick, the list has no Close, and on a phone the card covers the dock. Locale is a
@@ -28,7 +29,7 @@ CONSTANTS Design, Screens
 
 Fixed == Design = "fixed"
 
-Menus == IF Fixed THEN {"pages", "locale", "zoom", "list", "more"} ELSE {"pages", "list", "more"}
+Menus == IF Fixed THEN {"pages", "states", "zoom", "list", "more"} ELSE {"pages", "list", "more"}
 
 VARIABLES
   screen,  \* "narrow" (a phone) or "wide"
@@ -74,9 +75,9 @@ PressPages ==
   /\ find' = FALSE
   /\ UNCHANGED <<screen, panel>>
 
-PressLocale ==
+PressStates ==
   /\ Fixed /\ DockFree
-  /\ Toggle("locale")
+  /\ Toggle("states")
   /\ find' = FALSE
   /\ UNCHANGED <<screen, panel>>
 
@@ -159,7 +160,7 @@ Escape ==
   /\ UNCHANGED screen
 
 Press ==
-  \/ PressRequests \/ PressPages \/ PressLocale \/ PressZoom \/ PressFind
+  \/ PressRequests \/ PressPages \/ PressStates \/ PressZoom \/ PressFind
   \/ PressList \/ PressMore \/ PressRow \/ PressBack \/ PressClose
   \/ \E m \in Menus : Pick(m)
   \/ PressOutside

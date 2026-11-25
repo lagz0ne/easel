@@ -368,37 +368,43 @@ test("an app frame draws its JS in the composed document (composeApp), with the 
   await expect.poll(() => colorOf("a")).toBe(looks[1].rgb);
 });
 
-const localeButton = () => page.getByRole("button", { name: "Locale" });
-const localeMenu = () => page.getByRole("menu", { name: "Locale" });
+const statesButton = () => page.getByRole("button", { name: "States" });
+const statesMenu = () => page.getByRole("menu", { name: "States" });
+const localeGroup = () => statesMenu().getByRole("group", { name: "locale" });
 
 const languageOf = (code: string) =>
   new Intl.DisplayNames([code], { type: "language" }).of(code) ?? code;
 
 async function chooseLocale(code: string) {
-  await localeButton().click();
-  await localeMenu()
+  await statesButton().click();
+  await localeGroup()
     .getByRole("menuitemradio", { name: languageOf(code) })
     .click();
-  await expect.poll(() => localeMenu().elements()).toHaveLength(0);
+  await expect.poll(() => statesMenu().elements()).toHaveLength(0);
 }
 
 const boxOf = (el: Element) => el.getBoundingClientRect();
 
-test("viewer-overlays Locale: the locale is a dock button that shows EN, at the height of Pages; its menu has a radio item for each locale in its own language; a pick closes it, and so do a press out of it, Escape and Pages (APickClosesItsMenu, AnOutsidePressClosesAMenu, EscapeClosesTheTop, OneMenuAtMost)", async () => {
+test("viewer-overlays States, product#27: the locale is the first group of States in the dock, not its own button; it has a radio item for each locale in its own language; a pick closes the menu, and so do a press out of it, Escape and Pages (APickClosesItsMenu, AnOutsidePressClosesAMenu, EscapeClosesTheTop, OneMenuAtMost)", async () => {
   const server = await boot([{ id: "b", x: 0, y: 0, capsule: true }]);
   const at = await tab(server);
   await rested(at, 1);
 
-  const button = localeButton();
+  const button = statesButton();
   const pages = page.getByRole("button", { name: "Pages" });
-  await expect.element(button).toHaveTextContent("EN");
-  expect(page.getByRole("combobox", { name: "Locale" }).elements()).toEqual([]);
-  expect(boxOf(button.element()).height).toBe(boxOf(pages.element()).height);
+  await expect.element(button).toBeVisible();
+  expect(page.getByRole("button", { name: "Locale" }).elements()).toEqual([]);
+  expect(button.element().getAttribute("title")).toContain("locale en");
 
   await button.click();
-  await expect.element(localeMenu()).toBeVisible();
+  await expect.element(statesMenu()).toBeVisible();
   await expect.element(button).toHaveAttribute("aria-expanded", "true");
-  const items = localeMenu().getByRole("menuitemradio");
+  const named = statesMenu()
+    .getByRole("group")
+    .elements()
+    .flatMap((group) => group.getAttribute("aria-label") ?? []);
+  expect(named).toEqual(["locale", "sample"]);
+  const items = localeGroup().getByRole("menuitemradio");
   expect(items.elements().map((item) => item.getAttribute("aria-checked"))).toEqual([
     "true",
     "false",
@@ -407,37 +413,37 @@ test("viewer-overlays Locale: the locale is a dock button that shows EN, at the 
     ["en", `${languageOf("en")}EN`],
     ["vi", `${languageOf("vi")}VI`],
   ]);
-  expect(boxOf(localeMenu().element()).bottom).toBeLessThanOrEqual(boxOf(button.element()).top);
+  expect(boxOf(statesMenu().element()).bottom).toBeLessThanOrEqual(boxOf(button.element()).top);
 
-  await localeMenu()
+  await localeGroup()
     .getByRole("menuitemradio", { name: languageOf("vi") })
     .click();
-  await expect.poll(() => localeMenu().elements()).toHaveLength(0);
-  await expect.element(button).toHaveTextContent("VI");
+  await expect.poll(() => statesMenu().elements()).toHaveLength(0);
+  await expect.poll(() => button.element().getAttribute("title")).toContain("locale vi");
   await expect.poll(() => colorOf("b")).toBe('{"locale":"vi","config":{}}');
 
   await button.click();
-  await expect.element(localeMenu()).toBeVisible();
+  await expect.element(statesMenu()).toBeVisible();
   await page.getByRole("region", { name: "Frames" }).click({ position: { x: 30, y: 140 } });
-  await expect.poll(() => localeMenu().elements()).toHaveLength(0);
+  await expect.poll(() => statesMenu().elements()).toHaveLength(0);
 
   await button.click();
-  await expect.element(localeMenu()).toBeVisible();
+  await expect.element(statesMenu()).toBeVisible();
   await userEvent.keyboard("{Escape}");
-  await expect.poll(() => localeMenu().elements()).toHaveLength(0);
+  await expect.poll(() => statesMenu().elements()).toHaveLength(0);
   await expect.poll(() => document.activeElement).toBe(button.element());
 
   await button.click();
-  await expect.element(localeMenu()).toBeVisible();
+  await expect.element(statesMenu()).toBeVisible();
   await pages.click();
   await expect.element(page.getByRole("menu", { name: "Pages" })).toBeVisible();
-  expect(localeMenu().elements()).toHaveLength(0);
+  expect(statesMenu().elements()).toHaveLength(0);
   await button.click();
-  await expect.element(localeMenu()).toBeVisible();
+  await expect.element(statesMenu()).toBeVisible();
   expect(page.getByRole("menu", { name: "Pages" }).elements()).toHaveLength(0);
 });
 
-test("viewer-overlays Locale on a phone (390 x 844): the dock with Locale and States fits, each of its buttons is 40 x 40 px at least, and the menu stays in the view", async () => {
+test("viewer-overlays States on a phone (390 x 844): the dock has no Locale button, it fits, each of its buttons is 40 x 40 px at least, and the States menu stays in the view", async () => {
   const server = await boot([{ id: "b", x: 0, y: 0, capsule: true }]);
   const at = await tab(server);
   await rested(at, 1);
@@ -445,7 +451,7 @@ test("viewer-overlays Locale on a phone (390 x 844): the dock with Locale and St
   await expect.poll(() => innerWidth).toBe(390);
 
   const dock = page.getByRole("toolbar", { name: "Canvas" });
-  await expect.element(localeButton()).toHaveTextContent("EN");
+  await expect.element(statesButton()).toBeVisible();
   const shown = dock
     .getByRole("button")
     .elements()
@@ -455,7 +461,6 @@ test("viewer-overlays Locale on a phone (390 x 844): the dock with Locale and St
     "Requests",
     "Find",
     "Pages",
-    "Locale",
     "States",
     "Zoom",
   ]);
@@ -467,18 +472,18 @@ test("viewer-overlays Locale on a phone (390 x 844): the dock with Locale and St
     ]);
   }
   const width = boxOf(dock.element()).width;
-  console.log(`size: the dock with Locale is ${width.toFixed(0)} px wide at 390 px`);
+  console.log(`size: the dock with States is ${width.toFixed(0)} px wide at 390 px`);
   expect(width).toBeLessThan(390 - 48);
 
-  await localeButton().click();
-  await expect.element(localeMenu()).toBeVisible();
-  const menu = boxOf(localeMenu().element());
+  await statesButton().click();
+  await expect.element(statesMenu()).toBeVisible();
+  const menu = boxOf(statesMenu().element());
   expect([menu.left >= 0, menu.right <= 390]).toEqual([true, true]);
-  await localeMenu()
+  await localeGroup()
     .getByRole("menuitemradio", { name: languageOf("vi") })
     .click();
-  await expect.poll(() => localeMenu().elements()).toHaveLength(0);
-  await expect.element(localeButton()).toHaveTextContent("VI");
+  await expect.poll(() => statesMenu().elements()).toHaveLength(0);
+  await expect.poll(() => statesButton().element().getAttribute("title")).toContain("locale vi");
 });
 
 test("viewer-overlays Requests on a phone (390 x 844): the list opens as a bottom drawer, as in Doop and the Drawer of shadcn: full width, on the bottom edge, with round top corners and a handle, and the canvas shows above it", async () => {
@@ -539,7 +544,7 @@ test("X1 kit-frame-axes: a capsule frame posts its axes; the page offers the loc
     await statesMenu.getByRole("menuitemradio", { name: `sample ${value}` }).click();
     await expect.poll(() => statesMenu.elements()).toHaveLength(0);
   };
-  await expect.element(localeButton()).toHaveTextContent("EN");
+  await expect.element(statesButton()).toBeVisible();
   await expect.element(states).toBeVisible();
   expect(page.getByRole("button", { name: "States of Frame a" }).elements()).toEqual([]);
   expect(await colorOf("b")).toBe("{}");

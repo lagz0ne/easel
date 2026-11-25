@@ -172,8 +172,10 @@ that change them for that story only; the matrix of Chromatic (one story in each
     one control for each. A pick gives the value to each frame that takes the switch, and each
     live document draws again in a new scope, as a pick of the locale does now. A frame that does
     not take the switch does not change. A frame with its own value (rule 12) keeps it, and does
-    not draw again. The locale pick of the dock becomes the `locale` switch: it keeps its own
-    button. The other switches are in one menu of the dock, `States`, one group for each.
+    not draw again. The locale pick of the dock becomes the `locale` switch. Each switch is in
+    one menu of the dock, `States`, one group for each, and `locale` is the first group. The
+    dock gets more tools, so a switch gets no button of its own (product#27, 2026-11-25). Prior
+    art: a language is a variable mode in Figma, as light and dark are.
 12. **The frame value.** The controls of a frame (E10) show each switch that it takes. A pick there
     is for that frame only, and the control says that the frame has its own value.
     `Use the board` gives the frame the board value again. Prior art: the variable mode of a frame in

@@ -68,11 +68,11 @@ shows `vi`, and each text with no translation shows its `en` text with a mark.
    running app, and Tolgee finds its strings by invisible characters. Fluent puts the isolates
    around each value that it inserts. The `missingKeyHandler` and `fallbackLng` of i18next show the
    text of the first language.
-10. **One pick.** The locale pick of the dock shows when the texts of the team have a `vi` text, or
-    a live app frame offers locales (today: only the second). The pick reaches each live frame: an
-    app frame draws in a new scope (as today), and an HTML frame gets a new document. The board
-    switch `locale` of SPEC-pieces rule 11 is the work of another agent (X6). It takes this pick
-    over, and this delta does not build it.
+10. **One pick.** The locale pick shows when the texts of the team have a `vi` text, or a live
+    app frame offers locales (today: only the second). The pick reaches each live frame: an app
+    frame draws in a new scope (as today), and an HTML frame gets a new document. The board switch
+    `locale` of SPEC-pieces rule 11 took this pick over (X6). It is the first group of the menu
+    `States` in the dock, not a button of its own (product#27, 2026-11-25).
 11. **A picture keeps the first language.** A frame that is not live shows its picture, in `en`
     and with its own words, as the chart [kit-frame-axes](docs/statecharts/kit-frame-axes.md) says.
     A frame that the person can read (in view, at a zoom to read) is live. Add a locale to the
@@ -149,8 +149,9 @@ shows `vi`, and each text with no translation shows its `en` text with a mark.
     - in an app frame, each text that `t` gives in `en` because its text key has no `vi` text.
 12. The mark is a wavy line under the text, in the warning color. It changes no layout. In `en`, no
     text has a mark.
-13. The locale pick of the dock shows `en` and `vi` when a text of the team has a `vi` text. A
-    pick composes each live frame again, if the frame has text keys or the pick is not `en`.
+13. The group `locale` of `States` in the dock shows `en` and `vi` when a text of the team has a
+    `vi` text. A pick composes each live frame again, if the frame has text keys or the pick is
+    not `en`.
 14. After `texts.set`, each live HTML frame with `data-easel-text` gets a new document with the new
     texts, within 1 second (as L5 for an app frame).
 

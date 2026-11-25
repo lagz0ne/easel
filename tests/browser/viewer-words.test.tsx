@@ -184,20 +184,20 @@ function probe(id: string) {
   });
 }
 
-const localeButton = () => page.getByRole("button", { name: "Locale" });
+const statesButton = () => page.getByRole("button", { name: "States" });
 
 async function chooseLocale(code: string) {
   const name = new Intl.DisplayNames([code], { type: "language" }).of(code) ?? code;
-  await localeButton().click();
-  await page.getByRole("menuitemradio", { name }).click();
-  await expect.poll(() => page.getByRole("menu", { name: "Locale" }).elements()).toHaveLength(0);
+  await statesButton().click();
+  await page.getByRole("group", { name: "locale" }).getByRole("menuitemradio", { name }).click();
+  await expect.poll(() => page.getByRole("menu", { name: "States" }).elements()).toHaveLength(0);
 }
 
 test("L13, L14: an HTML frame shows the text of each data-easel-text in the locale; in vi each text with no vi text has the mark, and in en no text has it", async () => {
   const at = await tab(await boot([{ id: "a", x: 0, html: checkout, app: false }]));
   await rested(at, 1);
 
-  await expect.element(localeButton()).toHaveTextContent("EN");
+  await expect.poll(() => statesButton().element().getAttribute("title")).toContain("locale en");
   await expect
     .poll(() => probe("a"))
     .toEqual({
@@ -255,5 +255,8 @@ test("an HTML frame with no data-easel-text in en gets no words script; with no 
 
   expect(docOf("a")?.srcdoc).not.toContain("easel-words-data");
   await expect.element(page.getByRole("button", { name: "Pages" })).toBeVisible();
-  expect(localeButton().elements()).toEqual([]);
+  const titles = statesButton()
+    .elements()
+    .map((button) => button.getAttribute("title") ?? "");
+  expect(titles.filter((title) => title.includes("locale"))).toEqual([]);
 });

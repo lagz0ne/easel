@@ -8,13 +8,13 @@ const panels = { closed: "no card", list: "the list", card: "a request" };
 
 const menus = {
   pages: "menu Pages",
-  locale: "menu Locale",
+  states: "menu States",
   zoom: "menu Zoom",
   list: "menu Open or Done",
   more: "menu More",
 };
 
-const home = { pages: "any", locale: "any", zoom: "any", list: "list", more: "card" };
+const home = { pages: "any", states: "any", zoom: "any", list: "list", more: "card" };
 
 const menuWords = (v, m) =>
   home[m] === "any" || home[m] === v.panel ? menus[m] : `${menus[m]} kept, not shown`;
@@ -40,10 +40,10 @@ const steps = {
     from.menu.includes("pages")
       ? "a press on Pages: its menu closes"
       : "a press on Pages: its menu opens",
-  PressLocale: (from) =>
-    from.menu.includes("locale")
-      ? "a press on Locale: its menu closes"
-      : "a press on Locale: its menu opens",
+  PressStates: (from) =>
+    from.menu.includes("states")
+      ? "a press on States: its menu closes"
+      : "a press on States: its menu opens",
   PressZoom: (from) =>
     from.menu.includes("zoom")
       ? "a press on Zoom: its menu closes"

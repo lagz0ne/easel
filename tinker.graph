@@ -1112,6 +1112,7 @@ viewer.limitWords exits{value} reads{} writes{} calls{}
 viewer.linesOf exits{value} reads{} writes{} calls{viewer.linesOfMessage,viewer.outdatedLine,viewer.proofOf,viewer.sofarStep,viewer.stateLine}
 viewer.linesOfMessage exits{value} reads{} writes{} calls{viewer.messageLine,viewer.stepWords}
 viewer.listViews exits{value} reads{} writes{} calls{viewer.threads,viewer.viewOf}
+viewer.localeFirst exits{value} reads{} writes{} calls{}
 viewer.markSeen exits{value} reads{viewer.visits.get} writes{viewer.visits.set} calls{}
 viewer.messageLine exits{message} reads{} writes{} calls{}
 viewer.movePick exits{value} reads{viewer.findPick.get} writes{viewer.findPick.set} calls{}
