@@ -1,7 +1,8 @@
 # Spec delta: `cases`, each case of a frame is a frame, in one group with two views
 
-Status: proposed. The user agreed to the design on 2026-11-25: the picks D5 to D7 on the page
-`regroup-the-controller` of the canvas `product` (groups 4 and 5). This delta adds to
+Status: approved by the user on 2026-11-25, with both picks of the open questions. The user agreed
+to the design on 2026-11-25: the picks D5 to D7 on the page `regroup-the-controller` of the canvas
+`product` (groups 4 and 5). This delta adds to
 [SPEC-pieces](SPEC-pieces.md) rules 10 to 16 (switches, fixtures, matrix) and to
 [SPEC-arrange](SPEC-arrange.md) (sections). It is the design of E10.3 in
 [docs/epics.md](docs/epics.md).
@@ -77,14 +78,26 @@ states" and "Pin"; this spec replaces both words.
    - `answers` (ship 3): for each call that the source frame depends on, a kind of its output, a
      fault, or `none` (no answer: the call waits).
    - A list has 36 cases at most, as a matrix (rule 16). More refuses with `CasesTooMany`.
-   - A value that does not check refuses the whole write with `CaseInvalid`, its case, its field
-     and the reason. A list that was good can become bad (a fixture was removed): the case frame
-     then shows `CaseInvalid` in its place, and the other case frames still show.
+   - The server checks what it knows: the shape, the names, and that the fixture is a name of
+     `fixtures.list`. A value that does not check refuses the whole write with `CaseInvalid`, its
+     case, its field and the reason.
+   - Only the frame knows its switches, when it runs (its offer, rule 12). So the server does not
+     check a switch value. A value that the `parse` of the tag refuses gets the default of the
+     tag, as a bad value of the address does today, and its row in Controls shows the default.
+   - A fixture that goes after the write: the case frame shows its own data, as the switch
+     `fixture` does today (rule 15).
 3. **easel makes the case frames.** For each case, easel keeps one case frame in the case group of
-   the source frame. The section has the name `<source frame name> · cases`. The source frame is
-   its first column. The case frames follow in the order of the list.
+   the source frame. The section has the name `<source frame name> · cases`, with the name of the
+   frame cut to fit the 80 characters of a section name. If a section of the page has that name
+   and is not this case group, easel adds the id of the source frame to the name. The source
+   frame is its first column. The case frames follow in the order of the list.
+   - The first write makes the case group at the place of the source frame (`at`, SPEC-arrange
+     rule 10). So the source frame stays where it was, and its cases go to its right.
    - A case frame has its own id, the name `<source frame name> · <case name>`, and the size of
      its source frame. Its version is the version of its source frame.
+   - A case frame keeps the build of its source frame (`html`, `css`, `kit`, `js`). easel writes
+     it in the same write as the new version of the source frame, and only easel writes it. So the
+     document, the pictures and the old versions that a request keeps work as for each frame.
    - easel adds, renames and removes case frames in the same write as `cases.set` or as a new
      version of the source frame. Then easel computes the places again (SPEC-arrange rule 11).
    - A write of the files of a case frame refuses with `CaseFrame`, and names the source frame.
@@ -94,6 +107,9 @@ states" and "Pin"; this spec replaces both words.
    goes into its cell before the first draw (rule 15). Each switch of the case is the frame value
    (rule 12). A switch that the case does not set follows the board value, so one pick of `dark`
    or `vi` still changes each case frame (X6; the modes of Chromatic).
+   - The order of a value: the frame value of the tab (a pick of the person on the case frame),
+     then the value of the case, then the board value. `Use the board` on a case frame gives back
+     the value of the case.
 5. **A request is on one case frame.** It is a request on that frame, with no change of the
    request record (`frameId`, `version`, `x`, `y` in `src/queue/cells.ts`). A new version of the
    source frame can make it outdated, as for each frame today (E4, M18).
@@ -204,7 +220,8 @@ Decision 9.
 ## Boundaries
 
 - Always: easel alone makes, renames and removes case frames. Each write of cases has a base.
-- Always: a case frame uses the code of its source frame. easel copies no files.
+- Always: a case frame shows the build of its source frame. Only easel writes it, in the same
+  write as the source frame (decision 3).
 - Ask first: a change of the request record. This delta needs none.
 - Never: a case as code in the files of a frame (decision 1).
 
@@ -221,9 +238,9 @@ Decision 9.
   of the controller, not of this delta.
 - **A case of several frames at one time** (a flow). Add it when a review needs it.
 
-## Open questions
+## Decided questions
 
-1. **The word "case".** "State" and "pin" are taken in the glossary. My pick: "case", a common
-   word. Storybook says "story", but a story is code there.
-2. **The empty box of a group in the stack view.** My pick: keep the box (decision 6). Then the
-   layout stays the one of the server for each person, and no pin moves.
+1. **The word "case"** (the user, 2026-11-25). "State" and "pin" are taken in the glossary, and a
+   Storybook "story" is code.
+2. **The box of a group in the stack view stays** (the user, 2026-11-25). The layout stays the
+   one of the server for each person, and no pin moves (decision 6).
