@@ -70,6 +70,9 @@
         "onOpen": "A step of the server capsule's run hook: it serves a MessagePort, whose listener runs outside any run; each message opens its own session of the accept.",
         "take": "The port's message listener (a MessagePort callback, outside any run), on the client and on the server: it routes each message by its type.",
         "gone": "A step of the port's message listener (a MessagePort callback, outside any run), and of the client's close: it ends each call and watch on the way as a link fault."
+      },
+      "src/build/binary.server.ts": {
+        "setup": "The plugin API of Bun.build: Bun calls it while it compiles the binary, and it only gives each loaded file to the oxcBindings, oxcVisitor and runtime steps."
       }
     }
   },

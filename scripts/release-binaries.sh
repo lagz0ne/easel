@@ -10,7 +10,7 @@ bun install --frozen-lockfile --os='*' --cpu='*'
 
 for pair in darwin-arm64:bun-darwin-arm64 linux-x64:bun-linux-x64-baseline linux-arm64:bun-linux-arm64; do
   name="easel-${pair%%:*}"
-  bun scripts/build-binary.ts --target "${pair#*:}" --outfile "$out/$name"
+  bun cmds/build-binary.ts --target "${pair#*:}" --outfile "$out/$name"
 done
 
 cd "$out"

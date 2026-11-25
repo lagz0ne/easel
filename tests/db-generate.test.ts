@@ -6,7 +6,7 @@ import { afterAll, expect, test } from "vite-plus/test";
 const folder = mkdtempSync(join(import.meta.dirname, ".gen-"));
 afterAll(() => rmSync(folder, { recursive: true, force: true }));
 
-const script = join(import.meta.dirname, "../scripts/db-generate.ts");
+const script = join(import.meta.dirname, "../cmds/db-generate.ts");
 
 const schema = (
   extra: string,

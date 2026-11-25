@@ -38,7 +38,7 @@ test(
       const build = Bun.spawnSync(
         [
           "bun",
-          "scripts/build-binary.ts",
+          "cmds/build-binary.ts",
           "--entry",
           "tests/kit/binary-probe.ts",
           "--outfile",

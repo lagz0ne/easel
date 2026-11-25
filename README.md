@@ -142,7 +142,7 @@ on each push to `main`, and weekly.
 
 - `build:client`: `bun --bun vp build` to
   `dist/client`. Then
-  `scripts/embed-client.ts` writes
+  `cmds/embed-client.ts` writes
   `cmds/client-files.gen.ts`: one
   `with { type: "file" }` import per file.
 - `build:server`: `bun build --compile` of

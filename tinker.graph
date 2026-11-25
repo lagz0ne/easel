@@ -51,6 +51,15 @@ browser.link.do exits{link} reads{} writes{} calls{access.digestOf,access.hexOf}
 browser.peek.do exits{gone,live,slow} reads{} writes{} calls{access.admit,access.digestOf}
 browser.start.do exits{name,pending,slow} reads{?} writes{?} calls{access.admit,access.clientAddress,access.digestOf,access.freshCode,access.hexOf,access.newRequest,access.room}
 browser.wait.do exits{approved,denied,expired,pending,slow} reads{?} writes{?} calls{access.admit,access.judgeCode}
+build.bindingOf exits{binding,unknown} reads{} writes{} calls{}
+build.compileBinary exits{built,failed} reads{} writes{} calls{build.oxcBindings,build.oxcVisitor,kit.buildRuntime}
+build.embedClient exits{value} reads{} writes{} calls{}
+build.generateMigrations exits{failed,generated} reads{} writes{} calls{}
+build.oxcBindings exits{value} reads{} writes{} calls{}
+build.oxcVisitor exits{value} reads{} writes{} calls{}
+build.readMetafile exits{value} reads{} writes{} calls{}
+build.serverLeaks exits{clean,leaks} reads{} writes{} calls{build.readMetafile}
+build.testLeaks exits{clean,leaks} reads{} writes{} calls{build.readMetafile}
 canvas.create.do exits{created,taken} reads{} writes{} calls{frames.saveCanvas}
 canvas.delete.do exits{deleted,gone} reads{} writes{} calls{frames.deleteRows,frames.endPasses,frames.forgetCells,frames.forgetSections}
 canvas.list.do exits{value} reads{?} writes{?} calls{}

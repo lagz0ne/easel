@@ -4,7 +4,7 @@ import { join } from "node:path";
 
 import { afterAll, expect, test } from "vite-plus/test";
 
-const script = join(import.meta.dirname, "../scripts/check-client.ts");
+const script = join(import.meta.dirname, "../cmds/check-client.ts");
 const folders: string[] = [];
 
 afterAll(() => {
