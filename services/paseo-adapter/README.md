@@ -41,7 +41,10 @@ is not part of the easel server binary. Nothing in `src/` or `cmds/` imports it.
 9. Each agent gets `EASEL_CONFIG_HOME=~/.config/easel-agent`, so its `easel` CLI acts as the
    member `vibea-claude`, as the easel MCP tools do (`.mcp.json`). The prompt tells it to check
    with `easel whoami` first, and to use only the MCP tools if the CLI is not `vibea-claude`.
-10. The agents run in Claude's auto mode, and they are non-interactive. While a design agent
+10. The agents run in Claude's auto mode, and they are non-interactive. The unit of the hub sets
+    `EASEL_PASEO_PROVIDER=easel-design`: a Paseo provider in `~/.paseo/config.json` that extends
+    `claude` and removes `AskUserQuestion`, `ExitPlanMode` and `EnterPlanMode` (hq-rjx). So an
+    agent has no tool that asks a person. While a design agent
     runs, the adapter reads `paseo permit ls --json` every 3 s. It denies each pending request of
     a design agent with `paseo permit deny`, and logs `denied` with the agent, the request id and
     the tool. A question to the user (`AskUserQuestion`) is a permission request too. The adapter
@@ -74,7 +77,7 @@ The log is one JSON line for each event on stdout: `bound`, `started`, `repeat`,
 | `EASEL_PASEO_CONSUMER`      | `paseo`                                                  |
 | `EASEL_PASEO_BIN`           | `paseo`                                                  |
 | `EASEL_PASEO_WORKSPACE_DIR` | `~/dev/easel`                                            |
-| `EASEL_PASEO_PROVIDER`      | `claude`                                                 |
+| `EASEL_PASEO_PROVIDER`      | `claude`; the unit of the hub sets `easel-design`        |
 | `EASEL_PASEO_MODE`          | `auto`                                                   |
 | `EASEL_PASEO_EASEL_CONFIG`  | `~/.config/easel-agent`: the agent's `EASEL_CONFIG_HOME` |
 | `EASEL_PASEO_STATE_DIR`     | `~/.local/state/easel-paseo-adapter`                     |
