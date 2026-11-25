@@ -27,12 +27,12 @@ import {
   opsUserOps,
   ready,
   resolveError,
-  silentAfter,
   status,
 } from "@/ops/ops.server";
 import { observePanics, panic } from "@/ops/panic.server";
 import { claim, counters, fixerLease, readiness } from "@/ops/registry";
-import { messageCap, normalize, sight, sightBatch } from "@/ops/sink.server";
+import { opsDefaults } from "@/ops/settings";
+import { normalize, sight, sightBatch } from "@/ops/sink.server";
 import type { Sighting } from "@/ops/sink.server";
 import { release } from "@/release";
 
@@ -382,7 +382,7 @@ test("a sample holds no token, password, share pass, key or frame document; it i
   }
   expect(shown.error.message).toContain("[removed]");
   const capped = await srv.show(long.fingerprint);
-  expect(capped.kind === "found" && capped.error.message.length).toBe(messageCap);
+  expect(capped.kind === "found" && capped.error.message.length).toBe(opsDefaults.messageCap);
 });
 
 test("scrub: a secret key inside a longer word, pwd, a password after a space, a URL's user, any first tag, a 20-character run (judged rule 1)", async () => {
@@ -872,12 +872,12 @@ test("fixerSilent: 30 minutes after the last tick and not before, also across a 
   const srv = await boot({ file, clock });
   const { ann } = await people(srv);
 
-  clock.advance(silentAfter + 1);
+  clock.advance(opsDefaults.silentAfter + 1);
   expect((await srv.ready()).body).toEqual({ failing: [], fixerSeen: null, fixerSilent: true });
 
   const stamped = await ann.scope.run(ops.owner["ops.fixerTick"], { input: null });
-  expect(stamped).toEqual({ kind: "stamped", at: t0 + silentAfter + 1 });
-  clock.advance(silentAfter);
+  expect(stamped).toEqual({ kind: "stamped", at: t0 + opsDefaults.silentAfter + 1 });
+  clock.advance(opsDefaults.silentAfter);
   expect((await srv.ready()).body.fixerSilent).toBe(false);
   await srv.close();
 

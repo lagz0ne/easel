@@ -14,8 +14,7 @@ import { operation } from "@tinkered/core";
 import { z } from "zod";
 
 import { scrub } from "./github.server";
-
-export const natsTimeout = 10_000;
+import { natsTimeout } from "./settings";
 
 export const checkStream = "easel-check-only";
 
@@ -126,8 +125,8 @@ const answerOf = operation({
 export const natsCall = operation({
   label: "queue.natsCall",
   input: natsRequest,
-  depends: { userKeyOf, answerOf },
-  run: async ({ userKeyOf, answerOf }, { input, clock, signal }) => {
+  depends: { userKeyOf, answerOf, natsTimeout },
+  run: async ({ userKeyOf, answerOf, natsTimeout }, { input, clock, signal }) => {
     const { url, seed, subject } = input;
     if (userKeyOf.run({ input: seed }) === null) {
       return { kind: "failed" as const, cause: "seed: the seed is not the seed of a user nkey" };

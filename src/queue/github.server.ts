@@ -1,6 +1,8 @@
 import { operation, tag } from "@tinkered/core";
 import { z } from "zod";
 
+import { githubTimeout } from "./settings";
+
 export const githubFetch = tag<(request: Request) => Promise<Response>>({
   label: "queue.githubFetch",
   default: () => Promise.reject(new Error("no fetch given")),
@@ -10,8 +12,6 @@ export const githubBase = tag<string>({
   label: "queue.githubBase",
   default: "https://api.github.com",
 });
-
-export const githubTimeout = 10_000;
 
 const githubRequest = z.object({
   token: z.string(),
@@ -41,8 +41,8 @@ export const githubMessage = operation({
 export const githubCall = operation({
   label: "queue.githubCall",
   input: githubRequest,
-  depends: { send: githubFetch, base: githubBase },
-  run: async ({ send, base }, { input, clock, signal }) => {
+  depends: { send: githubFetch, base: githubBase, githubTimeout },
+  run: async ({ send, base, githubTimeout }, { input, clock, signal }) => {
     const stop = new AbortController();
     const late = clock.sleep(githubTimeout, AbortSignal.any([signal, stop.signal])).then(
       () => true,

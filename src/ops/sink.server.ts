@@ -13,12 +13,8 @@ import { threadIngest } from "~/components/telemetry/thread.server";
 import { release } from "@/release";
 
 import { sample, sides } from "./contract";
+import { buildCap, messageCap, sampleCap } from "./settings";
 import { caps, opsStore } from "./store.server";
-
-export const messageCap = 1000;
-
-const sampleCap = 5;
-const buildCap = 50;
 
 const sighting = z.object({
   side: z.enum(sides),
@@ -37,7 +33,8 @@ const secretKey =
 export const scrub = operation({
   label: "ops.scrub",
   input: z.string(),
-  run: (_, { input }) =>
+  depends: { messageCap },
+  run: ({ messageCap }, { input }) =>
     input
       .replace(/<[!?/]?[a-z][\s\S]*/i, "[document removed]")
       .replace(/\b([a-z][a-z0-9+.-]*:\/\/)[^\s/@]+@/gi, "$1[removed]@")
@@ -137,8 +134,8 @@ const kept = z.object({
 const countKnown = operation({
   label: "ops.countKnown",
   input: kept,
-  depends: { store: opsStore },
-  run: async ({ store }, { input: { fingerprint, sample } }) => {
+  depends: { store: opsStore, buildCap, sampleCap },
+  run: async ({ store, buildCap, sampleCap }, { input: { fingerprint, sample } }) => {
     const known = store.state.groups.get(fingerprint);
     if (!known) return "counted" as const;
 

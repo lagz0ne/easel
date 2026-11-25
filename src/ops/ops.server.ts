@@ -16,12 +16,9 @@ import { errorGroup, opsOwnerApi, opsUserApi } from "./contract";
 import type { Check } from "./contract";
 import { claim, counters, fixerLease, readiness } from "./registry";
 import type { CountersEntry, LeaseEntry, ReadinessEntry } from "./registry";
+import { buildCap, checkDeadline, messageCap, sampleCap, silentAfter } from "./settings";
 import { opsObserver, opsTelemetryRoute, opsThreadRoute } from "./sink.server";
 import { caps, flushStore, opsFlusher, opsStore, saveGroup, stampFixer } from "./store.server";
-
-export const silentAfter = 30 * 60 * 1000;
-
-const checkDeadline = 5000;
 
 type Registry = {
   readonly scope: Scope.Handle | null;
@@ -40,15 +37,15 @@ const registry = resource({
 
 const runChecks = operation({
   label: "ops.runChecks",
-  depends: { registry },
-  run: async ({ registry }, { clock }) => {
+  depends: { registry, checkDeadline },
+  run: async ({ registry, checkDeadline }, { clock }) => {
     const { scope, checks } = registry.current;
 
     return Promise.all(
       checks.map(async ({ name, op }): Promise<Check> => {
         const stop = new AbortController();
         const late = clock.sleep(checkDeadline, stop.signal).then(
-          () => ({ ok: false, detail: "no answer in 5 s" }),
+          () => ({ ok: false, detail: `no answer in ${checkDeadline / 1000} s` }),
           () => ({ ok: false, detail: "stopped" }),
         );
         const answer = Promise.resolve()
@@ -133,8 +130,8 @@ const diskCheck = operation({
 
 const fixerState = operation({
   label: "ops.fixerState",
-  depends: { store: opsStore },
-  run: async ({ store }, { clock }) => {
+  depends: { store: opsStore, silentAfter },
+  run: async ({ store, silentAfter }, { clock }) => {
     const { fixerSeen, startedAt } = store.state;
     const since = fixerSeen ?? startedAt;
 
@@ -321,6 +318,11 @@ export const opsServer = capsule({
     checks: readiness.all,
     counters: counters.all,
     lease: fixerLease.all,
+    silentAfter,
+    checkDeadline,
+    messageCap,
+    sampleCap,
+    buildCap,
   },
   tags: [
     readiness({ name: "database", op: databaseCheck }),

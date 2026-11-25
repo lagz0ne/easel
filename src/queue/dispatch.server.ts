@@ -11,12 +11,8 @@ import { channelColumns, channelRow, makeDispatchTables, storedChannel } from ".
 import { maxTries, queueApi, stateOf } from "./contract";
 import { githubBase, githubCall, githubFetch, githubMessage, scrub } from "./github.server";
 import { natsCall } from "./nats.server";
+import { githubTimeout, maxAttempts, natsTimeout, retryAfter, roundMs } from "./settings";
 import { makeStartTables, showHolds } from "./starts.server";
-
-export const roundMs = 1000;
-
-export const maxAttempts = 3;
-export const retryAfter = [10_000, 30_000] as const;
 
 const deliveryKey = z.object({
   request: z.string(),
@@ -447,8 +443,9 @@ const outcome = z.discriminatedUnion("kind", [
 export const endAttempt = operation({
   label: "queue.endAttempt",
   input: z.object({ delivery: due, outcome, now: z.number() }),
-  depends: { connection: bunSqlite.connection },
-  run: async ({ connection }, { input: { delivery: d, outcome: end, now } }) => {
+  depends: { connection: bunSqlite.connection, maxAttempts, retryAfter },
+  run: async (deps, { input: { delivery: d, outcome: end, now } }) => {
+    const { connection, maxAttempts, retryAfter } = deps;
     const tried = end.kind === "ended" ? d.attempts : d.attempts + 1;
     const last = end.kind === "ended" || tried >= maxAttempts;
     const wait = retryAfter[Math.min(tried, retryAfter.length) - 1] ?? 0;
@@ -549,8 +546,10 @@ const dispatchEvery = operation({
     endAttempt,
     showHolds,
     counts: dispatchCounts,
+    roundMs,
   },
-  run: async ({ dispatchRound, attempt, endAttempt, showHolds, counts }, { clock, signal }) => {
+  run: async (deps, { clock, signal }) => {
+    const { dispatchRound, attempt, endAttempt, showHolds, counts, roundMs } = deps;
     while (!signal.aborted) {
       const slept = await clock.sleep(roundMs, signal).then(
         () => true,
@@ -636,7 +635,16 @@ export const listDeliveries = operation({
 
 export const dispatchServer = capsule({
   label: "dispatchServer",
-  config: { fetch: githubFetch, base: githubBase, agreement: agreementRule },
+  config: {
+    fetch: githubFetch,
+    base: githubBase,
+    agreement: agreementRule,
+    roundMs,
+    maxAttempts,
+    retryAfter,
+    githubTimeout,
+    natsTimeout,
+  },
   exports: { dispatchState },
   hooks: {
     async start({ run, load, next }) {
