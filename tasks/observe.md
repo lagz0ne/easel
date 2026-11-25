@@ -43,5 +43,8 @@ Must not:
 
 1. Done: `retro.ts` (worker) gives the numbers and the digests. Two runs on one window give the same output.
 2. Done: the first retro, `retro-2026-11-25T09.md`. Shipped its 3 small changes: worker size, session life, the rule for dirty files after a restart.
-3. Brought to the person: ship preflight and record (`scripts/ship.sh`), and the dispatcher check (no agent for a change that is live).
+3. Brought to the person: ship preflight and record (`scripts/ship.sh`), and the dispatcher check (no agent for a change that is live). The person: "Do both big changes" (2026-11-25 12:50).
 4. Every 4 hours, a new scheduled session runs the retro on the window since the last one, and compares the numbers. It ends when its retro is written.
+5. Done (`1046a7d`, live in build 403): ship preflight and record. `scripts/ship.sh` waits for a load below 10 (at most 10 min), then refuses. It formats the named paths before it makes the tree. It writes one JSON line for each run to `~/.cache/ship/<repo>/runs.jsonl`: time, agent, stage, result, seconds. Check: a test runs ship.sh on a temp repo for each case.
+6. Done (`2c5b284`, live in build 403): no build request for a change that is live. An accept of a design request whose result names a live build adds no build request. The adapter cannot see this (its message has no build), so the check goes in `addBuildRequest`. Check: `tests/queue-build.test.ts` has both cases.
+7. Done by the hub (`hq-39h`): `work paseo restart` drains the easel agents. The first planned restart is the live check. Restart notice: The hub tells the easel leads before a Paseo daemon restart, and waits for their ships.
