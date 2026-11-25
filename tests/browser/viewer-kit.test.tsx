@@ -510,6 +510,18 @@ test("viewer-overlays Requests on a phone (390 x 844): the list opens as a botto
     round: [true, "0px"],
     handle: ['""', "36px", "4px"],
   });
+
+  const dock = page.getByRole("toolbar", { name: "Canvas" }).element();
+  const dockBox = boxOf(dock);
+  const onTheDock = document.elementFromPoint(
+    dockBox.left + dockBox.width / 2,
+    dockBox.top + dockBox.height / 2,
+  );
+  const lastInDrawer = drawer.element().lastElementChild;
+  expect({
+    dockOnTop: onTheDock !== null && dock.contains(onTheDock),
+    contentAboveDock: lastInDrawer !== null && boxOf(lastInDrawer).bottom <= Math.ceil(dockBox.top),
+  }).toEqual({ dockOnTop: true, contentAboveDock: true });
 });
 
 test("X1 kit-frame-axes: a capsule frame posts its axes; the page offers the locale and its data states; a pick composes it again with them, and an app frame with no axes is not drawn again", async () => {

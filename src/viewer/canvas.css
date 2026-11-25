@@ -1863,11 +1863,15 @@ span.e-opt[data-picked="false"] {
     max-width: none;
     min-height: 45%;
     max-height: 85%;
-    padding-bottom: env(safe-area-inset-bottom);
+    padding-bottom: calc(var(--e-4) + var(--e-dock-h) + var(--e-2) + env(safe-area-inset-bottom));
     border: 1px solid var(--e-line, var(--e-card));
     border-bottom: 0;
     border-radius: var(--e-radius-l) var(--e-radius-l) 0 0;
     box-shadow: var(--e-shadow);
+  }
+
+  .e-dock {
+    z-index: 4;
   }
 
   .e-requests::before,
