@@ -149,7 +149,7 @@ jobs:
         if: env.HOOK != '' && env.EASEL_TOKEN != ''
         run: |
           chmod +x dist/server
-          bun scripts/live-screens.ts --binary dist/server --build "$BUILD" --commit "$GIT_SHA"
+          bun cmds/live-screens.ts --binary dist/server --build "$BUILD" --commit "$GIT_SHA"
       - name: The map of each screen of src/live/screens.ts on its page of product
         if: ${{ !cancelled() && env.HOOK != '' && env.EASEL_TOKEN != '' }}
         run: |

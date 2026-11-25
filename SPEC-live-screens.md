@@ -136,7 +136,7 @@ copies, but the live app did not change, and nothing showed the difference. Afte
 | Part                           | Change                                                                                      |
 | ------------------------------ | ------------------------------------------------------------------------------------------- |
 | `src/live/`                    | The screens, the names of the live frames, the plan of a take, the check of the values.     |
-| `scripts/live-screens.ts`      | The job: the fixture, the takes, the puts. `--dry <dir>` writes the takes and puts nothing. |
+| `cmds/live-screens.ts`         | The job: the fixture, the takes, the puts. `--dry <dir>` writes the takes and puts nothing. |
 | `.github/workflows/deploy.yml` | The job `screens`, after `live`.                                                            |
 | `scripts/design-proof.ts`      | Reads easel, not Doop; the rules V1, V2, V6.                                                |
 | `src/queue`                    | The build request on an accept; `build` on a resolve (V4, V7).                              |

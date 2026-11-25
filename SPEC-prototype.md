@@ -132,7 +132,7 @@ hand. This delta copies no fact by hand.
 
 - SPEC-flows (approved before) holds links that an agent draws between frames. Its server code was
   not shipped, and is not in the tree.
-- The E11 job (`scripts/live-screens.ts`) takes the live screens of easel with Playwright steps
+- The E11 job (`cmds/live-screens.ts`) takes the live screens of easel with Playwright steps
   for each screen, and puts each take on the page Live of `product`.
 - No tool shows the states of a screen of the code, or the moves between them.
 

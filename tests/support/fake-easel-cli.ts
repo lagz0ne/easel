@@ -53,8 +53,15 @@ const { positionals, values } = parseArgs({
     after: { type: "string" },
     below: { type: "string" },
     gap: { type: "string" },
+    at: { type: "string" },
+    scale: { type: "string" },
   },
 });
+
+if (process.env.FAKE_EASEL_REFUSE === positionals[0]) {
+  process.stderr.write("fake easel: refused\n");
+  process.exit(1);
+}
 
 state.calls.push(process.argv.slice(2));
 
@@ -149,6 +156,10 @@ const answers: Record<string, () => unknown> = {
   },
   ls: () => ({ rev: state.n, frames: state.frames }),
   get: () => {
+    copyFileSync(stored(rest[0] ?? ""), values.o ?? "");
+    return {};
+  },
+  shot: () => {
     copyFileSync(stored(rest[0] ?? ""), values.o ?? "");
     return {};
   },
