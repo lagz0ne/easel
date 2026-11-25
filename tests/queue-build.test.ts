@@ -19,7 +19,7 @@ afterEach(async () => {
 
 const liveBuild = 300;
 
-async function accepted(more: { canvases?: string[]; agreement?: boolean } = {}) {
+async function accepted(more: { canvases?: string[]; agreement?: boolean; build?: number } = {}) {
   const srv = await boot(":memory:", [], {
     agreement: more.agreement ?? true,
     extra: [release({ commit: "c".repeat(40), build: liveBuild })],
@@ -30,7 +30,8 @@ async function accepted(more: { canvases?: string[]; agreement?: boolean } = {})
   const bo = await viewer(srv, link, "Bo");
   expect((await bo.add("flow", id, "Make the button blue.")).kind).toBe("added");
   expect((await a.agree("flow", 1)).kind).toBe("agreed");
-  expect(await a.resolve(claimOf(await a.next({ canvas: "flow" })))).toEqual({
+  const claim = claimOf(await a.next({ canvas: "flow" }));
+  expect(await a.resolve(claim, "Moved the button up.", undefined, more.build)).toEqual({
     kind: "resolved",
   });
 
@@ -74,6 +75,28 @@ test("an accept on a canvas that no nats channel covers adds no build request", 
   expect(await bo.accept("flow", 1)).toEqual({ kind: "accepted" });
 
   expect(await rows(a)).toHaveLength(1);
+});
+
+test("an accept of a design request whose result names a live build adds no build request, because the change is already live", async () => {
+  const { a, bo } = await accepted({ canvases: [], build: liveBuild });
+
+  expect(await bo.accept("flow", 1)).toEqual({ kind: "accepted" });
+
+  expect(await rows(a)).toHaveLength(1);
+});
+
+test("an accept of a design request whose last result names no build adds one build request, also when an earlier result named a live build", async () => {
+  const { a, bo } = await accepted({ canvases: [], build: liveBuild });
+  await bo.reopen("flow", 1, "Bluer.");
+  await a.agree("flow", 1);
+  const claim = claimOf(await a.next({ canvas: "flow" }));
+  expect(await a.resolve(claim, "Bluer now.")).toEqual({ kind: "resolved" });
+
+  expect(await bo.accept("flow", 1)).toEqual({ kind: "accepted" });
+
+  const after = await rows(a);
+  expect(after).toHaveLength(2);
+  expect(after.find((r) => r.n === 2)).toMatchObject({ author: "easel", status: "open" });
 });
 
 test("an accept of a build request adds no other request", async () => {

@@ -893,7 +893,7 @@ portLink.serve exits{value} reads{} writes{} calls{}
 portLink.serveStream exits{value} reads{} writes{} calls{}
 portLink.watch exits{} reads{} writes{} calls{}
 queue.actOn exits{done,full,gone,slow,wrongState} reads{} writes{} calls{queue.changeRequest,queue.newId,queue.viewerLimit,queue.whoActs}
-queue.addBuildRequest exits{value} reads{} writes{} calls{queue.buildText,queue.frameVersionOf,queue.natsCovers,queue.saveRequest}
+queue.addBuildRequest exits{value} reads{} writes{} calls{queue.buildText,queue.frameVersionOf,queue.liveBuildOfLastResult,queue.natsCovers,queue.saveRequest}
 queue.agreeOldRequests exits{value} reads{} writes{} calls{}
 queue.attemptDelivery exits{value} reads{} writes{} calls{queue.attemptOnChannel,queue.endAttempt,queue.readAttempt,queue.scrub}
 queue.attemptOnChannel exits{failed,sent} reads{} writes{} calls{queue.attemptOnGithub,queue.attemptOnNats}
@@ -928,6 +928,7 @@ queue.holdOfRequest exits{agreement,failed,limit,refused,silent,value} reads{} w
 queue.holderAct exits{value} reads{} writes{} calls{queue.claimParts,queue.endTry,queue.newId}
 queue.isBuildRequest exits{value} reads{} writes{} calls{}
 queue.issueTexts exits{value} reads{} writes{} calls{queue.viewerBlock}
+queue.liveBuildOfLastResult exits{value} reads{} writes{} calls{}
 queue.load exits{value} reads{?} writes{?} calls{queue.agreeOldRequests}
 queue.loadShots exits{value} reads{} writes{} calls{queue.shotOf}
 queue.makeDispatchTables exits{value} reads{} writes{} calls{}

@@ -109,7 +109,9 @@ copies, but the live app did not change, and nothing showed the difference. Afte
    author is `easel`, its text starts with `Build:` and names the accepted request and the frame
    version. The build request waits, and goes to the design agents as each request does. The
    agent changes the code of easel to match the frame, ships it, and resolves the build request
-   when its build is live. An accept of a build request adds no other request. When the agent
+   when its build is live. An accept of a build request adds no other request. An accept of a
+   design request whose last result names a live build (`Live in build <n>.`, rule 10) adds no
+   build request, because the change is already live. When the agent
    cannot do it, it releases or declines the build request with the reason, so the person sees why,
    and the design stays accepted.
 10. **The reply names a live build (V7).** `request.resolve` takes an optional `build`. easel
@@ -152,7 +154,8 @@ copies, but the live app did not change, and nothing showed the difference. Afte
 2. **V2.** A second run of the job on the same build puts nothing, and its status says `same` for
    each take.
 3. **V3.** After a second build, each take has a Before of the first build beside its After.
-4. **V4.** An accept on `product` adds a build request within 1 minute, and a design agent starts.
+4. **V4.** An accept on `product` of a result with no build adds a build request within 1 minute,
+   and a design agent starts. An accept of a result that names a live build adds no build request.
 5. **V5.** After the deploy of the dock change, each After with the dock shows the new dock.
 6. **V6.** `bun run design:proof` prints OK against easel. A throwaway check with a color that is
    not in the design system fails.

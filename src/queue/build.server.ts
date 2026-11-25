@@ -69,13 +69,42 @@ const versionOf = operation({
   },
 });
 
+const liveBuildInResult = / Live in build (\d+)\.$/;
+
+const liveBuildOfLastResult = operation({
+  label: "queue.liveBuildOfLastResult",
+  input: z.string(),
+  depends: { connection: bunSqlite.connection },
+  run: async ({ connection }, { input: id }) => {
+    const row = z
+      .object({ text: z.string().nullable() })
+      .nullable()
+      .parse(
+        connection.db.$client
+          .query(
+            "SELECT text FROM queue_messages WHERE request = $id AND kind = 'result' ORDER BY created DESC, rowid DESC LIMIT 1",
+          )
+          .get({ $id: id }),
+      );
+    const build = row?.text?.match(liveBuildInResult)?.[1];
+
+    return build === undefined ? null : Number(build);
+  },
+});
+
 export const addBuildRequest = operation({
   label: "queue.addBuildRequest",
   input: request,
-  depends: { natsCovers, buildText, versionOf, saveRequest },
-  run: async ({ natsCovers, buildText, versionOf, saveRequest }, { input, clock, random }) => {
+  depends: { natsCovers, liveBuildOfLastResult, buildText, versionOf, saveRequest },
+  run: async (
+    { natsCovers, liveBuildOfLastResult, buildText, versionOf, saveRequest },
+    { input, clock, random },
+  ) => {
     const accepted: Request = input;
     if (accepted.author === buildAuthor) return false;
+
+    const alreadyLive = await liveBuildOfLastResult.run({ input: accepted.id });
+    if (alreadyLive !== null) return false;
 
     if (!(await natsCovers.run({ input: accepted.canvas }))) return false;
 
