@@ -7,6 +7,7 @@ import type { Server, ServerWebSocket, WebSocketHandler } from "bun";
 import { z } from "zod";
 
 import { roles, sessionCookie, sessionSecret } from "./contract";
+import { idleLife, usedStep } from "./settings";
 import { sessions, store, trusted, users } from "./store.server";
 
 export const caller = tag<{ readonly name: string; readonly role: (typeof roles)[number] }>({
@@ -20,10 +21,6 @@ export const digestOf = operation({
 });
 
 export const viaSession = tag<string>({ label: "access.viaSession" });
-
-export const idleLife = 30 * 24 * 60 * 60_000;
-
-export const usedStep = 60 * 60_000;
 
 const bearer = z.object({ authorization: z.string().regex(/^Bearer \S+$/) });
 
@@ -47,8 +44,11 @@ const sessionUser = operation({
     store,
     digestOf,
     cookieSecret,
+    idleLife,
+    usedStep,
   },
-  run: async ({ req, all, held, store, digestOf, cookieSecret }, { clock }) => {
+  run: async (deps, { clock }) => {
+    const { req, all, held, store, digestOf, cookieSecret, idleLife, usedStep } = deps;
     const secret = cookieSecret.run({
       input: req.present ? req.value.headers.get("cookie") : null,
     });

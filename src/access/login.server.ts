@@ -6,6 +6,7 @@ import { z } from "zod";
 
 import { loginApi } from "./contract";
 import { clientAddress } from "./guards.server";
+import { callLimits, codeLife, maxPending, waitMax } from "./settings";
 import {
   browserCodes,
   logins,
@@ -18,21 +19,6 @@ import {
 } from "./store.server";
 
 const minute = 60_000;
-
-export const codeLife = 10 * minute;
-
-export const waitMax = 50_000;
-
-export const limits = {
-  "login.start": 5,
-  "login.setup": 5,
-  "login.wait": 30,
-  "browser.start": 5,
-  "browser.wait": 30,
-  "browser.peek": 30,
-} as const;
-
-export const maxPending = { all: 20, address: 3 } as const;
 
 export const limiter = resource({
   label: "access.limiter",
@@ -99,8 +85,8 @@ export const admit = operation({
     "browser.wait",
     "browser.peek",
   ]),
-  depends: { limiter, clientAddress, addressKey },
-  run: ({ limiter, clientAddress, addressKey }, { input, clock }) => {
+  depends: { limiter, clientAddress, addressKey, limits: callLimits },
+  run: ({ limiter, clientAddress, addressKey, limits }, { input, clock }) => {
     const retryIn = limiter.hit(
       `${input} ${addressKey.run({ input: clientAddress.run() })}`,
       limits[input],
@@ -145,8 +131,12 @@ export const nameInUse = operation({
 export const room = operation({
   label: "access.room",
   input: z.object({ address: z.string(), from: z.enum(["cli", "browser"]) }),
-  depends: { logins: logins.atScope.controller, codes: browserCodes.atScope.controller },
-  run: ({ logins, codes }, { input: { address, from }, clock }) => {
+  depends: {
+    logins: logins.atScope.controller,
+    codes: browserCodes.atScope.controller,
+    maxPending,
+  },
+  run: ({ logins, codes, maxPending }, { input: { address, from }, clock }) => {
     const now = clock.currentTimeMillis();
     const held = from === "cli" ? logins.get() : codes.get();
     const waiting = held.filter((l) => l.state === "pending" && l.expiresAt > now);
@@ -177,7 +167,7 @@ export const freshCode = operation({
 export const startLogin = operation({
   label: "login.start.do",
   input: loginApi["login.start"].input,
-  depends: { admit, inUse, room, freshCode, newRequest, clientAddress, store, mode },
+  depends: { admit, inUse, room, freshCode, newRequest, clientAddress, store, mode, codeLife },
   run: async (deps, { input, clock }) => {
     const { admit, inUse, room, freshCode, newRequest, clientAddress, store, mode } = deps;
     const slow = admit.run({ input: "login.start" });
@@ -203,7 +193,7 @@ export const startLogin = operation({
       code: freshCode.run(),
       address,
       since: now,
-      expiresAt: now + codeLife,
+      expiresAt: now + deps.codeLife,
       state: "pending" as const,
     };
     store.write({ logins: [login] });
@@ -279,8 +269,9 @@ export const waitLogin = operation({
     judge,
     logins: logins.atScope.controller,
     stop: transport.requestStop.optional,
+    waitMax,
   },
-  run: async ({ admit, judge, logins, stop }, { input, clock }) => {
+  run: async ({ admit, judge, logins, stop, waitMax }, { input, clock }) => {
     const slow = admit.run({ input: "login.wait" });
     if (slow) return slow;
 

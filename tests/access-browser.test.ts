@@ -14,23 +14,15 @@ import { access } from "@/access";
 import {
   browserOf,
   browserOps,
-  linkLife,
   openOps,
   signInWithCode,
   signInWithLink,
   signOut,
 } from "@/access/browser.server";
 import { sessionCookie } from "@/access/contract";
-import {
-  byToken,
-  cookieSecret,
-  idleLife,
-  owner,
-  socketDigest,
-  user,
-  usedStep,
-} from "@/access/guards.server";
-import { codeLife, loginOps, waitMax } from "@/access/login.server";
+import { byToken, cookieSecret, owner, socketDigest, user } from "@/access/guards.server";
+import { loginOps } from "@/access/login.server";
+import { accessDefaults } from "@/access/settings";
 import { accessServer } from "@/access/store.server";
 import { ownerOps, userOps } from "@/access/users.server";
 
@@ -235,7 +227,7 @@ test("the phone shows a code; an owner approves it; the page uses it and gets a 
   const shown = await browser.start("ann");
   expect(shown).toMatchObject({
     kind: "pending",
-    expiresAt: srv.clock.currentTimeMillis() + codeLife,
+    expiresAt: srv.clock.currentTimeMillis() + accessDefaults.codeLife,
   });
   if (shown.kind !== "pending") return;
   expect(await ann.approve(shown.code)).toMatchObject({
@@ -308,7 +300,7 @@ test("deny: the page is told denied; a code that ran out is expired; a post of e
   expect(await ann.deny(denied.code)).toEqual({ kind: "gone" });
   expect(await ann.approve(denied.code)).toEqual({ kind: "gone" });
 
-  srv.clock.advance(codeLife + 1);
+  srv.clock.advance(accessDefaults.codeLife + 1);
   expect(await browser.wait(late.request)).toEqual({ kind: "expired" });
   expect(await browser.wait("0".repeat(32))).toEqual({ kind: "expired" });
   for (const request of [denied.request, late.request, "not a request"]) {
@@ -326,7 +318,7 @@ test("browser.wait waits up to 50 s, and answers approved at once when an owner 
 
   const idle = browser.wait(shown.request);
   await tick();
-  srv.clock.advance(waitMax);
+  srv.clock.advance(accessDefaults.waitMax);
   expect(await idle).toEqual({ kind: "pending" });
 
   const waiting = browser.wait(shown.request);
@@ -344,7 +336,7 @@ test("browser.start and browser.wait count against the limits of login.start and
 
   srv.clock.advance(minute + 1);
   for (let n = 0; n < 3; n++) await browser.start(`q${n}`);
-  srv.clock.advance(codeLife + 1);
+  srv.clock.advance(accessDefaults.codeLife + 1);
   for (let n = 0; n < 5; n++) await browser.start(`r${n}`);
   expect((await browser.start("s")).kind).toBe("slow");
 
@@ -358,7 +350,10 @@ test("easel open: the CLI gets a link for 5 minutes; the browser that posts it g
   const bo = await cliMember(srv, ann);
 
   const made = await bo.link();
-  expect(made).toMatchObject({ kind: "link", expiresAt: srv.clock.currentTimeMillis() + linkLife });
+  expect(made).toMatchObject({
+    kind: "link",
+    expiresAt: srv.clock.currentTimeMillis() + accessDefaults.linkLife,
+  });
   expect(made.link).toMatch(/^[0-9a-f]{64}$/);
 
   const reply = await post(srv, signInWithLink, {
@@ -380,7 +375,7 @@ test("a link that ran out, or of a user that was revoked, signs in no browser", 
   const { ann } = await firstOwner(srv);
   const bo = await cliMember(srv, ann);
   const late = await bo.link();
-  srv.clock.advance(linkLife + 1);
+  srv.clock.advance(accessDefaults.linkLife + 1);
   const lateReply = await post(srv, signInWithLink, {
     path: "/auth/open",
     fields: { link: late.link },
@@ -419,7 +414,7 @@ test("browser.peek names the user of a live link and does not use it; a used lin
   expect(await page.peek(made.link)).toEqual({ kind: "gone" });
 
   const late = await bo.link();
-  srv.clock.advance(linkLife + 1);
+  srv.clock.advance(accessDefaults.linkLife + 1);
   expect(await page.peek(late.link)).toEqual({ kind: "gone" });
   const kept = await bo.link();
   await ann.revoke("bo");
@@ -620,14 +615,14 @@ test("a session ends after 30 days with no use; a use moves its last use, at mos
   const browser = await client(srv.server, { cookie: phoneSession.cookie });
   const since = srv.clock.currentTimeMillis();
 
-  srv.clock.advance(usedStep - 1);
+  srv.clock.advance(accessDefaults.usedStep - 1);
   await browser.me();
   expect((await ann.list()).sessions[0]?.used).toBe(since);
   srv.clock.advance(1);
   await browser.me();
-  expect((await ann.list()).sessions[0]?.used).toBe(since + usedStep);
+  expect((await ann.list()).sessions[0]?.used).toBe(since + accessDefaults.usedStep);
 
-  srv.clock.advance(idleLife + 1);
+  srv.clock.advance(accessDefaults.idleLife + 1);
   expect(await refused(browser.me())).toEqual({ signIn: true });
   expect((await ann.list()).sessions).toEqual([]);
 });

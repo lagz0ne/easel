@@ -9,7 +9,8 @@ import {
   signInLink,
 } from "./contract";
 import { caller, clientAddress, cookieSecret, digestOf } from "./guards.server";
-import { admit, codeLife, freshCode, room, waitMax } from "./login.server";
+import { admit, freshCode, room } from "./login.server";
+import { codeLife, cookieLifeSeconds, linkLife, maxFormBytes, waitMax } from "./settings";
 import {
   browserCodes,
   mode,
@@ -20,12 +21,6 @@ import {
   store,
   users,
 } from "./store.server";
-
-export const linkLife = 5 * 60_000;
-
-export const cookieLife = 400 * 24 * 60 * 60;
-
-export const maxFormBytes = 4096;
 
 const hexOf = operation({
   label: "access.hexOf",
@@ -47,6 +42,7 @@ export const startBrowser = operation({
     mode,
     digestOf,
     hexOf,
+    codeLife,
     users: users.atScope.controller,
   },
   run: async (deps, { input, clock }) => {
@@ -68,7 +64,7 @@ export const startBrowser = operation({
       name,
       address,
       since: now,
-      expiresAt: now + codeLife,
+      expiresAt: now + deps.codeLife,
       state: mode === "open" ? ("approved" as const) : ("pending" as const),
     };
     const unusable = deps.digestOf.run({ input: deps.hexOf.run({ input: 32 }) });
@@ -115,8 +111,9 @@ export const waitBrowser = operation({
     judgeCode,
     codes: browserCodes.atScope.controller,
     stop: transport.requestStop.optional,
+    waitMax,
   },
-  run: async ({ admit, judgeCode, codes, stop }, { input, clock }) => {
+  run: async ({ admit, judgeCode, codes, stop, waitMax }, { input, clock }) => {
     const slow = admit.run({ input: "browser.wait" });
     if (slow) return slow;
 
@@ -139,8 +136,8 @@ export const waitBrowser = operation({
 export const makeLink = operation({
   label: "browser.link.do",
   input: openApi["browser.link"].input,
-  depends: { me: caller.required, store, hexOf, digestOf },
-  run: async ({ me, store, hexOf, digestOf }, { clock }) => {
+  depends: { me: caller.required, store, hexOf, digestOf, linkLife },
+  run: async ({ me, store, hexOf, digestOf, linkLife }, { clock }) => {
     const link = hexOf.run({ input: 32 });
     const expiresAt = clock.currentTimeMillis() + linkLife;
     store.write({ links: [{ digest: digestOf.run({ input: link }), name: me.name, expiresAt }] });
@@ -219,8 +216,8 @@ const goTo = operation({
 
 const formOf = operation({
   label: "access.formOf",
-  depends: { request: transport.request.required, origin },
-  run: async ({ request, origin }) => {
+  depends: { request: transport.request.required, origin, maxFormBytes },
+  run: async ({ request, origin, maxFormBytes }) => {
     const own = origin ?? new URL(request.url).origin;
     const site = request.headers.get("sec-fetch-site");
     const sameOrigin =
@@ -236,12 +233,12 @@ const formOf = operation({
 
 const newSession = operation({
   label: "access.newSession",
-  depends: { request: transport.request.required, hexOf, digestOf, browserOf },
-  run: ({ request, hexOf, digestOf, browserOf }, { clock }) => {
+  depends: { request: transport.request.required, hexOf, digestOf, browserOf, cookieLifeSeconds },
+  run: ({ request, hexOf, digestOf, browserOf, cookieLifeSeconds }, { clock }) => {
     const secret = hexOf.run({ input: 32 });
     const now = clock.currentTimeMillis();
     const browser = browserOf.run({ input: request.headers.get("user-agent") });
-    const cookie = `${sessionCookie}=${secret}; Path=/; Max-Age=${cookieLife}; HttpOnly; Secure; SameSite=Lax`;
+    const cookie = `${sessionCookie}=${secret}; Path=/; Max-Age=${cookieLifeSeconds}; HttpOnly; Secure; SameSite=Lax`;
 
     return {
       cookie,

@@ -14,7 +14,8 @@ import { afterEach, expect, test } from "vite-plus/test";
 import { access } from "@/access";
 import { accessEnv } from "@/access/env.server";
 import { owner, user } from "@/access/guards.server";
-import { codeLife, limits, loginOps, maxPending, waitMax } from "@/access/login.server";
+import { loginOps } from "@/access/login.server";
+import { accessDefaults } from "@/access/settings";
 import { accessServer } from "@/access/store.server";
 import { ownerOps, userOps } from "@/access/users.server";
 
@@ -330,7 +331,7 @@ test("approve: the agent waits, is told granted, and its token works (s6 -> s11 
   const ann = await firstOwner(srv);
   const { agent, token: t, code, request, expiresAt } = await startAgent(srv.server);
   expect(code).toMatch(/^[BCDFGHJKLMNPQRSTVWXZ]{4}-[BCDFGHJKLMNPQRSTVWXZ]{4}$/);
-  expect(expiresAt).toBe(srv.clock.currentTimeMillis() + codeLife);
+  expect(expiresAt).toBe(srv.clock.currentTimeMillis() + accessDefaults.codeLife);
   const waiting = agent.wait(request);
   await tick();
 
@@ -390,14 +391,14 @@ test("a code runs out after 10 minutes, while waiting or not (s6 -> s9 -> s5)", 
   const srv = await boot();
   const ann = await firstOwner(srv);
   const first = await startAgent(srv.server);
-  srv.clock.advance(codeLife - 30_000);
+  srv.clock.advance(accessDefaults.codeLife - 30_000);
   const waiting = first.agent.wait(first.request);
   await tick();
   srv.clock.advance(30_000);
 
   expect(await waiting).toEqual({ kind: "expired" });
   const second = await startAgent(srv.server, "agent2", "203.0.113.8");
-  srv.clock.advance(codeLife);
+  srv.clock.advance(accessDefaults.codeLife);
   expect(await second.agent.wait(second.request)).toEqual({ kind: "expired" });
   expect(await ann.approve(second.code)).toEqual({ kind: "gone" });
   expect(await ann.deny(second.code)).toEqual({ kind: "gone" });
@@ -410,7 +411,7 @@ test("the agent stops waiting after 50 s; the agent resumes (login --resume) ont
   const { agent, code, request } = await startAgent(srv.server);
   const waiting = agent.wait(request);
   await tick();
-  srv.clock.advance(waitMax);
+  srv.clock.advance(accessDefaults.waitMax);
 
   expect(await waiting).toEqual({ kind: "pending" });
   expect(await ann.approve(code)).toMatchObject({ kind: "approved" });
@@ -423,12 +424,12 @@ test("the agent stops waiting; the agent resumes (login --resume) onto a code st
   const { agent, code, request } = await startAgent(srv.server);
   const waiting = agent.wait(request);
   await tick();
-  srv.clock.advance(waitMax);
+  srv.clock.advance(accessDefaults.waitMax);
   expect(await waiting).toEqual({ kind: "pending" });
 
   const resumed = agent.wait(request);
   await tick();
-  srv.clock.advance(waitMax - 1000);
+  srv.clock.advance(accessDefaults.waitMax - 1000);
   await tick();
   await ann.approve(code);
   expect((await resumed).kind).toBe("granted");
@@ -492,7 +493,7 @@ test("a revoke leaves a code that ran out expired, and denies the one it approve
   const srv = await boot();
   const ann = await firstOwner(srv);
   const old = await startAgent(srv.server);
-  srv.clock.advance(codeLife);
+  srv.clock.advance(accessDefaults.codeLife);
   const { agent, code, request } = await startAgent(srv.server, "agent", "203.0.113.8");
   await ann.approve(code);
 
@@ -639,7 +640,7 @@ test("5 login.start a minute from one address; each counts whatever it answers; 
   const srv = await boot();
   await firstOwner(srv);
   const bot = await cli(srv.server, { peer: "203.0.113.30" });
-  for (let i = 0; i < limits["login.start"]; i++) {
+  for (let i = 0; i < accessDefaults.limits["login.start"]; i++) {
     expect((await bot.start("ann", token().digest)).kind).toBe("taken");
   }
 
@@ -651,7 +652,7 @@ test("5 login.start a minute from one address; each counts whatever it answers; 
 test("5 login.setup a minute: past it, even the right setup code answers slow", async () => {
   const srv = await boot();
   const bot = await cli(srv.server);
-  for (let i = 0; i < limits["login.setup"]; i++) {
+  for (let i = 0; i < accessDefaults.limits["login.setup"]; i++) {
     srv.clock.advance(1000);
     expect((await bot.setup("bot", "BBBB-BBBB", token().digest)).kind).not.toBe("slow");
   }
@@ -667,7 +668,7 @@ test("5 login.setup a minute: past it, even the right setup code answers slow", 
 test("30 login.wait a minute from one address, then slow", async () => {
   const srv = await boot();
   const bot = await cli(srv.server);
-  for (let i = 0; i < limits["login.wait"]; i++) await bot.wait("0".repeat(32));
+  for (let i = 0; i < accessDefaults.limits["login.wait"]; i++) await bot.wait("0".repeat(32));
 
   expect(await bot.wait("0".repeat(32))).toEqual({ kind: "slow", retryIn: minute });
 });
@@ -676,40 +677,43 @@ test("at most 3 codes wait from one address; past it login.start answers slow un
   const srv = await boot();
   await firstOwner(srv);
   const bot = await cli(srv.server, { peer: "203.0.113.50" });
-  for (let i = 0; i < maxPending.address; i++) {
+  for (let i = 0; i < accessDefaults.maxPending.address; i++) {
     expect((await bot.start(`bot${i}`, token().digest)).kind).toBe("pending");
     srv.clock.advance(1000);
   }
 
   expect(await bot.start("bot9", token().digest)).toEqual({
     kind: "slow",
-    retryIn: codeLife - 3000,
+    retryIn: accessDefaults.codeLife - 3000,
   });
-  srv.clock.advance(codeLife - 3000);
+  srv.clock.advance(accessDefaults.codeLife - 3000);
   expect((await bot.start("bot9", token().digest)).kind).toBe("pending");
 });
 
 test("at most 20 codes wait at once, from any addresses", async () => {
   const srv = await boot();
   await firstOwner(srv);
-  for (let i = 0; i < maxPending.all; i++) {
+  for (let i = 0; i < accessDefaults.maxPending.all; i++) {
     await startAgent(srv.server, `bot${i}`, `203.0.113.${100 + Math.floor(i / 3)}`);
   }
   const late = await cli(srv.server, { peer: "203.0.113.200" });
 
-  expect(await late.start("late", token().digest)).toEqual({ kind: "slow", retryIn: codeLife });
+  expect(await late.start("late", token().digest)).toEqual({
+    kind: "slow",
+    retryIn: accessDefaults.codeLife,
+  });
 });
 
 test("X-Forwarded-For counts only from a trusted proxy, and never an entry the client wrote", async () => {
   const srv = await boot({ trusted: ["10.0.0.0/8", "fd00::/8"] });
   const via = (forwarded: string, peer = "10.1.2.3") => cli(srv.server, { peer, forwarded });
   const one = await via("6.6.6.6, 192.0.2.1");
-  for (let i = 0; i < limits["login.wait"]; i++) await one.wait("0".repeat(32));
+  for (let i = 0; i < accessDefaults.limits["login.wait"]; i++) await one.wait("0".repeat(32));
 
   expect((await (await via("7.7.7.7, 192.0.2.1")).wait("0".repeat(32))).kind).toBe("slow");
   expect((await (await via("192.0.2.2", "fd00::1")).wait("0".repeat(32))).kind).toBe("expired");
   const outside = (forwarded: string) => cli(srv.server, { peer: "192.0.2.99", forwarded });
-  for (let i = 0; i < limits["login.wait"]; i++) {
+  for (let i = 0; i < accessDefaults.limits["login.wait"]; i++) {
     await (await outside(`192.0.2.${i}`)).wait("0".repeat(32));
   }
   expect((await (await outside("192.0.2.250")).wait("0".repeat(32))).kind).toBe("slow");
@@ -720,20 +724,20 @@ test("X-Forwarded-For is read from the right past each trusted proxy (Cloudflare
   const srv = await boot({ trusted: ["10.0.0.0/8", edge] });
   const via = (forwarded: string) => cli(srv.server, { peer: "10.1.2.3", forwarded });
   const one = await via("6.6.6.6, 192.0.2.1, 173.245.48.5");
-  for (let i = 0; i < limits["login.wait"]; i++) await one.wait("0".repeat(32));
+  for (let i = 0; i < accessDefaults.limits["login.wait"]; i++) await one.wait("0".repeat(32));
 
   expect((await (await via("192.0.2.1, 173.245.48.9")).wait("0".repeat(32))).kind).toBe("slow");
   expect((await (await via("7.7.7.7, 192.0.2.1")).wait("0".repeat(32))).kind).toBe("slow");
   expect((await (await via("192.0.2.2, 173.245.48.5")).wait("0".repeat(32))).kind).toBe("expired");
   const inside = await via("10.9.9.9, 173.245.48.5");
-  for (let i = 0; i < limits["login.wait"]; i++) await inside.wait("0".repeat(32));
+  for (let i = 0; i < accessDefaults.limits["login.wait"]; i++) await inside.wait("0".repeat(32));
   expect((await (await via("10.9.9.9")).wait("0".repeat(32))).kind).toBe("slow");
 });
 
 test("an IPv6 address counts by its /64", async () => {
   const srv = await boot();
   const one = await cli(srv.server, { peer: "2001:db8:1:2::1" });
-  for (let i = 0; i < limits["login.wait"]; i++) await one.wait("0".repeat(32));
+  for (let i = 0; i < accessDefaults.limits["login.wait"]; i++) await one.wait("0".repeat(32));
 
   for (const peer of ["2001:db8:1:2:ffff::9", "2001:0db8:0001:0002:aaaa:bbbb:cccc:dddd"]) {
     expect((await (await cli(srv.server, { peer })).wait("0".repeat(32))).kind).toBe("slow");

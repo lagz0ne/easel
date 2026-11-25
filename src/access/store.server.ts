@@ -6,6 +6,18 @@ import { z } from "zod";
 
 import { codeLetters, digest, roles } from "./contract";
 import type { Mode } from "./contract";
+import {
+  callLimits,
+  codeLife,
+  cookieLifeSeconds,
+  idleLife,
+  keepEnded,
+  linkLife,
+  maxFormBytes,
+  maxPending,
+  usedStep,
+  waitMax,
+} from "./settings";
 
 const userRow = z.object({
   name: z.string(),
@@ -477,8 +489,6 @@ export const newCode = operation({
   },
 });
 
-const keepEnded = 24 * 60 * 60 * 1000;
-
 const readTables = operation({
   label: "access.readTables",
   depends: { connection: bunSqlite.connection, out: stdout },
@@ -528,6 +538,7 @@ const load = operation({
     newCode,
     readTables,
     warnOwners,
+    keepEnded,
   },
   run: async (deps, { clock }) => {
     const { connection, users, logins, setup, sessions, codes, mode, out, newCode, readTables } =
@@ -542,14 +553,14 @@ const load = operation({
       .where(
         and(
           inArray(loginTable.state, ["pending", "denied"]),
-          lt(loginTable.expiresAt, now - keepEnded),
+          lt(loginTable.expiresAt, now - deps.keepEnded),
         ),
       )
       .run();
 
     connection.db
       .delete(browserCodeTable)
-      .where(lt(browserCodeTable.expiresAt, now - keepEnded))
+      .where(lt(browserCodeTable.expiresAt, now - deps.keepEnded))
       .run();
     connection.db.$client.query("DELETE FROM access_links WHERE expires_at < ?").run(now);
 
@@ -597,7 +608,23 @@ const checkFile = operation({
 
 export const accessServer = capsule({
   label: "accessServer",
-  config: { mode, origin, stdout, trusted, durable },
+  config: {
+    mode,
+    origin,
+    stdout,
+    trusted,
+    durable,
+    codeLife,
+    waitMax,
+    linkLife,
+    cookieLifeSeconds,
+    maxFormBytes,
+    idleLife,
+    usedStep,
+    keepEnded,
+    limits: callLimits,
+    maxPending,
+  },
   exports: { mode },
   hooks: {
     async start({ run, next, raise }) {

@@ -21,7 +21,8 @@ import { access } from "@/access";
 import { browserOps, openOps, signInWithLink } from "@/access/browser.server";
 import { request, sessionCookie } from "@/access/contract";
 import { byToken, owner, user } from "@/access/guards.server";
-import { codeLife, loginOps, waitMax } from "@/access/login.server";
+import { loginOps } from "@/access/login.server";
+import { accessDefaults } from "@/access/settings";
 import { accessServer } from "@/access/store.server";
 import { ownerOps, userOps } from "@/access/users.server";
 import { cli } from "@/cli";
@@ -241,7 +242,7 @@ test("the agent starts a login: the code is printed at once, then it is told gra
   expect(pending).toEqual({
     kind: "pending",
     code: expect.any(String),
-    expiresAt: srv.clock.currentTimeMillis() + codeLife,
+    expiresAt: srv.clock.currentTimeMillis() + accessDefaults.codeLife,
   });
   expect(agent.hosts().pending).toMatchObject({ name: "agent", code: pending.code });
 
@@ -316,7 +317,7 @@ test("the agent stops waiting; the agent resumes (login --resume) onto pending, 
   await until(() => srv.waits() > 0);
   first.stop.abort();
   await tick();
-  srv.clock.advance(waitMax);
+  srv.clock.advance(accessDefaults.waitMax);
   expect(await run).not.toBe(0);
   expect(first.hosts().pending).toMatchObject({ code: pending.code });
 
@@ -379,7 +380,7 @@ test("weak fairness: the CLI keeps asking while it waits (login.wait answers pen
   for (let round = 1; round <= 3; round++) {
     await until(() => srv.waits() >= round);
     await tick();
-    srv.clock.advance(waitMax);
+    srv.clock.advance(accessDefaults.waitMax);
   }
   await until(() => srv.waits() >= 4);
   await a.run(users({ kind: "approve", code, owner: false }));
@@ -393,10 +394,14 @@ test("its code runs out (10 minutes); the agent is told its code ran out: exit 1
   const { agent } = await pendingAgent(srv);
 
   const run = agent.run({ kind: "resume" });
-  for (let round = 1; round <= Math.ceil(codeLife / waitMax); round++) {
+  for (
+    let round = 1;
+    round <= Math.ceil(accessDefaults.codeLife / accessDefaults.waitMax);
+    round++
+  ) {
     await until(() => srv.waits() >= round);
     await tick();
-    srv.clock.advance(waitMax);
+    srv.clock.advance(accessDefaults.waitMax);
   }
   expect(await run).toBe(1);
   expect(agent.lines().map((line) => line.kind)).toEqual(["pending", "expired"]);
