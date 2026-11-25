@@ -2,14 +2,16 @@ import { z } from "zod";
 
 const agentList = z.array(z.looseObject({ id: z.string(), name: z.string(), status: z.string() }));
 
-const workspaceList = z.array(
-  z.looseObject({
-    workspaceId: z.string(),
-    cwd: z.string().nullish(),
-    isolation: z.string().nullish(),
-    background: z.boolean().nullish(),
-  }),
-);
+const workspaceOne = z.looseObject({
+  workspaceId: z.string(),
+  cwd: z.string().nullish(),
+  isolation: z.string().nullish(),
+  background: z.boolean().nullish(),
+});
+
+const workspaceList = z.array(workspaceOne);
+
+export const loopWorkspaceTitle = "easel design loop";
 
 const runAnswer = z.looseObject({ agentId: z.string() });
 
@@ -95,21 +97,38 @@ export type RunInput = {
 
 export function paseoCli(bin: string) {
   const agents = async (labels: Record<string, string>) =>
-    json(bin, ["ls", "-g", "--json", ...labelFlags(labels)], agentList);
+    json(bin, ["ls", "-g", "--background", "--json", ...labelFlags(labels)], agentList);
+
+  const makeBackgroundWorkspace = async (dir: string) => {
+    const made = await json(
+      bin,
+      [
+        "workspace",
+        "create",
+        "--isolation",
+        "local",
+        "--path",
+        dir,
+        "--background",
+        "--title",
+        loopWorkspaceTitle,
+        "--json",
+      ],
+      workspaceOne,
+    );
+    if (made.kind === "failed") return made;
+    return { kind: "ok", value: made.value.workspaceId } as const;
+  };
 
   const workspaceOf = async (dir: string) => {
-    const listed = await json(bin, ["workspace", "ls", "--json"], workspaceList);
+    const listed = await json(bin, ["workspace", "ls", "--background", "--json"], workspaceList);
     if (listed.kind === "failed") return listed;
 
     const found = listed.value.find(
-      (one) => one.cwd === dir && one.isolation === "local" && !one.background,
+      (one) => one.cwd === dir && one.isolation === "local" && one.background === true,
     );
     if (found) return { kind: "ok", value: found.workspaceId } as const;
-    return {
-      kind: "failed",
-      exit: 0,
-      cause: `no local Paseo workspace has the folder ${dir}`,
-    } satisfies Failed;
+    return makeBackgroundWorkspace(dir);
   };
 
   const run = async (input: RunInput) =>

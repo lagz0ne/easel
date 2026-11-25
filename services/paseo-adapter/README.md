@@ -10,7 +10,7 @@ is not part of the easel server binary. Nothing in `src/` or `cmds/` imports it.
    `paseo` of the stream `EASEL_REQUESTS`. The hub makes the consumer. The adapter never makes it.
 2. Before each fetch, it reads the count of starts of this UTC day from
    `~/.local/state/easel-paseo-adapter/starts.json`, and asks Paseo for the agents with the label
-   `easel-loop=design` that are `initializing` or `running`.
+   `easel-loop=design` that are `initializing` or `running` (`paseo ls -g --background`).
 3. It reports this state to easel (SPEC-starts.md, rule 15):
    `easel channel report loop --running <n> --today <n> [--at running|day]`, as the user of
    `EASEL_PASEO_EASEL_CONFIG`. It sends it when a value changes, and every 30 s. The answer holds
@@ -26,8 +26,11 @@ is not part of the easel server binary. Nothing in `src/` or `cmds/` imports it.
    and the log line `malformed`.
 6. If an agent with the label `easel-request=<canvas>:<n>` still runs, the message is a repeat.
    The adapter acks it, starts no agent, and logs `repeat`.
-7. Otherwise it starts an agent with `paseo run --no-wait` in the Paseo workspace of the easel
-   folder. The title is `design <canvas>#<n>`. The prompt names the canvas, the number, the frame
+7. Otherwise it starts an agent with `paseo run --no-wait` in the background workspace
+   `easel design loop` of the easel folder. If no local background workspace has the folder, the
+   adapter makes one with `paseo workspace create --isolation local --background`. The sidebar and
+   the normal lists of Paseo do not show a background workspace or its agents. To see them, run
+   `paseo ls -g --background --label easel-loop=design`. The title is `design <canvas>#<n>`. The prompt names the canvas, the number, the frame
    and the page, and tells the agent to claim the request with
    `easel next --canvas <canvas> --n <n>`. Then the adapter counts the start, acks the message,
    logs `started`, and reports it: `easel channel report loop --started <canvas>:<n>:<period>

@@ -150,6 +150,15 @@ const fakeAgent = z.object({
   status: z.string(),
   cwd: z.string(),
   labels: z.record(z.string(), z.string()),
+  background: z.boolean().optional(),
+});
+
+const fakeWorkspace = z.object({
+  workspaceId: z.string(),
+  name: z.string(),
+  cwd: z.string(),
+  isolation: z.string(),
+  background: z.boolean(),
 });
 
 export function fakePaseo() {
@@ -189,6 +198,18 @@ export function fakePaseo() {
       ? z.array(z.looseObject({ id: z.string() })).parse(JSON.parse(readFileSync(file, "utf8")))
       : [];
   };
+  const workspaces = () => {
+    const file = join(dir, "workspaces.json");
+    return existsSync(file)
+      ? z.array(fakeWorkspace).parse(JSON.parse(readFileSync(file, "utf8")))
+      : [];
+  };
+  const setWorkspaces = (list: z.infer<typeof fakeWorkspace>[]) =>
+    writeWhole(join(dir, "workspaces.json"), JSON.stringify(list));
+  const failWorkspaces = (on: boolean) =>
+    on
+      ? writeFileSync(join(dir, "fail-workspace"), "")
+      : rmSync(join(dir, "fail-workspace"), { force: true });
   const failRuns = (on: boolean) =>
     on ? writeFileSync(join(dir, "fail"), "") : rmSync(join(dir, "fail"), { force: true });
   const easelCall = z.object({ args: z.array(z.string()), configHome: z.string().nullable() });
@@ -210,6 +231,11 @@ export function fakePaseo() {
     workspaceDir,
     calls,
     runs: () => calls().filter((args) => args[0] === "run"),
+    workspaceCreates: () =>
+      calls().filter((args) => args[0] === "workspace" && args[1] === "create"),
+    workspaces,
+    setWorkspaces,
+    failWorkspaces,
     agents,
     setAgents,
     setPermits,

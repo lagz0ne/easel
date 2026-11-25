@@ -72,7 +72,7 @@ Prior art:
      canvases.
 5. **The Paseo adapter** is a small service on the machine, beside the Paseo daemon, with its own
    nkey that may only read `easel.requests.>`. It is a durable pull consumer of the stream. For
-   each message, it starts an agent in the easel workspace with `paseo run`, then acks the message.
+   each message, it starts an agent in the background workspace of the easel folder with `paseo run`, then acks the message.
    The prompt of the agent names the canvas and the number of the request, and tells it to claim
    the request with `easel next`. So the claim, the lease and the result stay in easel.
    - The limit of agents at the same time is 2. The consumer has `max_ack_pending` 2, but the

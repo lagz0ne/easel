@@ -59,7 +59,7 @@ test(
 );
 
 test(
-  "one message starts one agent with paseo run in the easel workspace, with the title, the labels and a prompt that says how to claim, then acks it and counts the start of the day",
+  "one message starts one agent with paseo run in the background workspace of the easel folder, with the title, the labels and a prompt that says how to claim, then acks it and counts the start of the day",
   async () => {
     const { nats, paseo, adapter } = await setup();
 
@@ -72,7 +72,7 @@ test(
     const args = run ?? [];
     expect(args).toContain("--no-wait");
     expect(valueAfter(args, "--title")).toEqual(["design product#7"]);
-    expect(valueAfter(args, "--workspace")).toEqual(["wks_easel"]);
+    expect(valueAfter(args, "--workspace")).toEqual(["wks_made_3"]);
     expect(valueAfter(args, "--cwd")).toEqual([paseo.workspaceDir]);
     expect(valueAfter(args, "--provider")).toEqual(["claude"]);
     expect(valueAfter(args, "--mode")).toEqual(["auto"]);
@@ -101,6 +101,88 @@ test(
       day: today(),
       starts: 1,
     });
+  },
+  slow,
+);
+
+test(
+  "the adapter makes one background workspace on the easel folder and starts each design agent in it, so the normal lists of Paseo do not show them",
+  async () => {
+    const { nats, paseo, adapter } = await setup();
+
+    for (const n of [1, 2]) {
+      await nats.publish("product", request("product", n), `product:${n}:1`);
+    }
+    await adapter.until(() => paseo.runs().length === 2, "2 starts");
+
+    const creates = paseo.workspaceCreates();
+    expect(creates).toHaveLength(1);
+    const create = creates[0] ?? [];
+    expect(create).toContain("--background");
+    expect(valueAfter(create, "--isolation")).toEqual(["local"]);
+    expect(valueAfter(create, "--path")).toEqual([paseo.workspaceDir]);
+    expect(valueAfter(create, "--title")).toEqual(["easel design loop"]);
+    expect(paseo.runs().map((args) => valueAfter(args, "--workspace"))).toEqual([
+      ["wks_made_3"],
+      ["wks_made_3"],
+    ]);
+    expect(paseo.agents().every((one) => one.background === true)).toBe(true);
+    const lists = paseo
+      .calls()
+      .filter((args) => args[0] === "ls" || (args[0] === "workspace" && args[1] === "ls"));
+    expect(lists.length).toBeGreaterThan(1);
+    expect(lists.every((args) => args.includes("--background"))).toBe(true);
+  },
+  slow,
+);
+
+test(
+  "a background workspace that is already on the easel folder is used again, and the adapter makes no new one",
+  async () => {
+    const { nats, paseo, adapter } = await setup();
+    paseo.setWorkspaces([
+      {
+        workspaceId: "wks_easel",
+        name: "easel",
+        cwd: paseo.workspaceDir,
+        isolation: "local",
+        background: false,
+      },
+      {
+        workspaceId: "wks_loop",
+        name: "easel design loop",
+        cwd: paseo.workspaceDir,
+        isolation: "local",
+        background: true,
+      },
+    ]);
+
+    await nats.publish("product", request("product", 1), "product:1:1");
+    await adapter.event("started");
+
+    expect(valueAfter(paseo.runs()[0] ?? [], "--workspace")).toEqual(["wks_loop"]);
+    expect(paseo.workspaceCreates()).toEqual([]);
+  },
+  slow,
+);
+
+test(
+  "when Paseo cannot make the background workspace, the adapter naks the message with the cause and starts no agent",
+  async () => {
+    const { nats, paseo, adapter } = await setup({ EASEL_PASEO_NAK_MS: "400" });
+    paseo.failWorkspaces(true);
+
+    await nats.publish("product", request("product", 4), "product:4:1");
+    expect(await adapter.event("start-failed")).toMatchObject({
+      ref: "product:4",
+      exit: 1,
+      cause: "Failed to create workspace: the daemon is down",
+    });
+    expect(paseo.runs()).toEqual([]);
+
+    paseo.failWorkspaces(false);
+    expect(await adapter.event("started")).toMatchObject({ ref: "product:4" });
+    expect(valueAfter(paseo.runs()[0] ?? [], "--workspace")).toEqual(["wks_made_3"]);
   },
   slow,
 );
