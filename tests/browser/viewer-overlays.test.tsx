@@ -247,6 +247,21 @@ test("on a phone, the card has the full width and stops above the dock: Requests
   await expect.poll(() => card().elements()).toHaveLength(0);
 });
 
+const tablet = { width: 820, height: 1180 } as const;
+
+for (const size of [tablet, wide]) {
+  test(`on a screen ${size.width} px wide, the card stops above the dock, so each button of the dock can be pressed (TheDockIsFree, product#22)`, async () => {
+    await tab(await serve(), size);
+
+    await requestsButton().click();
+    await expect.element(card()).toBeVisible();
+    expect(rectOf(card().element()).bottom).toBeLessThanOrEqual(rectOf(dock().element()).top);
+    for (const button of dock().getByRole("button").elements()) {
+      expect(pressable(button), button.getAttribute("aria-label") ?? "").toBe(true);
+    }
+  });
+}
+
 test("on a phone, Pages then Requests leaves only the card open; one menu at most is open, and a press out of it closes it (OneMenuAtMost)", async () => {
   await tab(await serve(), phone);
 

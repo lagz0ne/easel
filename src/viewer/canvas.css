@@ -949,7 +949,7 @@
   position: absolute;
   top: var(--e-3);
   right: var(--e-3);
-  bottom: var(--e-3);
+  bottom: calc(var(--e-4) + var(--e-dock-h) + var(--e-2));
   z-index: 3;
   display: flex;
   flex-direction: column;

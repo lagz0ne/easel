@@ -433,7 +433,7 @@ test("a canvas with no requests says so in the list Open, and how to ask for one
   ).toHaveLength(1);
 });
 
-test("the card Requests floats over the canvas at its right edge, 12 px from the edges, 340 px wide; the canvas and the dock keep the full width, and no frame moves when it opens (The page 3, OnlyARowOrAPanMovesTheCanvas)", async () => {
+test("the card Requests floats over the canvas at its right edge, 12 px from the top and right, ends 8 px above the dock, 340 px wide; the canvas and the dock keep the full width, and no frame moves when it opens (The page 3, OnlyARowOrAPanMovesTheCanvas)", async () => {
   const server = await boot(everyState);
   await tab(server);
   const before = pin(1).element().getBoundingClientRect();
@@ -444,7 +444,7 @@ test("the card Requests floats over the canvas at its right edge, 12 px from the
   const box = panel().element().getBoundingClientRect();
   expect(box.right).toBe(1200 - 12);
   expect(box.top).toBe(12);
-  expect(box.bottom).toBe(800 - 12);
+  expect(box.bottom).toBe(800 - 16 - 40 - 8);
   expect(box.width).toBe(340);
   const look = getComputedStyle(panel().element());
   expect(look.borderTopWidth).toBe("1px");

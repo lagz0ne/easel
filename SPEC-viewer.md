@@ -35,8 +35,10 @@ this spec wins, and the screen gets a fix.
    opens a menu: `Zoom in` (Ctrl +), `Zoom out` (Ctrl −), `Zoom to 100%` (Shift 0) and
    `Zoom to fit` (Shift 1), as in Figma. Each key does its step outside a text field, and the
    browser does not zoom the page (product#1, accepted 2026-11-24).
-3. The card `Requests` floats over the canvas at its right edge, 12 px from the top, right and
-   bottom edges. The canvas and the dock keep the full width. Nothing
+3. The card `Requests` floats over the canvas at its right edge, 12 px from the top and right
+   edges. Its bottom stops 8 px above the dock on each screen, so the card never covers a button
+   of the dock (product#22, 2026-11-25: on a tablet or a phone on its side, it covered the dock).
+   The canvas and the dock keep the full width. Nothing
    on the canvas moves when the card opens, changes or closes, as the comments of Figma and
    Linear. Decided on 2026-11-23 (E4.4, requests #4 and #11).
 4. When easel deploys a new version of the page, a bar at the top left says "A new version of
@@ -407,7 +409,7 @@ width and height, added on each side of it.
 | Zoom status            | rounded down: steps of 10%; under 10% of 1%; under 1% of 0.1%         |
 | Label                  | kept at its screen size; rewritten after a 10% zoom drift and at rest |
 | Done, no answer        | a result that no viewer answers for 3 days (from its `updated`)       |
-| Request card           | 340 px wide; 12 px from the edges of the canvas                       |
+| Request card           | 340 px wide; 12 px from the top and right; 8 px above the dock        |
 | Find list              | 320 px wide; 8 names show, then it scrolls                            |
 
 A shell's picture is its frame's address on the board: its version, the kit version and its key
