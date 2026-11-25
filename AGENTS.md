@@ -164,6 +164,7 @@ one checkout.
   back on the last green commit and opens a `trunk-red` issue. The line stops: only
   `ship.sh --fix` (fix forward) or `ship.sh -r <sha>` (revert) ship until it closes. Fix or
   revert within 10 minutes.
+- Before your session ends, check that CI `gates` is green on your last commit or a later one.
 
 ## Browser smoke
 
