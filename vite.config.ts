@@ -16,7 +16,17 @@ export default defineConfig({
   root: at("cmds"),
   plugins: [process.env.VITEST ? [] : pageGuard(), react(), clientMeta(at("."))],
   resolve: { alias },
-  build: { outDir: at("dist/client"), emptyOutDir: true },
+  build: {
+    outDir: at("dist/client"),
+    emptyOutDir: true,
+    rolldownOptions: {
+      output: {
+        codeSplitting: {
+          groups: [{ name: "vendor", test: /node_modules/ }],
+        },
+      },
+    },
+  },
   server: {
     port: Number(process.env.DEV_PORT ?? 5173),
     strictPort: true,

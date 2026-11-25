@@ -105,6 +105,10 @@ test("a request's name on the hot path list: its path, with each picture as one 
   expect(name("http://127.0.0.1:4000/assets/index-SEn1SACi.js")).toBe("/assets/index-*.js");
   expect(name("http://127.0.0.1:4000/assets/index-BwLHzdJv.css")).toBe("/assets/index-*.css");
   expect(name("http://127.0.0.1:4000/assets/extra-a_B-9xYz.js")).toBe("/assets/extra-*.js");
+  expect(name("http://127.0.0.1:4000/assets/vendor-DiWcC4GS.js")).toBe("/assets/vendor-*.js");
+  expect(name("http://127.0.0.1:4000/assets/rolldown-runtime-CbXtAM7H.js")).toBe(
+    "/assets/rolldown-runtime-*.js",
+  );
   expect(name("http://127.0.0.1:4000/api/pictures/home/75847ac7f859/1?s=0.5&k=u-e5&kit=1")).toBe(
     "/api/pictures/*",
   );
@@ -128,6 +132,8 @@ test("speed.json holds the budgets of SPEC-speed and of one move handler of a pa
   expect(read.floor).toBe(0.05);
   expect(read.hotPath.map((item) => `${item.kind} ${item.name}`)).toEqual([
     "request /assets/index-*.js",
+    "request /assets/vendor-*.js",
+    "request /assets/rolldown-runtime-*.js",
     "request /assets/index-*.css",
     "request /api/pictures/*",
     "request /api/fonts/inter-5.3.0/inter-latin-wght-normal.woff2",

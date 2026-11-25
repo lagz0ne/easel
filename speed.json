@@ -27,7 +27,17 @@
     {
       "kind": "request",
       "name": "/assets/index-*.js",
-      "reason": "The page: React, Tinker and the canvas. No frame shows without it."
+      "reason": "The page: the code of easel. No frame shows without it. It changes with each build."
+    },
+    {
+      "kind": "request",
+      "name": "/assets/vendor-*.js",
+      "reason": "React, Tinker and the other packages that the page imports. It changes only when a package changes, so a new build of easel loads it from the cache."
+    },
+    {
+      "kind": "request",
+      "name": "/assets/rolldown-runtime-*.js",
+      "reason": "The small loader that joins the page and the vendor chunk (0.6 KB). The page cannot start without it."
     },
     {
       "kind": "request",
