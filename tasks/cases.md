@@ -1,7 +1,7 @@
 # Mission: cases
 
-Lead: d13e221 (`m: cases`). Accepted: open; SPEC-cases was approved on 2026-11-25 ("Approve
-SPEC-cases with both picks"). Done: open.
+Lead: d13e221 (`m: cases`). Accepted: 2026-11-25, "Accept the top of tasks/cases.md." SPEC-cases
+was approved on 2026-11-25 ("Approve SPEC-cases with both picks"). Done: open.
 
 ## Mission
 
@@ -77,6 +77,8 @@ Each task lands green with `scripts/ship.sh`. A dirty file of another agent goes
   - Acceptance: the CLI prints the list and each refusal as one line with its fix; MCP gives the
     same kinds. `tests/mcp-kinds.test.ts` passes.
   - Verify: `bun test tests/cli-cases.test.ts tests/mcp-kinds.test.ts`.
+  - After the ship: tell the lead of tinker-packages. It waits for T2 before it starts 7d in
+    `src/frames/`. It does not touch `src/cli/index.ts` or `cmds/easel.ts`.
 - [ ] **T3 · The draw of a case frame.** A frame of the board has `case`; the viewer puts the
       values of the case over the board value, under the frame value of the tab.
   - Acceptance: a browser test: a case frame `many` shows the fixture `many`; one pick of `dark`
