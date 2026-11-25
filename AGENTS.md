@@ -12,6 +12,7 @@ The person starts a few leads, and gives each lead one mission (the user decided
 2026-11-25). A lead does all that its mission needs, in each part of the code. Load the skill
 `mission-lead` at the start. The terms are in `docs/glossary.md`.
 
+- **Name.** The title of a lead is `m: <mission>`, for example `m: cases`.
 - **Lead.** It plans, gives the work to workers (its subagents), reviews each diff of a worker,
   verifies, and ships. A worker never runs `scripts/ship.sh`, `git add`, `git commit` or `git push`.
 - **Mission file.** `tasks/<mission>.md`. Its top has 4 short parts: Mission, Success, Nono (Not
