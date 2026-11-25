@@ -85,6 +85,8 @@ Verify: <the exact command, and the output that shows a pass>.
 Give back: each file and what changed, the output of the verify command, what you did not confirm.
 ```
 
+Keep each worker small: one worker makes one ship, on exact paths. Split a task that needs more than about 60 tool calls. Tell the worker to send long output to a file and read its end. (Retro 2026-11-25: a worker of the largest session used 34.8 M tokens.)
+
 - Only one worker at a time writes a set of paths. Workers that only read can run together.
 - Read the diff, and run the verify command yourself. Only you ship, and only a reviewed diff.
 - The reviewer is a new subagent in each pass. Give it the mission file and the diff, not your
