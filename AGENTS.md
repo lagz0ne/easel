@@ -150,9 +150,10 @@ one checkout.
   other lead first (`ListAgents`, `SendMessage`). Ship your hunks with `ship.sh -p <patch>`.
 - After a restart or a killed session, each lead lists the dirty files of its mission first. Ship
   them or start them again within 1 hour. A dirty file that no mission touches goes to the person.
-- Before a ship or a test that load can fail, wait for a load below 10:
-  `awk '{exit !($1<10)}' /proc/loadavg && scripts/ship.sh ...`. A red from timeouts under load is
-  not a bug of the code. Wait, then run it again.
+- `scripts/ship.sh` waits for a load below 10, at most 10 min, and formats your named files first. It
+  adds one line for each run to `~/.cache/ship/easel/runs.jsonl`. Before a test that load can fail,
+  wait for a load below 10: `awk '{exit !($1<10)}' /proc/loadavg`. A red from timeouts under load
+  is not a bug of the code. Wait, then run it again.
 - Deploy first (the user chose it on 2026-11-23): a push is live in about 1 minute. The ship gate
   is fast: `check:style` and `typecheck`. A docs-only ship (`*.md`) runs `check:style` only, and
   does not deploy.
