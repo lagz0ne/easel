@@ -63,6 +63,10 @@ options and your pick. Stop when no part has an unknown.
 The rules of `AGENTS.md` always apply; do not copy them into "Must not". For a new need, use
 `writing-requirements`. For a design, write a delta spec `SPEC-<name>.md`, not `SPEC.md`.
 
+## After a wait
+
+When you wake after a wait, count your compactions first. At 2 or more, hand over with `paseo-handoff` before you build.
+
 ## The other leads
 
 Do the steps of "Leads talk" in `AGENTS.md`: one message at the start, agree before you change a
