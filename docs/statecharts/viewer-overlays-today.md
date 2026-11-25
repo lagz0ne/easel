@@ -25,8 +25,8 @@ stateDiagram-v2
     lg0: no card
     lg1: the list
     lg2: a request
-    lg3: Breaks AnOutsidePressClosesAMenu or EscapeClosesTheTop or OneMenuAtMost or OnePressClosesTheTop or TheDockIsFree
-    lg4: Path to the AnOutsidePressClosesAMenu or EscapeClosesTheTop or OneMenuAtMost or OnePressClosesTheTop or TheDockIsFree bug
+    lg3: Breaks AnOutsidePressClosesAMenu or EscapeClosesTheTop or OneMenuAtMost or OnePressClosesTheTop or TheDockIsFree or TheStickIsFree
+    lg4: Path to the AnOutsidePressClosesAMenu or EscapeClosesTheTop or OneMenuAtMost or OnePressClosesTheTop or TheDockIsFree or TheStickIsFree bug
   }
   class lg0 tan
   class lg1 teal
