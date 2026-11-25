@@ -18,7 +18,7 @@ import type { Message, Request, RequestShot } from "@/queue/cells";
 import { addInput } from "@/queue/contract";
 import { routeTree } from "@/routes";
 import { nameKey, tabMeta } from "@/viewer/gate";
-import { restMs } from "@/viewer/stage";
+import { viewerDefaults } from "@/viewer/settings";
 
 import { frameOnPage } from "./frame-page";
 
@@ -890,7 +890,7 @@ test("in request mode, a click on a part of a live frame outlines that part: the
   localStorage.setItem(nameKey, "Mai");
   const at = await tab(server);
 
-  at.clock.advance(restMs);
+  at.clock.advance(viewerDefaults.restMs);
   const card = () => frameOf("Home").element().querySelector<HTMLElement>(".e-card");
   await expect.poll(() => card()?.hidden, { timeout: 5_000 }).toBe(true);
   const frame = frameOf("Home").element().querySelector("iframe");
@@ -918,7 +918,7 @@ test("in request mode, the part of a live frame under the pointer gets a 1 px ou
   });
   localStorage.setItem(nameKey, "Mai");
   const at = await tab(server);
-  at.clock.advance(restMs);
+  at.clock.advance(viewerDefaults.restMs);
   const card = () => frameOf("Home").element().querySelector<HTMLElement>(".e-card");
   await expect.poll(() => card()?.hidden, { timeout: 5_000 }).toBe(true);
   const part = { left: "20px", top: "40px", width: "100px", height: "50px" };

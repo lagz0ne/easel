@@ -1,8 +1,7 @@
 import { data, resource, tag } from "@tinkered/core";
 
+import { foldDelayMs } from "./settings";
 import { foundFrame } from "./stage";
-
-export const foldDelayMs = 300;
 
 export type Side = "left" | "right";
 
@@ -39,8 +38,8 @@ export const columnOpen = resource({
 export const fold = resource({
   label: "viewer.fold",
   target: "scope",
-  depends: { now: foldNow.controller },
-  factory: ({ now }, ctx) => {
+  depends: { now: foldNow.controller, foldDelayMs },
+  factory: ({ now, foldDelayMs }, ctx) => {
     const delays = new Map<string, AbortController>();
     let closed = false;
 

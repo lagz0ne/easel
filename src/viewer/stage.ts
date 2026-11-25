@@ -14,27 +14,32 @@ import type { ControlShown, PanePlace } from "@/kit/controls";
 import { kitFixtures } from "@/kit/fixtures";
 import { teamTexts } from "@/kit/texts";
 
+import {
+  clickSlop,
+  closeWaitMs,
+  dockBand,
+  fitEdge,
+  goLiveMargin,
+  hideAtRestMargin,
+  hideMovingMargin,
+  labelDrift,
+  liveCap,
+  maxZoom,
+  minZoom,
+  paintCapMs,
+  paneMax,
+  pinchRate,
+  pinSize,
+  popGap,
+  readZoom,
+  restMs,
+  showAt,
+  showMargin,
+  stayLiveMargin,
+  wheelLine,
+  zoomFactor,
+} from "./settings";
 import { startWalk } from "./walk";
-
-export const liveCap = 12;
-export const readZoom = 0.3;
-export const goLiveMargin = 0.1;
-export const stayLiveMargin = 0.5;
-export const showMargin = 0.5;
-export const hideAtRestMargin = 0.75;
-export const hideMovingMargin = 1.5;
-export const restMs = 120;
-export const paintCapMs = 1_500;
-export const zoomFactor = 1.25;
-export const pinchRate = 0.01;
-export const minZoom = 0.001;
-export const maxZoom = 4;
-export const fitEdge = 40;
-export const labelDrift = 0.1;
-export const clickSlop = 4;
-export const popGap = 8;
-export const dockBand = 64;
-const pinSize = 24;
 
 const rect = z.object({ left: z.number(), top: z.number(), right: z.number(), bottom: z.number() });
 
@@ -43,7 +48,8 @@ type Rect = z.infer<typeof rect>;
 export const popPlace = operation({
   label: "viewer.popPlace",
   input: z.object({ pin: rect, w: z.number(), h: z.number(), room: rect }),
-  run: (_, { input: { pin: p, w, h, room: b } }) => {
+  depends: { popGap },
+  run: ({ popGap }, { input: { pin: p, w, h, room: b } }) => {
     const across = Math.min(Math.max(p.left + 2 * popGap, b.left), b.right - w);
     const down = Math.min(Math.max(p.top, b.top), b.bottom - h);
     const below = { side: "below" as const, left: across, top: p.bottom + popGap };
@@ -88,10 +94,6 @@ export const shownPanes = data<Readonly<Record<string, readonly PanePlace[]>>>({
   label: "viewer.shownPanes",
   initial: {},
 });
-
-const paneMax = { w: 480, h: 720 };
-
-export const closeWaitMs = 200;
 
 export const painted = data<Readonly<Record<string, number>>>({
   label: "viewer.painted",
@@ -208,6 +210,29 @@ export const stage = resource({
     mark: foundFrame.controller,
     popPlace,
     startWalk,
+    liveCap,
+    readZoom,
+    goLiveMargin,
+    stayLiveMargin,
+    showMargin,
+    hideAtRestMargin,
+    hideMovingMargin,
+    restMs,
+    paintCapMs,
+    zoomFactor,
+    pinchRate,
+    minZoom,
+    maxZoom,
+    fitEdge,
+    labelDrift,
+    clickSlop,
+    popGap,
+    dockBand,
+    pinSize,
+    paneMax,
+    closeWaitMs,
+    wheelLine,
+    showAt,
   },
   factory: (
     {
@@ -225,6 +250,29 @@ export const stage = resource({
       mark,
       popPlace,
       startWalk,
+      liveCap,
+      readZoom,
+      goLiveMargin,
+      stayLiveMargin,
+      showMargin,
+      hideAtRestMargin,
+      hideMovingMargin,
+      restMs,
+      paintCapMs,
+      zoomFactor,
+      pinchRate,
+      minZoom,
+      maxZoom,
+      fitEdge,
+      labelDrift,
+      clickSlop,
+      popGap,
+      dockBand,
+      pinSize,
+      paneMax,
+      closeWaitMs,
+      wheelLine,
+      showAt,
     },
     ctx,
   ) => {
@@ -525,7 +573,7 @@ export const stage = resource({
         if (own && !event.ctrlKey) return;
         event.preventDefault();
         if (!moving) at.measure();
-        const unit = event.deltaMode === 1 ? 16 : event.deltaMode === 2 ? view.h : 1;
+        const unit = event.deltaMode === 1 ? wheelLine : event.deltaMode === 2 ? view.h : 1;
         if (!event.ctrlKey) return at.pan(-event.deltaX * unit, -event.deltaY * unit);
 
         const step = Math.exp(-event.deltaY * unit * pinchRate);
@@ -1146,7 +1194,7 @@ export const stage = resource({
 
       show: (x: number, y: number) => {
         at.measure();
-        cam = { ...cam, x: view.w * 0.4 - x * cam.z, y: view.h * 0.4 - y * cam.z };
+        cam = { ...cam, x: view.w * showAt - x * cam.z, y: view.h * showAt - y * cam.z };
         at.move();
       },
 

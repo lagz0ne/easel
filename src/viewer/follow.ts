@@ -7,6 +7,7 @@ import type { Message, Request } from "@/queue/cells";
 import { maxTries, stateOf } from "@/queue/contract";
 
 import { openMenu } from "./overlays";
+import { dayMs, noAnswerDays, oldMs, tickMs } from "./settings";
 
 const canvasOf = tag<string>({ label: "viewer.followCanvas" });
 
@@ -27,8 +28,6 @@ export type Shown = (typeof shownStates)[number];
 export const forAViewer: readonly Shown[] = ["question", "result", "person"];
 
 export const doneStates: readonly Shown[] = ["accepted", "doneNoAnswer", "closed", "takenBack"];
-
-export const noAnswerMs = 3 * 24 * 60 * 60_000;
 
 export type Line =
   | {
@@ -72,8 +71,6 @@ const outdated = z.object({
 });
 
 export type Outdated = z.infer<typeof outdated>;
-
-export const oldMs = 7 * 24 * 60 * 60_000;
 
 export type RequestView = {
   r: Request;
@@ -140,12 +137,11 @@ export const markSeen = operation({
   },
 });
 
-export const tickMs = 60_000;
-
 const nextWake = operation({
   label: "viewer.nextWake",
   input: z.object({ ends: z.array(z.number().nullable()), now: z.number() }),
-  run: (_, { input: { ends, now } }) =>
+  depends: { tickMs },
+  run: ({ tickMs }, { input: { ends, now } }) =>
     Math.min(tickMs, ...ends.flatMap((end) => (end !== null && end > now ? [end - now + 1] : []))),
 });
 
@@ -205,10 +201,10 @@ export const clockTicker = resource({
 export const shownState = operation({
   label: "viewer.shownState",
   input: z.object({ request, closer: z.string().nullable(), now: z.number() }),
-  depends: { stateOf },
-  run: ({ stateOf }, { input: { request, closer, now } }): Shown => {
+  depends: { stateOf, noAnswerDays },
+  run: ({ stateOf, noAnswerDays }, { input: { request, closer, now } }): Shown => {
     const state = stateOf.run({ input: { request, now } });
-    if (state === "result" && now - request.updated >= noAnswerMs) return "doneNoAnswer";
+    if (state === "result" && now - request.updated >= noAnswerDays * dayMs) return "doneNoAnswer";
 
     return state === "closed" && closer === request.author ? "takenBack" : state;
   },
@@ -413,8 +409,6 @@ const triesLine = operation({
   },
 });
 
-const noAnswer = "No viewer answered in 3 days, so it is done";
-
 const claimLines = operation({
   label: "viewer.claimLines",
   input: z.object({ r: request, shown: z.enum(shownStates) }),
@@ -435,13 +429,15 @@ const claimLines = operation({
   },
 });
 
-const stateLine = operation({
+export const stateLine = operation({
   label: "viewer.stateLine",
   input: z.object({ r: request, shown: z.enum(shownStates), last: message.nullable() }),
-  depends: { triesLine, claimLines },
-  run: ({ triesLine, claimLines }, { input: { r, shown, last } }): Line[] => {
+  depends: { triesLine, claimLines, noAnswerDays },
+  run: ({ triesLine, claimLines, noAnswerDays }, { input: { r, shown, last } }): Line[] => {
     if (shown === "doneNoAnswer") {
-      return [{ key: "done", kind: "step", who: null, what: noAnswer, at: r.updated + noAnswerMs }];
+      const days = noAnswerDays === 1 ? "1 day" : `${noAnswerDays} days`;
+      const what = `No viewer answered in ${days}, so it is done`;
+      return [{ key: "done", kind: "step", who: null, what, at: r.updated + noAnswerDays * dayMs }];
     }
 
     return shown === "person"
@@ -563,8 +559,8 @@ const outdatedOf = operation({
     now: z.number(),
     frame: frameNow.nullable(),
   }),
-  depends: { frameCause },
-  run: ({ frameCause }, { input: { r, shown, now, frame } }): Outdated | null => {
+  depends: { frameCause, oldMs },
+  run: ({ frameCause, oldMs }, { input: { r, shown, now, frame } }): Outdated | null => {
     if (shown !== "waiting") return null;
     const cause = frameCause.run({ input: { r, frame } });
     if (cause !== null || now - r.created <= oldMs) return cause;

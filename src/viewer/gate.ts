@@ -5,6 +5,8 @@ import { frames } from "@/frames";
 import { endedRefusal, lockedRefusal, shareLink, typedPassword, viewerName } from "@/frames/share";
 import { whoMeta } from "@/issues/sign-in";
 
+import { retryJitter } from "./settings";
+
 const gate = z.discriminatedUnion("page", [
   z.object({
     link: z.string(),
@@ -39,12 +41,11 @@ export const heldPasses = data({
 
 export const shownLink = data({ label: "viewer.shownLink", initial: "" });
 
-export const retryJitter = 1_000;
-
 const waitOut = operation({
   label: "viewer.waitOut",
   input: z.object({ retryIn: z.number(), stop: z.instanceof(AbortSignal).optional() }),
-  run: (_, { input, clock, signal }) => {
+  depends: { retryJitter },
+  run: ({ retryJitter }, { input, clock, signal }) => {
     const wait = input.retryIn + Math.floor(Math.random() * retryJitter);
     const until = input.stop ? AbortSignal.any([signal, input.stop]) : signal;
 

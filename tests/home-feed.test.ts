@@ -17,7 +17,7 @@ import type { BuiltRuntime } from "@/kit/runtime.server";
 import { requests } from "@/queue/cells";
 import type { Request } from "@/queue/cells";
 import { queueServer } from "@/queue/store.server";
-import { noAnswerMs } from "@/viewer/follow";
+import { dayMs, viewerDefaults } from "@/viewer/settings";
 
 const closers: Array<() => unknown> = [];
 
@@ -187,7 +187,7 @@ test("a result with no answer for 3 days leaves the inbox at the next hourly loo
   await settle();
   expect(scope.run(readRows)[0]?.inbox).toBe(1);
 
-  clock.advance(noAnswerMs + hourMs);
+  clock.advance(viewerDefaults.noAnswerDays * dayMs + hourMs);
   await settle();
   expect(scope.run(readRows)[0]?.inbox).toBe(0);
 });

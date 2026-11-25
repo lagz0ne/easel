@@ -19,7 +19,7 @@ import { addInput } from "@/queue/contract";
 import { routeTree } from "@/routes";
 import { requestMode } from "@/viewer/draft";
 import { nameKey, tabMeta } from "@/viewer/gate";
-import { restMs } from "@/viewer/stage";
+import { viewerDefaults } from "@/viewer/settings";
 import { pickBackend } from "@/viewer/walk-backend";
 import { walking } from "@/viewer/walking";
 
@@ -246,7 +246,7 @@ const screen = () => layer().getByTitle(/^fixture · /);
 
 test("one press on Walk in the list Maps starts the walk of that map at its first state", async () => {
   const clock = await tab();
-  clock.advance(restMs);
+  clock.advance(viewerDefaults.restMs);
   const card = () => frameOf("Maps").element().querySelector<HTMLElement>(".e-card");
   await expect.poll(() => card()?.hidden, { timeout: 5_000 }).toBe(true);
 
