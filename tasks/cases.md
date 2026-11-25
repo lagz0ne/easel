@@ -1,9 +1,44 @@
-# Plan: SPEC-cases, ship 1 (X12, X17)
+# Mission: cases
 
-Source: [SPEC-cases.md](../SPEC-cases.md), approved by the user on 2026-11-25. Ship 1 is
-decisions 1 to 5, 11 and 12: cases with a fixture and switches, the case frames in their case
-group, the tools, and the draw of a case frame with its values. No new UI: the views and the
-section `Cases` are ship 2.
+Lead: d13e221 (`m: cases`). Accepted: open; SPEC-cases was approved on 2026-11-25 ("Approve
+SPEC-cases with both picks"). Done: open.
+
+## Mission
+
+A person sees each named case of one screen (a fixture and switch values) as its own frame,
+next to the screen, and each new version of the screen shows in all of them. (E10.3: X12, X17;
+SPEC-cases ship 1.)
+
+## Success
+
+- On the page `regroup-the-controller`, the users list has 4 cases (`empty`, `few`,
+  `long-names`, `many`). The section `users list · cases` shows 4 case frames, each with its
+  name and its own data.
+- One `put_frame` of the users list changes all 4 case frames. No step for each case is done.
+- `easel cases ls` and `list_cases` give the same list. A bad case (an unknown fixture, a
+  name two times, more than 36) is refused with a line that says the fix.
+- A pick of `dark` on the board changes each case frame. A pick on one case frame changes only
+  that frame.
+
+## Nono
+
+- Not in: the spread view and the stack view, the section `Cases`, and the count of requests
+  (ship 2, X13, X14). Back when ship 1 is live and the person starts ship 2.
+- Not in: the answers of calls in a case (ship 3, X15), and "Keep as a case" (ship 4, X16).
+- Not in: a rename of a case that keeps its frame. A new name is a new case frame.
+- Must not: change the matrix (X11), the board value or the frame value (X6, X7), the request
+  record, or a frame that is not in a case group.
+- Must not: put a case as code in the files of a frame (SPEC-cases decision 1).
+
+## Verify
+
+- `offload -- bun --bun vp test tests/cases.test.ts tests/cli-cases.test.ts tests/mcp-table.test.ts`
+  passes, and `bun run check:plain` prints `tinker check: OK`.
+- The browser test of T3 passes, and `bun run smoke` passes.
+- A look with `agent-browser` at the page `regroup-the-controller`: 4 case frames with their
+  data; after one put of the source, each case frame shows the new version.
+- A new reviewer subagent that did not build the work gives `proven` for each success check.
+- Live: `/api/version` shows the ship. Confirms: the person, on the page `regroup-the-controller`.
 
 ## Touching
 
@@ -23,7 +58,7 @@ section `Cases` are ship 2.
 | `tests/mcp-table.test.ts`, `tests/mcp.test.ts`, `tests/mcp-http.test.ts`        | The count of tools is 49.                                                                                                                                       | this work            |
 | `tinker.graph`                                                                  | The lines of the cases operations only.                                                                                                                         | shared: dark look B  |
 
-## Tasks, in order
+## Plan
 
 Each task lands green with `scripts/ship.sh`. A dirty file of another agent goes in with `-p`
 (only the hunks of this work), after a message to its owner.
