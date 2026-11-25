@@ -770,6 +770,27 @@
   cursor: default;
 }
 
+.e-spin {
+  width: var(--e-3);
+  height: var(--e-3);
+  border: 1.6px solid currentcolor;
+  border-right-color: transparent;
+  border-radius: 50%;
+  animation: e-spin 0.8s linear infinite;
+}
+
+@keyframes e-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .e-spin {
+    animation: none;
+  }
+}
+
 .e-send svg {
   width: var(--e-4);
   height: var(--e-4);

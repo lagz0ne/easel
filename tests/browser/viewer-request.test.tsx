@@ -36,7 +36,8 @@ type Plan =
   | "tooBig"
   | "offFrame"
   | "fail"
-  | "drop";
+  | "drop"
+  | "hold";
 
 type AddInput = z.infer<typeof addInput>;
 
@@ -76,6 +77,13 @@ const nameIt = operation({
   },
 });
 
+let letAddGo: () => void = () => undefined;
+
+const heldAdd = () =>
+  new Promise<void>((done) => {
+    letAddGo = done;
+  });
+
 const tick = (ms = 30) => new Promise((done) => setTimeout(done, ms));
 
 const plannedAnswers = {
@@ -87,6 +95,7 @@ const plannedAnswers = {
   badImage: { kind: "badImage", reason: "unreadable", maxSide: 16_000, maxPixels: 25_000_000 },
   added: null,
   drop: null,
+  hold: null,
 } as const;
 
 const refusedPlan = operation({
@@ -101,6 +110,7 @@ const refusedPlan = operation({
     "offFrame",
     "fail",
     "drop",
+    "hold",
   ]),
   run: (_, { input: plan }) => {
     if (plan === "fail") throw new Error("the stub server fails");
@@ -221,6 +231,7 @@ const add = operation({
     const refused = refusedPlan.run({ input: plan });
     if (refused) return refused;
 
+    if (plan === "hold") await heldAdd();
     const n = save.run({ input });
     if (plan === "drop") {
       void current?.close();
@@ -729,6 +740,26 @@ test("a server fault: not known yet if it saved, no Escape; Send sends it again 
   await expect.element(pin(1)).toBeVisible();
   expect(store.adds).toHaveLength(2);
   expect(store.adds[0]?.key).toBe(store.adds[1]?.key);
+});
+
+test("a slow server: at once after Send, the button turns and the line Sending… shows; both go when the pin shows (product#31)", async () => {
+  const server = await boot();
+  localStorage.setItem(nameKey, "Mai");
+  await tab(server);
+  store.plan.push("hold");
+
+  await openOnHome();
+  await type();
+  await sendButton().click();
+  await expect.element(page.getByRole("status").getByText("Sending…")).toBeVisible();
+  await expect.element(sendButton()).toHaveAttribute("aria-busy", "true");
+  await expect.element(sendButton()).toBeDisabled();
+  expect(pin(1).elements()).toHaveLength(0);
+
+  letAddGo();
+  await expect.element(pin(1)).toBeVisible();
+  expect(page.getByText("Sending…").elements()).toHaveLength(0);
+  expect(store.adds).toHaveLength(1);
 });
 
 const kept = () => page.getByRole("region", { name: "Your request" });

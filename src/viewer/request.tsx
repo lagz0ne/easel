@@ -27,6 +27,7 @@ import { doneStates, requestStates, requestView } from "./follow";
 import type { Shown } from "./follow";
 import { pageList } from "./pages";
 import { Initial } from "./panel";
+import { SendButton, SendingLine } from "./send-button";
 import { hoverPart, partBox, stage } from "./stage";
 import { walking } from "./walking";
 
@@ -198,13 +199,7 @@ export function Composer({ d, lost }: { d: Draft; lost: boolean }) {
                 }}
               />
             </div>
-            {naming ? null : (
-              <button type="submit" className="e-send" aria-label="Send" disabled={busy}>
-                <svg viewBox="0 0 16 16" aria-hidden="true">
-                  <path d="M8 13V3M3.5 7.5 8 3l4.5 4.5" />
-                </svg>
-              </button>
-            )}
+            {naming ? null : <SendButton busy={busy} />}
           </div>
           <div className="e-place-row">
             <p className="e-place">
@@ -214,6 +209,7 @@ export function Composer({ d, lost }: { d: Draft; lost: boolean }) {
           </div>
           <ShotControls d={d} />
           <Told d={d} />
+          <SendingLine busy={busy} />
           <Said d={d} lost={lost} />
         </div>
       </div>

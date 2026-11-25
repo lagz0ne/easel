@@ -24,6 +24,7 @@ import { HoldNotice } from "./hold-notice";
 import { openMenu, setMenu } from "./overlays";
 import { Age, Initial, OutdatedMark, Place, RequestMark } from "./panel";
 import { RequestShot } from "./request";
+import { SendButton, SendingLine } from "./send-button";
 
 const boxTexts = {
   correct: { name: "Request", hint: "" },
@@ -319,13 +320,7 @@ function BoxField({
           }}
         />
       </div>
-      {sends ? (
-        <button type="submit" className="e-send" aria-label="Send" disabled={busy || stuck}>
-          <svg viewBox="0 0 16 16" aria-hidden="true">
-            <path d="M8 13V3M3.5 7.5 8 3l4.5 4.5" />
-          </svg>
-        </button>
-      ) : null}
+      {sends ? <SendButton busy={busy} off={stuck} /> : null}
     </div>
   );
 }
@@ -359,6 +354,7 @@ function BoxForm({ v, box, here }: { v: RequestView; box: Box; here: Acts }) {
         <MyAvatar />
         <div className="e-field">
           <BoxField v={v} box={box} here={here} stuck={stuck} />
+          <SendingLine busy={here.step === "sending"} />
           <Notice v={v} here={here} />
         </div>
       </div>
