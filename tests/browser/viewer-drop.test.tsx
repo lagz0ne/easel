@@ -205,6 +205,16 @@ const framesStub = {
     input: framesApi["page.delete"].input,
     run: notHere,
   }),
+  "cases.list": operation({
+    label: "test.no cases.list",
+    input: framesApi["cases.list"].input,
+    run: notHere,
+  }),
+  "cases.set": operation({
+    label: "test.no cases.set",
+    input: framesApi["cases.set"].input,
+    run: notHere,
+  }),
 };
 
 async function boot() {

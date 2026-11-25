@@ -22,6 +22,7 @@ import { publishFrom } from "@/parts/ops.server";
 import { loadShots } from "@/queue/shots.server";
 import { releaseClient } from "@/release";
 
+import { listCases, setCases } from "./cases.server";
 import {
   framesApi,
   framesBoard,
@@ -352,19 +353,17 @@ const savePut = operation({
   depends: { saveFrame, publishFrom, invalidate: framesBoard.invalidate },
   run: async ({ saveFrame, publishFrom, invalidate }, { input: write }) => {
     const answer = await saveFrame.run({ input: write });
-    switch (answer.kind) {
-      case "stale":
-      case "gone":
-      case "changed":
-      case "placed":
-      case "unchanged":
-        return answer;
-      case "created":
-      case "updated":
-        await invalidate.run({ input: { docs: { canvas: write.canvas, id: answer.id } } });
-        await publishFrom.run({ input: { canvas: write.canvas, id: answer.id } });
-        return answer;
-    }
+    if (!("cases" in answer)) return answer;
+
+    const { cases, ...rest } = answer;
+    if (rest.kind === "unchanged") return rest;
+
+    const ids = [rest.id, ...cases];
+    await Promise.all(
+      ids.map((id) => invalidate.run({ input: { docs: { canvas: write.canvas, id } } })),
+    );
+    await publishFrom.run({ input: { canvas: write.canvas, id: rest.id } });
+    return rest;
   },
 });
 
@@ -536,8 +535,12 @@ export const deleteFrame = operation({
   depends: { dropFrame, invalidate: framesBoard.invalidate },
   run: async ({ dropFrame, invalidate }, { input }) => {
     const answer = await dropFrame.run({ input });
-    if (answer.kind === "deleted") await invalidate.run({ input: { docs: input } });
-    return answer;
+    if (answer.kind !== "deleted") return answer;
+
+    for (const id of answer.removed) {
+      await invalidate.run({ input: { docs: { canvas: input.canvas, id } } });
+    }
+    return { kind: answer.kind, layout: answer.layout };
   },
 });
 
@@ -578,6 +581,8 @@ export const framesOps = {
   "frame.explore": exploreFrame,
   "frame.shot": shotFrame,
   "frame.move": moveFrameTo,
+  "cases.list": listCases,
+  "cases.set": setCases,
   "section.set": setSection,
   "page.layout": pageLayout,
   "page.list": listPages,

@@ -43,7 +43,7 @@ async function gaps(list: string[], lists: { tooled?: string[]; skipped?: string
 
 test("each call of easel's contracts is a tool or on the no-tool list, and none is both", async () => {
   expect(await gaps(addresses)).toEqual({ missing: [], both: [] });
-  expect(Object.keys(tools)).toHaveLength(47);
+  expect(Object.keys(tools)).toHaveLength(49);
 });
 
 test("the check finds a call that is in neither list, and one that is in both", async () => {

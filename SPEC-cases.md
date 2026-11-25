@@ -72,7 +72,7 @@ states" and "Pin"; this spec replaces both words.
    case that the person keeps (decision 9) must not need a change of code. The mock of group 4
    shows an export `frameStates`; this decision replaces it.
 2. **The shape of a case:** `{ name, fixture?, switches?, answers? }`.
-   - `name`: 1 to 40 characters, a slug (`nextPage`, `long-names`). It is unique in the list.
+   - `name`: 1 to 40 characters, a slug (`next-page`, `long-names`). It is unique in the list.
    - `fixture`: a name of `fixtures.list` for a cell of the source frame, or no fixture.
    - `switches`: for each switch that the source frame takes, a value that its `parse` accepts.
    - `answers` (ship 3): for each call that the source frame depends on, a kind of its output, a
@@ -169,7 +169,7 @@ Each ship lands green and live. A ship with state gets its TLA+ model and its ch
 
 Decisions 1 to 5, 11 and 12. The cases set a fixture and switches, but no `answers`.
 
-- Proof: a test writes the 4 data cases of the list of users (`empty`, `few`, `longNames`,
+- Proof: a test writes the 4 data cases of the list of users (`empty`, `few`, `long-names`,
   `many`). easel makes 4 case frames in the section `users list · cases`, after the source frame.
   Each shows its fixture.
 - Proof: a new version of the source frame gives each case frame the new version, in one write.
@@ -190,7 +190,7 @@ request form.
 
 Decision 10, after the frame scope of E3.
 
-- Proof: the cases `firstLoad` (`users.list` = `none`), `nextPage` (`many`, `users.list` = `none`
+- Proof: the cases `first-load` (`users.list` = `none`), `next-page` (`many`, `users.list` = `none`
   on page 2) and `failed` (a fault) each show their screen. A test reaches each kind of the
   output of `users.list`.
 

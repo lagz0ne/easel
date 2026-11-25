@@ -556,20 +556,18 @@ const foundText = operation({
   },
 });
 
-const putText = operation({
-  label: "cli.putText",
+const refusedText = operation({
+  label: "cli.refusedText",
   input: z.object({
     canvas: z.string(),
     id: z.string().optional(),
     page: z.string().optional(),
-    answer: putOutput,
+    answer: z.custom<Exclude<PutAnswer, { findings: unknown }>>(),
     app: z.boolean(),
   }),
-  depends: { tooBigText, foundText, goneText, badImageText, changedText, placedText },
+  depends: { tooBigText, goneText, badImageText, changedText, placedText },
   run: (units, { input: { canvas, id, page, answer, app } }) => {
-    const { tooBigText, foundText, goneText, badImageText, changedText, placedText } = units;
-    if ("findings" in answer) return foundText.run({ input: answer });
-
+    const { tooBigText, goneText, badImageText, changedText, placedText } = units;
     switch (answer.kind) {
       case "stale":
         return {
@@ -589,7 +587,29 @@ const putText = operation({
         };
       case "placed":
         return { text: placedText.run({ input: { canvas, id: answer.id } }), error: true };
+      case "CaseFrame":
+        return {
+          text: `CaseFrame: nothing was written; this frame shows a case of the frame ${answer.source}. Put the files on that frame (\`easel put ${canvas} <file> --id ${answer.source} --base <v>\`); its cases follow it`,
+          error: true,
+        };
     }
+  },
+});
+
+const putText = operation({
+  label: "cli.putText",
+  input: z.object({
+    canvas: z.string(),
+    id: z.string().optional(),
+    page: z.string().optional(),
+    answer: putOutput,
+    app: z.boolean(),
+  }),
+  depends: { foundText, refusedText },
+  run: ({ foundText, refusedText }, { input }) => {
+    const { answer } = input;
+    if ("findings" in answer) return foundText.run({ input: answer });
+    return refusedText.run({ input: { ...input, answer } });
   },
 });
 
@@ -1001,6 +1021,15 @@ export const rm = operation({
       case "gone":
         say.run({
           input: { json: answer, text: `no frame ${input.id} on ${input.canvas}`, error: true },
+        });
+        break;
+      case "CaseFrame":
+        say.run({
+          input: {
+            json: answer,
+            text: `CaseFrame: nothing was deleted; ${input.id} shows a case of the frame ${answer.source}. Remove the case from the list with \`easel cases set ${input.canvas} ${answer.source} <file.json>\``,
+            error: true,
+          },
         });
         break;
     }

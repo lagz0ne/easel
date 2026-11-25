@@ -11,6 +11,12 @@ export const kindTexts: Readonly<Record<string, string>> = {
     "taken: a canvas or a page with that key or name is there. Pick another name, or use the one that is there.",
   full: "full: the canvas has 50 pages, the most it can have. Put the frame on a page that is there.",
   gone: "gone: it is not there (deleted, or a wrong key or id). List again, and use one that is there.",
+  CaseFrame:
+    "CaseFrame: this frame shows a case of the frame {source}, and only easel writes it, so nothing was written. Change the frame {source}, or its list of cases with set_cases.",
+  CaseInvalid:
+    "CaseInvalid: the case {case} has a bad {field} ({reason}), so nothing was written. Fix that case, then set the cases again.",
+  CasesTooMany:
+    "CasesTooMany: the list has {cases} cases, and a frame has {max} at most, so nothing was written. Remove cases, then set them again.",
   stale:
     "stale: it changed since the version that you gave, so nothing was written. Get it again, and make your change on the new version.",
   tooBig: "tooBig: it is over {maxBytes} bytes, so nothing was written. Make it smaller.",

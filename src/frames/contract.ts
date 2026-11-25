@@ -8,6 +8,14 @@ import { messages, requests, serverClock, shots } from "@/queue/cells";
 import { holds } from "@/queue/holds";
 
 import { layout, revision, sectionGap, sectionInfo, sections, sectionWrap } from "./arrange";
+import {
+  boardCase,
+  caseFrameLink,
+  caseFrameRefusal,
+  caseInvalid,
+  caseList,
+  casesTooMany,
+} from "./cases";
 import { sharePassword, sharePath } from "./share";
 
 export const maxDocBytes = 1024 * 1024;
@@ -151,6 +159,7 @@ const boardFrame = frameInfo.extend({
   canvas: z.string(),
   k: z.string().optional(),
   status: frameStatus,
+  case: boardCase.nullable().optional(),
 });
 
 export type BoardFrame = z.infer<typeof boardFrame>;
@@ -383,6 +392,7 @@ export const putOutput = z.union([
   z.object({ kind: z.literal("offKit"), findings: z.array(findingShape), more: z.number() }),
   unsettled,
   badImage,
+  caseFrameRefusal,
 ]);
 
 const one = z.object({ canvas: canvasKey, id: frameId });
@@ -456,7 +466,11 @@ export const framesContracts = {
   },
   "frame.delete": {
     input: one,
-    output: z.discriminatedUnion("kind", [z.object({ kind: z.literal("deleted"), layout }), gone]),
+    output: z.discriminatedUnion("kind", [
+      z.object({ kind: z.literal("deleted"), layout }),
+      gone,
+      caseFrameRefusal,
+    ]),
   },
   "frame.ready": {
     input: one,
@@ -551,6 +565,36 @@ export const framesContracts = {
       gone,
     ]),
   },
+  "cases.list": {
+    input: z.strictObject({ canvas: canvasKey, frame: frameId }),
+    output: z.discriminatedUnion("kind", [
+      z.object({
+        kind: z.literal("found"),
+        rev: z.number(),
+        section: z.string().nullable(),
+        cases: caseList,
+        frames: z.array(caseFrameLink),
+      }),
+      gone,
+      caseFrameRefusal,
+    ]),
+  },
+  "cases.set": {
+    input: z.strictObject({
+      canvas: canvasKey,
+      frame: frameId,
+      cases: caseList,
+      base: z.number().int().min(0).optional(),
+    }),
+    output: z.discriminatedUnion("kind", [
+      z.object({ kind: z.literal("set"), rev: z.number(), frames: z.array(caseFrameLink), layout }),
+      changed,
+      gone,
+      caseInvalid,
+      casesTooMany,
+      caseFrameRefusal,
+    ]),
+  },
   "frame.shot": {
     input: z.strictObject({
       canvas: canvasKey,
@@ -597,6 +641,8 @@ export const framesSuccessKinds = {
   "frame.ready": ["ready", "unchanged"],
   "frame.explore": ["exploring", "unchanged"],
   "frame.shot": ["ready"],
+  "cases.list": ["found"],
+  "cases.set": ["set"],
   "frame.move": ["moved", "unchanged"],
   "section.set": ["set", "unchanged"],
   "page.layout": ["found"],

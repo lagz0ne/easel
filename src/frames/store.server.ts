@@ -21,6 +21,14 @@ import {
   unseatFrame,
 } from "./arrange.server";
 import {
+  caseFrameIdsOf,
+  casesSchema,
+  dropCaseList,
+  followSource,
+  sourceOf,
+} from "./case-frames.server";
+import { caseValues } from "./cases";
+import {
   canvasInfo,
   firstPage,
   frameStatus,
@@ -129,9 +137,13 @@ const addedColumns = [
   ["frames_frames", "col", "INTEGER"],
   ["frames_frames", "row", "INTEGER"],
   ["frames_canvases", "rev", "INTEGER NOT NULL DEFAULT 0"],
+  ["frames_frames", "source", "TEXT"],
+  ["frames_frames", "case_name", "TEXT"],
+  ["frames_frames", "case_values", "TEXT"],
 ] as const;
 
-const frameColumns = "canvas, id, name, page, x, y, w, h, version, status";
+const frameColumns =
+  "canvas, id, name, page, x, y, w, h, version, status, source, case_name, case_values";
 
 const genOf = "COALESCE((SELECT gen FROM frames_keygen WHERE canvas = ?), 0)";
 
@@ -151,19 +163,46 @@ const frameRow = z.object({
   h: z.number(),
   version: z.number(),
   status: frameStatus,
+  source: z.string().nullable(),
+  case_name: z.string().nullable(),
+  case_values: z.string().nullable(),
 });
 
 const canvasRow = z.object({ key: z.string(), name: z.string(), created: z.number() });
 
 const keyedRow = frameRow.extend({ gen: z.number() });
 
+const storedValues = z
+  .string()
+  .nullable()
+  .transform((text) => {
+    const empty = { fixture: null, switches: {} };
+    if (text === null) return empty;
+    try {
+      return caseValues.safeParse(JSON.parse(text)).data ?? empty;
+    } catch {
+      return empty;
+    }
+  });
+
+const caseOfRow = z
+  .object({
+    source: z.string().nullable(),
+    case_name: z.string().nullable(),
+    case_values: z.string().nullable(),
+  })
+  .transform(({ source, case_name: name, case_values: values }) =>
+    source === null || name === null ? null : { source, name, ...storedValues.parse(values) },
+  );
+
 const boardFrame = operation({
   label: "frames.boardFrame",
   input: keyedRow,
   depends: { boardKey },
-  run: ({ boardKey }, { input: { gen, ...row } }) => ({
+  run: ({ boardKey }, { input: { gen, source, case_name, case_values, ...row } }) => ({
     ...row,
     k: boardKey.run({ input: { canvas: row.canvas, id: row.id, version: row.version, gen } }),
+    case: caseOfRow.parse({ source, case_name, case_values }),
   }),
 });
 
@@ -748,13 +787,13 @@ const saveNew = operation({
       case "changed":
       case "gone":
       case "placed":
-        return { out, done: null, page: "" };
+        return { out, done: null, page: "", cases: [] };
       case "created": {
         const id = out.row.id;
         const laid = arrangeWrite.run({
           input: { canvas: write.canvas, id, before: null, created: true, db },
         });
-        return { out, ...laid };
+        return { out, cases: [], ...laid };
       }
     }
   },
@@ -763,22 +802,31 @@ const saveNew = operation({
 const saveOn = operation({
   label: "frames.saveOn",
   input: z.object({ write: onWrite, db: z.custom<Database>() }),
-  depends: { updateFrame, boxNow, arrangeWrite },
-  run: ({ updateFrame, boxNow, arrangeWrite }, { input: { write, db } }) => {
+  depends: { updateFrame, boxNow, arrangeWrite, sourceOf, followSource },
+  run: (deps, { input: { write, db } }) => {
+    const { updateFrame, boxNow, arrangeWrite, sourceOf, followSource } = deps;
     const { canvas, id } = write;
+    const source = sourceOf.run({ input: { canvas, id, db } });
+    if (source !== null) {
+      return { out: { kind: "CaseFrame" as const, source }, done: null, page: "", cases: [] };
+    }
+
     const before = boxNow.run({ input: { canvas, id, db } });
     const out = updateFrame.run({ input: { write, db } });
     switch (out.kind) {
       case "stale":
       case "gone":
-        return { out, done: null, page: "" };
+        return { out, done: null, page: "", cases: [] };
       case "updated":
       case "marked":
-      case "unchanged":
+      case "unchanged": {
+        const cases = followSource.run({ input: { canvas, source: id, db } });
         return {
           out,
+          cases,
           ...arrangeWrite.run({ input: { canvas, id, before, created: false, db } }),
         };
+      }
     }
   },
 });
@@ -805,9 +853,9 @@ export const saveFrame = operation({
         : saveOn.run({ input: { write: input, db } }),
     )();
 
-    const { out, done, page } = answer;
+    const { out, done, page, cases } = answer;
     if (done === null) return out;
-    const also = out.kind === "unchanged" ? [] : [out.row.id];
+    const also = out.kind === "unchanged" ? cases : [out.row.id, ...cases];
     showArranged.run({ input: { canvas, done, also, db } });
     const layout = layoutOf.run({ input: { page, done } });
     switch (out.kind) {
@@ -820,12 +868,18 @@ export const saveFrame = operation({
             boardKept.run({ input: { canvas: row.canvas, id: row.id, version, gen: row.gen } }),
           );
         }
-        return { kind: out.kind, id: row.id, version: row.version, layout };
+        return { kind: out.kind, id: row.id, version: row.version, layout, cases };
       }
       case "marked":
-        return { kind: "unchanged" as const, id: out.row.id, version: out.row.version, layout };
+        return {
+          kind: "unchanged" as const,
+          id: out.row.id,
+          version: out.row.version,
+          layout,
+          cases,
+        };
       case "unchanged":
-        return { ...out, layout };
+        return { ...out, layout, cases };
     }
   },
 });
@@ -906,75 +960,119 @@ export const readStatus = operation({
       ).data?.status ?? null,
 });
 
-export const dropFrame = operation({
-  label: "frames.dropFrame",
-  input: z.object({ canvas: z.string(), id: z.string() }),
+export const removeFrameRow = operation({
+  label: "frames.removeFrameRow",
+  input: z.object({ canvas: z.string(), id: z.string(), db: z.custom<Database>() }),
+  run: (_, { input: { canvas, id, db }, clock }) => {
+    const found = db
+      .query(
+        `SELECT ${frameColumns}, ${genOf} AS gen
+         FROM frames_frames WHERE canvas = ? AND id = ?`,
+      )
+      .get(canvas, canvas, id);
+    if (found === null) return null;
+
+    const row = keyedRow.parse(found);
+    const gone = removedRow.parse(
+      db
+        .query(
+          `INSERT OR REPLACE INTO frames_removed (canvas, id, name, page, x, y, w, h, removed)
+           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+           RETURNING canvas, id, name, page, x, y, w, h, removed`,
+        )
+        .get(
+          row.canvas,
+          row.id,
+          row.name,
+          row.page,
+          row.x,
+          row.y,
+          row.w,
+          row.h,
+          clock.currentTimeMillis(),
+        ),
+    );
+    db.query("DELETE FROM frames_frames WHERE canvas = ? AND id = ?").run(canvas, id);
+    const keptLast = db.query(isKept).get(row.canvas, row.id, row.version) !== null;
+    return { row, gone, keptLast };
+  },
+});
+
+const removedShape = z.object({
+  row: keyedRow,
+  gone: removedRow,
+  keptLast: z.boolean(),
+});
+
+export const showRemoved = operation({
+  label: "frames.showRemoved",
+  input: z.array(removedShape),
   depends: {
-    connection: bunSqlite.connection,
     cells: frames.atScope.controller,
     keptCells: kept.atScope.controller,
     removedCells: removed.atScope.controller,
     boardKept,
-    showPages,
-    arrangeAfter,
-    showArranged,
-    layoutOf,
   },
-  run: async (units, { input, clock }) => {
-    const { connection, cells, keptCells, removedCells, boardKept, showPages } = units;
-    const { arrangeAfter, showArranged, layoutOf } = units;
-    const db = connection.db.$client;
-    const answer = db.transaction(() => {
-      const found = db
-        .query(
-          `SELECT ${frameColumns}, ${genOf} AS gen
-           FROM frames_frames WHERE canvas = ? AND id = ?`,
-        )
-        .get(input.canvas, input.canvas, input.id);
-      if (found === null) return null;
-
-      const row = keyedRow.parse(found);
-      const gone = removedRow.parse(
-        db
-          .query(
-            `INSERT OR REPLACE INTO frames_removed (canvas, id, name, page, x, y, w, h, removed)
-             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
-             RETURNING canvas, id, name, page, x, y, w, h, removed`,
-          )
-          .get(
-            row.canvas,
-            row.id,
-            row.name,
-            row.page,
-            row.x,
-            row.y,
-            row.w,
-            row.h,
-            clock.currentTimeMillis(),
-          ),
-      );
-      db.query("DELETE FROM frames_frames WHERE canvas = ? AND id = ?").run(input.canvas, input.id);
-      db.query(dropLooseImages).run({ $canvas: input.canvas });
-      const keptLast = db.query(isKept).get(row.canvas, row.id, row.version) !== null;
-      const { canvas } = input;
-      const done = arrangeAfter.run({ input: { canvas, pages: [row.page], changed: true, db } });
-      return { row, gone, keptLast, done };
-    })();
-    if (answer === null) return { kind: "gone" as const };
-
-    const { row, gone, keptLast, done } = answer;
-    cells.delete({ canvas: row.canvas, page: row.page, id: row.id });
-    showArranged.run({ input: { canvas: row.canvas, done, also: [], db } });
-    removedCells.set(gone);
-    showPages.run({ input: { canvas: row.canvas, db } });
-    if (keptLast) {
+  run: ({ cells, keptCells, removedCells, boardKept }, { input }) => {
+    for (const { row, gone, keptLast } of input) {
+      cells.delete({ canvas: row.canvas, page: row.page, id: row.id });
+      removedCells.set(gone);
+      if (!keptLast) continue;
       keptCells.set(
         boardKept.run({
           input: { canvas: row.canvas, id: row.id, version: row.version, gen: row.gen },
         }),
       );
     }
-    return { kind: "deleted" as const, layout: layoutOf.run({ input: { page: row.page, done } }) };
+  },
+});
+
+export const dropFrame = operation({
+  label: "frames.dropFrame",
+  input: z.object({ canvas: z.string(), id: z.string() }),
+  depends: {
+    connection: bunSqlite.connection,
+    removeFrameRow,
+    showRemoved,
+    sourceOf,
+    caseFrameIdsOf,
+    dropCaseList,
+    showPages,
+    arrangeAfter,
+    showArranged,
+    layoutOf,
+  },
+  run: async (units, { input }) => {
+    const { connection, removeFrameRow, showRemoved, sourceOf, caseFrameIdsOf } = units;
+    const { dropCaseList, showPages, arrangeAfter, showArranged, layoutOf } = units;
+    const db = connection.db.$client;
+    const { canvas } = input;
+    const answer = db.transaction(() => {
+      const source = sourceOf.run({ input: { canvas, id: input.id, db } });
+      if (source !== null) return { kind: "CaseFrame" as const, source };
+
+      const ids = caseFrameIdsOf.run({ input: { canvas, source: input.id, db } });
+      const first = removeFrameRow.run({ input: { canvas, id: input.id, db } });
+      if (first === null) return { kind: "gone" as const };
+
+      const cases = ids.flatMap((id) => removeFrameRow.run({ input: { canvas, id, db } }) ?? []);
+      dropCaseList.run({ input: { canvas, source: input.id, db } });
+      db.query(dropLooseImages).run({ $canvas: canvas });
+      const page = first.row.page;
+      const done = arrangeAfter.run({ input: { canvas, pages: [page], changed: true, db } });
+      return { kind: "deleted" as const, removed: [first, ...cases], page, done };
+    })();
+    if (answer.kind !== "deleted") return answer;
+
+    const { removed: all, page, done } = answer;
+    showRemoved.run({ input: all });
+    showArranged.run({ input: { canvas, done, also: [], db } });
+    showPages.run({ input: { canvas, db } });
+    return {
+      kind: "deleted" as const,
+      layout: layoutOf.run({ input: { page, done } }),
+      removed: all.map((one) => one.row.id),
+    };
   },
 });
 
@@ -1241,6 +1339,7 @@ export const readStill = operation({
 });
 
 const docRow = frameRow
+  .omit({ source: true, case_name: true, case_values: true })
   .extend({
     html: z.string(),
     css: z.string().nullable(),
@@ -1374,6 +1473,7 @@ const load = operation({
     const db = connection.db.$client;
     db.exec("PRAGMA synchronous = FULL");
     db.exec(schema);
+    db.exec(casesSchema);
     await addColumns.run();
     await mountOldJs.run();
     await putOnFirstPages.run();
@@ -1382,7 +1482,8 @@ const load = operation({
     const canvasRows = db.query("SELECT key, name, created FROM frames_canvases").all();
     const frameRows = db
       .query(
-        `SELECT f.canvas, f.id, f.name, f.page, f.x, f.y, f.w, f.h, f.version, f.status, COALESCE(g.gen, 0) AS gen
+        `SELECT f.canvas, f.id, f.name, f.page, f.x, f.y, f.w, f.h, f.version, f.status,
+           f.source, f.case_name, f.case_values, COALESCE(g.gen, 0) AS gen
          FROM frames_frames f LEFT JOIN frames_keygen g ON g.canvas = f.canvas
          ORDER BY f.made, f.rowid`,
       )

@@ -48,6 +48,7 @@ const toldOfKind = {
   stale: pageGone,
   changed: told.lost,
   placed: told.lost,
+  CaseFrame: refused.parse("This frame shows a case of another frame. Drop it on that frame."),
 } as const satisfies Record<Written, DropTold>;
 
 const toldOf = putOutput.transform((answer): DropTold =>

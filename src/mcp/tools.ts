@@ -201,6 +201,18 @@ export const tools = {
     description:
       'Write fixtures of one cell by name, as { "cell": "people.list", "fixtures": { "empty": [], "one": [{ "id": "a", "name": "Ann" }] } }, where a null value removes a fixture, and each change makes a new kit version (with `base`, an older revision answers `stale`). The frame parses a fixture with the parse of its cell when it starts, and shows FixtureInvalid when it does not parse.',
   },
+  list_cases: {
+    address: "cases.list",
+    annotations: readOnly,
+    description:
+      "List the cases of a frame (each with a fixture and switch values) and its case frames, with `rev` to give as `base` in `set_cases`. A case frame answers CaseFrame with the id of its source frame.",
+  },
+  set_cases: {
+    address: "cases.set",
+    annotations: write,
+    description:
+      'Write the full list `cases` of a frame, as [{ "name": "empty", "fixture": "empty" }, { "name": "next-page", "switches": { "page": "2" } }]: a case frame keeps its id while its name stays, a new name gets a new case frame, and an empty list deletes them all. With `base`, an older revision answers `changed`.',
+  },
   list_text_uses: {
     address: "texts.uses",
     annotations: readOnly,
