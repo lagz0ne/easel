@@ -32,6 +32,8 @@ The person starts a few leads, and gives each lead one mission (the user decided
   that goes outside the repo (delete data, use a secret, change the machine through the hub).
   Bring your recommendation and its reason; for a design decision, bring 2 or 3 variations on the
   design canvas and your pick. Decide all other things yourself, and put them in the report.
+- **Session life.** A lead session ends when its mission is done. At its second compaction,
+  hand over to a new session (skill `paseo-handoff`): the mission file is the memory.
 - **Done.** When `/api/version` shows the change live and "Verify" is done, send the person one
   short report: each success check with its evidence, and what is open.
 - **Request agent.** An agent that a request on the live easel starts does that one request and
@@ -146,6 +148,8 @@ one checkout.
   or stash it.
 - For a file that two missions touch, or a shared file (such as `package.json`), agree with the
   other lead first (`ListAgents`, `SendMessage`). Ship your hunks with `ship.sh -p <patch>`.
+- After a restart or a killed session, each lead lists the dirty files of its mission first. Ship
+  them or start them again within 1 hour. A dirty file that no mission touches goes to the person.
 - Before a ship or a test that load can fail, wait for a load below 10:
   `awk '{exit !($1<10)}' /proc/loadavg && scripts/ship.sh ...`. A red from timeouts under load is
   not a bug of the code. Wait, then run it again.
