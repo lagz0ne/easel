@@ -1,6 +1,6 @@
 # Mission: cases
 
-Lead: d13e221 (`m: cases`). Accepted: 2026-11-25, "Accept the top of tasks/cases.md." SPEC-cases
+Lead: f11449a (`m: cases`; d13e221 handed over on 2026-11-25). Accepted: 2026-11-25, "Accept the top of tasks/cases.md." SPEC-cases
 was approved on 2026-11-25 ("Approve SPEC-cases with both picks"). Done: open.
 
 ## Mission
@@ -73,7 +73,7 @@ Each task lands green with `scripts/ship.sh`. A dirty file of another agent goes
     frame drops its case frames. A put on a case frame refuses `CaseFrame`. `CaseInvalid`,
     `CasesTooMany` and `changed` each have a test.
   - Verify: `bun test tests/cases.test.ts`, then `bun run check:plain` (each exit reached).
-- [ ] **T2 · The tools.** `easel cases ls|set` (MCP and the kind texts shipped with T1).
+- [x] **T2 · The tools.** `easel cases ls|set` (MCP and the kind texts shipped with T1).
   - Acceptance: the CLI prints the list and each refusal as one line with its fix; MCP gives the
     same kinds. `tests/mcp-kinds.test.ts` passes.
   - Verify: `bun test tests/cli-cases.test.ts tests/mcp-kinds.test.ts`.

@@ -109,6 +109,11 @@ const help = `easel: the canvas CLI. Every command takes --json (one JSON value 
   easel fixtures set <cell> <name> <file.json|-> [--base <rev>]
                                                    write one fixture of a cell (null removes it); each live frame that
                                                    names the cell shows it when the fixture switch picks <name>
+  easel cases ls <canvas> <frame>                  the cases of a frame (a fixture and switch values), its case
+                                                   frames and the revision of the list
+  easel cases set <canvas> <frame> <file.json|-> [--base <rev>]
+                                                   write the full list of cases: [{"name", "fixture", "switches"}];
+                                                   easel keeps one case frame for each case, next to the frame
   easel parts                                      the parts of the design system: revision, main, and the frames with
                                                    a copy, linked or edited
   easel parts publish <canvas>                     publish each main of the canvas as a part; each linked copy shows it
@@ -839,6 +844,33 @@ const fixturesInvocations = [
     })),
 ] as const;
 
+const casesInvocations = [
+  z
+    .object({
+      positionals: z.tuple([z.literal("cases"), z.literal("ls"), z.string(), z.string()]),
+      values: z.strictObject(common),
+    })
+    .transform(({ positionals: [, , canvas, frame], values }): unknown => ({
+      at: values.server,
+      command: { kind: "cases", act: { kind: "ls", canvas, frame } },
+    })),
+  z
+    .object({
+      positionals: z.tuple([
+        z.literal("cases"),
+        z.literal("set"),
+        z.string(),
+        z.string(),
+        z.string(),
+      ]),
+      values: z.strictObject({ ...common, base: z.string().optional() }),
+    })
+    .transform(({ positionals: [, , canvas, frame, file], values }): unknown => ({
+      at: values.server,
+      command: { kind: "cases", act: { kind: "set", canvas, frame, file, base: values.base } },
+    })),
+] as const;
+
 const partsInvocations = [
   z
     .object({ positionals: z.tuple([z.literal("parts")]), values: z.strictObject(common) })
@@ -1114,6 +1146,7 @@ const invocation = z.union([
   ...lookInvocations,
   ...textsInvocations,
   ...fixturesInvocations,
+  ...casesInvocations,
   ...partsInvocations,
 ]);
 

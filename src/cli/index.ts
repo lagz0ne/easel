@@ -4,6 +4,7 @@ import { z } from "zod";
 import { code, name, sessionId } from "@/access/contract";
 import { build, fingerprint } from "@/ops/contract";
 
+import { casesCommand, casesRun } from "./cases";
 import { channelCommand, channelRun } from "./channels";
 import { fixturesCommand, fixturesRun } from "./fixtures";
 import { framesCommand, framesRun, shareCommand, shareRun } from "./frames";
@@ -78,6 +79,7 @@ const canvasCommand = z.discriminatedUnion("kind", [
   z.object({ kind: z.literal("frames"), act: framesCommand }),
   z.object({ kind: z.literal("pages"), act: pagesCommand }),
   z.object({ kind: z.literal("share"), act: shareCommand }),
+  z.object({ kind: z.literal("cases"), act: casesCommand }),
 ]);
 
 const workCommand = z.discriminatedUnion("kind", [
@@ -175,7 +177,7 @@ const shell = operation({
 const canvasRun = operation({
   label: "cli.canvasRun",
   input: canvasCommand,
-  depends: { framesRun, pagesRun, shareRun },
+  depends: { framesRun, pagesRun, shareRun, casesRun },
   run: (ops, { input }) => {
     switch (input.kind) {
       case "frames":
@@ -184,6 +186,8 @@ const canvasRun = operation({
         return ops.pagesRun.run({ input: input.act });
       case "share":
         return ops.shareRun.run({ input: input.act });
+      case "cases":
+        return ops.casesRun.run({ input: input.act });
     }
   },
 });
