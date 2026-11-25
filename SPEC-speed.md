@@ -44,7 +44,7 @@ Prior art:
    `easel:change:<frame id>:<version>` when a new version shows, and `easel:ask:<request id>` when a
    pin shows. A mark costs one `performance.mark`, so it stays in production. The page keeps no
    other code for the measure.
-2. **The run.** `scripts/speed.ts` starts a built binary with a seed of 20 and of 200 frames,
+2. **The run.** `cmds/speed.ts` starts a built binary with a seed of 20 and of 200 frames,
    opens Chromium (with the flags of canvas-speed.md "How to measure"), and does each step 5
    times (the pan 3 times: one pan of 2 s gives ~120 frames). The base and the tree start at
    once, and are measured in turn. It reads the marks and prints one line for each step: p50,
@@ -99,7 +99,7 @@ Check:    bun run check:plain                   # the tests of the gate's logic
 ## Project Structure
 
 ```
-scripts/speed.ts       → the run and the gate (Bun, Playwright)
+cmds/speed.ts          → the run and the gate (Bun, Playwright); its steps are in src/speed/
 speed.json             → the budgets and the hot path list, with a reason for each item
 src/viewer/            → the marks (stage.ts), and the work that moves off the critical path
 tests/speed.test.ts    → the logic of the gate: p50, p95, the budget, the base, the list
