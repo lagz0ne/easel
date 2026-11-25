@@ -1,6 +1,6 @@
 # Mission: each package of easel runs on Tinker
 
-Lead: f45e95a (paseo name easel-95). Accepted: 2026-11-25, "Accept the top of tasks/tinker-packages.md." The person approved the
+Lead: b7c400ba (took over from f45e95a8 on 2026-11-25). Accepted: 2026-11-25, "Accept the top of tasks/tinker-packages.md." The person approved the
 7 steps on 2026-11-25 ("Go ahead with the plan."). Done: open.
 
 ## Mission
