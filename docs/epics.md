@@ -1079,10 +1079,11 @@ A frame shows one state at a time: one data set, one language, one mode. A revie
 state, and a person must not ask an agent for each one. So a frame comes with its controls, and a
 person changes the state of the frame with them, in place.
 
-| ID    | Journey                     | Actor  | Design                                                                                         | Review |
-| ----- | --------------------------- | ------ | ---------------------------------------------------------------------------------------------- | ------ |
-| E10.1 | Change the state of a frame | viewer | [kit](../SPEC-kit.md#the-capsules): "The controls in the viewer", "A control in its own scope" | to do  |
-| E10.2 | See all frames in one state | person | [pieces](../SPEC-pieces.md#switches-one-state-for-one-frame-or-for-all-frames) rules 10-16     | to do  |
+| ID    | Journey                      | Actor  | Design                                                                                         | Review |
+| ----- | ---------------------------- | ------ | ---------------------------------------------------------------------------------------------- | ------ |
+| E10.1 | Change the state of a frame  | viewer | [kit](../SPEC-kit.md#the-capsules): "The controls in the viewer", "A control in its own scope" | to do  |
+| E10.2 | See all frames in one state  | person | [pieces](../SPEC-pieces.md#switches-one-state-for-one-frame-or-for-all-frames) rules 10-16     | to do  |
+| E10.3 | Review each case of a screen | person | [cases](../SPEC-cases.md)                                                                      | to do  |
 
 Decided:
 
@@ -1126,6 +1127,32 @@ Decided:
 | X9  | The team has its own kinds of state, with no change to easel.  | An agent adds a kind of state (for example a plan: free or pro). Within 1 minute, the person has a control for it, and no build of easel was needed.            |
 | X10 | The example data of the frames is named and kept in one place. | The person picks "empty", "one", "many" or "error" for the frames. One change of a data set by an agent shows in each frame that uses it, and no frame changed. |
 | X11 | The person sees one part in each of its states side by side.   | One frame shows a part in each value of its states, each with a label. A new state of the part shows there with no change to that frame.                        |
+
+### E10.3 Review each case of a screen
+
+- **Actor:** the person. The agents make the screens; the person also keeps cases.
+- **Need:** review one screen in each case that matters (empty, few, long names, many, a wait, a
+  fault), comment on one case, and keep a new case, with no agent.
+- **Trigger:** the person reviews a screen, or finds a case that the list does not have.
+- **Success end:** the person saw each case of the screen, and each comment is on its case.
+- **Failure end:** a case cannot show. The person sees which case and why, and the other cases
+  still show.
+
+| ID  | Requirement                                                    | Fit criterion                                                                                                                         |
+| --- | -------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------- |
+| X12 | The person sees each case of a screen at one time.             | A screen with 8 cases shows 8 frames together, each with the name of its case and its data. No agent did a step for each case.        |
+| X13 | A comment is on one case.                                      | A request on one case shows on that case, in each view. The other cases do not show it.                                               |
+| X14 | The person sees all cases, or one frame that changes its case. | One click changes the view of the group. No other frame moves, a link keeps the view, and the view of another person does not change. |
+| X15 | A case can make the server wait or fail.                       | A case shows the screen while a call waits, and the screen of a fault, with no live server.                                           |
+| X16 | The person keeps a case that they found, with no agent.        | After one step, the case is in the list, and its frame shows within 1 second for each viewer.                                         |
+| X17 | A change of the screen shows in each case.                     | After the agent changes the screen one time, each case shows the change. No step for each case is necessary.                          |
+
+Decided:
+
+- On 2026-11-25 the user asked for each case of a screen as its own frame, all of them in one
+  group, with a view of each frame (comment on each) and a view of one frame that the controller
+  changes. The user agreed to D5 to D7 (spread view first, a comment on its case, the group is a
+  section).
 
 ## E11: The design and the app agree
 
