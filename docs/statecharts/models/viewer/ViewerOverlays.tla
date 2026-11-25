@@ -1,13 +1,14 @@
 ---- MODULE ViewerOverlays ----
 \* SPEC-viewer.md § The page, item 5 (user report, 2026-11-24): what lies over the canvas in one
 \* tab, on a phone (a narrow screen) and on a wide screen. The dock holds Request, Requests, Find,
-\* Pages, States and Zoom. The card Requests shows the list or one request. Five menus open from a
-\* button: Pages, States and Zoom (in the dock), the list menu (Open or Done, in the head of the
-\* list) and More (in the head of a request). Find opens its list over the dock. The locale is a
-\* group of States, not a button of its own (product#27, 2026-11-25).
+\* Pages and Zoom. The stick Switches at the top right holds States. The card Requests shows the
+\* list or one request. Five menus open from a button: Pages and Zoom (in the dock), States (in the
+\* stick), the list menu (Open or Done, in the head of the list) and More (in the head of a
+\* request). Find opens its list over the dock. The locale is a group of States, not a button of
+\* its own, and States is not in the dock (product#27, 2026-11-25).
 \*
 \* The rules: one menu at most is open. A press out of a menu, or Escape, closes it. No overlay
-\* covers the dock. One press closes the top overlay, and so does Escape. On a phone, Find and the
+\* covers the dock or the stick. One press closes the top overlay, and so does Escape. On a phone, Find and the
 \* card never show together.
 \*
 \* The request mode covers nothing, so it is not here: Escape ends it after each overlay, as the
@@ -17,7 +18,8 @@
 \* Design is how the page behaves:
 \*   "fixed"  the menus of Base UI (one at a time; an outside press and Escape close them), a
 \*            Close button in the head of the list, and a card that stops above the dock on a
-\*            phone. States is a menu too, and holds the locale (product#27, 2026-11-25).
+\*            phone. States is a menu too, and holds the locale (product#27, 2026-11-25). On a
+\*            wide screen the card starts below the stick; on a phone it is a drawer at the bottom.
 \*            Zoom is a menu too (product#1, 2026-11-24), in the place of Zoom out, Zoom in and Fit.
 \*   "today"  the page before 2026-11-24: each menu opens and closes only by its own button or a
 \*            pick, the list has no Close, and on a phone the card covers the dock. Locale is a
@@ -52,6 +54,9 @@ Init ==
 \* Today, on a phone, the card covers the dock.
 DockFree == Fixed \/ screen = "wide" \/ panel = "closed"
 
+\* Today the card starts at the top right, where the stick is.
+StickFree == Fixed \/ panel = "closed"
+
 \* A press out of a menu closes each open menu, with the fixed design.
 Others(m) == IF Fixed THEN {} ELSE menu \ {m}
 
@@ -76,7 +81,7 @@ PressPages ==
   /\ UNCHANGED <<screen, panel>>
 
 PressStates ==
-  /\ Fixed /\ DockFree
+  /\ Fixed /\ StickFree
   /\ Toggle("states")
   /\ find' = FALSE
   /\ UNCHANGED <<screen, panel>>
@@ -192,6 +197,9 @@ EscapeClosesTheTop == Top # "none" => ENABLED (Escape /\ Lower)
 
 \* No overlay covers the dock, so each of its buttons can be pressed.
 TheDockIsFree == DockFree
+
+\* No overlay covers the stick, so States can be pressed.
+TheStickIsFree == StickFree
 
 OneMenuAtMost == Cardinality(menu) <= 1
 

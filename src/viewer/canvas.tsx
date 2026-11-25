@@ -68,7 +68,7 @@ import {
   zoomShown,
 } from "./stage";
 import type { KitMessage } from "./stage";
-import { FrameStates, StatesPick } from "./switch-pick";
+import { FrameStates, SwitchStick } from "./switch-pick";
 import {
   appOffers,
   docTakesTheme,
@@ -769,7 +769,6 @@ function Dock({ canvas, page }: { canvas: string; page: string }) {
       <RequestsButton canvas={canvas} />
       <FindButton />
       <PagesButton canvas={canvas} page={page} />
-      <StatesPick canvas={canvas} />
       <span className="e-dock-sep" aria-hidden="true" />
       <ZoomPick />
     </div>
@@ -1035,6 +1034,7 @@ function CanvasPage({ canvas, page, opening, signedIn, aim }: PageProps) {
         <NewVersion canvas={canvas} />
         <DropStatus canvas={canvas} page={page} shown={signedIn.name !== ""} />
       </div>
+      <SwitchStick canvas={canvas} />
       <Dock canvas={canvas} page={page} />
       <FindList canvas={canvas} page={page} list={list} />
       <CardAt canvas={canvas} page={page} list={list} />

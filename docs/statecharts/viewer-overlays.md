@@ -1,6 +1,6 @@
 # viewer: the menus, Find and the card Requests, on a phone and on a wide screen
 
-The chart follows what lies over the canvas in one tab (SPEC-viewer.md § The page, item 5; the user's report of 2026-11-24). The dock holds `Requests`, `Find`, `Pages`, `States` and `Zoom`. The card `Requests` shows the list or one request. Five menus open from a button: `Pages`, `States` and `Zoom` in the dock, the list menu (`Open` or `Done`) in the head of the list, and `More` in the head of a request. The menus are the Menu of Base UI: one menu at a time, and a press out of a menu or Escape closes it. The list has a `Close` button. On a phone (a screen narrower than 640 px) the card stops above the dock, and `Find` closes the card. The model is [models/viewer/ViewerOverlays.tla](models/viewer/ViewerOverlays.tla) with [ViewerOverlays.cfg](models/viewer/ViewerOverlays.cfg).
+The chart follows what lies over the canvas in one tab (SPEC-viewer.md § The page, item 5; the user's report of 2026-11-24). The dock holds `Requests`, `Find`, `Pages` and `Zoom`. The stick `Switches` at the top right of the screen holds `States` (product#27). The card `Requests` shows the list or one request. Five menus open from a button: `Pages` and `Zoom` in the dock, `States` in the stick, the list menu (`Open` or `Done`) in the head of the list, and `More` in the head of a request. The menus are the Menu of Base UI: one menu at a time, and a press out of a menu or Escape closes it. The list has a `Close` button. On a phone (a screen narrower than 640 px) the card stops above the dock, and `Find` closes the card. The model is [models/viewer/ViewerOverlays.tla](models/viewer/ViewerOverlays.tla) with [ViewerOverlays.cfg](models/viewer/ViewerOverlays.cfg).
 
 ```mermaid
 ---
@@ -292,6 +292,7 @@ stateDiagram-v2
 - **OnePressClosesTheTop**: from each state, one press closes the top overlay. No state is a dead end.
 - **EscapeClosesTheTop**: Escape closes the top overlay: a menu, Find, a request (back to the list), then the list.
 - **TheDockIsFree**: no overlay covers the dock, so each of its buttons can be pressed.
+- **TheStickIsFree**: no overlay covers the stick `Switches`, so `States` can be pressed. On a wide screen the card starts below the stick.
 - **OneMenuAtMost**: one menu at most is open.
 - **AnOutsidePressClosesAMenu**: a press out of an open menu closes it.
 - **FindAndTheCardDoNotStackOnAPhone**: on a phone, Find and the card never show together.
@@ -301,6 +302,6 @@ stateDiagram-v2
 
 - The request mode and its draft: they cover nothing. Escape ends them after each overlay: [viewer-card](viewer-card.md).
 - What a pick does: a page ([viewer-pages](viewer-pages.md)), a locale ([kit-frame-axes](kit-frame-axes.md)), a list, or an act on a request ([viewer-queue](viewer-queue.md)).
-- That `States` shows only when a frame takes a switch: the model keeps it in the dock. The locale is a group of `States`, not a button of its own (product#27).
+- That `States` shows only when a frame takes a switch: the model keeps it in the stick. The locale is a group of `States`, not a button of its own (product#27).
 - The words of Find and its take: [viewer-find](viewer-find.md).
 - The panel `Controls` of an app frame: it has its own `Close`, and on a phone it stops above the dock too.

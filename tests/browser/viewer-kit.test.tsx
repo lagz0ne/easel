@@ -370,6 +370,8 @@ test("an app frame draws its JS in the composed document (composeApp), with the 
 
 const statesButton = () => page.getByRole("button", { name: "States" });
 const statesMenu = () => page.getByRole("menu", { name: "States" });
+const stick = () => page.getByRole("toolbar", { name: "Switches" });
+const dock = () => page.getByRole("toolbar", { name: "Canvas" });
 const localeGroup = () => statesMenu().getByRole("group", { name: "locale" });
 
 const languageOf = (code: string) =>
@@ -385,7 +387,7 @@ async function chooseLocale(code: string) {
 
 const boxOf = (el: Element) => el.getBoundingClientRect();
 
-test("viewer-overlays States, product#27: the locale is the first group of States in the dock, not its own button; it has a radio item for each locale in its own language; a pick closes the menu, and so do a press out of it, Escape and Pages (APickClosesItsMenu, AnOutsidePressClosesAMenu, EscapeClosesTheTop, OneMenuAtMost)", async () => {
+test("viewer-overlays States, product#27: States is in the stick Switches at the top right, not in the dock; the locale is the first group of States, not its own button; it has a radio item for each locale in its own language; a pick closes the menu, and so do a press out of it, Escape and Pages (APickClosesItsMenu, AnOutsidePressClosesAMenu, EscapeClosesTheTop, OneMenuAtMost)", async () => {
   const server = await boot([{ id: "b", x: 0, y: 0, capsule: true }]);
   const at = await tab(server);
   await rested(at, 1);
@@ -394,6 +396,10 @@ test("viewer-overlays States, product#27: the locale is the first group of State
   const pages = page.getByRole("button", { name: "Pages" });
   await expect.element(button).toBeVisible();
   expect(page.getByRole("button", { name: "Locale" }).elements()).toEqual([]);
+  expect(stick().getByRole("button").elements()).toEqual([button.element()]);
+  expect(dock().getByRole("button", { name: "States" }).elements()).toEqual([]);
+  expect(Math.round(innerWidth - boxOf(stick().element()).right)).toBeLessThanOrEqual(16);
+  expect(boxOf(stick().element()).top).toBeLessThanOrEqual(16);
   expect(button.element().getAttribute("title")).toContain("locale en");
 
   await button.click();
@@ -413,7 +419,7 @@ test("viewer-overlays States, product#27: the locale is the first group of State
     ["en", `${languageOf("en")}EN`],
     ["vi", `${languageOf("vi")}VI`],
   ]);
-  expect(boxOf(statesMenu().element()).bottom).toBeLessThanOrEqual(boxOf(button.element()).top);
+  expect(boxOf(statesMenu().element()).top).toBeGreaterThanOrEqual(boxOf(button.element()).bottom);
 
   await localeGroup()
     .getByRole("menuitemradio", { name: languageOf("vi") })
@@ -443,16 +449,15 @@ test("viewer-overlays States, product#27: the locale is the first group of State
   expect(page.getByRole("menu", { name: "Pages" }).elements()).toHaveLength(0);
 });
 
-test("viewer-overlays States on a phone (390 x 844): the dock has no Locale button, it fits, each of its buttons is 40 x 40 px at least, and the States menu stays in the view", async () => {
+test("viewer-overlays States on a phone (390 x 844): the dock has no Locale and no States button, it fits, each of its buttons and States are 40 x 40 px at least, States is at the top right, and the States menu stays in the view", async () => {
   const server = await boot([{ id: "b", x: 0, y: 0, capsule: true }]);
   const at = await tab(server);
   await rested(at, 1);
   await page.viewport(390, 844);
   await expect.poll(() => innerWidth).toBe(390);
 
-  const dock = page.getByRole("toolbar", { name: "Canvas" });
   await expect.element(statesButton()).toBeVisible();
-  const shown = dock
+  const shown = dock()
     .getByRole("button")
     .elements()
     .filter((b) => boxOf(b).width > 0);
@@ -461,18 +466,19 @@ test("viewer-overlays States on a phone (390 x 844): the dock has no Locale butt
     "Requests",
     "Find",
     "Pages",
-    "States",
     "Zoom",
   ]);
-  for (const one of shown) {
+  const states = boxOf(statesButton().element());
+  expect([states.top < 844 / 4, states.right > 390 - 64]).toEqual([true, true]);
+  for (const one of [...shown, statesButton().element()]) {
     const box = boxOf(one);
     expect([box.width >= 40, box.height >= 40], one.getAttribute("aria-label") ?? "").toEqual([
       true,
       true,
     ]);
   }
-  const width = boxOf(dock.element()).width;
-  console.log(`size: the dock with States is ${width.toFixed(0)} px wide at 390 px`);
+  const width = boxOf(dock().element()).width;
+  console.log(`size: the dock without States is ${width.toFixed(0)} px wide at 390 px`);
   expect(width).toBeLessThan(390 - 48);
 
   await statesButton().click();

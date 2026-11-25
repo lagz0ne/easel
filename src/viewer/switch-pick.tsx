@@ -40,7 +40,7 @@ export function StatesPick({ canvas }: { canvas: string }) {
       onOpenChange={(next) => set.run({ input: { menu: "states", open: next } })}
     >
       <Menu.Trigger
-        className="e-dock-btn e-dock-states"
+        className="e-dock-btn e-stick-states"
         aria-label="States"
         title={`States: ${said}`}
       >
@@ -49,7 +49,7 @@ export function StatesPick({ canvas }: { canvas: string }) {
         </svg>
       </Menu.Trigger>
       <Menu.Portal>
-        <Menu.Positioner className="e-menu-pos" side="top" sideOffset={8}>
+        <Menu.Positioner className="e-menu-pos" side="bottom" align="end" sideOffset={8}>
           <Menu.Popup className="e-menu e-states" aria-label="States">
             {shown.map(({ offer, value }) =>
               offer.name === localeSwitch ? (
@@ -62,6 +62,14 @@ export function StatesPick({ canvas }: { canvas: string }) {
         </Menu.Positioner>
       </Menu.Portal>
     </Menu.Root>
+  );
+}
+
+export function SwitchStick({ canvas }: { canvas: string }) {
+  return (
+    <div className="e-stick" role="toolbar" aria-label="Switches">
+      <StatesPick canvas={canvas} />
+    </div>
   );
 }
 
