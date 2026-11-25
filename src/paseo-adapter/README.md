@@ -2,7 +2,13 @@
 
 The adapter is step 5 of the design loop (SPEC-design-loop.md, § The loop). It reads the design
 requests that easel publishes to the hub's NATS, and starts one Paseo agent for each request. It
-is not part of the easel server binary. Nothing in `src/` or `cmds/` imports it.
+is not part of the easel server binary. Only `cmds/paseo-adapter.ts` installs it.
+
+It is a Tinker capsule, `paseoAdapter` (`index.server.ts`). Each step is an operation, so each
+call of paseo or easel, each request and each permit round is a span. The command
+`cmds/paseo-adapter.ts` is the seam: it reads the environment and the seed file, and fills the
+config of the capsule. Each setting is a tag with its default in `settings.ts`. The command also
+installs the telemetry capsule, so the spans go to `OTEL_EXPORTER_OTLP_ENDPOINT` when it is set.
 
 ## What it does
 
@@ -59,7 +65,7 @@ report and the server agree. `EASEL_PASEO_EASEL` names another binary.
 ## Run it
 
 ```sh
-bun run services/paseo-adapter/main.ts
+bun cmds/paseo-adapter.ts
 ```
 
 The log is one JSON line for each event on stdout: `bound`, `started`, `repeat`, `busy`,
@@ -108,4 +114,6 @@ the unit in `~/work/config/systemd/easel-paseo-adapter.service`.
 
 `tests/paseo-adapter.test.ts` starts a local `nats-server -js` with a stream and a consumer as the
 hub has them, a fake `paseo` (`tests/support/fake-paseo.ts`), and the adapter as a process.
-`bun run test` runs it.
+`tests/paseo-adapter-scope.test.ts` runs the capsule in a scope, with a test clock, a preset of
+the NATS source and a preset of `runCommand`. It reaches each exit of each operation, as
+`tinker check` asks. `bun run test` runs both.

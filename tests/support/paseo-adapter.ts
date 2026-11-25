@@ -260,7 +260,7 @@ export function startAdapter(nats: HubNats, paseo: FakePaseo, more: Record<strin
   const stateDir = join(paseo.dir, "state");
   const lines: LogLine[] = [];
   const raw: string[] = [];
-  const child = Bun.spawn([process.execPath, join(root, "services/paseo-adapter/main.ts")], {
+  const child = Bun.spawn([process.execPath, join(root, "cmds/paseo-adapter.ts")], {
     env: {
       PATH: process.env.PATH,
       HOME: paseo.dir,
