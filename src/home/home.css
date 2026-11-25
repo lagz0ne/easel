@@ -258,6 +258,8 @@
 .e-home-acts {
   display: flex;
   gap: var(--e-2);
+  align-items: center;
+  margin-left: auto;
 }
 
 .e-home-wait [role="alert"] {
@@ -332,4 +334,33 @@
   .e-home {
     padding-top: var(--e-7);
   }
+}
+
+.e-home-type {
+  display: grid;
+  gap: var(--e-2);
+  margin-bottom: var(--e-4);
+}
+
+.e-home-type label {
+  font-size: var(--e-size-2);
+  font-weight: var(--e-w-medium);
+  color: var(--e-muted);
+}
+
+.e-home-type-line {
+  display: flex;
+  gap: var(--e-2);
+  max-width: 360px;
+}
+
+.e-home-type-line input {
+  flex: 1 1 auto;
+  font-family: "Geist Mono", ui-monospace, "SF Mono", Menlo, monospace;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.e-home-type [role="alert"] {
+  margin: 0;
 }

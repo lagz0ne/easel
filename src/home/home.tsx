@@ -3,7 +3,7 @@ import { useData, useRun } from "@tinkered/react";
 import { z } from "zod";
 
 import { access } from "@/access";
-import { authPaths } from "@/access/contract";
+import { authPaths, codeLetters, ownerContracts } from "@/access/contract";
 
 import { codesBoard, homeBoard } from "./contract";
 import type { HomeRow, WaitingCode } from "./contract";
@@ -96,7 +96,7 @@ const approveText = {
     wait: "This page signs in when the owner approves it.",
   },
   single: {
-    ask: "Approve it with this command, on a computer where your CLI is signed in.",
+    ask: "Type it on the home page of a browser where you are signed in, or approve it with this command.",
     wait: "This page signs in when you approve it.",
   },
 };
@@ -294,13 +294,7 @@ function CanvasList({ list }: { list: readonly HomeRow[] }) {
 type SlotProps = { row: WaitingCode; me: string; busy: boolean; approve: () => void };
 
 function ApproveSlot({ row, me, busy, approve }: SlotProps) {
-  if (row.name === "") {
-    return (
-      <span className="e-home-meta">
-        Type it in <code>easel users approve</code> if your device shows it
-      </span>
-    );
-  }
+  if (row.name === "") return null;
   if (row.user && row.name !== me) {
     return <span className="e-home-meta">Only {row.name} can sign it in</span>;
   }
@@ -323,15 +317,26 @@ function CodeRow({ row, me }: { row: WaitingCode; me: string }) {
   const deny = useRun(access.owner["users.deny"]);
   const busy = approve.isPending || deny.isPending;
   const who = row.name || "a browser";
+  const from = row.browser ? "a browser" : "the CLI";
 
   return (
     <li className="e-home-wait">
       <span className="e-home-main">
-        <span className="e-home-name">{who}</span>
-        <span className="e-home-meta">
-          <code>{row.code}</code> · {row.browser ? "a browser" : "the CLI"} · until{" "}
-          {until.format(row.expiresAt)}
-        </span>
+        {row.name ? (
+          <>
+            <span className="e-home-name">{row.name}</span>
+            <span className="e-home-meta">
+              <code>{row.code}</code> · {from} · until {until.format(row.expiresAt)}
+            </span>
+          </>
+        ) : (
+          <>
+            <code className="e-home-name">{row.code}</code>
+            <span className="e-home-meta">
+              {from} · until {until.format(row.expiresAt)}
+            </span>
+          </>
+        )}
       </span>
       <span className="e-home-acts">
         <button
@@ -354,6 +359,60 @@ function CodeRow({ row, me }: { row: WaitingCode; me: string }) {
   );
 }
 
+type Approved = z.infer<(typeof ownerContracts)["users.approve"]["output"]>;
+
+function TypedAnswer({ answer, failed }: { answer: Approved | undefined; failed: boolean }) {
+  if (failed) return <p role="alert">No answer. Try again.</p>;
+  switch (answer?.kind) {
+    case undefined:
+    case "approved":
+      return null;
+    case "theirs":
+      return <p role="alert">Only {answer.name} can sign in with this code.</p>;
+    case "single":
+      return <p role="alert">This code asks for a new user. This easel has one person.</p>;
+    case "gone":
+      return <p role="alert">No code like this waits. Read the code on your device again.</p>;
+  }
+}
+
+const codeLetter = `[${codeLetters}${codeLetters.toLowerCase()}]`;
+
+const codePattern = `${codeLetter}{4}(?:\\s|-)?${codeLetter}{4}`;
+
+function TypeCode() {
+  const approve = useRun(access.owner["users.approve"]);
+
+  return (
+    <form
+      className="e-home-type"
+      onSubmit={(event) => {
+        event.preventDefault();
+        const typed = new FormData(event.currentTarget).get("code");
+        if (typeof typed === "string") approve.run({ input: { code: typed, owner: false } });
+      }}
+    >
+      <label htmlFor="e-home-type">Code on your device</label>
+      <span className="e-home-type-line">
+        <input
+          id="e-home-type"
+          name="code"
+          placeholder="XXXX-XXXX"
+          pattern={codePattern}
+          autoComplete="one-time-code"
+          autoCapitalize="characters"
+          spellCheck={false}
+          required
+        />
+        <button type="submit" className="e-home-primary" disabled={approve.isPending}>
+          Approve
+        </button>
+      </span>
+      <TypedAnswer answer={approve.data} failed={Boolean(approve.error)} />
+    </form>
+  );
+}
+
 function Codes({ me }: { me: string }) {
   const part = codesBoard.codes.where({});
   const list = useData(part);
@@ -362,7 +421,8 @@ function Codes({ me }: { me: string }) {
   return (
     <section className="e-home-codes" aria-labelledby="e-home-codes">
       <h2 id="e-home-codes">Codes that wait for you</h2>
-      <ul className="e-home-list">
+      {list.some((row) => row.name === "") ? <TypeCode /> : null}
+      <ul className="e-home-list" aria-labelledby="e-home-codes">
         {list.map((row) => (
           <CodeRow key={row.code} row={row} me={me} />
         ))}

@@ -27,6 +27,7 @@ type Wait = { kind: "approved" } | { kind: "denied" } | { kind: "expired" };
 const world = {
   signedIn: false,
   starts: [] as Array<{ name?: string }>,
+  approvals: [] as Array<{ code: string; owner?: boolean }>,
   answer: Promise.withResolvers<Wait>(),
 };
 
@@ -72,7 +73,9 @@ const peek = operation({
 const approve = operation({
   label: "test.singleApprove",
   input: ownerApi["users.approve"].input,
-  run: () => {
+  run: (_, { input }) => {
+    world.approvals.push(input);
+    if (input.code !== "PQRS-TVWX") return { kind: "gone" as const };
     return {
       kind: "approved" as const,
       user: { name: "lagz0ne", role: "owner" as const, since: now },
@@ -133,6 +136,7 @@ const putCode = operation({
 async function boot() {
   world.signedIn = false;
   world.starts = [];
+  world.approvals = [];
   world.answer = Promise.withResolvers<Wait>();
   const server = await createScope({
     capsules: [
@@ -202,6 +206,13 @@ test("criterion 1, single: / with no session shows a code at once, with no name 
   expect(page.getByLabelText("Your name").elements()).toHaveLength(0);
   expect(world.starts).toEqual([{}]);
   await expect.element(page.getByText("easel users approve DFGH-JKLM")).toBeVisible();
+  await expect
+    .element(
+      page.getByText(
+        "Type it on the home page of a browser where you are signed in, or approve it with this command.",
+      ),
+    )
+    .toBeVisible();
 
   world.answer.resolve({ kind: "approved" });
   await expect.element(page.getByText("Approved. Signing in.")).toBeVisible();
@@ -238,21 +249,44 @@ test("criterion 2, single: the title of / is the project name, and the page list
   await expect.element(list.getByText("2 wait for you")).toBeVisible();
 });
 
-test("single: the person sees a code with no name as a browser, with Deny and no Approve button: the person types the code of its own device in the CLI", async () => {
+test("single: the person sees a code with no name one time, as a browser, with Deny and no Approve button of its own", async () => {
   const server = await boot();
   world.signedIn = true;
   server.run(putCode);
   await tab(server, single);
 
+  const codes = page.getByRole("list", { name: "Codes that wait for you" });
   await expect
-    .element(page.getByRole("button", { name: "Deny PQRS-TVWX of a browser" }))
+    .element(codes.getByRole("button", { name: "Deny PQRS-TVWX of a browser" }))
     .toBeVisible();
-  expect(
-    page.getByRole("button", { name: "Approve PQRS-TVWX of a browser" }).elements(),
-  ).toHaveLength(0);
+  expect(codes.getByRole("button", { name: /^Approve/ }).elements()).toHaveLength(0);
+  const row = codes.getByRole("listitem").element().textContent ?? "";
+  expect(row.match(/PQRS-TVWX/g)).toHaveLength(1);
+  expect(row.match(/a browser/g)).toHaveLength(1);
+});
+
+test("single: the person types the code that its own device shows, and Approve approves that code", async () => {
+  const server = await boot();
+  world.signedIn = true;
+  server.run(putCode);
+  await tab(server, single);
+
+  await page.getByRole("textbox", { name: "Code on your device" }).fill("pqrs tvwx");
+  await page.getByRole("button", { name: "Approve", exact: true }).click();
+  await expect.poll(() => world.approvals).toEqual([{ code: "PQRS-TVWX", owner: false }]);
+});
+
+test("single: a typed code that does not wait gets an answer that says so", async () => {
+  const server = await boot();
+  world.signedIn = true;
+  server.run(putCode);
+  await tab(server, single);
+
+  await page.getByRole("textbox", { name: "Code on your device" }).fill("BCDF-GHJK");
+  await page.getByRole("button", { name: "Approve", exact: true }).click();
   await expect
-    .poll(() => document.body.textContent)
-    .toContain("Type it in easel users approve if your device shows it");
+    .element(page.getByRole("alert"))
+    .toHaveTextContent("No code like this waits. Read the code on your device again.");
 });
 
 test("approve: with no project, the title stays Canvases", async () => {

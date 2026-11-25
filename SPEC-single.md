@@ -106,9 +106,13 @@ These points were open in the rules above. The build decided them so:
   the browser signs in as that owner. With one owner, that is the person. (Prior art: RFC 8628
   section 5.4. The person who approves a code is the person that the device signs in as.)
   `easel users` shows such a code as `(the owner who approves it)`.
-- The home page of the person shows a code with no name with Deny, and with no Approve button.
-  The person types the code that its own device shows in `easel users approve <code>`. So a click
-  on a code of another browser cannot sign that browser in.
+- The home page of the person shows a code with no name one time: the code, `a browser` and
+  the time it runs out, with Deny and with no Approve button of its own. Above the list, the
+  field "Code on your device" and its Approve take the code that the device of the person shows
+  (user, 2026-11-25). `easel users approve <code>` works too. So a click on a code of another
+  browser cannot sign that browser in. (Prior art: RFC 8628 section 3.3, the verification page
+  of GitHub and Google, where the person types the user code.) A typed code that does not wait
+  gets "No code like this waits. Read the code on your device again."
 - New answers: `login.start` answers `single` for each name in single, also for a name of a user,
   so that no name shows. `users.add --owner` and `users.approve --owner` answer `single`. An
   approve that would make a user (a CLI login, or a browser code with a new name, left from an
