@@ -9,6 +9,9 @@ export const queueDefaults = {
   retryAfter: [10_000, 30_000],
   githubTimeout: 10_000,
   natsTimeout: 10_000,
+  silentAfterMs: 60_000,
+  perPass: 10,
+  perAddress: 30,
 } as const;
 
 export const roundMs = tag({
@@ -38,5 +41,23 @@ export const githubTimeout = tag({
 export const natsTimeout = tag({
   label: "queue.natsTimeout",
   default: queueDefaults.natsTimeout,
+  parse: positive,
+});
+
+export const silentAfterMs = tag({
+  label: "queue.silentAfterMs",
+  default: queueDefaults.silentAfterMs,
+  parse: positive,
+});
+
+export const perPass = tag({
+  label: "queue.perPass",
+  default: queueDefaults.perPass,
+  parse: positive,
+});
+
+export const perAddress = tag({
+  label: "queue.perAddress",
+  default: queueDefaults.perAddress,
   parse: positive,
 });

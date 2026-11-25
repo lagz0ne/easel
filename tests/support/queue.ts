@@ -3,7 +3,7 @@ import { createHash, randomBytes } from "node:crypto";
 import { bunSqlite } from "@tinkered/bun/sqlite";
 import { exits } from "@tinkered/cli/test";
 import { createScope, operation } from "@tinkered/core";
-import type { Capsule, Observe, Scope } from "@tinkered/core";
+import type { Capsule, Observe, Scope, Tag } from "@tinkered/core";
 import { makeTestClock, memory } from "@tinkered/core/testing";
 import type { preset } from "@tinkered/core/testing";
 import { expect } from "vite-plus/test";
@@ -61,6 +61,7 @@ export async function boot(
     observe?: Observe.Config;
     extra?: readonly Capsule.Installable[];
     agreement?: boolean;
+    tags?: Tag.Bindings;
   } = {},
 ) {
   const out: string[] = [];
@@ -80,6 +81,7 @@ export async function boot(
   const scope = createScope({
     clock,
     presets,
+    tags: more.tags,
     ...(more.observe ? { observe: more.observe } : {}),
     capsules: [
       exits({ file: process.env.TINKER_EXITS }),

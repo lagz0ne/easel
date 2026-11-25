@@ -8,7 +8,8 @@ import { agreementRule } from "./agreement.server";
 import { requestStatus } from "./cells";
 import { maxTries, stateOf } from "./contract";
 import { holds, limitKind } from "./holds";
-import { reportInput, silentAfterMs, startRef, startsApi } from "./starts";
+import { silentAfterMs } from "./settings";
+import { reportInput, startRef, startsApi } from "./starts";
 import type { Limits } from "./starts";
 import { waitingBell } from "./store.server";
 
@@ -301,7 +302,8 @@ const periodNow = `SELECT d.channel, c.kind, d.status, d.cause, d.updated,
 const starterHold = operation({
   label: "queue.starterHold",
   input: z.object({ row: periodRow, now: z.number() }),
-  run: (_, { input: { row, now } }) => {
+  depends: { silentAfterMs },
+  run: ({ silentAfterMs }, { input: { row, now } }) => {
     if (row.kind !== "nats" || row.status !== "sent") return null;
 
     if (now - row.since > silentAfterMs) return { kind: "silent" as const, since: row.since };

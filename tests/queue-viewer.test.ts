@@ -2,7 +2,7 @@ import { afterEach, expect, test } from "vite-plus/test";
 
 import { frames } from "@/frames";
 import { defaultLease, maxOpen, maxTries, stateOf } from "@/queue/contract";
-import { perPass } from "@/queue/ops.server";
+import { queueDefaults } from "@/queue/settings";
 
 import {
   boot,
@@ -17,6 +17,8 @@ import {
   watchQueue,
 } from "./support/queue";
 import type { Client, Server } from "./support/queue";
+
+const { perPass } = queueDefaults;
 
 afterEach(async () => {
   for (const close of closers.splice(0).reverse()) await close();

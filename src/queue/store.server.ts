@@ -11,6 +11,7 @@ import { firstPageOf, hasPage } from "@/frames/store.server";
 import { agreementRule } from "./agreement.server";
 import { message, messages, request, requests } from "./cells";
 import { maxOpen, maxTries, stateOf } from "./contract";
+import { perAddress, perPass } from "./settings";
 
 const referred = `(EXISTS (SELECT 1 FROM queue_requests r WHERE r.canvas = OLD.canvas AND r.frame_id = OLD.id
     AND OLD.version IN (r.version, r.claim_version))
@@ -913,7 +914,7 @@ const load = operation({
 
 export const queueServer = capsule({
   label: "queueServer",
-  config: { stdout },
+  config: { stdout, perPass, perAddress },
   hooks: {
     async start({ run, next }) {
       await run(load, {}, { role: "setup", explain: "Reads the requests and their messages" });

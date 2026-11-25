@@ -4,11 +4,13 @@ import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 
+import type { Tag } from "@tinkered/core";
 import { afterEach, expect, test } from "vite-plus/test";
 
 import { access } from "@/access";
 import { frames } from "@/frames";
 import { queue } from "@/queue";
+import { silentAfterMs } from "@/queue/settings";
 
 import { githubDouble } from "./support/github";
 import { inbox, natsServer } from "./support/nats";
@@ -34,10 +36,10 @@ const subject = "easel.requests";
 
 const token = `ghp_${randomBytes(18).toString("hex")}`;
 
-async function withStarts(file = ":memory:") {
+async function withStarts(file = ":memory:", tags: Tag.Bindings = []) {
   const nats = await natsServer();
   closers.push(() => nats.close());
-  const srv = await boot(file, [], { github: githubDouble(token).fetch, agreement: true });
+  const srv = await boot(file, [], { github: githubDouble(token).fetch, agreement: true, tags });
   const { a, id, link } = await sharedFlow(srv);
   const bo = await viewer(srv, link, "Bo");
   const saved = await a.scope.run(queue.channels["channel.set"], {
@@ -302,6 +304,20 @@ test("a starter that has not reported for 60 s after the publish gives the hold 
   await a.report({ kind: "state", channel: "loop", running: 0, today: 0, at: null });
   await rounds(srv, 1000);
   await until(() => shown().length === 0);
+});
+
+test("with the tag queue.silentAfterMs at 5 s, a starter that has not reported for 6 s after the publish gives the hold silent", async () => {
+  const { nats, srv, a, bo, id } = await withStarts(":memory:", [silentAfterMs(5_000)]);
+  const shown = holdsOf(bo);
+  expect((await bo.add("flow", id)).kind).toBe("added");
+  expect(await a.agree("flow", 1)).toEqual({ kind: "agreed" });
+  expect(await messagesAfter(srv, nats)).toHaveLength(1);
+
+  await rounds(srv, 3000);
+  expect(shown()).toEqual([]);
+  await rounds(srv, 3000);
+  await until(() => shown().length === 1);
+  expect(shown()).toMatchObject([{ kind: "silent" }]);
 });
 
 test("a channel that refuses the delivery 3 times gives the hold refused (AShownRefusalIsTrue)", async () => {

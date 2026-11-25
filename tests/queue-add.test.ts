@@ -11,7 +11,11 @@ import { frames } from "@/frames";
 import { queue } from "@/queue";
 import { requests } from "@/queue/cells";
 import { maxOpen, requestContracts } from "@/queue/contract";
-import { perAddress, perPass } from "@/queue/ops.server";
+import {
+  perAddress as perAddressTag,
+  perPass as perPassTag,
+  queueDefaults,
+} from "@/queue/settings";
 import { release } from "@/release";
 
 import {
@@ -27,6 +31,8 @@ import {
   viewer,
   watchQueue,
 } from "./support/queue";
+
+const { perPass, perAddress } = queueDefaults;
 
 afterEach(async () => {
   for (const close of closers.splice(0).reverse()) await close();
@@ -178,6 +184,19 @@ test(`past ${perPass} calls a minute for one pass, or ${perAddress} for one clie
   expect(answers.filter((kind) => kind === "slow")).toHaveLength(2);
   const listed = await a.list({ canvas: "flow" });
   expect(listed.requests).toHaveLength(perPass + 2 + perAddress);
+});
+
+test("the tags queue.perPass and queue.perAddress set the limits: with 1 a pass and 2 an address, the second call of a pass and the third of an address are slow", async () => {
+  const srv = await boot(":memory:", [], { tags: [perPassTag(1), perAddressTag(2)] });
+  const { id, link } = await sharedFlow(srv);
+  const bo = await viewer(srv, link, "Bo", "203.0.113.1");
+  const cy = await viewer(srv, link, "Cy", "203.0.113.1");
+  const di = await viewer(srv, link, "Di", "203.0.113.1");
+
+  expect((await bo.add("flow", id)).kind).toBe("added");
+  expect(await bo.add("flow", id)).toEqual({ kind: "slow", retryIn: 60_000 });
+  expect((await cy.add("flow", id)).kind).toBe("added");
+  expect(await di.add("flow", id)).toEqual({ kind: "slow", retryIn: 60_000 });
 });
 
 test("the name comes from the pass, or from the user, never from the input: an author in the input is invalid", async () => {

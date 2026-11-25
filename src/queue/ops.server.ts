@@ -12,6 +12,7 @@ import type { Request } from "./cells";
 import { defaultLease, queueApi, requestApi, stateOf } from "./contract";
 import { listDeliveries } from "./dispatch.server";
 import { whoActs } from "./guards.server";
+import { perAddress, perPass } from "./settings";
 import { shotOf, shotWriteOf } from "./shots.server";
 import {
   changeRequest,
@@ -24,9 +25,6 @@ import {
   soonestEnd,
   waitingBell,
 } from "./store.server";
-
-export const perPass = 10;
-export const perAddress = 30;
 
 const newId = operation({
   label: "queue.newId",
@@ -42,8 +40,9 @@ const newSecret = operation({
 const viewerLimit = operation({
   label: "queue.viewerLimit",
   input: z.string(),
-  depends: { limiter, clientAddress, addressKey },
-  run: ({ limiter, clientAddress, addressKey }, { input: key, clock }) => {
+  depends: { limiter, clientAddress, addressKey, perPass, perAddress },
+  run: (deps, { input: key, clock }) => {
+    const { limiter, clientAddress, addressKey, perPass, perAddress } = deps;
     const now = clock.currentTimeMillis();
     const byPass = limiter.hit(`request ${key}`, perPass, now);
     if (byPass !== null) return { kind: "slow" as const, retryIn: byPass };

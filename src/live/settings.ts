@@ -62,6 +62,12 @@ export const statusSize = tag({
   parse: z.string().regex(/^\d+x\d+$/),
 });
 
+export const liveNoise = tag({
+  label: "liveScreens.noise",
+  default: 8,
+  parse: z.number().int().nonnegative(),
+});
+
 export const setupViewport = tag({
   label: "liveScreens.setupViewport",
   default: { width: 1440, height: 900 },

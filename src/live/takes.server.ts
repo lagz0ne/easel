@@ -8,7 +8,7 @@ import { openLinked, openList, markedOpen } from "./fixture.server";
 import type { Fixture } from "./fixture.server";
 import { screens, takes } from "./screens";
 import type { Screen, Take } from "./screens";
-import { fixturePins, keptDir, liveOutput, liveWaits } from "./settings";
+import { fixturePins, keptDir, liveNoise, liveOutput, liveWaits } from "./settings";
 import { liveUsed, styleProps } from "./values";
 import type { ElementStyle, TakeValues } from "./values";
 
@@ -158,13 +158,14 @@ export const liveCaptioned = operation({
 export const liveSamePixels = operation({
   label: "liveScreens.samePixels",
   input: z.object({ browser, a: z.custom<Buffer>(), b: z.custom<Buffer>() }),
-  run: async (_, { input: { browser, a, b } }) => {
+  depends: { noise: liveNoise },
+  run: async ({ noise }, { input: { browser, a, b } }) => {
     if (a.equals(b)) return true;
 
     const page = await browser.newPage();
     try {
       return await page.evaluate(
-        async ({ one, two }) => {
+        async ({ one, two, noise }) => {
           const [x = new Uint8ClampedArray(), y = new Uint8ClampedArray()] = await Promise.all(
             [one, two].map(async (src) => {
               const image = await createImageBitmap(await (await fetch(src)).blob());
@@ -176,11 +177,12 @@ export const liveSamePixels = operation({
               return pen.getImageData(0, 0, image.width, image.height).data;
             }),
           );
-          return x.length === y.length && x.every((v, i) => v === y[i]);
+          return x.length === y.length && x.every((v, i) => Math.abs(v - (y[i] ?? 0)) <= noise);
         },
         {
           one: `data:image/png;base64,${a.toString("base64")}`,
           two: `data:image/png;base64,${b.toString("base64")}`,
+          noise,
         },
       );
     } finally {

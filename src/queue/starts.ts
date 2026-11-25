@@ -9,7 +9,6 @@ import { limitKind } from "./holds";
 export const maxRunningLimit = 20;
 export const maxPerDayLimit = 500;
 export const defaultLimits = { running: 2, perDay: 20 } as const;
-export const silentAfterMs = 60_000;
 export const maxCause = 300;
 
 export const limits = z.object({

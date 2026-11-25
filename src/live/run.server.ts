@@ -25,6 +25,7 @@ import {
   keptDir,
   liveBinary,
   liveCanvas,
+  liveNoise,
   liveOutput,
   liveWaits,
   reopenNote,
@@ -212,6 +213,7 @@ export const liveScreens = capsule({
     answers: fixtureAnswers,
     note: reopenNote,
     frames: fixtureFrames,
+    noise: liveNoise,
   },
   exports: { liveScreensRun },
 });

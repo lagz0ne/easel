@@ -11,7 +11,14 @@ import { channelColumns, channelRow, makeDispatchTables, storedChannel } from ".
 import { maxTries, queueApi, stateOf } from "./contract";
 import { githubBase, githubCall, githubFetch, githubMessage, scrub } from "./github.server";
 import { natsCall } from "./nats.server";
-import { githubTimeout, maxAttempts, natsTimeout, retryAfter, roundMs } from "./settings";
+import {
+  githubTimeout,
+  maxAttempts,
+  natsTimeout,
+  retryAfter,
+  roundMs,
+  silentAfterMs,
+} from "./settings";
 import { makeStartTables, showHolds } from "./starts.server";
 
 const deliveryKey = z.object({
@@ -644,6 +651,7 @@ export const dispatchServer = capsule({
     retryAfter,
     githubTimeout,
     natsTimeout,
+    silentAfterMs,
   },
   exports: { dispatchState },
   hooks: {

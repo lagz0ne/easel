@@ -79,7 +79,9 @@ copies, but the live app did not change, and nothing showed the difference. Afte
    - The After is of another build: it puts the image of that After as a new version of the
      Before, then the take as a new version of the After (`next`, V3).
    - The After is of build `n`: it compares the pixels. The same pixels: it puts nothing, and the
-     status says `same` (V2). Other pixels: it puts nothing, and the status says `differs`. That
+     status says `same` (V2). The same pixels means that no channel of a pixel differs by more
+     than 8 of 255 (the tag `liveScreens.noise`), as in the map job. Chromium draws the edges of
+     a round shape 5 to 7 levels differently from run to run. Other pixels: it puts nothing, and the status says `differs`. That
      is a finding, because two takes of one build must be the same.
    - The take fails: it puts nothing, so the last good After stays, and the status names the screen
      and the reason. The job ends red, and keeps a picture of the page in the run.
