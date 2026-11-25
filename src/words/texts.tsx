@@ -12,7 +12,7 @@ import type { TextsView } from "./view";
 import "@/home/home.css";
 import "./texts.css";
 
-const manyUses = 4;
+const manyUses = 2;
 
 function Shown({ text }: { text: Text }) {
   if (typeof text === "string") return <>{text}</>;

@@ -50,6 +50,12 @@
 .e-texts-table summary {
   cursor: pointer;
   color: var(--e-muted);
+  white-space: nowrap;
+}
+
+.e-texts-table details[open] .e-texts-uses {
+  flex-direction: column;
+  margin-top: var(--e-1);
 }
 
 .e-texts-bar {

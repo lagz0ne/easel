@@ -202,7 +202,9 @@ test("L9, L11, L13, L14: /texts is one table: each text beside its translation w
     "No key",
   ]);
   await expect.poll(() => textOf(rowOf("trial.start"))).toContain("StartBắt đầu");
+  await rowOf("trial.start").getByText("2 frames").click();
   await expect.element(rowOf("trial.start").getByRole("link", { name: "Cart" })).toBeVisible();
+  await expect.element(rowOf("plan.name").getByRole("link", { name: "Checkout" })).toBeVisible();
   await expect.poll(() => textOf(rowOf("plan.name"))).toContain("Not translated");
   await expect.poll(() => textOf(rowOf("ui.close"))).toContain("ĐóngNot used");
   await expect.poll(() => textOf(rowOf("cart.title"))).toContain("Not in the team");
