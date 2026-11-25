@@ -93,6 +93,8 @@ states" and "Pin"; this spec replaces both words.
    frame is its first column. The case frames follow in the order of the list.
    - The first write makes the case group at the place of the source frame (`at`, SPEC-arrange
      rule 10). So the source frame stays where it was, and its cases go to its right.
+   - A source frame that is in a section of a person keeps that section. Its case frames go right
+     after it, in the order of the list.
    - A case frame has its own id, the name `<source frame name> · <case name>`, and the size of
      its source frame. Its version is the version of its source frame.
    - A case frame keeps the build of its source frame (`html`, `css`, `kit`, `js`). easel writes

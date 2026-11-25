@@ -84,7 +84,19 @@ Each task lands green with `scripts/ship.sh`. A dirty file of another agent goes
   - Acceptance: a browser test: a case frame `many` shows the fixture `many`; one pick of `dark`
     on the board changes it; a pick on the case frame changes only that frame.
   - Verify: the browser test, then `bun run smoke`, then a look with `agent-browser`.
-- [ ] **Proof on the live easel.** The users list of the page `regroup-the-controller` as a real
+- [ ] **T4 · Fixes from the review (2026-11-25).** The reviewer gave `proven` for each success
+      line, and found these bugs in T1.
+  - [x] T4a (`src/frames/cases.server.ts`, `src/frames/delete.server.ts`, `tests/cases.test.ts`,
+        `tests/canvas-delete.test.ts`, `SPEC-cases.md`): a new order of the list moves the case frames
+        to that order; a source in a section of a person gets its case frames right after it (SPEC-cases
+        decision 3 says so); `canvas rm` removes the case lists; an empty first list makes no section;
+        a test proves that `parts publish` does not take a case frame as a main or a copy.
+  - T4b (`src/frames/store.server.ts`, after the 7d ship of tinker-packages): a move or a resize
+    of a source frame moves or resizes its case frames.
+  - Not in ship 1 (for ship 2, in the report): `base` required on `cases.set`; refuse
+    `frame.move` and a mark on a case frame; a fixture only of a cell of the source frame.
+  - Verify: `bun test tests/cases.test.ts tests/canvas-delete.test.ts`, then `check:plain`.
+- [x] **Proof on the live easel.** The users list of the page `regroup-the-controller` as a real
       source frame with 4 cases. Its case frames show in the section `users list · cases`.
 
 ## Risks

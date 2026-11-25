@@ -50,6 +50,7 @@ const rowsOfCanvas = {
   deliveries: `SELECT COUNT(*) AS n FROM queue_deliveries WHERE request NOT IN (SELECT id FROM queue_requests)
     OR request IN (SELECT id FROM queue_requests WHERE canvas = $canvas)`,
   keyGeneration: "SELECT COALESCE(MAX(gen), 0) AS n FROM frames_keygen WHERE canvas = $canvas",
+  cases: "SELECT COUNT(*) AS n FROM frames_cases WHERE canvas = $canvas",
 };
 
 const countRows = operation({
@@ -124,18 +125,22 @@ async function otherCanvas(a: Client) {
   expect((await a.add("other", made.id, "Keep me.")).kind).toBe("added");
 }
 
-test("canvas.delete deletes the canvas with its frames, pages, kept versions, removed frames, requests, messages, deliveries, link and passes; a second delete answers gone", async () => {
+test("canvas.delete deletes the canvas with its frames, pages, kept versions, removed frames, requests, messages, deliveries, link, passes and case lists; a second delete answers gone", async () => {
   const github = githubDouble(token);
   const srv = await boot(":memory:", [], { github: github.fetch });
   const { a, id, link } = await sharedFlow(srv);
   expect(await a.setChannel(token)).toEqual({ kind: "saved" });
   await otherCanvas(a);
   await fullCanvas(srv, a, id, link);
+  const cases = await a.scope.run(frames.api["cases.set"], {
+    input: { canvas: "flow", frame: id, cases: [{ name: "one" }] },
+  });
+  expect(cases.kind).toBe("set");
   const before = await srv.server.run(countRows, { input: "flow" });
   const otherBefore = await srv.server.run(countRows, { input: "other" });
   expect(before).toEqual({
     canvases: 1,
-    frames: 1,
+    frames: 2,
     pages: 2,
     kept: 1,
     removed: 1,
@@ -145,6 +150,7 @@ test("canvas.delete deletes the canvas with its frames, pages, kept versions, re
     messages: 1,
     deliveries: 1,
     keyGeneration: 0,
+    cases: 1,
   });
 
   expect(await deleteCanvas(a, "flow")).toEqual({ kind: "deleted" });
@@ -161,6 +167,7 @@ test("canvas.delete deletes the canvas with its frames, pages, kept versions, re
     messages: 0,
     deliveries: 0,
     keyGeneration: 1,
+    cases: 0,
   });
   expect(srv.server.run(countCells, { input: "flow" })).toEqual({
     canvases: 0,

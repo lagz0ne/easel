@@ -24,6 +24,7 @@ const rowsOfCanvas = [
   ["queue_shots", "DELETE FROM queue_shots WHERE canvas = $canvas"],
   ["queue_requests", "DELETE FROM queue_requests WHERE canvas = $canvas"],
   ["frames_frames", "DELETE FROM frames_frames WHERE canvas = $canvas"],
+  ["frames_cases", "DELETE FROM frames_cases WHERE canvas = $canvas"],
   ["frames_kept", "DELETE FROM frames_kept WHERE canvas = $canvas"],
   ["frames_removed", "DELETE FROM frames_removed WHERE canvas = $canvas"],
   ["frames_images", "DELETE FROM frames_images WHERE canvas = $canvas"],

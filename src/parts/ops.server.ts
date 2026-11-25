@@ -47,6 +47,20 @@ export const usersOf = operation({
   },
 });
 
+export const copyFramesOf = operation({
+  label: "parts.copyFramesOf",
+  input: z.string(),
+  depends: { connection: bunSqlite.connection },
+  run: async ({ connection }, { input: id }) =>
+    keysOf.parse(
+      connection.db.$client
+        .query(
+          "SELECT canvas, id FROM frames_frames WHERE source IS NULL AND instr(html, ?) > 0 ORDER BY canvas, id",
+        )
+        .all(`data-doop-instance="${id}"`),
+    ),
+});
+
 const floorsOf = operation({
   label: "parts.floorsOf",
   depends: { connection: bunSqlite.connection, copyRevs },
@@ -180,14 +194,14 @@ const countsIn = operation({
 export const listParts = operation({
   label: "parts.list.do",
   input: partsApi["parts.list"].input,
-  depends: { designNow, usersOf, countsIn },
-  run: async ({ designNow, usersOf, countsIn }) => {
+  depends: { designNow, copyFramesOf, countsIn },
+  run: async ({ designNow, copyFramesOf, countsIn }) => {
     const design = await designNow.run();
     const counted = new Map<string, Counts>();
     const parts = [];
     for (const part of design.now.values()) {
       const copies = [];
-      for (const key of await usersOf.run({ input: [part.id] })) {
+      for (const key of await copyFramesOf.run({ input: part.id })) {
         const at = `${key.canvas}/${key.id}`;
         const counts = counted.get(at) ?? (await countsIn.run({ input: key }));
         counted.set(at, counts);

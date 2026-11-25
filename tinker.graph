@@ -66,7 +66,7 @@ canvas.list.do exits{value} reads{?} writes{?} calls{}
 canvas.share.do exits{gone,shared} reads{?} writes{?} calls{frames.endPasses,frames.liveLink,frames.newSecret,frames.plannedPassword,frames.writeShare}
 canvas.unshare.do exits{gone,unshared} reads{?} writes{?} calls{frames.endPasses}
 cases.list.do exits{CaseFrame,found,gone} reads{} writes{} calls{frames.readCaseFrames,frames.readList,frames.readSource}
-cases.set.do exits{CaseFrame,CaseInvalid,CasesTooMany,changed,gone,set} reads{} writes{} calls{frames.arrangeAfter,frames.checkCases,frames.fixtureNamesNow,frames.groupOf,frames.layoutOf,frames.readList,frames.readSource,frames.showArranged,frames.showPages,frames.showRemoved,frames.writeCaseFrames}
+cases.set.do exits{CaseFrame,CaseInvalid,CasesTooMany,changed,gone,set} reads{} writes{} calls{frames.arrangeAfter,frames.checkCases,frames.fixtureNamesNow,frames.groupOf,frames.layoutOf,frames.readList,frames.readSource,frames.seatCaseFrames,frames.showArranged,frames.showPages,frames.showRemoved,frames.writeCaseFrames}
 channel.limits.do exits{gone,notNats,notPerson,saved} reads{} writes{} calls{queue.readStarterChannel}
 channel.list.do exits{listed} reads{} writes{} calls{queue.channelInfoOf,queue.readChannels}
 channel.remove.do exits{gone,removed} reads{} writes{} calls{}
@@ -414,6 +414,7 @@ frames.saveFrame exits{CaseFrame,changed,created,gone,placed,stale,unchanged,upd
 frames.saveNew exits{value} reads{} writes{} calls{frames.arrangeWrite,frames.insertFrame}
 frames.saveOn exits{value} reads{} writes{} calls{frames.arrangeWrite,frames.boxNow,frames.followSource,frames.sourceOf,frames.updateFrame}
 frames.savePut exits{CaseFrame,changed,created,gone,placed,stale,unchanged,updated} reads{} writes{} calls{?,frames.saveFrame,parts.publishFrom}
+frames.seatCaseFrames exits{value} reads{} writes{} calls{frames.seatFrame}
 frames.seatFrame exits{value} reads{} writes{} calls{}
 frames.seatOfPlace exits{exact,gone,placed,seat} reads{} writes{} calls{frames.sectionSeat,frames.targetOf}
 frames.sectionSeat exits{gone,seat} reads{} writes{} calls{frames.firstPageOf,frames.hasPage}
@@ -427,7 +428,7 @@ frames.storeImage exits{value} reads{} writes{} calls{}
 frames.targetOf exits{gone,placed,seat} reads{} writes{} calls{}
 frames.unseatFrame exits{value} reads{} writes{} calls{}
 frames.updateFrame exits{gone,marked,stale,unchanged,updated} reads{} writes{} calls{frames.keptWrite,frames.storeImage}
-frames.writeCaseFrames exits{value} reads{} writes{} calls{frames.readCaseFrames,frames.removeFrameRow,frames.seatFrame}
+frames.writeCaseFrames exits{value} reads{} writes{} calls{frames.readCaseFrames,frames.removeFrameRow}
 frames.writeName exits{gone,renamed,taken} reads{} writes{} calls{frames.hasPage,frames.nameIsTaken}
 frames.writeNewPage exits{created,full,gone,taken} reads{} writes{} calls{frames.canvasIsThere,frames.hasPage,frames.nameIsTaken}
 frames.writeOf exits{new,on} reads{} writes{} calls{frames.newFrameId}
@@ -829,9 +830,10 @@ page.list.do exits{found,gone} reads{} writes{} calls{frames.canvasIsThere,frame
 page.order.do exits{gone,ordered} reads{} writes{} calls{frames.showPages,frames.writeOrder}
 page.rename.do exits{gone,renamed,taken} reads{} writes{} calls{frames.showPages,frames.writeName}
 parts.catchUp exits{unchanged,updated,value} reads{} writes{} calls{kit.partSources,parts.publishFrames,parts.readFrame}
+parts.copyFramesOf exits{value} reads{} writes{} calls{}
 parts.countsIn exits{value} reads{} writes{} calls{kit.fillNow,parts.readFrame}
 parts.floorsOf exits{value} reads{} writes{} calls{kit.copyRevs}
-parts.list.do exits{found} reads{} writes{} calls{kit.designNow,parts.countsIn,parts.usersOf}
+parts.list.do exits{found} reads{} writes{} calls{kit.designNow,parts.copyFramesOf,parts.countsIn}
 parts.publish.do exits{gone,unchanged,updated} reads{} writes{} calls{parts.publishFrames,parts.readCanvas}
 parts.publishFrames exits{unchanged,updated} reads{} writes{} calls{?,kit.mainsOf,kit.publishMains,parts.floorsOf,parts.usersOf}
 parts.publishFrom exits{unchanged,updated,value} reads{} writes{} calls{kit.partSources,parts.publishFrames,parts.readFrame}

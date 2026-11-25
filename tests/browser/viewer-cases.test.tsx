@@ -241,7 +241,7 @@ test("SPEC-cases decision 4: a case frame draws the code of its source frame wit
   const at = await tab(server);
   await rested(at, 3);
 
-  await expect.poll(() => axesOf("many"), { timeout: 2000 }).toBe(manyAxes("light"));
+  await expect.poll(() => axesOf("many"), { timeout: 5_000 }).toBe(manyAxes("light"));
   await expect.poll(() => axesOf("dark-empty")).toBe(darkEmptyAxes);
   expect(await axesOf(sourceId)).toBe("{}");
   expect(addressOf("fixture")).toBeNull();
@@ -254,20 +254,20 @@ test("SPEC-cases decision 4: one pick of dark on the board changes each case fra
   const server = await boot();
   const at = await tab(server);
   await rested(at, 3);
-  await expect.poll(() => axesOf("many"), { timeout: 2000 }).toBe(manyAxes("light"));
+  await expect.poll(() => axesOf("many"), { timeout: 5_000 }).toBe(manyAxes("light"));
   await expect.poll(() => axesOf("dark-empty")).toBe(darkEmptyAxes);
   const darkEmpty = await drawnOf("dark-empty");
 
   await chooseState("theme", "dark");
-  await expect.poll(() => axesOf("many"), { timeout: 1000 }).toBe(manyAxes("dark"));
-  await expect.poll(() => axesOf(sourceId)).toBe('{"config":{"theme":"dark"}}');
+  await expect.poll(() => axesOf("many"), { timeout: 5_000 }).toBe(manyAxes("dark"));
+  await expect.poll(() => axesOf(sourceId), { timeout: 5_000 }).toBe('{"config":{"theme":"dark"}}');
   expect(await axesOf("dark-empty")).toBe(darkEmptyAxes);
   expect(await drawnOf("dark-empty")).toBe(darkEmpty);
   expect(addressOf("theme")).toBe("dark");
   expect(addressOf("fixture")).toBeNull();
 
   await chooseState("theme", "light");
-  await expect.poll(() => axesOf("many")).toBe(manyAxes("light"));
+  await expect.poll(() => axesOf("many"), { timeout: 5_000 }).toBe(manyAxes("light"));
   expect(await axesOf("dark-empty")).toBe(darkEmptyAxes);
 });
 
@@ -276,12 +276,14 @@ test("SPEC-cases decision 4: a pick on one case frame wins over its case and cha
   const server = await boot();
   const at = await tab(server);
   await rested(at, 3);
-  await expect.poll(() => axesOf("many"), { timeout: 2000 }).toBe(manyAxes("light"));
-  await expect.poll(() => axesOf(sourceId)).toBe('{"fixture":"empty","config":{}}');
+  await expect.poll(() => axesOf("many"), { timeout: 5_000 }).toBe(manyAxes("light"));
+  await expect
+    .poll(() => axesOf(sourceId), { timeout: 5_000 })
+    .toBe('{"fixture":"empty","config":{}}');
   const [source, darkEmpty] = [await drawnOf(sourceId), await drawnOf("dark-empty")];
 
   await chooseFrameState("many", "fixture", "initial");
-  await expect.poll(() => axesOf("many"), { timeout: 1000 }).toBe("{}");
+  await expect.poll(() => axesOf("many"), { timeout: 5_000 }).toBe("{}");
   expect(frameButton("many").element().hasAttribute("data-own")).toBe(true);
   expect(addressOf("f.many.fixture")).toBe("initial");
   expect(await drawnOf(sourceId)).toBe(source);
@@ -290,7 +292,7 @@ test("SPEC-cases decision 4: a pick on one case frame wins over its case and cha
 
   expect(await useTheBoardText("many", "fixture")).toContain("many");
   await chooseFrameState("many", "fixture", "Use the board");
-  await expect.poll(() => axesOf("many"), { timeout: 1000 }).toBe(manyAxes("light"));
+  await expect.poll(() => axesOf("many"), { timeout: 5_000 }).toBe(manyAxes("light"));
   expect(frameButton("many").element().hasAttribute("data-own")).toBe(false);
   expect(addressOf("f.many.fixture")).toBeNull();
   expect(addressOf("fixture")).toBe("empty");

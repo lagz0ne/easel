@@ -366,27 +366,36 @@ test("X12 cases: a refused list writes nothing: a fixture that no cell has, two 
   expect((await e.listFrames()).size).toBe(5);
 });
 
-test("X12 cases: a source frame in a section of a person keeps that section, and its case frames go at its end", async () => {
+test("X12 cases: a source frame in a section of a person keeps that section, and its case frames go right after it, in the order of the list", async () => {
   const e = await easel();
-  const other = await e.agent.run(frames.api["frame.put"], {
-    input: {
-      canvas: "flow",
-      html: "<p>step</p>",
-      name: "step",
-      section: "Checkout",
-      size: { w: 400, h: 300 },
-    },
-  });
-  if (other.kind !== "created") throw new Error(other.kind);
+  const putStep = async (name: string) => {
+    const made = await e.agent.run(frames.api["frame.put"], {
+      input: {
+        canvas: "flow",
+        html: `<p>${name}</p>`,
+        name,
+        section: "Checkout",
+        size: { w: 400, h: 300 },
+      },
+    });
+    if (made.kind !== "created") throw new Error(made.kind);
+    return made.id;
+  };
+  const step = await putStep("step");
+  const pay = await putStep("pay");
 
   await e.agent.run(frames.api["frame.move"], {
-    input: { canvas: "flow", id: e.source.id, after: other.id },
+    input: { canvas: "flow", id: e.source.id, after: step },
   });
 
   const answer = await setOk(e, dataCases.slice(0, 2));
   const all = await e.listFrames();
-  expect(answer.frames.every((one) => all.get(one.id)?.section === "Checkout")).toBe(true);
-  expect(all.get(e.source.id)?.section).toBe("Checkout");
+  const row = [step, e.source.id, ...answer.frames.map((one) => one.id), pay];
+  expect(row.map((id) => all.get(id)?.section)).toEqual(row.map(() => "Checkout"));
+  const xs = row.map((id) => all.get(id)?.x ?? 0);
+  expect(xs).toEqual(xs.toSorted((a, b) => a - b));
+  expect(new Set(xs).size).toBe(row.length);
+  expect(await e.listCases()).toMatchObject({ kind: "found", section: "Checkout" });
 });
 
 test("X12 cases: a section of a person with the name of the group gets the id of the source in the name of the group", async () => {
@@ -404,4 +413,41 @@ test("X12 cases: a section of a person with the name of the group gets the id of
   await setOk(e, dataCases.slice(0, 1));
   const all = await e.listFrames();
   expect(all.get(e.source.id)?.section).toBe(`users list ${e.source.id} · cases`);
+});
+
+test("X12 cases: a new order of the list seats the case frames again in that order, after the source frame", async () => {
+  const e = await easel();
+  await setOk(e, dataCases);
+  const order = ["many", "empty", "few", "long-names"];
+  const next = order.flatMap((name) => dataCases.filter((one) => one.name === name));
+
+  const answer = await setOk(e, next, 1);
+  expect(answer.frames.map((one) => one.name)).toEqual(order);
+  const all = await e.listFrames();
+  const xs = [e.source.id, ...answer.frames.map((one) => one.id)].map((id) => all.get(id)?.x ?? 0);
+  expect(xs).toEqual(xs.toSorted((a, b) => a - b));
+  expect(new Set(xs).size).toBe(5);
+  expect(await e.listCases()).toEqual({
+    kind: "found",
+    rev: 2,
+    section: "users list · cases",
+    cases: next,
+    frames: answer.frames,
+  });
+});
+
+test("X12 cases: an empty first list makes no section and changes no place", async () => {
+  const e = await easel();
+  const before = await e.listFrames();
+
+  const answer = await setOk(e, [], 0);
+  expect(answer.frames).toEqual([]);
+  expect(await e.listFrames()).toEqual(before);
+  expect(await e.listCases()).toEqual({
+    kind: "found",
+    rev: 1,
+    section: null,
+    cases: [],
+    frames: [],
+  });
 });

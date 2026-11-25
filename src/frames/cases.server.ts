@@ -8,7 +8,14 @@ import { readKit } from "@/kit/store.server";
 
 import { sectionHead } from "./arrange";
 import { seatFrame } from "./arrange.server";
-import { caseFrameNameOf, caseList, groupNameOf, maxCases, valuesOfCase } from "./cases";
+import {
+  caseFrameLink,
+  caseFrameNameOf,
+  caseList,
+  groupNameOf,
+  maxCases,
+  valuesOfCase,
+} from "./cases";
 import { framesApi, keyOfName } from "./contract";
 import {
   arrangeAfter,
@@ -219,18 +226,41 @@ const groupOf = operation({
   },
 });
 
+const sourceSeat = z.object({ page: z.string(), section: z.string(), col: z.number() });
+
+const seatCaseFrames = operation({
+  label: "frames.seatCaseFrames",
+  input: z.object({
+    canvas: z.string(),
+    source: z.string(),
+    frames: z.array(caseFrameLink),
+    db: z.custom<Database>(),
+  }),
+  depends: { seatFrame },
+  run: ({ seatFrame }, { input: { canvas, source, frames, db } }) => {
+    const seat = sourceSeat.parse(
+      db
+        .query("SELECT page, section, col FROM frames_frames WHERE canvas = ? AND id = ?")
+        .get(canvas, source),
+    );
+    frames.forEach((one, n) => {
+      const at = { ...seat, kind: "after" as const, col: seat.col + n, row: 0 };
+      seatFrame.run({ input: { canvas, id: one.id, at, db } });
+    });
+  },
+});
+
 const writeCaseFrames = operation({
   label: "frames.writeCaseFrames",
   input: z.object({
     canvas: z.string(),
     source: sourceRow,
-    section: z.string(),
     cases: caseList,
     db: z.custom<Database>(),
   }),
-  depends: { readCaseFrames, removeFrameRow, seatFrame },
-  run: (deps, { input: { canvas, source, section, cases, db }, clock, random }) => {
-    const { readCaseFrames, removeFrameRow, seatFrame } = deps;
+  depends: { readCaseFrames, removeFrameRow },
+  run: (deps, { input: { canvas, source, cases, db }, clock, random }) => {
+    const { readCaseFrames, removeFrameRow } = deps;
     const before = readCaseFrames.run({
       input: { canvas, source: source.id, db },
     });
@@ -239,17 +269,6 @@ const writeCaseFrames = operation({
       .filter((one) => !wanted.has(one.case_name))
       .flatMap((one) => removeFrameRow.run({ input: { canvas, id: one.id, db } }) ?? []);
 
-    const name = sectionName.parse(
-      db
-        .query("SELECT name FROM frames_sections WHERE canvas = ? AND page = ? AND key = ?")
-        .get(canvas, source.page, section),
-    ).name;
-    const at = {
-      kind: "section" as const,
-      name,
-      key: section,
-      page: source.page,
-    };
     const known = new Map(before.map((one) => [one.case_name, one.id]));
     const made = clock.currentTimeMillis();
     const frames = cases.map((one) => {
@@ -274,7 +293,6 @@ const writeCaseFrames = operation({
            id, ?, ?
          FROM frames_frames WHERE canvas = ? AND id = ?`,
       ).run(fresh, title, made, one.name, values, canvas, source.id);
-      seatFrame.run({ input: { canvas, id: fresh, at, db } });
       return { name: one.name, id: fresh };
     });
     return { frames, removed };
@@ -292,6 +310,7 @@ export const setCases = operation({
     readList,
     groupOf,
     writeCaseFrames,
+    seatCaseFrames,
     arrangeAfter,
     showArranged,
     showRemoved,
@@ -317,10 +336,16 @@ export const setCases = operation({
         return { kind: "changed" as const, rev: now.rev };
       }
 
-      const section = groupOf.run({ input: { canvas, source, db } });
+      const grouped = cases.length > 0 || source.section !== null;
+      if (grouped) groupOf.run({ input: { canvas, source, db } });
       const written = writeCaseFrames.run({
-        input: { canvas, source, section, cases, db },
+        input: { canvas, source, cases, db },
       });
+      if (grouped) {
+        deps.seatCaseFrames.run({
+          input: { canvas, source: frame, frames: written.frames, db },
+        });
+      }
       const rev = now.rev + 1;
       db.query(
         `INSERT INTO frames_cases (canvas, source, list, rev) VALUES (?, ?, ?, ?)
