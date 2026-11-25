@@ -3,7 +3,7 @@
 Copy one of these, fill in the `<...>` parts, and give it to a NEW subagent (Agent tool, general-purpose). Do
 not add your own conclusions. The reviewer must find the faults itself.
 
-## A. Design review, one round
+## A. Design review, one review pass
 
 ```
 You are a design reviewer with fresh eyes. For each requirement below, decide if the design on the Doop
@@ -31,7 +31,7 @@ goes against it. Also list other problems (frames that disagree, wrong copy, bro
 with a fix and a severity: "blocks" or "polish". Give a quiet score from 1 (busy) to 5 (quiet).
 
 Write JSON to ~/work/tmp/<epic>-review/review-r<N>.json:
-{"round":N,"quiet":1-5,"verdicts":{"<id>":{"verdict":"proven|partly|not","path":"...","why":"...","fix":"..."}},
+{"pass":N,"quiet":1-5,"verdicts":{"<id>":{"verdict":"proven|partly|not","path":"...","why":"...","fix":"..."}},
  "other":[{"where":"...","what":"...","fix":"...","severity":"blocks|polish"}]}
 Then reply with a short summary: the counts of proven, partly and not, and the top 5 problems.
 ```

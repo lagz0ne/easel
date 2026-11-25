@@ -1,5 +1,9 @@
 # Implementation plan: Round 1, modules `mcp` and `speed`
 
+> This file is the old shared plan of Round 1. It is a record: do not add a plan or a task here.
+> A new plan goes to `tasks/<slug>.md`, one file for each feature (`AGENTS.md`, "A feature: from
+> start to done"). The items that wait are in [backlog.md](backlog.md).
+
 Source specs: [SPEC-mcp.md](../SPEC-mcp.md) (V1), [SPEC-speed.md](../SPEC-speed.md) (V1, approved
 2026-11-23: no throttle; the gate is a CI job, option B). Map: [MAP-round-1.md](../MAP-round-1.md). The task list is
 [todo.md](todo.md).

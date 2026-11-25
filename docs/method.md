@@ -12,6 +12,7 @@ Write in ASD-STE100, with the terms of [glossary.md](glossary.md). The actors ar
 
 - Goal: a minimum viable business
 - Rounds
+- Features
 - The parts of an offer
 - Requirements
 - The forms
@@ -43,7 +44,7 @@ the company can run and support.
 A round is a set of requirements that must ship together. If one of them is missing, the company
 cannot offer the round, so there is no value in building the others.
 
-- Round 1, "Get started", has no base. It makes the first MVB.
+- Round 1, "Show the design", has no base. It makes the first MVB.
 - Each round after it is a layer on the base. It adds an offer, or it makes an offer good for more
   customers. It is an MVB too: when it ships, the company can offer it and operate it.
 - A requirement that the offer of the round does not need goes to a later round. Write it under
@@ -53,6 +54,20 @@ cannot offer the round, so there is no value in building the others.
 - Each round has one outcome: what the customer can do at its end. Match each requirement, each
   decision and each deferred item against it. A need that the outcome does not need is deferred;
   a need that it needs cannot be deferred (the user, 2026-11-23).
+
+## Features
+
+A feature is the unit that one agent builds: one journey, one spec delta or one fix. Rounds and
+epics stay the map of the requirements. A feature is a piece of work on that map.
+
+- Each feature has one feature lead and one feature brief (`docs/features/<slug>.md`). The form is
+  in [features/README.md](features/README.md). The flow is in `AGENTS.md`.
+- The brief names the epic and the requirement IDs that its outcome serves. Its fit criteria come
+  from those requirements.
+- The brief also says what is not in the feature, what no agent does, how the work is verified, and
+  how the person confirms it.
+- A need that the feature finds, and that no requirement has, goes back to step 4. It is not in the
+  feature until the person agrees.
 
 ## The parts of an offer
 

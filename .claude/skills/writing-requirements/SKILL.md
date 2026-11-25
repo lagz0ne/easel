@@ -1,6 +1,6 @@
 ---
 name: writing-requirements
-description: Writes and reviews easel requirements and their designs with the project method in docs/method.md. It scopes a round as a minimum viable business (MVB), writes epics and journeys as needs with fit criteria, walks the slice, finds design gaps, and proves a design on the Doop canvas with `bun run design:proof`. Use when the user talks about requirements, epics, journeys, rounds, MVB, scope, what to defer, or "is this complete", when editing docs/epics.md or docs/method.md, or when a design must be checked against its requirements.
+description: Writes and reviews easel requirements and their designs with the project method in docs/method.md. It scopes a round as a minimum viable business (MVB), writes epics and journeys as needs with fit criteria, walks the slice, and finds design gaps. The skill epic-flow proves the design. Use when the user talks about requirements, epics, journeys, rounds, MVB, scope, what to defer, or "is this complete", when editing docs/epics.md or docs/method.md, or when a design must be compared with its requirements to list the gaps.
 ---
 
 # Writing requirements
@@ -9,13 +9,14 @@ description: Writes and reviews easel requirements and their designs with the pr
 
 The method is in [docs/method.md](../../../docs/method.md). Read it before step 1. It holds the goal
 (a round is an MVB), the parts of an offer, the rules, the forms (copy them), the steps, and the
-design proof. This skill tells how to apply it in a session.
+design proof. This skill tells how to apply steps 1 to 6 in a session. The skill `epic-flow` does
+step 7. In a feature, the feature lead (`feature-lead`) starts this skill for a new need.
 
 ## When to use
 
 - A new round, epic or journey.
 - A review of an epic: complete, ready, what to defer.
-- A design that must be checked against its requirements.
+- A design that must be compared with its requirements, to list the gaps.
 
 **When not to use:** design names and mechanisms inside a module spec (`SPEC-*.md`). Use
 `spec-driven-development` for those. Come back here for step 6.
@@ -32,7 +33,7 @@ Requirements progress:
 - [ ] 4. Map needs: requirements, fit criteria, open questions
 - [ ] 5. Walk the slice: as the customer, then as the company
 - [ ] 6. Check design: spec and canvas against each ID; list the gaps
-- [ ] 7. Prove: `bun run design:proof` prints OK; fit criteria become tests
+- [ ] 7. Prove: go to `epic-flow`; fit criteria become tests
 ```
 
 **Step 1. Scope the round.** Only the user can name the offer, the customer and who pays. Do not
@@ -52,15 +53,11 @@ the round", "by hand" or "deferred". A part that the offer needs cannot be defer
 and the help. Then read it as the company that runs it. Each missing step is a new requirement or a
 "by hand" step. Record the walk with the form in the method.
 
-**Steps 6 and 7. Proof loop:**
+**Step 6. Check design.** Compare the module spec and the design with each requirement ID. Write
+each gap with the form "Design gap" of the method. Do not explain a gap away.
 
-1. Compare the module spec and the Doop states with each requirement ID.
-2. Run `bun run design:proof`.
-3. Fix each finding in Doop or in the spec. Do not explain a finding away.
-4. Run it again. Stop only when it prints `design proof: OK`.
-5. Show the output to the user. A claim is not a proof.
-
-For a new epic with a design, add its frames and IDs to `scripts/design-proof.ts` in the same ship.
+**Step 7. Prove.** Use the skill `epic-flow`. It runs `bun run design:proof` and the review
+passes until each requirement is proven.
 
 ## How to talk to the user
 
@@ -88,7 +85,7 @@ For a new epic with a design, add its frames and IDs to `scripts/design-proof.ts
 - A round with a part that has no mark.
 - A journey with more than about 12 requirements: split it.
 - A "Deferred:" line with no case that brings it back.
-- A design review that ends without the output of `bun run design:proof`.
+- A design that is called proven with no run of `epic-flow`.
 
 ## Verification
 
@@ -96,4 +93,5 @@ For a new epic with a design, add its frames and IDs to `scripts/design-proof.ts
 - [ ] Each journey has the five lines and no open question, or it is not called ready.
 - [ ] Each requirement has an ID, a need and a fit criterion, with no mechanism.
 - [ ] The walk is recorded, with the IDs that it changed or added.
-- [ ] `bun run design:proof` prints `design proof: OK`, and the output is in the reply.
+- [ ] Each design gap is in its table, or the design has no gap.
+- [ ] The proof of the design went to `epic-flow`.

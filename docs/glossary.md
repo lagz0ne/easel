@@ -57,6 +57,24 @@ You must know these terms to read any spec.
 | team lead | noun | The person of a team who agrees the price, pays, and gets the setup code.                    |
 | round     | noun | A set of requirements that must ship together, so that the company can offer and operate it. |
 
+## Work terms
+
+These terms are for the agents that build easel. The flow is in `AGENTS.md`, and the form of a
+feature brief is in [features/README.md](features/README.md).
+
+| Term          | Type | Definition                                                                                                 |
+| ------------- | ---- | ---------------------------------------------------------------------------------------------------------- |
+| feature       | noun | One journey, one spec delta or one fix, with one outcome that is declared at its start.                    |
+| feature lead  | noun | The one agent in charge of a feature. A person starts it. It gives the work to workers and ships.          |
+| worker        | noun | A subagent of a feature lead. It does one task and gives back its diff and the evidence. It does not ship. |
+| request agent | noun | An agent that a request on the live easel starts. It does that one request.                                |
+| feature brief | noun | The file `docs/features/<slug>.md` of a feature. The person accepts it one time.                           |
+| not in        | noun | A thing that a feature does not do, written with the case that brings it back.                             |
+| must not      | noun | A thing that no agent of a feature does. Only the person lifts it.                                         |
+| should not    | noun | A thing that a feature lead does only with a written reason and a report to the person.                    |
+| verification  | noun | The checks of a feature lead that prove that the work meets the fit criteria of its feature brief.         |
+| confirmation  | noun | The act of the person who agrees that the outcome of a feature is there.                                   |
+
 ## Terms for each module
 
 ### Access
@@ -163,7 +181,7 @@ These words break the rules above. The right column gives the recommended change
 | Word   | Problem                                                                                                        | Change                                                                          |
 | ------ | -------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------- |
 | shell  | Two meanings: the CLI "shell" (SPEC-cli) and the frame shell (SPEC-viewer).                                    | Use "frame shell" for the page. Use "CLI" for the command line.                 |
-| board  | Two meanings: the Tinker remote data board, and a canvas ("open a board" in AGENTS.md).                        | Use "canvas" for the product. Use "board" only for Tinker remote data.          |
+| board  | Two meanings: the Tinker remote data board, and a canvas.                                                      | Use "canvas" for the product. Use "board" only for Tinker remote data.          |
 | issue  | Three meanings: a GitHub issue, an ops "issue" (SPEC.md), and the template `src/issues`.                       | Use "error group" for ops. Use "issue" only for a GitHub issue.                 |
 | key    | Six meanings: canvas key, picture key, key generation, client key, picture secret, text key.                   | Always write the full term. Do not write "key" alone.                           |
 | claim  | A verb and a noun (STE Rule 1.7).                                                                              | Use "claim" as a verb only. For the noun, use "claim handle" or "lease".        |

@@ -1,5 +1,9 @@
 # Tasks: Round 1, modules `mcp`, `speed` and `mcp-auth`
 
+> This file is the old shared plan of Round 1. It is a record: do not add a plan or a task here.
+> A new plan goes to `tasks/<slug>.md`, one file for each feature (`AGENTS.md`, "A feature: from
+> start to done"). The items that wait are in [backlog.md](backlog.md).
+
 The plan is in [plan.md](plan.md). Each task ends green and lands with
 `scripts/ship.sh -m "<type>(<scope>): <msg>" -- <paths>`. Write the failing test first
 (`test-driven-development`). Run heavy tests on vibea2: `offload -- bun run test <file>`. The
@@ -33,7 +37,7 @@ task makes the full path: the table builder, the server, the stdio command and t
 - [x] `tests/mcp.test.ts`: a server in the same process, `easel mcp` on an in-memory link, the
       SDK client. The stdio link was checked by hand: the SDK's stdio client against
       `bun cmds/easel.ts mcp` lists the tool and gets a `link` fault as a tool error.
-- [ ] By hand (moved to MCP-6): `claude mcp add easel-dev -- bun cmds/easel.ts mcp`, then `/mcp` shows 1 tool.
+- Dropped on 2026-11-25 (MCP-6 did it, and MCP-6 is done): By hand (moved to MCP-6): `claude mcp add easel-dev -- bun cmds/easel.ts mcp`, then `/mcp` shows 1 tool.
 
 **Dependencies:** none.
 
@@ -335,7 +339,7 @@ throttled run (4× CPU, 40 ms round trip) to the report only.
 
 - [x] The first numbers of each step, at 20 and 200 frames, are in `docs/canvas-speed.md`
       ("Budgets").
-- [ ] A step that is over its budget today gets a task before phase 4.
+- Dropped on 2026-11-25 (phase 4 is done; the cold open went to SPD-6, done): A step that is over its budget today gets a task before phase 4.
 - [x] Review with the user (2026-11-23: "Go"; the cold open goes to SPD-6, the hot path list).
 
 ## Phase 4: `speed` gate
@@ -421,8 +425,8 @@ commit before the push as the base. A red job makes `gates` red, so the deploy d
       on a green `gates` (as #8 showed for `check`). Changed on 2026-11-23 (deploy first): a red
       `speed` job now puts the last green commit live again. Seen at a13880d: the font was not
       on the hot path list, `speed` was red, and the job `rollback` put 9d90ad6 live in 26 s.
-- [ ] An alert opens one `speed-slower` issue with the step, the two p50 values and the commit.
-      Built (job `speed-alert`); not yet seen, because no push has been slower.
+- Dropped on 2026-11-25 (built as the job `speed-alert` of `gates.yml`; no push was slower yet): An alert opens one `speed-slower` issue with the step, the two p50 values and the commit.
+  Built (job `speed-alert`); not yet seen, because no push has been slower.
 
 **Verification:**
 
@@ -484,13 +488,13 @@ for the smallest size that fills the frame on the screen at its zoom (canvas-spe
 
 **Acceptance criteria:**
 
-- [ ] At 3%, a picture is at most a few KB; at 40%, it is as sharp as today.
-- [ ] The cold open at 20 frames is shorter than 2218 ms (the report line).
+- Moved to [backlog.md](backlog.md): At 3%, a picture is at most a few KB; at 40%, it is as sharp as today.
+- Moved to [backlog.md](backlog.md): The cold open at 20 frames is shorter than 2218 ms (the report line).
 
 **Verification:**
 
-- [ ] A test of the size that the tab asks at each zoom.
-- [ ] `bun run speed`: the `cold` line, before and after, in the ship message.
+- Moved to [backlog.md](backlog.md): A test of the size that the tab asks at each zoom.
+- Moved to [backlog.md](backlog.md): `bun run speed`: the `cold` line, before and after, in the ship message.
 
 **Dependencies:** none. **Estimated scope:** M; split it at the start if it grows.
 
@@ -548,15 +552,15 @@ lists the user as waiting for its sign-in. A revoke ends the password.
 
 **Acceptance criteria:**
 
-- [ ] `added` gives the name, the password (5 groups of 4 letters of the code alphabet) and
-      `expiresAt`; a name in use gives `taken`.
-- [ ] A member gets the owner refusal. The password is not in a span, a log or an error.
-- [ ] `easel users` shows "waiting for its sign-in" and the end time; a revoke removes it.
+- Moved to [backlog.md](backlog.md): `added` gives the name, the password (5 groups of 4 letters of the code alphabet) and
+  `expiresAt`; a name in use gives `taken`.
+- Moved to [backlog.md](backlog.md): A member gets the owner refusal. The password is not in a span, a log or an error.
+- Moved to [backlog.md](backlog.md): `easel users` shows "waiting for its sign-in" and the end time; a revoke removes it.
 
 **Verification:**
 
-- [ ] A server test reaches each exit of `users.add`. A CLI test of the command and its text.
-- [ ] `bun run check:plain` is OK.
+- Moved to [backlog.md](backlog.md): A server test reaches each exit of `users.add`. A CLI test of the command and its text.
+- Moved to [backlog.md](backlog.md): `bun run check:plain` is OK.
 
 **Dependencies:** MA-1. **Files likely touched:** `src/access/{contract,store.server,users.server}.ts`,
 `src/cli/users.ts`, `src/mcp/tools.ts`. **Estimated scope:** M.
@@ -569,8 +573,8 @@ change yet.
 
 **Acceptance criteria:**
 
-- [ ] The two documents have the fields of the Contract, with the origin of the cmd.
-- [ ] Only the cmd reads `PUBLIC_ORIGIN` (fact rule 4).
+- Moved to [backlog.md](backlog.md): The two documents have the fields of the Contract, with the origin of the cmd.
+- Moved to [backlog.md](backlog.md): Only the cmd reads `PUBLIC_ORIGIN` (fact rule 4).
 
 **Verification:** a server test reads both documents. **Dependencies:** none.
 **Files likely touched:** a new `src/mcp/oauth/` folder, `cmds/server.ts`. **Estimated scope:** S.
@@ -583,9 +587,9 @@ Code).
 
 **Acceptance criteria:**
 
-- [ ] A different `client_id` is unknown. easel does not fetch it.
-- [ ] An exact redirect passes; a different one fails; a loopback redirect passes on any port.
-- [ ] A second ask in the same hour does not fetch again.
+- Moved to [backlog.md](backlog.md): A different `client_id` is unknown. easel does not fetch it.
+- Moved to [backlog.md](backlog.md): An exact redirect passes; a different one fails; a loopback redirect passes on any port.
+- Moved to [backlog.md](backlog.md): A second ask in the same hour does not fetch again.
 
 **Verification:** a test with a fake fetch and the test clock. **Dependencies:** none.
 **Estimated scope:** S.
@@ -598,9 +602,9 @@ write, then redirects with `code`, `state` and `iss`.
 
 **Acceptance criteria:**
 
-- [ ] Each text of "The sign-in fails" in the spec, on the page.
-- [ ] No redirect to an address that MA-4 did not pass. `frame-ancestors 'none'`.
-- [ ] A second sign-in with the same password fails. The rate limit of `login.setup` applies.
+- Moved to [backlog.md](backlog.md): Each text of "The sign-in fails" in the spec, on the page.
+- Moved to [backlog.md](backlog.md): No redirect to an address that MA-4 did not pass. `frame-ancestors 'none'`.
+- Moved to [backlog.md](backlog.md): A second sign-in with the same password fails. The rate limit of `login.setup` applies.
 
 **Verification:** a server test of each failure and of the redirect; a look with
 `agent-browser`, screenshot in `~/work/tmp`. **Dependencies:** MA-2, MA-4.
@@ -614,10 +618,10 @@ resource. The 401 names `resource_metadata`. After this task, the Claude web app
 
 **Acceptance criteria:**
 
-- [ ] Each token failure of the spec: a wrong verifier, a used code, a code older than 60 s, a
-      wrong resource, a refresh token used two times.
-- [ ] A revoke makes the next call 401 and the refresh `invalid_grant`.
-- [ ] A token of `easel login` still works at `/mcp`, and the MCP tests stay green.
+- Moved to [backlog.md](backlog.md): Each token failure of the spec: a wrong verifier, a used code, a code older than 60 s, a
+  wrong resource, a refresh token used two times.
+- Moved to [backlog.md](backlog.md): A revoke makes the next call 401 and the refresh `invalid_grant`.
+- Moved to [backlog.md](backlog.md): A token of `easel login` still works at `/mcp`, and the MCP tests stay green.
 
 **Verification:** the full in-process test of the spec, from the 401 to the revoke;
 `ship.sh --full`. **Dependencies:** MA-2 to MA-5. **Estimated scope:** M.
@@ -629,9 +633,9 @@ and the mobile app lists the canvases. Then a revoke stops it. `docs/start.md` t
 
 **Acceptance criteria:**
 
-- [ ] The check by hand passes, with a screenshot of each step in `~/work/tmp`.
-      Waits: the user has no Claude web app now (2026-11-23: "I have no claude web now", "Only
-      paseo"). The agents of the user run through Paseo, as Claude Code.
+- Moved to [backlog.md](backlog.md): The check by hand passes, with a screenshot of each step in `~/work/tmp`.
+  Waits: the user has no Claude web app now (2026-11-23: "I have no claude web now", "Only
+  paseo"). The agents of the user run through Paseo, as Claude Code.
 - [x] A script ran each step of the sign-in on the live easel (2026-11-23,
       `~/work/tmp/2026-11-23-ma7-oauth-live/flow.ts`), as the user `ma7-check`: the 401 and its
       metadata; the page for the claude.ai callback; a refusal of another callback and of a wrong
@@ -646,8 +650,8 @@ and the mobile app lists the canvases. Then a revoke stops it. `docs/start.md` t
 
 ### Checkpoint F: after MA-7
 
-- [ ] Each success criterion of SPEC-mcp-auth is met.
-- [ ] Review with the user, with the chart and the test of each rule.
+- Moved to [backlog.md](backlog.md): Each success criterion of SPEC-mcp-auth is met.
+- Moved to [backlog.md](backlog.md): Review with the user, with the chart and the test of each rule.
 
 ## Phase 7: `copy`, the texts of the team
 
@@ -834,14 +838,14 @@ images, and the proof (D9-8) comes last.
 - [x] A small Bun service in the repository: a durable pull consumer `paseo` (`max_ack_pending` 2) that starts an agent with `paseo run` in the easel workspace and acks; at most 20 agents in
       a day; the prompt names the canvas and the number and says to claim with `easel next`.
       (`services/paseo-adapter/`, tests in `tests/paseo-adapter.test.ts`.)
-- [ ] A hub request for its user unit, after hq-aob.
+- Dropped on 2026-11-25 (the unit `easel-paseo-adapter` is active): A hub request for its user unit, after hq-aob.
 
 **Dependencies:** D9-4, hq-aob. **Estimated scope:** M.
 
 ### D9-6: the screens on easel
 
-- [ ] Canvas `product` with the pages Read me, E3, E4 and E8, each frame of the Doop canvas
-      `easel · Product design` at its place; the 3 open Doop comments as requests.
+- Dropped on 2026-11-25 (the canvas `product` has the pages Read me, E3, E4 and E8 with their frames; the 3 Doop comments were not checked): Canvas `product` with the pages Read me, E3, E4 and E8, each frame of the Doop canvas
+  `easel · Product design` at its place; the 3 open Doop comments as requests.
 
 **Estimated scope:** S.
 
@@ -865,8 +869,8 @@ images, and the proof (D9-8) comes last.
 
 ### Checkpoint H: after D9-8
 
-- [ ] Criteria 1 to 7 of SPEC-design-loop hold, each with its proof. Criterion 1 (one week with no
-      Doop) starts here.
+- Moved to [backlog.md](backlog.md): Criteria 1 to 7 of SPEC-design-loop hold, each with its proof. Criterion 1 (one week with no
+  Doop) starts here.
 
 ## Phase home: a home page of the canvases, and a browser that signs in
 
