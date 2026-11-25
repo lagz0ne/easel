@@ -59,21 +59,19 @@ You must know these terms to read any spec.
 
 ## Work terms
 
-These terms are for the agents that build easel. The flow is in `AGENTS.md`, and the form of a
-feature brief is in [features/README.md](features/README.md).
+These terms are for the agents that build easel. The rules are in `AGENTS.md`, "Leads and
+missions".
 
-| Term          | Type | Definition                                                                                                 |
-| ------------- | ---- | ---------------------------------------------------------------------------------------------------------- |
-| feature       | noun | One journey, one spec delta or one fix, with one outcome that is declared at its start.                    |
-| feature lead  | noun | The one agent in charge of a feature. A person starts it. It gives the work to workers and ships.          |
-| worker        | noun | A subagent of a feature lead. It does one task and gives back its diff and the evidence. It does not ship. |
-| request agent | noun | An agent that a request on the live easel starts. It does that one request.                                |
-| feature brief | noun | The file `docs/features/<slug>.md` of a feature. The person accepts it one time.                           |
-| not in        | noun | A thing that a feature does not do, written with the case that brings it back.                             |
-| must not      | noun | A thing that no agent of a feature does. Only the person lifts it.                                         |
-| should not    | noun | A thing that a feature lead does only with a written reason and a report to the person.                    |
-| verification  | noun | The checks of a feature lead that prove that the work meets the fit criteria of its feature brief.         |
-| confirmation  | noun | The act of the person who agrees that the outcome of a feature is there.                                   |
+| Term          | Type | Definition                                                                                                                                        |
+| ------------- | ---- | ------------------------------------------------------------------------------------------------------------------------------------------------- |
+| mission       | noun | One outcome that the person gives to one lead: a feature or a fix.                                                                                |
+| lead          | noun | An agent that the person starts for one mission. It plans, gives the work to workers, verifies and ships.                                         |
+| worker        | noun | A subagent of a lead. It does one task and gives back its diff and the evidence. It does not ship.                                                |
+| request agent | noun | An agent that a request on the live easel starts. It does that one request.                                                                       |
+| mission file  | noun | The file `tasks/<mission>.md`: the mission, its success, its nono, how to verify it, the paths that it touches, and the plan.                     |
+| nono          | noun | What a mission refuses. "Not in": a thing that it does not do, with the case that brings it back. "Must not": a thing that only the person lifts. |
+| verify        | verb | To prove, as the lead, that the work meets each success check of the mission file.                                                                |
+| confirm       | verb | To agree, as the person, that the outcome of a mission is there.                                                                                  |
 
 ## Terms for each module
 

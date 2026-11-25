@@ -10,7 +10,7 @@ description: Writes and reviews easel requirements and their designs with the pr
 The method is in [docs/method.md](../../../docs/method.md). Read it before step 1. It holds the goal
 (a round is an MVB), the parts of an offer, the rules, the forms (copy them), the steps, and the
 design proof. This skill tells how to apply steps 1 to 6 in a session. The skill `epic-flow` does
-step 7. In a feature, the feature lead (`feature-lead`) starts this skill for a new need.
+step 7. In a mission, the lead (`mission-lead`) starts this skill for a new need.
 
 ## When to use
 

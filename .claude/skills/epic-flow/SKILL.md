@@ -1,6 +1,6 @@
 ---
 name: epic-flow
-description: Runs the design review loop of an epic until each requirement is proven. A new reviewer subagent with fresh context checks the Doop design against each requirement ID in each review pass, a worker of the feature lead fixes, and the loop ends when all are proven or after 5 review passes. Use when an agreed epic gets its design on Doop, when a design must be proven against its requirements, or when the design finds a need that no requirement has. Write the requirements first with writing-requirements.
+description: Runs the design review loop of an epic until each requirement is proven. A new reviewer subagent with fresh context checks the Doop design against each requirement ID in each review pass, a worker of the lead fixes, and the loop ends when all are proven or after 5 review passes. Use when an agreed epic gets its design on Doop, when a design must be proven against its requirements, or when the design finds a need that no requirement has. Write the requirements first with writing-requirements.
 ---
 
 # Epic flow: the design review loop
@@ -36,8 +36,7 @@ The script cannot see if a state really meets its requirement. The reviewer cann
 The loop has 5 parts. If one part is missing, it is only one review, not a loop.
 
 1. **A list of targets.** The requirement IDs, each with a fit criterion that can fail (from `docs/epics.md`).
-2. **A maker.** A worker of the feature lead draws or fixes the frames. The feature lead does not
-   (`feature-lead`, the worker brief).
+2. **A maker.** A worker of the lead draws or fixes the frames (`mission-lead`, "Workers").
 3. **A new checker in each review pass.** A subagent with fresh context, read only. For each ID it gives `proven`,
    `partly` or `not`, the click path, and a fix. It does not see the earlier review passes or your opinion.
 4. **A file that keeps the state.** Each review pass writes `~/work/tmp/<epic>-review/review-r<N>.json`. The next
@@ -100,7 +99,6 @@ faults that it sees. Add the epic's frames and IDs to `scripts/design-proof.ts` 
 ## Red flags
 
 - A review pass with no output file.
-- A feature lead that draws or fixes a frame itself.
 - A reviewer that got your conclusions in its prompt.
 - A requirement called proven with no click path.
 - A loop with more than 5 review passes and no report to the user.

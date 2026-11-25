@@ -12,7 +12,7 @@ Write in ASD-STE100, with the terms of [glossary.md](glossary.md). The actors ar
 
 - Goal: a minimum viable business
 - Rounds
-- Features
+- Missions
 - The parts of an offer
 - Requirements
 - The forms
@@ -55,19 +55,13 @@ cannot offer the round, so there is no value in building the others.
   decision and each deferred item against it. A need that the outcome does not need is deferred;
   a need that it needs cannot be deferred (the user, 2026-11-23).
 
-## Features
+## Missions
 
-A feature is the unit that one agent builds: one journey, one spec delta or one fix. Rounds and
-epics stay the map of the requirements. A feature is a piece of work on that map.
-
-- Each feature has one feature lead and one feature brief (`docs/features/<slug>.md`). The form is
-  in [features/README.md](features/README.md). The flow is in `AGENTS.md`.
-- The brief names the epic and the requirement IDs that its outcome serves. Its fit criteria come
-  from those requirements.
-- The brief also says what is not in the feature, what no agent does, how the work is verified, and
-  how the person confirms it.
-- A need that the feature finds, and that no requirement has, goes back to step 4. It is not in the
-  feature until the person agrees.
+A mission is the unit that one lead builds: a feature or a fix, with one outcome. Rounds and epics
+stay the map of the requirements. The mission file (`tasks/<mission>.md`, rules in `AGENTS.md`)
+names the epic and the requirement IDs that the outcome serves, and its success checks come from
+their fit criteria. A need that the mission finds, and that no requirement has, goes back to
+step 4.
 
 ## The parts of an offer
 

@@ -1,8 +1,8 @@
 # Tasks: Round 1, modules `mcp`, `speed` and `mcp-auth`
 
 > This file is the old shared plan of Round 1. It is a record: do not add a plan or a task here.
-> A new plan goes to `tasks/<slug>.md`, one file for each feature (`AGENTS.md`, "A feature: from
-> start to done"). The items that wait are in [backlog.md](backlog.md).
+> A new plan goes into the mission file `tasks/<mission>.md` (`AGENTS.md`, "Leads and missions").
+> The items that wait are in [backlog.md](backlog.md).
 
 The plan is in [plan.md](plan.md). Each task ends green and lands with
 `scripts/ship.sh -m "<type>(<scope>): <msg>" -- <paths>`. Write the failing test first

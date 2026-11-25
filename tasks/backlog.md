@@ -2,8 +2,8 @@
 
 These items wait. Each one has the case that brings it back. They came from the old shared plan
 [todo.md](todo.md) on 2026-11-25; the full text of each is there, or in
-`git show 1590f80:tasks/todo.md`. An item that comes back becomes a feature, with its own brief
-(`docs/features/<slug>.md`) and its own plan (`tasks/<slug>.md`).
+`git show 1590f80:tasks/todo.md`. An item that comes back becomes a mission, with its own
+mission file `tasks/<mission>.md`.
 
 | Item         | What is open                                                                                             | It comes back when                                                         |
 | ------------ | -------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------- |

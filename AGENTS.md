@@ -6,63 +6,35 @@ The rules for Tinker code ship inside those
 packages as skills. A skill has the version of
 the code you have installed.
 
-## Roles
+## Leads and missions
 
-Each agent in this repo has one role (the user decided this on 2026-11-25). The terms are in
-`docs/glossary.md`.
+The person starts a few leads, and gives each lead one mission (the user decided this on
+2026-11-25). A lead does all that its mission needs, in each part of the code. Load the skill
+`mission-lead` at the start. The terms are in `docs/glossary.md`.
 
-| Role          | Who                                              | What it does                                                                                                                       |
-| ------------- | ------------------------------------------------ | ---------------------------------------------------------------------------------------------------------------------------------- |
-| feature lead  | A session that the person starts                 | The only agent in charge of one feature. It writes the feature brief, gives the work to workers, reviews, verifies and ships.      |
-| worker        | A subagent of a feature lead                     | It does one worker brief, and gives back its diff and the evidence. It does not ship.                                              |
-| request agent | An agent that a request on the live easel starts | It does that one request and ships it. It does not change a claimed path of a feature: it tells that feature lead (`SendMessage`). |
-
-- A feature lead does not do the work itself. It edits only `*.md` files: the brief, the spec, the
-  plan, the docs. Workers write the code, the tests and the frames.
-- Only a feature lead or a request agent ships. A worker never runs `scripts/ship.sh`, `git add`,
-  `git commit` or `git push`. The feature lead reviews each diff of a worker before it ships it.
-- This workflow is for easel only. Your neighbours are the agents that work in this repo
-  (`~/dev/easel`). `ListAgents` also lists sessions of other projects: ignore them, and do not
-  coordinate with them. When a name does not tell the repo, read the field `cwd` of the paseo
-  record `~/.paseo/agents/<workspace>/<id>.json`.
-- All roles: "Writing", "After you edit", "Code has no comments", "Skill Loading", and the machine
-  rules (`offload` for a heavy run, `work new` for temporary files). The other sections are for
-  the roles that ship.
-
-## A feature: from start to done
-
-A feature is one journey, one spec delta or one fix. It has one outcome, and its feature lead is
-responsible for all of it. Load the skill `feature-lead` at the start: it has the detail of each
-step, the questions, the prompts and the stop rules. The form of a feature brief is in
-[docs/features/README.md](docs/features/README.md).
-
-1. Read the open briefs in `docs/features/`, and run `ListAgents`.
-2. Write your brief `docs/features/<slug>.md` from Socratic questions. The person accepts it one
-   time. Do not start the build before that.
-3. Write the spec as `SPEC-<slug>.md` and the plan as `tasks/<slug>.md`. A new need goes through
-   `writing-requirements` first.
-4. Workers build. Only one worker at a time writes a set of paths. Do not use a worktree.
-5. Verify: do each line of "Verification" in the brief. Run the checks yourself, and use a new
-   reviewer subagent that did not build the work.
-6. Ship, then wait until `/api/version` shows the change live.
-7. The person confirms a feature on the live easel. A fix needs only the live proof.
-8. Close the brief: set its status to `closed` and remove its claimed paths.
-
-## Gates: what needs the person
-
-Only these stop for the person. For each other decision: decide, write it in the decisions log of
-the brief, and report it after.
-
-- Accept the brief.
-- Lift a "must not", or bring a "not in" into the feature.
-- Change a definition of the brief: the outcome, success, not in, must not, should not,
-  verification or confirmation.
-- Confirm a feature.
-- Do an action that cannot be undone, or that goes outside the repo: delete data, use a secret,
-  change the machine (through the hub).
-
-Bring each gate with your recommendation and its reason. A design decision comes with 2 or 3
-variations on the design canvas, and your pick.
+- **Lead.** It plans, gives the work to workers (its subagents), reviews each diff of a worker,
+  verifies, and ships. A worker never runs `scripts/ship.sh`, `git add`, `git commit` or `git push`.
+- **Mission file.** `tasks/<mission>.md`. Its top has 4 short parts: Mission, Success, Nono (Not
+  in, Must not) and Verify. Then come "Touching" (the paths that the mission changes now) and the
+  plan. Fill the top from Socratic questions to the person. The person accepts it one time. Do
+  not build before that.
+- **Leads talk**, because they share one checkout. At the start, run `ListAgents` and read the
+  open mission files in `tasks/`. Send each other lead one short message: your mission, and what
+  you touch. Before you change a file that another open mission touches, message its lead and
+  agree. After a ship that changes a thing that another mission uses, tell its lead. Keep
+  "Touching" current.
+- **Easel only.** The other leads are the agents that work in this repo (`~/dev/easel`).
+  `ListAgents` also lists sessions of other projects: ignore them. When a name does not tell the
+  repo, read the field `cwd` of `~/.paseo/agents/<workspace>/<id>.json`.
+- **Gates.** Stop for the person only for these: to accept the top of the mission file; when the
+  work needs a Nono item; when the mission must change; before an action that cannot be undone or
+  that goes outside the repo (delete data, use a secret, change the machine through the hub).
+  Bring your recommendation and its reason; for a design decision, bring 2 or 3 variations on the
+  design canvas and your pick. Decide all other things yourself, and put them in the report.
+- **Done.** When `/api/version` shows the change live and "Verify" is done, send the person one
+  short report: each success check with its evidence, and what is open.
+- **Request agent.** An agent that a request on the live easel starts does that one request and
+  ships it. It does not change a file that an open mission touches: it tells that lead.
 
 <!-- intent-skills:start -->
 
@@ -168,12 +140,11 @@ one checkout.
   main that did not come from ship.
 - Ship small and often: each ship is one unit that ends green. Hide unfinished work behind a route
   that nothing links to, or a flag. Never use a branch for it.
-- File rights go by feature brief, not by session. A feature lead claims paths in its brief, and
-  its workers share those paths.
-- A dirty file on a path that your brief does not claim belongs to another feature. Do not edit,
-  format, revert or stash it.
-- For a path that two briefs claim, or a shared file (such as `package.json`), agree with the
-  other feature lead first (`ListAgents`, `SendMessage`). Ship your hunks with `ship.sh -p <patch>`.
+- File rights go by the "Touching" lists of the open missions (`tasks/`), not by session. A dirty
+  file that your mission does not touch belongs to another mission. Do not edit, format, revert
+  or stash it.
+- For a file that two missions touch, or a shared file (such as `package.json`), agree with the
+  other lead first (`ListAgents`, `SendMessage`). Ship your hunks with `ship.sh -p <patch>`.
 - Before a ship or a test that load can fail, wait for a load below 10:
   `awk '{exit !($1<10)}' /proc/loadavg && scripts/ship.sh ...`. A red from timeouts under load is
   not a bug of the code. Wait, then run it again.
@@ -231,18 +202,18 @@ Addy Osmani's agent-skills (MIT) is vendored at one pinned commit by
 `scripts/agent-skills-sync.sh`: skills in `.claude/skills/`, their `.claude/references/`, four
 `.claude/agents/`, and the commands as `/addy-*` (`/addy-spec`, `/addy-plan`, ...). Do not edit
 them. To upgrade, change the commit in the script, run it, read the diff, and ship it. Three
-skills are the project's own, and the sync script does not touch them: `feature-lead`,
+skills are the project's own, and the sync script does not touch them: `mission-lead`,
 `writing-requirements` and `epic-flow`. The skills load on their own; at these moments, make
 sure the right one is loaded:
 
 | Moment                                                    | Skill                                                                     |
 | --------------------------------------------------------- | ------------------------------------------------------------------------- |
-| A feature or a fix starts                                 | `feature-lead` (the project's own): the brief, then the person accepts it |
-| A task goes to a worker                                   | `feature-lead`: the worker brief                                          |
+| A mission starts                                          | `mission-lead` (the project's own): the top of the mission file           |
+| A task goes to a worker                                   | `mission-lead`: "Workers"                                                 |
 | A feature with state (canvas modes, selection, drag)      | a TLA+ model and its chart (`scripts/statecharts.sh`), before UI or code  |
 | Writing or changing a test; fixing a bug                  | `test-driven-development`                                                 |
 | Splitting work into ships                                 | `planning-and-task-breakdown`, `incremental-implementation`               |
-| Before you say "done"                                     | each line of "Verification" in the brief; the smoke, or `agent-browser`   |
+| Before you say "done"                                     | each line of "Verify" in the mission file; the smoke, or `agent-browser`  |
 | A feature with state is verified                          | `scripts/statecharts.sh --check`, and the conformance review of its model |
 | A design on the Doop canvas changes                       | `bun run design:proof` until it prints OK; show its output                |
 | Docs and decisions                                        | `documentation-and-adrs`                                                  |
@@ -256,12 +227,13 @@ pinned commit:
 
 - `.claude/commands/addy-spec.md:20` saves to `SPEC.md`. Write `SPEC-<slug>.md`.
 - `.claude/commands/addy-build.md:33` asks for a clean baseline. It does not apply: the checkout
-  is shared and dirty. Its `tasks/plan.md` is `tasks/<slug>.md` here.
+  is shared and dirty. Its `tasks/plan.md` is `tasks/<mission>.md` here.
 - `spec-driven-development` has 4 human reviews (`SKILL.md:26-32`), and
   `.claude/references/definition-of-done.md:51` asks for a human approval before a deploy. Both
-  yield to "Gates": the person accepts the brief, and the feature lead does the other reviews.
+  yield to the gates above: the person accepts the top of the mission file, and the lead does
+  the other reviews.
 - `.claude/references/orchestration-patterns.md:80` and `:90` say that there is no orchestrator
-  agent. That does not apply to a feature lead.
+  agent. That does not apply to a lead.
 - `git-workflow-and-versioning` (branches and PRs) and `browser-testing-with-devtools` (Chrome
   DevTools MCP) are left out. Where a vendored file names them, or gives branch or PR advice, land
   work with `scripts/ship.sh` and test the browser with `agent-browser`.
