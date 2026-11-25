@@ -154,7 +154,7 @@ jobs:
         if: ${{ !cancelled() && env.HOOK != '' && env.EASEL_TOKEN != '' }}
         run: |
           chmod +x dist/server
-          bun scripts/map-screens.ts --binary dist/server
+          bun cmds/map-screens.ts --binary dist/server
       - uses: actions/upload-artifact@v4
         if: failure()
         with:

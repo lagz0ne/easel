@@ -245,7 +245,7 @@ const located = z.object({
 
 const fixes: Readonly<Record<string, readonly string[]>> = {
   "map/answer": [
-    "fix: look at the picture of each state that it names: bun scripts/map-screens.ts --dry <dir>.",
+    "fix: look at the picture of each state that it names: bun cmds/map-screens.ts --dry <dir>.",
     "When a screen is not right, change the view. Then run bun cmds/map-check.ts --write.",
     `Commit ${designedFile} with the change: its diff is the sign-off (SPEC-prototype decision 40).`,
   ],
@@ -321,6 +321,6 @@ export const mapsListHtml = operation({
     const list = found.length
       ? `<h2 class="${listClasses.head}" style="margin:24px 0 8px">Check</h2><ul class="${listClasses.finding}" style="margin:0;padding-left:20px">${found.map((finding) => `<li>${escaped(finding.what)}</li>`).join("")}</ul>`
       : "";
-    return `<main class="${listClasses.main}" style="padding:32px"><h1 style="margin:0 0 8px">Maps</h1><p class="${listClasses.about}" style="margin:0 0 16px">Each map of the product: its page, its cell, its first state, its count of states and its check. bun scripts/map-screens.ts puts them after each deploy. A press on Walk starts the walk of the map.</p><table style="border-collapse:collapse;width:100%"><thead><tr><th align="left">Map</th><th align="left">Page</th><th align="left">Cell</th><th align="left">First state</th><th align="left">States</th><th align="left">Check</th><th align="left">Walk</th></tr></thead><tbody>${cells}</tbody></table>${list}</main>`;
+    return `<main class="${listClasses.main}" style="padding:32px"><h1 style="margin:0 0 8px">Maps</h1><p class="${listClasses.about}" style="margin:0 0 16px">Each map of the product: its page, its cell, its first state, its count of states and its check. bun cmds/map-screens.ts puts them after each deploy. A press on Walk starts the walk of the map.</p><table style="border-collapse:collapse;width:100%"><thead><tr><th align="left">Map</th><th align="left">Page</th><th align="left">Cell</th><th align="left">First state</th><th align="left">States</th><th align="left">Check</th><th align="left">Walk</th></tr></thead><tbody>${cells}</tbody></table>${list}</main>`;
   },
 });

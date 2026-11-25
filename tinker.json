@@ -73,6 +73,9 @@
       },
       "src/build/binary.server.ts": {
         "setup": "The plugin API of Bun.build: Bun calls it while it compiles the binary, and it only gives each loaded file to the oxcBindings, oxcVisitor and runtime steps."
+      },
+      "src/map/shots.server.ts": {
+        "setup": "The plugin API of Bun.build: Bun calls it while it bundles the page and the walk of a map, and it only gives the units module, the fonts and the view to their steps (pressMarks)."
       }
     }
   },

@@ -181,7 +181,7 @@ issue that removes each:
    map, at the places of rule 11. `src/live/screens.ts` names the cells, not the steps.
 6. The maps of a canvas are in one list, with the first state and the count of states (J9).
 
-Built on 2026-11-24 (decisions 12 to 18 below). `bun scripts/map-screens.ts` puts each map of
+Built on 2026-11-24 (decisions 12 to 18 below). `bun cmds/map-screens.ts` puts each map of
 `src/live/screens.ts` on `product`; the job `screens` of `deploy.yml` runs it after the live
 screens. The map of `home.signInStep` now has 10 states:
 
@@ -224,7 +224,7 @@ The ship 1 stay "name, askForCode, browser.start fault link" is now the move to
     screen that the person sees).
 
 13. **The pictures come from a page of their own, not from the server.** `cmds/map-show.html` is
-    built with `Bun.build` only by `scripts/map-screens.ts`, as Storybook builds
+    built with `Bun.build` only by `cmds/map-screens.ts`, as Storybook builds
     `storybook-static` apart from the app. It is never a route of the production server: the
     server never runs the code of a team outside a sandbox (decision 2), the production bundle
     and its checks stay the same, and the presets of `@tinkered/core/testing` stay out of it.
@@ -297,7 +297,7 @@ The facts that a person adds by hand in ship 2, and what removes each:
    the state that it leads to, the effects, and from `tinker.graph` what each action reads,
    writes and calls. A line with `?` (#59) says "not known".
 
-Built on 2026-11-24 (decisions 19 to 22 below). `bun scripts/map-screens.ts` puts a card beside
+Built on 2026-11-24 (decisions 19 to 22 below). `bun cmds/map-screens.ts` puts a card beside
 each picture of each map: `src/map/card.ts` makes it from the map and `tinker.graph`, and
 `tests/map-card.test.ts` proves it. The card of `code`:
 
@@ -401,7 +401,7 @@ holds `EachStepIsAMove` on its 19 states, and
 [viewer-walk-any-post](docs/statecharts/viewer-walk-any-post.md) breaks it in 2 steps.
 
 Built on 2026-11-24: the model in e7b4431, the wait for the run status in 93a6e46, the walk frame
-in 69d9a86, and the walk of the viewer in 12bae23. `bun scripts/map-screens.ts` puts the frame
+in 69d9a86, and the walk of the viewer in 12bae23. `bun cmds/map-screens.ts` puts the frame
 `<name> · walk` on the page of each map. The proofs are `tests/map-walk.test.ts`,
 `tests/browser/map-walk.test.tsx` (the real press, the wait and the pick), `tests/viewer-walk.test.ts`
 and `tests/browser/viewer-walk.test.tsx` (J1 to J5 on the viewer).
@@ -581,7 +581,7 @@ decision 34; the bar of the walk has the group `Answers`. The proofs are
 
 Built on 2026-11-24 (decisions 40 to 45 below). `src/map/check.ts` makes the lines of the file and
 the findings; `bun cmds/map-check.ts` prints them, and `--write` writes `maps.designed`.
-`bun scripts/map-screens.ts` marks the frame `Maps` and the cards. The proofs are
+`bun cmds/map-screens.ts` marks the frame `Maps` and the cards. The proofs are
 `tests/map-check.test.ts`: one more answer of a fixture is one finding, and with the answer removed
 the check is OK (J8); the maps of easel are OK. Proven on a new local server: with one answer less
 in the file, the frame `Maps` showed `1 finding` and the card of `denied` the section `Check`; with
