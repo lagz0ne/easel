@@ -1,7 +1,7 @@
 # Mission: cases
 
 Lead: f11449a (`m: cases`; d13e221 handed over on 2026-11-25). Accepted: 2026-11-25, "Accept the top of tasks/cases.md." SPEC-cases
-was approved on 2026-11-25 ("Approve SPEC-cases with both picks"). Done: open.
+was approved on 2026-11-25 ("Approve SPEC-cases with both picks"). Done: 03ee247, 2026-11-25 (T1 a7711af, T2 dd65db7, T3 473a048, T4a aae051a, T4b 03ee247; CI gates green; live build 412).
 
 ## Mission
 
@@ -42,21 +42,14 @@ SPEC-cases ship 1.)
 
 ## Touching
 
-| File                                                                            | Change                                                                                                                                                          | Owner now            |
-| ------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------- |
-| `src/frames/cases.ts`                                                           | New: the shape of a case, the limit of 36, the refusal kinds.                                                                                                   | this work            |
-| `src/frames/contract.ts`                                                        | `cases.list`, `cases.set`; `CaseFrame` in the answer of a put; the field `case` on a frame of the board.                                                        | this work            |
-| `src/frames/store.server.ts`                                                    | The table `frames_cases`; the columns `source` and `case_name`; the build of a new version goes to the case frames; a drop of the source drops its case frames. | this work            |
-| `src/frames/cases.server.ts`                                                    | New: `setCases` and `listCases`, in one transaction with `arrangeAfter`.                                                                                        | this work            |
-| `src/frames/ops.server.ts`                                                      | A put on a case frame refuses `CaseFrame`; the docs of the case frames go stale with their source.                                                              | this work            |
-| `src/cli/cases.ts`, `src/cli/index.ts`, `cmds/easel.ts`                         | `easel cases ls` and `easel cases set`.                                                                                                                         | this work            |
-| `src/mcp/server.ts`                                                             | The calls `cases.list` and `cases.set`.                                                                                                                         | this work            |
-| `src/mcp/tools.ts`, `src/mcp/texts.ts`                                          | The tools `list_cases`, `set_cases`, and a text for each new kind. Lines added only.                                                                            | dirty: another agent |
-| a new file in `src/viewer/`, `src/viewer/canvas.tsx`                            | The values of the case over the board value, under the frame value of the tab.                                                                                  | `canvas.tsx` dirty   |
-| `tests/cases.test.ts`, `tests/cli-cases.test.ts`                                | New.                                                                                                                                                            | this work            |
-| `src/cli/frames.ts`, `src/viewer/drop.ts`, `tests/browser/viewer-drop.test.tsx` | The text of `CaseFrame` for a put and a drop.                                                                                                                   | this work            |
-| `tests/mcp-table.test.ts`, `tests/mcp.test.ts`, `tests/mcp-http.test.ts`        | The count of tools is 49.                                                                                                                                       | this work            |
-| `tinker.graph`                                                                  | The lines of the cases operations only.                                                                                                                         | shared: dark look B  |
+- (nothing now: the mission is done)
+
+## Evidence (2026-11-25)
+
+- Verify tests: `tests/cases.test.ts`, `tests/cli-cases.test.ts`, `tests/mcp-table.test.ts`, `tests/browser/viewer-cases.test.tsx` pass on `offload`; `tinker check: OK` on a HEAD copy of each ship; `bun run smoke` OK with T3.
+- Live proof: page `regroup-the-controller`, group 6: source frame `02dc75f14fbf` and the 4 case frames in the section `users list · cases`. One put (v3, "Team members") changed all 4. `dark` on the board changed each; a pick on `few` changed only `few`. Screenshots: `~/work/tmp/2026-11-25-cases-proof/`.
+- A new reviewer subagent gave `proven` for each success line, and no broken Nono. T4 fixed its bugs.
+- For ship 2: `base` required on `cases.set`; refuse `frame.move` and a mark on a case frame; a fixture only of a cell of the source frame; `easel kit check` gives no finding when `fixtures` is beside a function `View` (only a capsule frame takes fixtures); the States menu of a case frame shows "Use the board" as checked; a case frame shows the data of its source first, then its own.
 
 ## Plan
 
