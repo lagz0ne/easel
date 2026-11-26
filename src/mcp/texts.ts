@@ -88,7 +88,10 @@ export const answerText = operation({
           ? `${f.key}: ${f.what}. Fix: ${f.fix}`
           : `${f.file ?? "frame"}:${f.line}:${f.col} ${f.rule} ${f.what}. Fix: ${f.fix}`,
       ),
-      ...fails.map((p) => `${p.text} on ${p.on}: ${p.ratio}:1, needs ${p.min}:1 (${p.where})`),
+      ...fails.map(
+        (p) =>
+          `${p.theme ? `${p.theme}: ` : ""}${p.text} on ${p.on}: ${p.ratio}:1, needs ${p.min}:1 (${p.where})`,
+      ),
       ...(more > 0 ? [`and ${more} more`] : []),
       ...laid.findings.map((f) => findingLine.parse(f)),
       ...(laid.more > 0 ? [`and ${laid.more} more on the page`] : []),

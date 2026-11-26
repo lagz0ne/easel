@@ -525,6 +525,8 @@ export const mount = (app: MountApp) => {
     const scheme = picks.find((one) => one.label === theme.label)?.value;
     const style = {
       colorScheme: scheme,
+      background: "var(--background)",
+      color: "var(--foreground)",
       display: "grid",
       gap: "8px",
       alignContent: "start",

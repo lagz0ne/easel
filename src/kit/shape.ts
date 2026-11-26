@@ -143,7 +143,64 @@ for (const [group, { type, names }] of Object.entries(lookGroups)) {
     .optional();
 }
 
-export const lookPatch: z.ZodType<Record<string, unknown>> = z
-  .strictObject({ $schema: z.string().optional(), $description: z.string().optional() })
+export const resolverVersion = "2025.10";
+
+export const resolverSchema = "https://www.designtokens.org/schemas/2025.10/resolver.json";
+
+export const lookSet = "look";
+
+export const themeModifier = "theme";
+
+export const resolutionOrder = [
+  { $ref: `#/sets/${lookSet}` },
+  { $ref: `#/modifiers/${themeModifier}` },
+] as const;
+
+const tokenPatch = z
+  .strictObject({
+    $schema: z.string().optional(),
+    $description: z.string().optional(),
+    version: z.undefined().optional(),
+  })
   .extend(groupPatches)
   .extend({ spacing: (valuePatches.get("spacing") ?? z.never()).optional() });
+
+const darkPatch = z.strictObject({ color: groupPatches.color ?? z.never() });
+
+const resolverPatch = z.strictObject({
+  $schema: z.string().optional(),
+  name: z.string().optional(),
+  description: z.string().optional(),
+  version: z.literal(resolverVersion),
+  sets: z
+    .strictObject({
+      [lookSet]: z.strictObject({
+        description: z.string().optional(),
+        sources: z.tuple([tokenPatch.omit({ version: true })]),
+      }),
+    })
+    .optional(),
+  modifiers: z
+    .strictObject({
+      [themeModifier]: z.strictObject({
+        description: z.string().optional(),
+        contexts: z.strictObject({
+          light: z.tuple([]).optional(),
+          dark: z.union([z.tuple([]), z.tuple([darkPatch])]).optional(),
+        }),
+        default: z.literal("light").optional(),
+      }),
+    })
+    .optional(),
+  resolutionOrder: z
+    .tuple([
+      z.strictObject({ $ref: z.literal(resolutionOrder[0].$ref) }),
+      z.strictObject({ $ref: z.literal(resolutionOrder[1].$ref) }),
+    ])
+    .optional(),
+});
+
+export const lookPatch: z.ZodType<Record<string, unknown>> = z.discriminatedUnion("version", [
+  tokenPatch,
+  resolverPatch,
+]);

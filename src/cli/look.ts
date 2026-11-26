@@ -229,7 +229,8 @@ const tellSet = operation({
         });
       case "unreadable": {
         const lines = answer.fails.map(
-          (p) => `${p.text} on ${p.on}: ${p.ratio}:1, needs ${p.min}:1 (${p.where})`,
+          (p) =>
+            `${p.theme ? `${p.theme}: ` : ""}${p.text} on ${p.on}: ${p.ratio}:1, needs ${p.min}:1 (${p.where})`,
         );
         const head = "unreadable: nothing is saved; each pair needs WCAG AA";
         return say.run({ input: { json: answer, text: [head, ...lines].join("\n"), error: true } });

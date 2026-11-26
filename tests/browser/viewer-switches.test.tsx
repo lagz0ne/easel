@@ -28,6 +28,12 @@ const colorRead = `getComputedStyle(document.getElementById("t")).color`;
 const schemeDoc = (id: string) =>
   `<style>#t{color:#112233}@media (prefers-color-scheme: dark){#t{color:#ddeeff}}</style><p id="t">${id}</p>${probeScript(id, colorRead)}`;
 
+const kitLook =
+  ":root {\n  color-scheme: light dark;\n  --foreground: light-dark(#112233, #ddeeff);\n}\n";
+
+const kitDoc = (id: string) =>
+  `<!doctype html>\n<style id="easel-look">${kitLook}</style>\n<style id="easel-kit">@layer base { html { color-scheme: light; } body { color: var(--foreground); } }</style>\n<p id="t">${id}</p>${probeScript(id, colorRead)}`;
+
 const plainDoc = (id: string) =>
   `<style>#t{color:#112233}</style><p id="t">${id}</p>${probeScript(id, colorRead)}`;
 
@@ -45,7 +51,7 @@ const fixturesJs = (id: string) =>
 
 const noRuntime = { address: "/api/runtime/1/none/", imports: {} };
 
-type Kind = "scheme" | "plain" | "plan" | "fixtures";
+type Kind = "scheme" | "plain" | "plan" | "fixtures" | "kit";
 
 type ServedDoc = {
   version: number;
@@ -71,14 +77,14 @@ const appJs = { plan: planJs, fixtures: fixturesJs };
 const docOfKind = (id: string, kind: Kind): ServedDoc =>
   kind === "plan" || kind === "fixtures"
     ? { version: 1, html: "", app: { js: appJs[kind](id), kit: 1, runtime: noRuntime } }
-    : { version: 1, html: kind === "scheme" ? schemeDoc(id) : plainDoc(id) };
+    : { version: 1, html: { scheme: schemeDoc, plain: plainDoc, kit: kitDoc }[kind](id) };
 
 const put = operation({
   label: "test.put",
   input: z.object({
     id: z.string(),
     x: z.number(),
-    kind: z.enum(["scheme", "plain", "plan", "fixtures"]),
+    kind: z.enum(["scheme", "plain", "plan", "fixtures", "kit"]),
   }),
   depends: { cells: frameCells.controller, invalidate: framesBoard.invalidate },
   run: async ({ cells, invalidate }, { input: { id, x, kind } }) => {
@@ -301,6 +307,44 @@ test("X6 board-switch: one pick of dark in the dock shows each frame that follow
   await chooseState("theme", "light");
   await expect.poll(() => colorOf("s")).toBe(light);
   expect(addressOf("theme")).toBe("light");
+});
+
+test("SPEC-pieces decision 5: a kit frame whose look has light-dark() values shows the light value with no pick, as its iframe has the color-scheme light; a pick of dark shows the dark value, and light the light value again", async () => {
+  address("");
+  const server = await boot([{ id: "k", x: 0, kind: "kit" }]);
+  const at = await tab(server);
+  await rested(at, 1);
+
+  await expect.poll(() => docOf("k")?.style.colorScheme).toBe("light");
+  await expect.poll(() => colorOf("k")).toBe(light);
+
+  await chooseState("theme", "dark");
+  await expect.poll(() => colorOf("k"), { timeout: 1000 }).toBe(dark);
+
+  await chooseState("theme", "light");
+  await expect.poll(() => colorOf("k")).toBe(light);
+});
+
+test("SPEC-pieces decision 5 in a viewer page that is dark, as on a dark OS: the look block has color-scheme: light dark, but the iframe of a kit frame has the color-scheme of its theme, so light stays light and dark is dark", async () => {
+  address("?theme=light");
+  document.documentElement.style.colorScheme = "dark";
+  onTestFinished(() => {
+    document.documentElement.style.removeProperty("color-scheme");
+  });
+  const server = await boot([{ id: "k", x: 0, kind: "kit" }]);
+  const at = await tab(server);
+  await rested(at, 1);
+
+  expect(getComputedStyle(document.body).colorScheme).toBe("dark");
+  await expect.poll(() => docOf("k")?.style.colorScheme).toBe("light");
+  await expect.poll(() => colorOf("k")).toBe(light);
+
+  await chooseState("theme", "dark");
+  await expect.poll(() => colorOf("k"), { timeout: 1000 }).toBe(dark);
+
+  await chooseState("theme", "light");
+  await expect.poll(() => docOf("k")?.style.colorScheme).toBe("light");
+  await expect.poll(() => colorOf("k")).toBe(light);
 });
 
 test("X9 board-switch: a tag of the team in the config of an app frame gets its group in the dock with the values of its parse; a pick draws the frame again in a new scope with the value", async () => {

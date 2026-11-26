@@ -94,6 +94,17 @@ test("an answer's text lists its findings and its pairs in the CLI's form, and f
     },
   ]);
 
+  const darkFail = { ...fail, theme: "dark", text: "input", on: "background", min: 3 };
+  const darkUnreadable = await app.run(answerResult, {
+    rawInput: { address: "look.set", value: { kind: "unreadable", fails: [darkFail] } },
+  });
+  expect(darkUnreadable.content).toEqual([
+    {
+      type: "text",
+      text: `${kindTexts.unreadable}\ndark: input on background: 4.48:1, needs 3:1 (muted on background)`,
+    },
+  ]);
+
   const big = await app.run(answerResult, {
     rawInput: { address: "frame.put", value: { kind: "tooBig", maxBytes: 1048576 } },
   });

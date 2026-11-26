@@ -985,7 +985,8 @@ const checkE8Pairs = (scope: TinkerScope.Handle, id: string, html: string): void
   if (pairs.length < 25) report(id, "K8", `only ${pairs.length} pairs found in the kit`);
 
   for (const p of pairs.filter((q) => q.ratio < q.min)) {
-    report(id, "K8", `${p.text} on ${p.on} is ${p.ratio}:1, needs ${p.min}:1 (${p.where})`);
+    const named = p.theme ? `${p.theme}: ` : "";
+    report(id, "K8", `${named}${p.text} on ${p.on} is ${p.ratio}:1, needs ${p.min}:1 (${p.where})`);
   }
 };
 

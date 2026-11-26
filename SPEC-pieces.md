@@ -93,7 +93,7 @@ Prior art:
    - Prior art: CSS Color 5 `light-dark()` (Chrome 123, Firefox 120, Safari 17.5), and the
      `color-scheme` property of CSS Color Adjustment 1.
 6. **K8 checks each context.** The pairs of K8 are measured on the `light` values, then on the
-   `dark` values, before the values become `light-dark()`. A pair that fails names its context:
+   `dark` values, before the `:root` block is written. A pair that fails names its context:
    `dark: input on background: 1.47:1, needs 3:1 (a field edge)`. A look with no dark values has
    one context, and its pairs name no context, as today.
 7. **The dark values are data, not state, so no new model.** A person changes the dark values only
@@ -230,7 +230,10 @@ that change them for that story only; the matrix of Chromatic (one story in each
     - Each cell is its own scope, as a frame is: a refusal (`SampleInvalid`, `FixtureInvalid`)
       shows in its cell only, and a click in one cell does not change another. The cell sets its
       `color-scheme`, so a `light-dark()` color follows the theme of the cell. A
-      `prefers-color-scheme` block does not: it reads the document, and the cells share one.
+      `prefers-color-scheme` block does not: it reads the document, and the cells share one. The
+      cell also sets `background: var(--background)` and `color: var(--foreground)`: an element
+      gets the color of its parent as a value that is already resolved, so a cell that only
+      inherits shows the theme of the document.
     - 36 cells at most; more refuses the start with `MatrixTooBig`. A frame of several matrices
       waits for a real case (rule of the smallest scope).
 

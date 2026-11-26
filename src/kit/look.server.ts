@@ -1,8 +1,20 @@
 import { operation } from "@tinkered/core";
 import { z } from "zod";
 
+import { lightDark } from "./compose";
 import { fontFaces } from "./fonts.server";
-import { alias, lookPaths, lookType, valueOf } from "./shape";
+import {
+  alias,
+  lookGroups,
+  lookPaths,
+  lookSet,
+  lookType,
+  resolutionOrder,
+  resolverSchema,
+  resolverVersion,
+  themeModifier,
+  valueOf,
+} from "./shape";
 
 const { color, dimension } = valueOf;
 
@@ -135,8 +147,8 @@ export const resolveAlias = operation({
   },
 });
 
-export const lookValues = operation({
-  label: "kit.lookValues",
+export const contextValues = operation({
+  label: "kit.contextValues",
   input: dtcg,
   depends: { lookTokens, resolveAlias, valueCss },
   run: ({ lookTokens, resolveAlias, valueCss }, { input }) => {
@@ -156,20 +168,79 @@ export const lookValues = operation({
   },
 });
 
+const asNode = z.record(z.string(), z.unknown()).catch({});
+
+const resolverLook = z.object({
+  version: z.literal(resolverVersion),
+  sets: z.object({ [lookSet]: z.object({ sources: z.tuple([dtcg]) }) }),
+  modifiers: z.object({
+    [themeModifier]: z.object({ contexts: z.object({ dark: z.array(dtcg) }) }),
+  }),
+});
+
+export const lookParts = operation({
+  label: "kit.lookParts",
+  input: dtcg,
+  run: (_, { input }) => {
+    const read = resolverLook.safeParse(input);
+    if (!read.success) return { light: input, dark: null, resolver: null };
+
+    const [light] = read.data.sets[lookSet].sources;
+    const dark = read.data.modifiers[themeModifier].contexts.dark[0] ?? null;
+    return { light, dark, resolver: input };
+  },
+});
+
+export const lookContexts = operation({
+  label: "kit.lookContexts",
+  input: dtcg,
+  depends: { lookParts },
+  run: ({ lookParts }, { input }) => {
+    const { light, dark: source } = lookParts.run({ input });
+    if (source === null) return { light, dark: null };
+
+    const dark: Dtcg = { ...light };
+    for (const [group, node] of Object.entries(source)) {
+      dark[group] = { ...asNode.parse(dark[group]), ...asNode.parse(node) };
+    }
+    return { light, dark };
+  },
+});
+
+export const lookValues = operation({
+  label: "kit.lookValues",
+  input: dtcg,
+  depends: { lookContexts, contextValues },
+  run: ({ lookContexts, contextValues }, { input }) => {
+    const { light, dark } = lookContexts.run({ input });
+    const lights = contextValues.run({ input: light });
+    if (dark === null) return lights;
+
+    const darks = contextValues.run({ input: dark });
+    return Object.fromEntries(
+      Object.entries(lights).map(([name, value]) => {
+        const other = darks[name] ?? value;
+        return [name, other === value ? value : `light-dark(${value}, ${other})`];
+      }),
+    );
+  },
+});
+
 export const rootBlock = operation({
   label: "kit.rootBlock",
   input: z.record(z.string(), z.string()),
   depends: { fontFaces },
-  run: ({ fontFaces }, { input }) =>
-    `${fontFaces.run({ input })}:root {\n${Object.entries(input)
+  run: ({ fontFaces }, { input }) => {
+    const themed = Object.values(input).some((value) => lightDark.test(value));
+    const scheme = themed ? "  color-scheme: light dark;\n" : "";
+    return `${fontFaces.run({ input })}:root {\n${scheme}${Object.entries(input)
       .map(([name, value]) => `  ${name}: ${value};\n`)
-      .join("")}}\n`,
+      .join("")}}\n`;
+  },
 });
 
-const asNode = z.record(z.string(), z.unknown()).catch({});
-
-export const mergeLook = operation({
-  label: "kit.mergeLook",
+export const mergeTokens = operation({
+  label: "kit.mergeTokens",
   input: z.object({ look: dtcg, patch: dtcg }),
   run: (_, { input: { look, patch } }) => {
     const merged: Dtcg = { ...look };
@@ -184,5 +255,107 @@ export const mergeLook = operation({
         : { ...group, $value: given.$value };
     }
     return merged;
+  },
+});
+
+export const sameAsLight = operation({
+  label: "kit.sameAsLight",
+  input: z.object({
+    name: z.string(),
+    value: z.unknown(),
+    lights: z.record(z.string(), z.string()),
+  }),
+  depends: { colorCss },
+  run: ({ colorCss }, { input: { name, value, lights } }) => {
+    const plain = color.safeParse(value);
+    return plain.success && colorCss.run({ input: plain.data }) === lights[`--${name}`];
+  },
+});
+
+export const mergeDark = operation({
+  label: "kit.mergeDark",
+  input: z.object({ dark: dtcg.nullable(), patch: dtcg, lights: z.record(z.string(), z.string()) }),
+  depends: { sameAsLight },
+  run: ({ sameAsLight }, { input: { dark, patch, lights } }) => {
+    const group: Dtcg = { $type: "color", ...asNode.parse(dark?.color) };
+    const given = asNode.parse(patch.color);
+    for (const name of lookGroups.color.names) {
+      const entry = asNode.parse(given[name]);
+      if (!("$value" in entry)) continue;
+
+      const twin = { name, value: entry.$value, lights };
+      if (!(name in group) && sameAsLight.run({ input: twin })) continue;
+
+      const told = entry.$description ?? asNode.parse(group[name]).$description;
+      group[name] =
+        told === undefined
+          ? { $value: entry.$value }
+          : { $value: entry.$value, $description: told };
+    }
+    return { color: group };
+  },
+});
+
+const resolverParts = z.object({
+  version: z.literal(resolverVersion),
+  sets: z.object({ [lookSet]: z.object({ sources: z.tuple([dtcg]) }) }).optional(),
+  modifiers: z
+    .object({
+      [themeModifier]: z.object({ contexts: z.object({ dark: z.array(dtcg).optional() }) }),
+    })
+    .optional(),
+});
+
+export const patchParts = operation({
+  label: "kit.patchParts",
+  input: dtcg,
+  run: (_, { input }) => {
+    const read = resolverParts.safeParse(input);
+    if (!read.success) return { light: input, dark: null };
+
+    const light = read.data.sets?.[lookSet].sources[0] ?? {};
+    return { light, dark: read.data.modifiers?.[themeModifier].contexts.dark?.[0] ?? null };
+  },
+});
+
+export const resolverDoc = operation({
+  label: "kit.resolverDoc",
+  input: z.object({ resolver: dtcg.nullable(), light: dtcg, dark: dtcg.nullable() }),
+  run: (_, { input: { resolver, light, dark } }) => ({
+    $schema: resolverSchema,
+    ...resolver,
+    version: resolverVersion,
+    sets: { [lookSet]: { sources: [light] } },
+    modifiers: {
+      [themeModifier]: {
+        contexts: { light: [], dark: dark === null ? [] : [dark] },
+        default: "light",
+      },
+    },
+    resolutionOrder,
+  }),
+});
+
+export const mergeLook = operation({
+  label: "kit.mergeLook",
+  input: z.object({ look: dtcg, patch: dtcg }),
+  depends: { lookParts, patchParts, mergeTokens, contextValues, mergeDark, resolverDoc },
+  run: (units, { input: { look, patch } }) => {
+    const now = units.lookParts.run({ input: look });
+    const asked = units.patchParts.run({ input: patch });
+    const light = units.mergeTokens.run({ input: { look: now.light, patch: asked.light } });
+    const dark =
+      asked.dark === null
+        ? now.dark
+        : units.mergeDark.run({
+            input: {
+              dark: now.dark,
+              patch: asked.dark,
+              lights: units.contextValues.run({ input: light }),
+            },
+          });
+    if (now.resolver === null && dark === null) return light;
+
+    return units.resolverDoc.run({ input: { resolver: now.resolver, light, dark } });
   },
 });

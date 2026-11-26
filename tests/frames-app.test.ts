@@ -23,10 +23,12 @@ import { framesServer } from "@/frames/store.server";
 import { composeApp } from "@/kit/compose";
 import { type PanePlace, paneScript } from "@/kit/controls";
 import { fontRoute } from "@/kit/fonts.server";
+import { kitOps } from "@/kit/ops.server";
 import { runtimeNames } from "@/kit/runtime";
 import { type BuiltRuntime, runtimeNamesOf, runtimeRoute } from "@/kit/runtime.server";
 import { acceptRuntime, readKit, readKitAt } from "@/kit/store.server";
 
+import { darkB } from "./kit/dark";
 import { localChromium } from "./support/chromium";
 import { wsServer } from "./support/ws";
 
@@ -722,7 +724,7 @@ test(
 );
 
 test(
-  "kit-matrix: a frame that exports a matrix shows its View once for each value of the switches it names, side by side, each with its label and in its own scope; a value that refuses the start shows its refusal in its own cell only",
+  "kit-matrix: a frame that exports a matrix shows its View once for each value of the switches it names, side by side, each with its label and in its own scope; a value that refuses the start shows its refusal in its own cell only; with dark values in the look, a cell in theme dark shows them and a cell in theme light the light values (SPEC-pieces rule 16)",
   { timeout: 90_000 },
   async () => {
     const executablePath = localChromium();
@@ -743,6 +745,23 @@ test(
     if (made.kind !== "created") throw new Error(`not created: ${made.kind}`);
     const [doc] = await srv.server.run(loadDocs, { input: { canvas: "flow", id: made.id } });
     if (!doc?.app) throw new Error("no app");
+    const dark = Object.fromEntries(
+      Object.entries(darkB).map(([name, hex]) => [
+        name,
+        {
+          $value: {
+            colorSpace: "srgb",
+            components: [1, 3, 5].map((at) => Number.parseInt(hex.slice(at, at + 2), 16) / 255),
+          },
+        },
+      ]),
+    );
+    const darkLook = {
+      version: "2025.10",
+      modifiers: { theme: { contexts: { dark: [{ color: dark }] } } },
+    };
+    const set = await srv.server.run(kitOps["look.set"], { input: { look: darkLook, base: 1 } });
+    expect(set.kind).toBe("updated");
     const now = await srv.server.run(readKit);
     if (now === null) throw new Error("no kit");
     const fixtures = {
@@ -811,6 +830,19 @@ test(
       (one) => getComputedStyle(one).colorScheme,
     );
     expect(scheme).toBe("dark");
+    const paint = (label: string) =>
+      cell(label).evaluate((one) => {
+        const style = getComputedStyle(one);
+        return [style.backgroundColor, style.color];
+      });
+    expect(await paint("people.sample many · theme dark · fixture initial")).toEqual([
+      "rgb(18, 18, 18)",
+      "rgb(236, 236, 236)",
+    ]);
+    expect(await paint("people.sample many · theme light · fixture initial")).toEqual([
+      "rgb(255, 255, 255)",
+      "rgb(10, 10, 10)",
+    ]);
     const bad = cell("people.sample bad · theme light · fixture initial").getByRole("alert");
     expect(await bad.getAttribute("data-easel-refused")).toBe("SampleInvalid");
     expect(await frame.getByRole("alert").count()).toBe(4);

@@ -501,6 +501,7 @@ kit.colorVerdict exits{finding} reads{} writes{} calls{kit.nearestColor}
 kit.colorsIn exits{value} reads{} writes{} calls{kit.spotVisitor}
 kit.compose exits{value} reads{} writes{} calls{}
 kit.composeApp exits{value} reads{} writes{} calls{}
+kit.contextValues exits{value} reads{} writes{} calls{kit.lookTokens,kit.resolveAlias,kit.valueCss}
 kit.contrast exits{value} reads{} writes{} calls{kit.kitPairs,kit.ratioOf}
 kit.copyRevs exits{value} reads{} writes{} calls{}
 kit.currentKit exits{value} reads{} writes{} calls{kit.readKit}
@@ -524,16 +525,20 @@ kit.kitPairs exits{value} reads{} writes{} calls{}
 kit.lengthCss exits{value} reads{} writes{} calls{}
 kit.localPath exits{value} reads{} writes{} calls{}
 kit.lookColors exits{value} reads{} writes{} calls{kit.colorOf,kit.oklab}
+kit.lookContexts exits{value} reads{} writes{} calls{kit.lookParts}
+kit.lookParts exits{value} reads{} writes{} calls{}
 kit.lookSizes exits{value} reads{} writes{} calls{}
 kit.lookTokens exits{value} reads{} writes{} calls{}
-kit.lookValues exits{value} reads{} writes{} calls{kit.lookTokens,kit.resolveAlias,kit.valueCss}
+kit.lookValues exits{value} reads{} writes{} calls{kit.contextValues,kit.lookContexts}
 kit.luminance exits{value} reads{} writes{} calls{}
 kit.mainsOf exits{value} reads{} writes{} calls{}
 kit.make exits{value} reads{} writes{} calls{}
 kit.makeApp exits{made,unparsed} reads{} writes{} calls{kit.appBundle,kit.checkApp,kit.make,kit.sources}
 kit.makeFrame exits{made,off} reads{} writes{} calls{kit.check,kit.make,kit.sources}
+kit.mergeDark exits{value} reads{} writes{} calls{kit.sameAsLight}
 kit.mergeFixtures exits{value} reads{} writes{} calls{}
-kit.mergeLook exits{value} reads{} writes{} calls{}
+kit.mergeLook exits{value} reads{} writes{} calls{kit.contextValues,kit.lookParts,kit.mergeDark,kit.mergeTokens,kit.patchParts,kit.resolverDoc}
+kit.mergeTokens exits{value} reads{} writes{} calls{}
 kit.moduleFindings exits{value} reads{} writes{} calls{kit.importFindings,kit.shapeFindings,kit.stateFindings}
 kit.nearestColor exits{value} reads{} writes{} calls{kit.oklab}
 kit.nearestName exits{value} reads{} writes{} calls{}
@@ -549,6 +554,7 @@ kit.partChange exits{value} reads{} writes{} calls{}
 kit.partChanges exits{value} reads{} writes{} calls{kit.partChange}
 kit.partRevisions exits{value} reads{} writes{} calls{}
 kit.partSources exits{value} reads{} writes{} calls{kit.designNow}
+kit.patchParts exits{value} reads{} writes{} calls{}
 kit.pieceFindings exits{value} reads{} writes{} calls{kit.nearestName}
 kit.placeFindings exits{value} reads{} writes{} calls{}
 kit.placesOf exits{value} reads{} writes{} calls{}
@@ -560,6 +566,7 @@ kit.readKit exits{value} reads{} writes{} calls{}
 kit.readKitAt exits{value} reads{} writes{} calls{}
 kit.readRaw exits{value} reads{} writes{} calls{}
 kit.resolveAlias exits{value} reads{} writes{} calls{}
+kit.resolverDoc exits{value} reads{} writes{} calls{}
 kit.rgbToOklab exits{value} reads{} writes{} calls{}
 kit.rootBlock exits{value} reads{} writes{} calls{kit.fontFaces}
 kit.ruleStart exits{value} reads{} writes{} calls{}
@@ -568,6 +575,7 @@ kit.runtimeEntries exits{value} reads{} writes{} calls{}
 kit.runtimeNamesOf exits{value} reads{} writes{} calls{}
 kit.runtimeOf exits{value} reads{} writes{} calls{kit.easelRuntime}
 kit.runtimeRoute exits{value} reads{} writes{} calls{kit.storedFiles}
+kit.sameAsLight exits{value} reads{} writes{} calls{kit.colorCss}
 kit.saveFixtures exits{stale,unchanged,updated} reads{} writes{} calls{kit.showNewest}
 kit.saveLook exits{stale,unchanged,updated} reads{} writes{} calls{kit.showNewest}
 kit.saveTexts exits{stale,unchanged,updated} reads{} writes{} calls{kit.showNewest,texts.json}

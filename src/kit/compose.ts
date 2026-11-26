@@ -78,7 +78,12 @@ export const composeApp = operation({
   },
 });
 
+export const lookThemes = z.enum(["light", "dark"]);
+
+export const lightDark = /^light-dark\(([^,]+), ([^,]+)\)$/;
+
 export const pair = z.object({
+  theme: lookThemes.optional(),
   text: z.string(),
   on: z.string(),
   ratio: z.number(),
@@ -172,9 +177,19 @@ export const contrast = operation({
 
     const once = new Map<string, Omit<Pair, "ratio">>();
     for (const p of asked) if (!once.has(`${p.text} ${p.on}`)) once.set(`${p.text} ${p.on}`, p);
-    return [...once.values()].map((p) => {
-      const colors = { text: look[`--${p.text}`] ?? "", on: look[`--${p.on}`] ?? "" };
-      return { ...p, ratio: ratioOf.run({ input: colors }) };
-    });
+    const themed = Object.values(look).some((value) => lightDark.test(value));
+    const contexts = themed ? lookThemes.options : [undefined];
+
+    return contexts.flatMap((theme) =>
+      [...once.values()].map((p) => {
+        const [text = "", on = ""] = [p.text, p.on].map((name) => {
+          const value = look[`--${name}`] ?? "";
+          const parts = lightDark.exec(value);
+          return parts ? (parts[theme === "dark" ? 2 : 1] ?? "") : value;
+        });
+        const ratio = ratioOf.run({ input: { text, on } });
+        return theme === undefined ? { ...p, ratio } : { theme, ...p, ratio };
+      }),
+    );
   },
 });

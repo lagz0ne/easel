@@ -183,6 +183,37 @@ test("look get with no -o prints the file and the revision for a person; set fro
   expect(a.out.splice(0).join("")).toBe("updated: look revision 2, kit version 2\n");
 });
 
+const darkInput = (hex: string) =>
+  JSON.stringify({
+    version: "2025.10",
+    modifiers: {
+      theme: {
+        contexts: {
+          dark: [
+            {
+              color: {
+                background: JSON.parse(primary("#121212")).color.primary,
+                input: JSON.parse(primary(hex)).color.primary,
+              },
+            },
+          ],
+        },
+      },
+    },
+  });
+
+test("look set: a dark pair that fails is unreadable (1), and its line names the context first (SPEC-pieces decision 6)", async () => {
+  const srv = await boot();
+  const a = await ann(srv, { json: false });
+
+  expect(
+    await a.run({ kind: "set", file: a.file("dark.json", darkInput("#2a2a2a")), base: "1" }),
+  ).toBe(1);
+  const told = a.err.splice(0).join("");
+  expect(told).toMatch(/\ndark: input on background: 1\.\d+:1, needs 3:1 \(a field edge\)\n/);
+  expect(told).not.toMatch(/\nlight: /);
+});
+
 test("look set: a pair that fails is unreadable (1), each pair a line; an old base is stale (1) with the revision", async () => {
   const srv = await boot();
   const a = await ann(srv, { json: false });

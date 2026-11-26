@@ -328,7 +328,10 @@ export const seedKit = operation({
       .run({ input: { look: values, css: seedKitCss } })
       .filter((p) => p.ratio < p.min);
     if (fails.length > 0) {
-      const told = fails.map((p) => `${p.text} on ${p.on}: ${p.ratio}:1, needs ${p.min}:1`);
+      const told = fails.map(
+        (p) =>
+          `${p.theme ? `${p.theme}: ` : ""}${p.text} on ${p.on}: ${p.ratio}:1, needs ${p.min}:1`,
+      );
       throw new Error(`kit: the seed fails K8: ${told.join("; ")}`);
     }
 
