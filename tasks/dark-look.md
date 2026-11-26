@@ -55,11 +55,7 @@ tests/frames-app.test.ts tests/browser/viewer-switches.test.tsx`: all green.
 ## Touching
 
 - `tasks/dark-look.md`
-- Ship 1b: `src/kit/look.server.ts`, `src/kit/shape.ts`, `src/mcp/tools.ts` (the `set_look` entry
-  only), `tests/kit-look.test.ts`, `tests/mcp-kinds.test.ts`, `tests/mcp-table.test.ts`
-- `src/viewer/canvas.tsx` (the `colorScheme` of `PaneFrame` only; agreed with easel-95, cases
-  ship 2), `tests/browser/pane-scheme.test.tsx` (new)
-- `tinker.graph` (the lines `kit.*` of the look only)
+- The live look of easel (rev 3, kit 21, light only), as `vibea-claude`
 
 ## Plan
 
@@ -75,12 +71,18 @@ tests/frames-app.test.ts tests/browser/viewer-switches.test.tsx`: all green.
       `tests/mcp*.test.ts` is now 49. The dirty `tinker.graph` is from 02:45: it drops 212 lines that
       later ships added. Ship only its `kit.*` hunks, with `-p`.
 - [x] 3a. The walk frame keeps its theme on a dark viewer page. 8d9cf7a. Ship 2 is a6a5363, live as build 424.
-- [ ] 3b. Ship 1b: the fixes of the review of a6a5363 (no resolver document for an empty dark patch,
+- [x] 3b. Ship 1b (a0503ae, build 432) and the pane fix (c36b5be): the fixes of the review of a6a5363 (no resolver document for an empty dark patch,
       refuse the keys that the merge drops, the `set_look` text), and the `colorScheme` of a pane.
       Check: the tests of the worker, `ship.sh`, `/api/version`.
 - [ ] 4. Write the dark set of B into the live look as `vibea-claude`, with a base revision. Tell
       easel-5c (fast open) before the write: a new look makes each picture cold.
       Check: `easel look get` gives the context `dark`; the light values are the same.
+      Done 04:57:33Z: rev 1 kit 19 to rev 2 kit 20; the light set is the same as before (jq diff).
+      Undone 05:08:38Z (rev 3, kit 21, light only): each live app frame refused with LookFailsK8.
+      Its runtime is from before a6a5363 and its K8 check cannot read `light-dark()` (ratio 0, no
+      `theme` key). After the undo, the app frames start again (proof/after-undo/).
+      Waits for the person: A (light fallback for an old runtime), B (put each app frame again) or
+      C (stop at kit HTML). The pick of the lead: A.
 - [ ] 5. The proof on the live site: pictures in dark and in light, a matrix cell, and
       `bun run design:proof`. Check: each line of Success.
 - [ ] 6. A new reviewer subagent; then the report to the person.
