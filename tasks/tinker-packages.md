@@ -50,6 +50,9 @@ the person, 2026-11-25: packages to primitives, constants to tags, scripts to cm
   `src/cli/starts.ts`, `src/cli/cases.ts` (told easel-95), `src/cli/queue.ts`, `src/cli/parts.ts`,
   `src/cli/settings.ts` (new), `cmds/easel.ts` (the config only), `tests/cli-settings.test.ts` (new),
   `tests/cli-shot.test.ts`, `tinker.graph` (the lines `cli.*` only).
+- Step 7e: the files of `src/kit/` and `src/mcp/` with a setting, `src/kit/settings.ts` and
+  `src/mcp/settings.ts` (new), `tests/kit-settings.test.ts` and `tests/mcp-settings.test.ts` (new),
+  `tinker.graph` (the lines `kit.*` and `mcp.*` only). Dark look B freed them (a0503ae).
 
 ## Plan
 
@@ -73,8 +76,7 @@ the person, 2026-11-25: packages to primitives, constants to tags, scripts to cm
       `sectionHead` (the viewer draws with it too, so the client and the server must agree),
       `arrangeGap` (it is the stored default of a column), and the wire limit `maxLayoutFindings`.
       f52936d (build 408, gates and deploy green).
-- [ ] 7e. Tags: the values of `src/kit` and `src/mcp`. Waits for dark look B (2e4e4b8a, easel-d7). The
-      cases mission is done (d396771).
+- [ ] 7e. Tags: the values of `src/kit` and `src/mcp`. Dark look B freed the files (a0503ae).
 - [x] 7f. Tags: 28 values of the viewer, in `src/viewer/settings.ts`. Left as they are: the
       1500 ms font wait in the iframe script of `paintScript` (it is not a unit), the chunk size of
       `draft.ts`, the steps of the zoom label, the wire limit `maxImageBytes`, and `drop.ts` (it
