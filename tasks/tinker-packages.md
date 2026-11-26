@@ -26,7 +26,7 @@ the person, 2026-11-25: packages to primitives, constants to tags, scripts to cm
 - Not in: a change of what a script does. Back when the person asks for it.
 - Must not: change a default value, a flag, an exit code or an output line of a script.
 - Must not: edit the uncommitted "dark look B" files (`scripts/design-proof.ts`, `src/kit/*`,
-  `src/cli/look.ts`, `tinker.graph` hunks and their tests). The lead of dark look B (eae12f93)
+  `src/cli/look.ts`, `tinker.graph` hunks and their tests). The lead of dark look B (2e4e4b8a, easel-d7)
   owns them.
 
 ## Verify
@@ -51,7 +51,7 @@ the person, 2026-11-25: packages to primitives, constants to tags, scripts to cm
 - [x] 4. `build-binary` is a cmd. 62f955a.
 - [x] 5. `speed`, `map-screens` and `live-screens` are cmds. 3e06548, 0bb8566, f271fb4.
 - [ ] 6. `design-proof` is a cmd: `scripts/design-proof.ts` to `cmds/design-proof.ts`,
-      `package.json` (`design:proof`). Waits: the lead of dark look B (eae12f93) tells me when its `design-proof.ts` ships.
+      `package.json` (`design:proof`). Waits: the lead of dark look B (2e4e4b8a, easel-d7) tells me when its `design-proof.ts` ships.
 - [x] 7a. Tags: sign-in (524f731), share links, passwords and pictures (c7b50ee), error sink
       and dispatch (1d60d43).
 - [ ] 7b. Tags: the CLI `shotTries` and `callDeadline`. `src/cli/`. Check: a test in a scope.
@@ -65,7 +65,7 @@ the person, 2026-11-25: packages to primitives, constants to tags, scripts to cm
       `sectionHead` (the viewer draws with it too, so the client and the server must agree),
       `arrangeGap` (it is the stored default of a column), and the wire limit `maxLayoutFindings`.
       f52936d (build 408, gates and deploy green).
-- [ ] 7e. Tags: the values of `src/kit` and `src/mcp`. Waits for dark look B (eae12f93). The
+- [ ] 7e. Tags: the values of `src/kit` and `src/mcp`. Waits for dark look B (2e4e4b8a, easel-d7). The
       cases mission is done (d396771).
 - [x] 7f. Tags: 28 values of the viewer, in `src/viewer/settings.ts`. Left as they are: the
       1500 ms font wait in the iframe script of `paintScript` (it is not a unit), the chunk size of
