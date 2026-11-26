@@ -212,7 +212,6 @@ type DocProps = {
 
 function WalkDoc({ walk, doc, size, fit, backend }: DocProps) {
   const port = useResource(walkPort);
-  const scheme = doc.theme === themeSwitch.default ? {} : { colorScheme: doc.theme };
 
   return (
     <iframe
@@ -222,7 +221,7 @@ function WalkDoc({ walk, doc, size, fit, backend }: DocProps) {
       title={`${walk.map} · ${walk.path.at(-1)?.state ?? "starting"}`}
       srcDoc={doc.html}
       ref={(el) => port.attach(el, doc.map)}
-      style={{ width: size.w, height: size.h, transform: `scale(${fit})`, ...scheme }}
+      style={{ width: size.w, height: size.h, transform: `scale(${fit})`, colorScheme: doc.theme }}
     />
   );
 }
