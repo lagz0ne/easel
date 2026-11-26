@@ -17,7 +17,8 @@ The main story is E1, E2, E3, then E4. E8 makes each frame fast to make and like
 the first day. E5 gives the same actions through MCP. E6 and E7 keep the easel of each team healthy. E9 does for the
 words what E8 does for the look.
 E10 lets a person see each state of a frame with no agent. E11 keeps the design and the live app
-in step. Round 1 (below) holds E1, E2, E3,
+in step. E13 joins E10, E11 and E12 under the [north star](northstar.md): the work is as designed, not
+only as it looks. Round 1 (below) holds E1, E2, E3,
 E4, E5.1, E5.2, E6, E8, part of E9, and E10. E7 is deferred.
 
 | ID  | Epic                         | Outcome                                                                                                                               | Actors                  | Journeys                                                                                                                              | Status                                                                                                                  | Review |
@@ -34,6 +35,7 @@ E4, E5.1, E5.2, E6, E8, part of E9, and E10. E7 is deferred.
 | E10 | See each state of a frame    | A person sees a frame in each state of its design, with no agent.                                                                     | viewer, user            | [kit](../SPEC-kit.md#the-capsules): controls, panes                                                                                   | Built; no test names X1 to X5                                                                                           | to do  |
 | E11 | The design and the app agree | The person sees the live app beside the design, and an accepted design reaches the live app.                                          | person, agent           | [live-screens](../SPEC-live-screens.md), [design-loop](../SPEC-design-loop.md)                                                        | E11.1 built. E11.2: V4 and V7 built (2d362f0); #1 to #3 live at build 320. V5 built (e656d71), proven live at build 331 | active |
 | E12 | Screens and flows            | A person walks through the screens of a journey as a user of the product would, and sees its whole map, which comes from the product. | person, agent           | not designed                                                                                                                          | Not built                                                                                                               | to do  |
+| E13 | Hand over as designed        | A person accepts a screen model. The design frames and the live app conform to it, and drift stays at 0.                              | person, agent           | [northstar](northstar.md)                                                                                                             | Not built; requirements not written                                                                                     | to do  |
 
 ## Round 1: Show the design
 
@@ -1302,3 +1304,15 @@ see the denied screen, go back (J3), comment on it (J4), and switch to a live se
 the company: a change of the sign-in adds an answer; the map shows it with no work (J6), and the
 agent is told that it has no designed screen (J8). The walk changed J6 to J9, and added J10 and
 J11.
+
+## E13: Hand over as designed
+
+The north star is in [northstar.md](northstar.md). The person accepted it on 2026-11-26. A person
+accepts a screen model. Then easel proves that the design frames and the live app both conform to
+it. E10, E11 and E12 are the parts of this epic.
+
+- Status: the requirements are not written. Write them with the skill `writing-requirements`.
+- The first ship: the language of the screen model, the TLA+ that it makes, and the chart of the
+  request card. That chart must be equal to [request-life](statecharts/request-life.md).
+- It brings back the item that E12 deferred: a screen that the product does not have yet, designed
+  before its code. Under E13, the screen model comes first.
