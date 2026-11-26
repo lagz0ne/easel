@@ -17,7 +17,7 @@ import {
 import { panMs, panRuns, speedRuns, speedViewport } from "./settings";
 import { frameDoc, toolCall } from "./side.server";
 import type { Seeded, Side } from "./side.server";
-import { speedVerdict } from "./verdict";
+import { comparedOf, comparedStat, speedVerdict } from "./verdict";
 
 export type Budgeted = "open" | "change" | "ask" | "pan" | "panHandler";
 
@@ -37,7 +37,7 @@ export type Budgets = {
   budgets: Record<Budgeted, z.infer<typeof budget>>;
 };
 
-export type Got = Record<"base" | "tree", Record<string, number[]>>;
+export type Got = Record<"base" | "tree", Record<string, number[][]>>;
 
 type Runner = {
   once: (i: number) => Promise<Record<string, number[]>>;
@@ -295,7 +295,7 @@ const measureRounds = operation({
       for (const { side, runner } of i % 2 === 0 ? pairs : [...pairs].reverse()) {
         const kept = got[side.name];
         for (const [name, values] of Object.entries(await runner.once(i))) {
-          kept[name] = [...(kept[name] ?? []), ...values];
+          kept[name] = [...(kept[name] ?? []), values];
         }
       }
     }
@@ -375,15 +375,14 @@ export const baseStat = operation({
   label: "speed.baseStat",
   input: z.object({
     row: z.custom<Row>(),
-    values: z.array(z.number()),
+    values: z.array(z.array(z.number())),
     budgets: z.custom<Budgets>(),
   }),
-  depends: { speedVerdict },
-  run: ({ speedVerdict }, { input: { row, values, budgets } }) => {
-    if (values.length === 0) return 0;
-    const { alert, floor } = budgets;
-    const budget = budgets.budgets[row.step];
-    return speedVerdict.run({ input: { runs: values, budget, alert, floor } }).value;
+  depends: { comparedStat },
+  run: ({ comparedStat }, { input: { row, values, budgets } }) => {
+    const runs = values.flat();
+    if (runs.length === 0) return 0;
+    return comparedStat.run({ input: { runs, of: budgets.budgets[row.step].of } });
   },
 });
 
@@ -394,23 +393,25 @@ const rowTimes = operation({
     got: z.custom<Got>(),
     budgets: z.custom<Budgets>(),
   }),
-  depends: { rowVerdict, baseStat, msText },
+  depends: { rowVerdict, baseStat, comparedOf, msText },
   run: (deps, { input: { row, got, budgets } }) => {
     const v = deps.rowVerdict.run({ input: { row, got, budgets } });
     const values = got.base[row.key] ?? [];
     const was = deps.baseStat.run({ input: { row, values, budgets } });
-    const base = v.kind === "slowerThanBase" ? v.base : 0;
+    const slower = v.kind === "slowerThanBase" ? v : { tree: 0, base: 0 };
     const budget = budgets.budgets[row.step].ms;
 
     const { msText } = deps;
     return {
       verdict: v.kind,
+      stat: deps.comparedOf.run({ input: budgets.budgets[row.step].of }),
       value: msText.run({ input: v.value }),
       p50: msText.run({ input: v.p50 }),
       p95: msText.run({ input: v.p95 }),
       was: msText.run({ input: was }),
       budget: msText.run({ input: budget }),
-      base: msText.run({ input: base }),
+      tree: msText.run({ input: slower.tree }),
+      base: msText.run({ input: slower.base }),
     };
   },
 });
@@ -428,13 +429,13 @@ export const rowLine = operation({
     const t = rowTimes.run({ input: { row, got, budgets } });
     const name = `${row.step}${row.where ? ` ${row.where}` : ""}`.padEnd(11);
     const stat = row.step === "pan" ? `  max ${t.value}` : "";
-    const was = gate ? `  base ${t.was}` : "";
+    const was = gate ? `  base ${t.was} (${t.stat})` : "";
     const of = budgets.budgets[row.step].of;
 
     const line = `speed: ${name} ${String(row.frames).padStart(3)} frames  p50 ${t.p50}  p95 ${t.p95}${stat}${was}  budget ${t.budget} (${of})  ${t.verdict}`;
     const slower = t.verdict === "slowerThanBase";
     const alert = slower
-      ? `${name.trim()} at ${row.frames} frames: ${t.value.trim()}, base ${t.base.trim()}`
+      ? `${name.trim()} at ${row.frames} frames: ${t.stat} ${t.tree.trim()}, base ${t.stat} ${t.base.trim()}`
       : null;
     return { line, verdict: t.verdict, alert };
   },

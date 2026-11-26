@@ -46,20 +46,37 @@ Prior art:
    other code for the measure.
 2. **The run.** `cmds/speed.ts` starts a built binary with a seed of 20 and of 200 frames,
    opens Chromium (with the flags of canvas-speed.md "How to measure"), and does each step 5
-   times (the pan 3 times: one pan of 2 s gives ~120 frames). The base and the tree start at
-   once, and are measured in turn. It reads the marks and prints one line for each step: p50,
+   times (the pan also 5 times: one pan of 2 s gives ~120 frames). The base and the tree start
+   at once, and are measured in turn. It reads the marks and prints one line for each step: p50,
    p95 and the budget. (Changed on 2026-11-23 from 7 runs and a start in turn: the gate took
    ~150 s; the user asked for speed.)
 3. **The gate.** `bun run speed -- --gate --base <sha>` builds the binary of `<sha>` and of the
-   tree, and runs the two interleaved. A step fails when its p50 is over its budget (Q2). A step
-   whose p50 is more than 10% over the p50 of the base, and over it by at least 5% of its budget,
-   gives an alert, not a failure. The floor of 5% keeps a change that no person sees from an
-   alert: on the same code, `change` on a live document was 62 ms against 54 ms (2026-11-23). A
+   tree, and runs the two interleaved. A step fails when the stat of its budget is over its
+   budget (Q2). A step gives an alert, not a failure, when the three checks below are true. A
    failed step runs one time again before the gate says red. The gate is the `speed` job of CI `gates`,
    on each push to `main`, with the commit before the push as the base. A red stops the deploy
    and opens `trunk-red`, as each red gate does. An alert opens a `speed-slower` issue. Prior
    art: Chromium and Mozilla (Perfherder) measure time after the commit and alert; Lighthouse CI
    fails a run over its budget. By hand, `offload` runs the same command on vibea2.
+
+   The gate compares the p50 of the two sides for a p50 budget, and the p95 for a p95 or a max
+   budget. It never compares the max: one long frame of a pan is chance, and gave 5 false
+   alerts in 7 runs (#15). A step gives an alert when all three checks are true:
+   1. A one-sided Mann-Whitney U test finds the runs of the tree slower than the runs of the
+      base, with p < 0.01. The test takes one value for each run: the compared stat of that run.
+      The frames of one pan run are not independent: one slow run moves all its frames. For 40
+      runs or fewer on the two sides, the test is exact. For more runs, it uses the normal
+      approximation with a tie correction. With 5 runs on each side, the tree must be slower in 24
+      or more of the 25 pairs of runs. With 3 runs on each side, the smallest p is 1/20, so a
+      step must have 5 runs or more.
+   2. The compared value of the tree is more than 10% over that of the base (the alert).
+   3. The difference is at least 5% of the budget (the floor). The floor keeps a change that no
+      person sees from an alert: on the same code, `change` on a live document was 62 ms
+      against 54 ms (2026-11-23).
+
+   Prior art for the alert: Chromium Pinpoint compares the samples of two sides with a
+   Mann-Whitney U test, and Mozilla Perfherder with a t-test. Neither compares the maximum.
+
 4. **The hot path (Q3).** `speed.json` holds the budgets and the hot path list: each resource
    that the page may load, and each long task that it may run, before `easel:open`, each with
    its reason. The run records the requests (Playwright) and the long tasks (a
@@ -117,7 +134,7 @@ reaches each exit; the script is the thin host around them, as `scripts/smoke.sh
 export const speedVerdict = operation({
   label: "speed.verdict",
   input: z.object({ step: z.string(), runs: z.array(z.number()), base: z.array(z.number()).optional(), budget: z.number() }),
-  run: (_, { input }) => { /* p50 against the budget, then against 1.10 × the base's p50 */ },
+  run: (_, { input }) => { /* the budget stat against the budget, then the U test, the alert and the floor against the base */ },
 });
 ```
 

@@ -1037,14 +1037,17 @@ speed.askMarks exits{value} reads{} writes{} calls{}
 speed.askOnce exits{value} reads{} writes{} calls{speed.askMarks}
 speed.askRunner exits{value} reads{} writes{} calls{speed.askOnce,speed.askSetup}
 speed.askSetup exits{value} reads{} writes{} calls{speed.askOnce,speed.opened}
-speed.baseStat exits{value} reads{} writes{} calls{speed.verdict}
+speed.baseStat exits{value} reads{} writes{} calls{speed.comparedStat}
 speed.baseTree exits{value} reads{} writes{} calls{}
 speed.budgets exits{value} reads{} writes{} calls{}
 speed.buildTree exits{value} reads{} writes{} calls{}
 speed.centreFrame exits{value} reads{} writes{} calls{}
 speed.changeRunner exits{value} reads{} writes{} calls{speed.centreFrame,speed.opened,speed.putChange,speed.shownAt,speed.zoomTo}
 speed.coldOpen exits{value} reads{} writes{} calls{speed.opened}
+speed.comparedOf exits{value} reads{} writes{} calls{}
+speed.comparedStat exits{value} reads{} writes{} calls{speed.comparedOf,speed.stats}
 speed.drawnOf exits{value} reads{} writes{} calls{speed.opened}
+speed.exactRankChance exits{value} reads{} writes{} calls{speed.rankGroups}
 speed.frameDoc exits{value} reads{} writes{} calls{}
 speed.gate exits{alert,green,red} reads{} writes{} calls{}
 speed.hotName exits{value} reads{} writes{} calls{}
@@ -1057,6 +1060,8 @@ speed.measureStep exits{value} reads{} writes{} calls{speed.measureRounds,speed.
 speed.measuredLines exits{value} reads{} writes{} calls{speed.measureStep,speed.overBudget,speed.rowLine}
 speed.msText exits{value} reads{} writes{} calls{}
 speed.msTexts exits{value} reads{} writes{} calls{speed.msText}
+speed.normalRankChance exits{value} reads{} writes{} calls{speed.normalTail,speed.rankGroups}
+speed.normalTail exits{value} reads{} writes{} calls{}
 speed.openNotes exits{value} reads{} writes{} calls{speed.coldOpen,speed.msTexts,speed.throttledOpen}
 speed.openRunner exits{value} reads{} writes{} calls{speed.drawnOf,speed.opens}
 speed.opened exits{value} reads{} writes{} calls{speed.markOf}
@@ -1065,9 +1070,10 @@ speed.overBudget exits{value} reads{} writes{} calls{speed.rowVerdict}
 speed.pan exits{value} reads{} writes{} calls{}
 speed.panRunner exits{value} reads{} writes{} calls{speed.opened,speed.pan,speed.shownAt,speed.zoomTo}
 speed.putChange exits{value} reads{} writes{} calls{speed.frameDoc,speed.markOf,speed.toolCall}
+speed.rankGroups exits{value} reads{} writes{} calls{}
 speed.report exits{value} reads{} writes{} calls{speed.gate,speed.hotPathLines,speed.measuredLines,speed.openNotes,speed.serverBudgets}
 speed.rowLine exits{value} reads{} writes{} calls{speed.rowTimes}
-speed.rowTimes exits{value} reads{} writes{} calls{speed.baseStat,speed.msText,speed.rowVerdict}
+speed.rowTimes exits{value} reads{} writes{} calls{speed.baseStat,speed.comparedOf,speed.msText,speed.rowVerdict}
 speed.rowVerdict exits{inTime,overBudget,slowerThanBase} reads{} writes{} calls{speed.verdict}
 speed.run exits{value} reads{} writes{} calls{speed.budgets,speed.localChromium,speed.report,speed.sidesOf,speed.stopSide,speed.trees}
 speed.seedCanvas exits{value} reads{} writes{} calls{speed.frameDoc,speed.toolCall}
@@ -1077,6 +1083,7 @@ speed.serverUp exits{value} reads{} writes{} calls{}
 speed.shownAt exits{value} reads{} writes{} calls{}
 speed.sidesOf exits{value} reads{} writes{} calls{speed.startSide}
 speed.signIn exits{value} reads{} writes{} calls{}
+speed.slowerByChance exits{value} reads{} writes{} calls{speed.exactRankChance,speed.normalRankChance}
 speed.startSide exits{value} reads{} writes{} calls{speed.seedCanvas,speed.seedPages,speed.serverUp,speed.signIn,speed.warmUp}
 speed.stats exits{value} reads{} writes{} calls{}
 speed.stepRunner exits{value} reads{} writes{} calls{speed.askRunner,speed.changeRunner,speed.openRunner,speed.panRunner}
@@ -1084,7 +1091,7 @@ speed.stopSide exits{value} reads{} writes{} calls{}
 speed.throttledOpen exits{value} reads{} writes{} calls{speed.markOf}
 speed.toolCall exits{value} reads{} writes{} calls{}
 speed.trees exits{value} reads{} writes{} calls{speed.baseTree,speed.buildTree}
-speed.verdict exits{inTime,overBudget,slowerThanBase} reads{} writes{} calls{speed.stats}
+speed.verdict exits{inTime,overBudget,slowerThanBase} reads{} writes{} calls{speed.comparedStat,speed.slowerByChance,speed.stats}
 speed.warmUp exits{value} reads{} writes{} calls{speed.opened}
 speed.zoomTo exits{value} reads{} writes{} calls{}
 team.add.do exits{added,gone} reads{} writes{issues.members.set} calls{issues.inTeam}

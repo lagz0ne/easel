@@ -114,10 +114,15 @@ test("a line is over its budget, slower than the base, or in time", () => {
   const row = { key: "open20", step: "open", frames: 20 } as const;
   const verdictOf = (tree: number[], base: number[]) =>
     scope.run(rowVerdict, {
-      input: { row, got: { tree: { open20: tree }, base: { open20: base } }, budgets },
+      input: {
+        row,
+        got: { tree: { open20: tree.map((ms) => [ms]) }, base: { open20: base.map((ms) => [ms]) } },
+        budgets,
+      },
     }).kind;
 
   expect(verdictOf([70_000], [])).toBe("overBudget");
-  expect(verdictOf([50_000], [1_000])).toBe("slowerThanBase");
+  const fiveRuns = (ms: number) => Array.from({ length: 5 }, () => ms);
+  expect(verdictOf(fiveRuns(50_000), fiveRuns(1_000))).toBe("slowerThanBase");
   expect(verdictOf([1_000], [1_000])).toBe("inTime");
 });

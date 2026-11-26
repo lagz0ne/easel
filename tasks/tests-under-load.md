@@ -50,8 +50,9 @@ fault of the code. (Issues #10, #15, #17.)
 ## Touching
 
 - `tasks/tests-under-load.md`
-- T2 (#15): `src/speed/verdict.ts`, `src/speed/steps.server.ts` (the base text of a row only),
-  `tests/speed.test.ts`, `SPEC-speed.md` (the text of the alert only), `tinker.graph` (the lines
+- T2 (#15): `src/speed/verdict.ts`, `src/speed/steps.server.ts` (the base text of a row, and the
+  pan samples of each run), `src/speed/settings.ts` (the default of `panRuns` only),
+  `tests/speed.test.ts`, `tests/speed-run.test.ts`, `SPEC-speed.md` (the text of the alert only), `tinker.graph` (the lines
   `speed.*` only). The mission fast open has `src/speed/*` after this task (its T6).
 - Not mine: `tests/pictures.test.ts` (fast open T1 has it; I change "key names" after T1 ships),
   `tests/frames-app.test.ts` (dark look B).
@@ -62,7 +63,10 @@ fault of the code. (Issues #10, #15, #17.)
       starts 26 busy loops in the job slot on vibea2, waits 60 s, then runs each test of a list 10
       times, each in a new process, and prints the load and the count of passes. Probe: vibea2 has
       8 cores and a load of 21 to 25 from other jobs before the loops; 36 tasks run with the loops.
-- [ ] T1: the baseline. Each test of Evidence, 10 runs under load, on a `git archive` of HEAD.
+- [x] T1: the baseline on 5e49e37: each test of Evidence, alone (`-t`), passed 10 of 10 runs at a load
+      of 20 to 50. So each fails only beside the full suite. A full `check:plain` on vibea2 (load about
+      30 from other jobs) failed `share-password` (argon2id cost, 5 s), `viewer-kit` kit-control-fold,
+      and `viewer-cases` decision 4 (a poll of 5 s). T3 uses full-suite runs.
 - [ ] T2 (#15): the verdict against the base uses a statistic that is stable, not `max`. Prior
       art: Chromium Pinpoint and Mozilla Perfherder compare the samples of two sides with a
       statistical test (Mann-Whitney U, t-test), and never with the maximum. Check: `tests/speed.test.ts`;

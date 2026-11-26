@@ -18,7 +18,7 @@ export const speedEnv = tag<Readonly<Record<string, string | undefined>>>({
 
 export const speedRuns = tag({ label: "speed.runs", default: 5, parse: positive });
 
-export const panRuns = tag({ label: "speed.panRuns", default: 3, parse: positive });
+export const panRuns = tag({ label: "speed.panRuns", default: 5, parse: positive });
 
 export const panMs = tag({ label: "speed.panMs", default: 2_000, parse: positive });
 
