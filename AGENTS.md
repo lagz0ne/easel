@@ -156,6 +156,12 @@ one checkout.
   adds one line for each run to `~/.cache/ship/easel/runs.jsonl`. Before a test that load can fail,
   wait for a load below 10: `awk '{exit !($1<10)}' /proc/loadavg`. A red from timeouts under load
   is not a bug of the code. Wait, then run it again.
+- easel is low priority on `offload` (the hub, for the person, 2026-11-26). An easel run waits
+  30 min behind other runs, and at most 2 easel runs hold slots at a time. vibea runs the live apps.
+  1. Run vitest, Playwright and `check:*` only through `offload`, never on vibea itself.
+  2. Run one `offload` at a time. Read its result, then start the next.
+  3. Give a short check a short `--timeout`, for example `--timeout 5min`. Such a run goes first.
+  4. Pin `--host vibea2` only for a speed or load result. Run a load batch only for a new result.
 - Deploy first (the user chose it on 2026-11-23): a push is live in about 1 minute. The ship gate
   is fast: `check:style` and `typecheck`. A docs-only ship (`*.md`) runs `check:style` only, and
   does not deploy.
