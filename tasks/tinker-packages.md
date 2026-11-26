@@ -41,7 +41,15 @@ the person, 2026-11-25: packages to primitives, constants to tags, scripts to cm
 
 ## Touching
 
-- (nothing now)
+- Step 6: `cmds/design-proof.ts` (new), `scripts/design-proof.ts` (moved), `src/design-proof/` (new),
+  `tests/design-proof*.test.ts` (new), `package.json` (the line `design:proof` only, ship with `-p`),
+  the lines that name `scripts/design-proof.ts` in `docs/method.md`, `docs/design-canvas.md`,
+  `docs/decisions/design-canvases.md`, `docs/decisions/design-system-look.md`,
+  `SPEC-live-screens.md` and `.claude/skills/epic-flow/SKILL.md`, `tinker.graph` (its new lines only).
+- Step 7b: `src/cli/exit.ts`, `src/cli/frames.ts`, `src/cli/texts.ts`, `src/cli/look.ts`,
+  `src/cli/starts.ts`, `src/cli/cases.ts` (told easel-95), `src/cli/queue.ts`, `src/cli/parts.ts`,
+  `src/cli/settings.ts` (new), `cmds/easel.ts` (the config only), `tests/cli-settings.test.ts` (new),
+  `tests/cli-shot.test.ts`, `tinker.graph` (the lines `cli.*` only).
 
 ## Plan
 
