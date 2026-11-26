@@ -1,6 +1,6 @@
 # Mission: tests under load
 
-Lead: none yet. The person starts one. Accepted: waiting for the person. Done: open.
+Lead: easel-e4 (paseo 009665e7, `m: tests under load`). Accepted: 2026-11-26 02:29 UTC, "Accept the top of tasks/tests-under-load.md." Done: open.
 
 ## Mission
 
@@ -50,7 +50,24 @@ fault of the code. (Issues #10, #15, #17.)
 ## Touching
 
 - `tasks/tests-under-load.md`
+- T2 (#15): `src/speed/verdict.ts`, `src/speed/steps.server.ts` (the base text of a row only),
+  `tests/speed.test.ts`, `SPEC-speed.md` (the text of the alert only), `tinker.graph` (the lines
+  `speed.*` only). The mission fast open has `src/speed/*` after this task (its T6).
+- Not mine: `tests/pictures.test.ts` (fast open T1 has it; I change "key names" after T1 ships),
+  `tests/frames-app.test.ts` (dark look B).
 
 ## Plan
 
-- [ ] Wait for the person to accept the top, and to start a lead.
+- [x] T0: the load harness, outside the repo: `~/work/tmp/2026-11-26-tests-under-load/batch.sh`. It
+      starts 26 busy loops in the job slot on vibea2, waits 60 s, then runs each test of a list 10
+      times, each in a new process, and prints the load and the count of passes. Probe: vibea2 has
+      8 cores and a load of 21 to 25 from other jobs before the loops; 36 tasks run with the loops.
+- [ ] T1: the baseline. Each test of Evidence, 10 runs under load, on a `git archive` of HEAD.
+- [ ] T2 (#15): the verdict against the base uses a statistic that is stable, not `max`. Prior
+      art: Chromium Pinpoint and Mozilla Perfherder compare the samples of two sides with a
+      statistical test (Mann-Whitney U, t-test), and never with the maximum. Check: `tests/speed.test.ts`;
+      two gate runs of one tree against itself give `inTime` for each step.
+- [ ] T3: each test of Evidence that fails in T1: find the cause and fix it, one worker for each cause.
+- [ ] T4: each test with a timeout above 30 s (body-limits, map-source, build-checks, map-card,
+      queue-pages, db-generate, frames, oauth): find the slow step; wait for a signal, not the clock.
+- [ ] T5: Verify, then close #10, #15 and #17 with their commits.
