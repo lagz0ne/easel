@@ -619,6 +619,7 @@ type Placed = { canvas: string; frame: FrameInfo; at: Stage; live: boolean; plac
 
 function PaneFrame({ canvas, frame, at, place }: Placed) {
   const doc = useData(liveDoc({ canvas, id: frame.id })).current;
+  const scheme = useData(frameScheme({ canvas, id: frame.id }));
   if (!doc?.app) return null;
 
   return (
@@ -628,6 +629,7 @@ function PaneFrame({ canvas, frame, at, place }: Placed) {
       sandbox="allow-scripts"
       data-id={frame.id}
       data-place={place}
+      style={{ colorScheme: scheme ?? "light" }}
       title={`${placeWords[place]} pane of ${frame.name}`}
       ref={at.pane}
       srcDoc={doc.html + paneScript.replace("__PLACE__", place)}

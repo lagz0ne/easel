@@ -54,32 +54,32 @@ tests/frames-app.test.ts tests/browser/viewer-switches.test.tsx`: all green.
 
 ## Touching
 
-- `SPEC-pieces.md` (decision 6 and rule 16: 2 hunks)
-- `src/kit/shape.ts`, `src/kit/compose.ts`, `src/kit/look.server.ts`,
-  `src/kit/easel-frame.ts`, `src/kit/store.server.ts`
-- `src/cli/look.ts`
-- `scripts/design-proof.ts` (1 hunk; then the mission tinker-packages moves the file)
-- `src/mcp/tools.ts`, `src/mcp/texts.ts` (the text of `set_look` only; the mission cases
-  touches the same files)
+- `tasks/dark-look.md`
+- Ship 1b: `src/kit/look.server.ts`, `src/kit/shape.ts`, `src/mcp/tools.ts` (the `set_look` entry
+  only), `tests/kit-look.test.ts`, `tests/mcp-kinds.test.ts`, `tests/mcp-table.test.ts`
+- `src/viewer/canvas.tsx` (the `colorScheme` of `PaneFrame` only; agreed with easel-95, cases
+  ship 2), `tests/browser/pane-scheme.test.tsx` (new)
 - `tinker.graph` (the lines `kit.*` of the look only)
-- `src/viewer/walk-view.tsx` (the `colorScheme` of the walk frame only), `tests/browser/walk-scheme.test.tsx` (new)
-- `tests/kit-look.test.ts`, `tests/kit/dark.ts`, `tests/cli-look.test.ts`,
-  `tests/mcp-kinds.test.ts`, `tests/frames-app.test.ts`, `tests/browser/viewer-switches.test.tsx`
 
 ## Plan
 
 - [x] 1. The spec: rule 14 says `light-dark()`, as rule 16. 3583509.
-- [ ] 2. The code of the dark values, from the work that a closed session left (02:35 to 02:45).
+- [x] 2. The code of the dark values, from the work that a closed session left (02:35 to 02:45).
       A worker reads the diff against the spec, runs the tests on `offload` and
       `check:plain`, and fixes each finding. Check: the Verify tests are green, and
       `tinker check: OK`.
-- [ ] 3. Ship 2 with `ship.sh --full -p` (only the hunks of this mission in the shared files).
+- [x] 3. Ship 2 with `ship.sh --full -p` (only the hunks of this mission in the shared files).
       Tell b7c400ba, the lead of tinker-packages (design-proof.ts, look.ts) and the lead of cases (mcp texts). Check: CI `gates`
       green, `/api/version` shows it.
       The cases ship 1 is on main (a7711af): make the patches on it. The tool count in
       `tests/mcp*.test.ts` is now 49. The dirty `tinker.graph` is from 02:45: it drops 212 lines that
       later ships added. Ship only its `kit.*` hunks, with `-p`.
-- [ ] 4. Write the dark set of B into the live look as `vibea-claude`, with a base revision.
+- [x] 3a. The walk frame keeps its theme on a dark viewer page. 8d9cf7a. Ship 2 is a6a5363, live as build 424.
+- [ ] 3b. Ship 1b: the fixes of the review of a6a5363 (no resolver document for an empty dark patch,
+      refuse the keys that the merge drops, the `set_look` text), and the `colorScheme` of a pane.
+      Check: the tests of the worker, `ship.sh`, `/api/version`.
+- [ ] 4. Write the dark set of B into the live look as `vibea-claude`, with a base revision. Tell
+      easel-5c (fast open) before the write: a new look makes each picture cold.
       Check: `easel look get` gives the context `dark`; the light values are the same.
 - [ ] 5. The proof on the live site: pictures in dark and in light, a matrix cell, and
       `bun run design:proof`. Check: each line of Success.
