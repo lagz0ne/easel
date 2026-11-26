@@ -112,4 +112,4 @@ test("a request with no frame made before pages is on the first page after a res
   const a = await client(again.server, { token: owner.held.token });
   const listed = await a.list({ canvas: "flow" });
   expect(listed).toMatchObject({ requests: [{ frameId: null, page: "page-1" }] });
-}, 60_000);
+}, 30_000);

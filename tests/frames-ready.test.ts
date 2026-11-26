@@ -419,4 +419,4 @@ test("a frame made before the status is exploring after a restart", async () => 
 
   const again = await easel(file, first.token);
   expect(await again.list()).toMatchObject({ frames: [{ id: made.id, status: "exploring" }] });
-}, 60_000);
+}, 30_000);

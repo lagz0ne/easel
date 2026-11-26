@@ -54,7 +54,12 @@ fault of the code. (Issues #10, #15, #17.)
   pan samples of each run), `src/speed/settings.ts` (the default of `panRuns` only),
   `tests/speed.test.ts`, `tests/speed-run.test.ts`, `SPEC-speed.md` (the text of the alert only), `tinker.graph` (the lines
   `speed.*` only). The mission fast open has `src/speed/*` after this task (its T6).
-- Not mine: `tests/pictures.test.ts` (fast open T1 has it; I change "key names" after T1 ships),
+- T4a: `tests/live-screens-run.test.ts`, `tests/map-screens.test.ts`, `tests/binary.test.ts`, `tests/kit-binary.test.ts`, `tests/build-binary.test.ts`, `tests/db-generate.test.ts`, `tests/build-checks.test.ts`, and `tests/speed-run.test.ts` (the timeouts only).
+- T4b: `tests/body-limits.test.ts`, `tests/map-source.test.ts`, `tests/map-card.test.ts`, `tests/queue-pages.test.ts`, `tests/frames.test.ts`, `tests/pages.test.ts`, `tests/frames-ready.test.ts`, `tests/cli-frames.test.ts`, `tests/access-session-door.test.ts`, `tests/kit-lint.test.ts`, `tests/texts-live.test.ts`.
+- T3: `tests/share.test.ts`, `tests/shutdown.test.ts`.
+- T4c: `tests/frames-app.test.ts`, `tests/kit-store.test.ts`, `tests/pictures.test.ts` (the timeouts
+  only; dark look B and fast open agreed).
+- Not mine: (fast open T1 has it; I change "key names" after T1 ships),
   `tests/frames-app.test.ts` (dark look B).
 
 ## Plan
@@ -72,6 +77,8 @@ fault of the code. (Issues #10, #15, #17.)
       statistical test (Mann-Whitney U, t-test), and never with the maximum. Check: `tests/speed.test.ts`;
       two gate runs of one tree against itself give `inTime` for each step.
 - [ ] T3: each test of Evidence that fails in T1: find the cause and fix it, one worker for each cause.
-- [ ] T4: each test with a timeout above 30 s (body-limits, map-source, build-checks, map-card,
+- [ ] T4: T4b (11 server files) to 30 s or less; the restart tests on a file database keep 30 s, because
+      the disk of vibea is slow (#17). T4a, T4c open.
+      Each test with a timeout above 30 s (body-limits, map-source, build-checks, map-card,
       queue-pages, db-generate, frames, oauth): find the slow step; wait for a signal, not the clock.
 - [ ] T5: Verify, then close #10, #15 and #17 with their commits.

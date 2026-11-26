@@ -286,4 +286,4 @@ test("the cards of the sign-in come from its code and from tinker.graph, with no
     { head: "Shows", lines: ["kind: in"] },
     { head: "Moves", lines: ["no move: the end of the map"] },
   ]);
-}, 60_000);
+}, 15_000);

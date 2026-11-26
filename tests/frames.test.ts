@@ -569,7 +569,7 @@ test("after a restart, canvases, frames and versions are as stored, synchronous 
     id,
     version: 2,
   });
-}, 60_000);
+}, 30_000);
 
 test("over a real socket, a document a little over 1 MiB answers tooBig, not a closed socket", async () => {
   const srv = await boot();

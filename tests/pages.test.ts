@@ -409,4 +409,4 @@ test("a canvas and its frames made before pages are on the first page after a re
   closers.push(stop);
   await until(() => gone.get() !== undefined);
   expect(gone.get()).toMatchObject({ page: "page-1" });
-}, 60_000);
+}, 30_000);

@@ -217,7 +217,7 @@ test("over the real server and CLI: easel open prints a link that signs one brow
 
   for (const scope of [asAnn, after]) await scope.close();
   await app.close();
-}, 60_000);
+}, 30_000);
 
 test("over the real server and CLI: a code that easel users approve approved signs a phone in; easel users lists its session; easel users end ends it (0), then answers gone (1)", async () => {
   const { app, origin, ann } = await ownerAnn();
@@ -248,4 +248,4 @@ test("over the real server and CLI: a code that easel users approve approved sig
 
   for (const scope of [page, asBob, after]) await scope.close();
   await app.close();
-}, 60_000);
+}, 30_000);

@@ -139,7 +139,7 @@ beforeAll(async () => {
   });
   closers.push(() => web.stop(true));
   address = `http://127.0.0.1:${web.port}`;
-}, 90_000);
+}, 30_000);
 
 afterAll(async () => {
   for (const close of closers.splice(0).reverse()) await close();
@@ -203,7 +203,7 @@ test("L5: the first draw of an app frame shows the texts of the team that the do
   expect(await at.textOf("part")).toBe("Try it free | No people yet | Own note");
   expect(await at.origin()).toBe(origin);
   expect(at.errors).toEqual([]);
-}, 60_000);
+}, 30_000);
 
 test("L12, L13: in the locale vi, an app frame shows the vi text of the team; a text key with no vi text shows its en text between U+2068 and U+2069, so the frame marks it; a vi text given later shows on the port", async () => {
   const at = await opened(docWith("vi", changed, "vi"));
@@ -217,14 +217,14 @@ test("L12, L13: in the locale vi, an app frame shows the vi text of the team; a 
     .poll(() => at.textOf("team"), { timeout: 1_000, interval: 10 })
     .toBe("Dùng thử miễn phí | Chưa có ai");
   expect(at.errors).toEqual([]);
-}, 60_000);
+}, 30_000);
 
 test("an app frame that says a text key that the team does not have does not start: CopyGaps", async () => {
   const at = await opened(docWith("none", {}));
   const alert = at.frame.getByRole("alert");
   await expect.poll(() => alert.count(), { timeout: 20_000 }).toBe(1);
   expect(await alert.getAttribute("data-easel-refused")).toBe("CopyGaps");
-}, 60_000);
+}, 30_000);
 
 test("a plain function View gets the kit capsules too: its part says the texts of the team, and a change on the port shows", async () => {
   const at = await opened(docWith("plain", first, undefined, plainViewJs));
@@ -237,4 +237,4 @@ test("a plain function View gets the kit capsules too: its part says the texts o
     .poll(() => at.textOf("team"), { timeout: 1_000, interval: 10 })
     .toBe("Try it free | No people yet");
   expect(at.errors).toEqual([]);
-}, 60_000);
+}, 30_000);

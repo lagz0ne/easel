@@ -642,7 +642,7 @@ test("ready and explore: each kind of frame.ready and frame.explore, and put --r
   expect(await json.run({ kind: "ready", canvas: "flow", id })).toBe(1);
   expect(json.lines()).toMatchObject([{ kind: "unsettled", more: 0 }]);
   expect(json.err).toEqual([]);
-}, 60_000);
+}, 15_000);
 
 test("each frames command without a sign-in exits 2, refused", async () => {
   const srv = await boot();

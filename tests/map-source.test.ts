@@ -31,7 +31,7 @@ test("deriveOf finds the cell of a label in src/ with its view and its actions, 
   expect(await scope.run(deriveOf, { input: { root, label: "no.such.cell" } })).toEqual({
     kind: "missing",
   });
-}, 60_000);
+}, 15_000);
 
 test("each finding of a map gets the file and the line that a person must change", async () => {
   const checked = await scope.run(derivedMaps, { input: root });
@@ -56,7 +56,7 @@ test("each finding of a map gets the file and the line that a person must change
   const pressed = placed.find((each) => each.what.includes("askForCode failed has no designed"));
   expect(pressed).toMatchObject({ path: "src/home/home.tsx", rule: "map/state" });
   expect(pressed?.line).toBeGreaterThan(1);
-}, 60_000);
+}, 15_000);
 
 test("the map check takes --write and --designed <file>, and refuses any other argument", () => {
   const ask = (args: string[]) => scope.run(checkArgs, { input: { args, root } });

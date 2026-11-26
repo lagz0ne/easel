@@ -12,7 +12,7 @@ import { access } from "@/access";
 import { maxImageBytes } from "@/frames/contract";
 import { mcpMaxBody } from "@/mcp/http.server";
 
-vi.setConfig({ testTimeout: 60_000, hookTimeout: 60_000 });
+vi.setConfig({ testTimeout: 30_000 });
 
 type Cmd = typeof import("../cmds/server");
 
