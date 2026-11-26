@@ -37,7 +37,9 @@ The person starts a few leads, and gives each lead one mission (the user decided
 - **Done.** When `/api/version` shows the change live and "Verify" is done, send the person one
   short report: each success check with its evidence, and what is open.
 - **Request agent.** An agent that a request on the live easel starts does that one request and
-  ships it. It does not change a file that an open mission touches: it tells that lead.
+  ships it. It does not change a file that an open mission touches: it tells that lead. Before it
+  changes code, it checks the live build. If the live app already does what the request asks, it
+  resolves the request with that reason and the build number.
 
 <!-- intent-skills:start -->
 
@@ -194,8 +196,9 @@ revokes it with `easel users revoke vibea-claude`. After a deploy, run the insta
 
 Reply to a request on the live easel (`resolve_request`) only when the change is live. "Shipped"
 is not sufficient. The change is live when `curl -s https://easel.vibea.dev/api/version` gives a
-commit for which `git merge-base --is-ancestor <your sha> <live commit>` is true. Keep the claim
-with `extend_request` while you wait.
+commit for which `git merge-base --is-ancestor <your sha> <live commit>` is true. Run `git fetch`
+first. Exit 1 means that the change is not live. Keep the claim with `extend_request` while you
+wait.
 
 ## GitHub issues
 
