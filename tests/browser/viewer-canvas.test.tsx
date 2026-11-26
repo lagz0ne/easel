@@ -18,7 +18,8 @@ import {
   framesBoard,
 } from "@/frames/contract";
 import { Canvas } from "@/viewer/canvas";
-import { picRetryMs } from "@/viewer/picture";
+import { FramePicture, picRetryMs } from "@/viewer/picture";
+import { pickBoard, pickFrame } from "@/viewer/switches";
 
 const canvas = "home";
 
@@ -1064,6 +1065,52 @@ test("a shell asks for its picture at 0.5, at 0.25 when 0.5 is over 8 megapixels
   expect(picOf("edge")?.getAttribute("src")).toBe(`/api/pictures/${canvas}/edge/1?s=0.25&k=key-e`);
   expect(picOf("huge")).toBeNull();
   expect(cardOf("huge")).toBeTruthy();
+});
+
+test("a picture asks with theme=dark when the switch Theme of its frame is dark: by a pick on the board, or by a pick on the frame on a light board; no pick, or a pick of light, keeps the address of today (fast open D3)", async () => {
+  const server = await boot([]);
+  const scope = await createScope({
+    clock: makeTestClock(),
+    capsules: [
+      exits({ store: localStorage }),
+      memory.client({ peer: server }),
+      frames.board({ read: memory.client }),
+    ],
+  }).ready;
+  const root = createRoot(document.body.appendChild(document.createElement("div")));
+  onTestFinished(async () => {
+    root.unmount();
+    await scope.close();
+  });
+  const ids = ["a", "b", "c"];
+  root.render(
+    <ScopeProvider scope={scope}>
+      {ids.map((id) => (
+        <FramePicture
+          key={id}
+          canvas={canvas}
+          frame={{ id, name: `Frame ${id}`, w: 320, h: 240 }}
+          version={3}
+          k={`key-${id}`}
+          kit={2}
+        />
+      ))}
+    </ScopeProvider>,
+  );
+  const srcOf = (id: string) =>
+    page.getByAltText(`Frame ${id}`, { exact: true }).element().getAttribute("src");
+  const light = (id: string) => `/api/pictures/${canvas}/${id}/3?s=0.5&k=key-${id}&kit=2`;
+  const dark = (id: string) => `/api/pictures/${canvas}/${id}/3?s=0.5&k=key-${id}&theme=dark&kit=2`;
+
+  await expect.poll(() => document.querySelectorAll(".e-pic").length).toBe(3);
+  expect(ids.map(srcOf)).toEqual(ids.map(light));
+
+  scope.run(pickFrame, { input: { id: "b", name: "theme", value: "dark" } });
+  scope.run(pickFrame, { input: { id: "c", name: "theme", value: "light" } });
+  await expect.poll(() => ids.map(srcOf)).toEqual([light("a"), dark("b"), light("c")]);
+
+  scope.run(pickBoard, { input: { name: "theme", value: "dark" } });
+  await expect.poll(() => ids.map(srcOf)).toEqual([dark("a"), dark("b"), light("c")]);
 });
 
 const findBox = () => page.getByRole("combobox", { name: "Find a frame" });

@@ -1,9 +1,10 @@
-import { resource } from "@tinkered/core";
-import { useResource } from "@tinkered/react";
+import { resource, tag } from "@tinkered/core";
+import { useData, useResource } from "@tinkered/react";
 
 import { maxPicturePixels, picturePrefix } from "@/frames/contract";
 
 import "./picture.css";
+import { framePicks, frameValue, themeSwitch } from "./switches";
 
 export const picRetryMs = [1_000, 2_000, 4_000] as const;
 
@@ -31,16 +32,30 @@ const picRetry = resource({
   },
 });
 
+const pictureCanvas = tag<string>({ label: "viewer.pictureCanvas" });
+
+const pictureFrame = tag<string>({ label: "viewer.pictureFrame" });
+
+const pictureTheme = resource({
+  label: "viewer.pictureTheme",
+  config: { canvas: pictureCanvas.required, id: pictureFrame.required },
+  depends: (c) => ({ picks: framePicks({ canvas: c.canvas, id: c.id }), frameValue }),
+  factory: ({ picks, frameValue }, { config: { id } }) =>
+    frameValue.run({ input: { id, offer: themeSwitch, picks: picks.get() } }),
+});
+
 function Picture({
   src,
   version,
   kit,
+  theme,
   alt,
   wide,
 }: {
   src: string;
   version: number;
   kit: number | null | undefined;
+  theme: string;
   alt: string;
   wide: boolean;
 }) {
@@ -51,7 +66,7 @@ function Picture({
       className="e-pic"
       data-wide={wide}
       data-version={version}
-      src={typeof kit === "number" ? `${src}&kit=${kit}` : src}
+      src={`${src}${theme === "dark" ? "&theme=dark" : ""}${typeof kit === "number" ? `&kit=${kit}` : ""}`}
       alt={alt}
       decoding="async"
       draggable={false}
@@ -78,6 +93,7 @@ export function FramePicture({
   alt?: string;
   card?: number;
 }) {
+  const theme = useData(pictureTheme({ canvas, id: frame.id }));
   const area = frame.w * frame.h;
   const scale = area / 4 <= maxPicturePixels ? 0.5 : area / 16 <= maxPicturePixels ? 0.25 : null;
   if (k === undefined || scale === null) return null;
@@ -85,6 +101,7 @@ export function FramePicture({
   return (
     <Picture
       src={`${picturePrefix}${canvas}/${frame.id}/${version}?s=${scale}&k=${k}`}
+      theme={theme}
       version={version}
       kit={kit}
       alt={alt ?? frame.name}

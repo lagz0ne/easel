@@ -1,3 +1,4 @@
+import { Database } from "bun:sqlite";
 import { createHmac } from "node:crypto";
 import { createSocket } from "node:dgram";
 import { mkdirSync, mkdtempSync, readFileSync, rmSync, statSync } from "node:fs";
@@ -76,6 +77,7 @@ const drawInput = z.object({
   scale: z.number(),
   region: z.object({ x: z.number(), y: z.number(), w: z.number(), h: z.number() }),
   runtime: z.object({ prefix: z.string(), files: z.record(z.string(), z.string()) }).nullable(),
+  theme: z.enum(["light", "dark"]),
 });
 
 const primaryTsx = `export function View() {
@@ -336,6 +338,7 @@ test("the tab asks for its address; the server takes that version's document; th
       scale: 0.5,
       region: { x: 0, y: 0, w: 400, h: 300 },
       runtime: null,
+      theme: "light",
     },
   ]);
 });
@@ -930,6 +933,7 @@ test("pictures.render itself answers late only once its stopped draw has ended",
       scale: 0.5,
       region: { x: 0, y: 0, w: 100, h: 100 },
       runtime: null,
+      theme: "light",
     },
   });
   const state = { answered: false };
@@ -1023,6 +1027,89 @@ test("a new size with the same version, a new scale, a new region or a new kit v
   ]);
   expect(srv.draws.seen[4]?.input.html).toContain("--primary: #3b2fc9;");
 });
+
+const themed = (address: string, theme: string) => address.replace("&kit=", `&theme=${theme}&kit=`);
+
+test("the theme of the address goes to the draw: a dark ask draws in the dark color scheme and is stored apart from the light one, so each one draws once (D3)", async () => {
+  const srv = await withFrame();
+  const light = await srv.address("flow", srv.id);
+  const dark = themed(light, "dark");
+
+  const drawn = new Set<string>();
+  for (let i = 0; i < 2; i++) {
+    for (const address of [light, dark]) {
+      const answer = await srv.get(address);
+      expect(answer.status).toBe(200);
+      expect(answer.headers.get("cache-control")).toBe(pictureCache);
+      drawn.add(await text(answer));
+    }
+  }
+
+  expect(srv.draws.seen.map((d) => d.input.theme)).toEqual(["light", "dark"]);
+  expect(drawn.size).toBe(1);
+});
+
+test("an ask with no theme is the light ask: theme=light answers the same stored picture and draws nothing", async () => {
+  const srv = await withFrame();
+  const plain = await srv.address("flow", srv.id);
+  const first = await text(await srv.get(plain));
+
+  const light = await srv.get(themed(plain, "light"));
+  expect(light.status).toBe(200);
+  expect(await text(light)).toBe(first);
+  expect(srv.draws.seen.map((d) => d.input.theme)).toEqual(["light"]);
+});
+
+test("a theme other than light or dark answers 400 and draws nothing", async () => {
+  const srv = await withFrame();
+  const address = await srv.address("flow", srv.id);
+  for (const theme of ["Dark", "sepia", "light,dark", "dark%20"]) {
+    await refused(await srv.get(themed(address, theme)), 400);
+  }
+  expect(srv.draws.seen).toEqual([]);
+});
+
+test("an agent writes the frame; the tab asks for the old dark address; the redirect keeps theme=dark, and a light address stays as it was", async () => {
+  const srv = await withFrame();
+  const old = await srv.address("flow", srv.id, "s=1");
+  expect((await srv.write("flow", srv.id, 1, "<p>2</p>")).kind).toBe("updated");
+  const now = await srv.member("flow", srv.id);
+
+  const dark = await srv.get(themed(old, "dark"));
+  expect(dark.status).toBe(307);
+  const location = `/api/pictures/flow/${srv.id}/2?s=1&k=${now.k}&theme=dark&kit=1`;
+  expect(dark.headers.get("location")).toBe(location);
+  const light = await srv.get(old);
+  expect(light.headers.get("location")).toBe(`/api/pictures/flow/${srv.id}/2?s=1&k=${now.k}&kit=1`);
+  expect(srv.draws.seen).toEqual([]);
+
+  expect((await srv.get(location)).status).toBe(200);
+  expect(srv.draws.seen.map((d) => d.input.theme)).toEqual(["dark"]);
+});
+
+test("a picture file from before the theme has no theme column: the start makes its table again, and each ask draws once and is stored", async () => {
+  const dir = mkdtempSync(join(tmpdir(), "easel-pictures-"));
+  closers.push(() => rmSync(dir, { recursive: true, force: true }));
+  const file = join(dir, "data", "easel.db");
+  mkdirSync(join(dir, "data"), { recursive: true });
+  const before = new Database(`${file}${pictureStoreSuffix}`, { create: true });
+  before.exec(
+    `CREATE TABLE frames_pictures (canvas TEXT NOT NULL, id TEXT NOT NULL, version INTEGER NOT NULL, gen INTEGER NOT NULL, kit INTEGER NOT NULL, scale REAL NOT NULL, region TEXT NOT NULL DEFAULT '', w INTEGER NOT NULL, h INTEGER NOT NULL, draw TEXT NOT NULL, bytes BLOB NOT NULL, made INTEGER NOT NULL, PRIMARY KEY (canvas, id, version, gen, kit, scale, region, w, h, draw)) WITHOUT ROWID`,
+  );
+  before.close();
+
+  const srv = await withFrame({ file });
+  const address = await srv.address("flow", srv.id);
+  for (const ask of [address, themed(address, "dark")]) {
+    for (let i = 0; i < 2; i++) expect((await srv.get(ask)).status).toBe(200);
+  }
+  expect(srv.draws.seen.map((d) => d.input.theme)).toEqual(["light", "dark"]);
+
+  const after = new Database(`${file}${pictureStoreSuffix}`, { readonly: true });
+  closers.push(() => after.close());
+  const columns = after.query("SELECT name FROM pragma_table_info('frames_pictures')").all();
+  expect(columns).toContainEqual({ name: "theme" });
+}, 30_000);
 
 test("a stored picture keeps the checks of today: a deleted frame answers 404, and after the link ends the old key answers 404 and the new key draws again", async () => {
   const srv = await withFrame();
@@ -1472,6 +1559,27 @@ test("a real Chromium draws an app frame from its runtime: the same pixels as th
   const [drawnApp, drawnHtml] = [await bytes(app.id), await bytes(html.id)];
   expect(sizeOf(drawnApp)).toEqual(size);
   expect(drawnApp).toEqual(drawnHtml);
+}, 60_000);
+
+test("a real Chromium draws a dark ask in the dark color scheme, and a light ask in the light one", async () => {
+  const srv = await boot({ chromium: localChromium(), real: true });
+  await srv.canvas("Real");
+  const size = { w: 200, h: 100 };
+  const fill = (light: string, dark: string) =>
+    `<style>#fill{position:fixed;inset:0}@media (prefers-color-scheme: dark){#fill{background:${dark} !important}}</style><div id="fill" style="background:${light}"></div>`;
+  const both = await srv.put({ canvas: "real", html: fill("#ffffff", "#000000"), size });
+  const white = await srv.put({ canvas: "real", html: fill("#ffffff", "#ffffff"), size });
+  const black = await srv.put({ canvas: "real", html: fill("#000000", "#000000"), size });
+
+  const bytes = async (id: string, theme: string) => {
+    const answer = await srv.get(themed(await srv.address("real", id, "s=1"), theme));
+    expect(answer.status).toBe(200);
+    return new Uint8Array(await answer.arrayBuffer());
+  };
+  const [light, dark] = [await bytes(both.id, "light"), await bytes(both.id, "dark")];
+  expect(light).toEqual(await bytes(white.id, "light"));
+  expect(dark).toEqual(await bytes(black.id, "dark"));
+  expect(light).not.toEqual(dark);
 }, 60_000);
 
 async function drawTwentyAfterLook() {

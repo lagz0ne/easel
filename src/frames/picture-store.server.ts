@@ -13,6 +13,8 @@ export const storedDraw = `${pictureDraw}/${pictureDrawCode}`;
 
 export const pictureStoreSuffix = ".pictures";
 
+export const pictureTheme = z.enum(["light", "dark"]);
+
 const schema = `
 CREATE TABLE IF NOT EXISTS frames_pictures (
   canvas TEXT NOT NULL,
@@ -24,11 +26,14 @@ CREATE TABLE IF NOT EXISTS frames_pictures (
   region TEXT NOT NULL DEFAULT '',
   w INTEGER NOT NULL,
   h INTEGER NOT NULL,
+  theme TEXT NOT NULL DEFAULT 'light',
   draw TEXT NOT NULL,
   bytes BLOB NOT NULL,
   made INTEGER NOT NULL,
-  PRIMARY KEY (canvas, id, version, gen, kit, scale, region, w, h, draw)
+  PRIMARY KEY (canvas, id, version, gen, kit, scale, region, w, h, theme, draw)
 ) WITHOUT ROWID;`;
+
+const tableColumns = z.array(z.object({ name: z.string() }));
 
 export const pictureStore = resource({
   label: "pictures.store",
@@ -44,6 +49,12 @@ export const pictureStore = resource({
 
       db.exec("PRAGMA journal_mode = WAL");
       db.exec("PRAGMA synchronous = NORMAL");
+      const columns = tableColumns.parse(
+        db.query("SELECT name FROM pragma_table_info('frames_pictures')").all(),
+      );
+      if (columns.length > 0 && !columns.some((column) => column.name === "theme")) {
+        db.exec("DROP TABLE frames_pictures");
+      }
       db.exec(schema);
       return { db };
     } catch {
@@ -64,6 +75,7 @@ export const storedPictureKey = z.object({
   region: region.nullable(),
   w: z.number(),
   h: z.number(),
+  theme: pictureTheme,
 });
 
 const keyParams = storedPictureKey.transform((key) => ({
@@ -76,6 +88,7 @@ const keyParams = storedPictureKey.transform((key) => ({
   $region: key.region ? `${key.region.x},${key.region.y},${key.region.w},${key.region.h}` : "",
   $w: key.w,
   $h: key.h,
+  $theme: key.theme,
   $draw: storedDraw,
 }));
 
@@ -93,7 +106,7 @@ export const readStoredPicture = operation({
           `SELECT bytes FROM frames_pictures
            WHERE canvas = $canvas AND id = $id AND version = $version AND gen = $gen
              AND kit = $kit AND scale = $scale AND region = $region AND w = $w AND h = $h
-             AND draw = $draw`,
+             AND theme = $theme AND draw = $draw`,
         )
         .get(keyParams.parse(input));
       const found = storedRow.safeParse(row);
@@ -114,8 +127,8 @@ export const storePicture = operation({
       store.db
         .query(
           `INSERT OR REPLACE INTO frames_pictures
-             (canvas, id, version, gen, kit, scale, region, w, h, draw, bytes, made)
-           VALUES ($canvas, $id, $version, $gen, $kit, $scale, $region, $w, $h, $draw, $bytes, $made)`,
+             (canvas, id, version, gen, kit, scale, region, w, h, theme, draw, bytes, made)
+           VALUES ($canvas, $id, $version, $gen, $kit, $scale, $region, $w, $h, $theme, $draw, $bytes, $made)`,
         )
         .run({ ...keyParams.parse(input), $bytes: input.bytes, $made: clock.currentTimeMillis() });
       return true;

@@ -25,7 +25,7 @@ import {
   pictureKey,
   pictureState,
 } from "./keys.server";
-import { readStoredPicture, storePicture } from "./picture-store.server";
+import { pictureTheme, readStoredPicture, storePicture } from "./picture-store.server";
 import { drawLimitMs, drawsAtOnce, proxyHeadBytes, proxyWaitMs, slotWaitMs } from "./settings";
 import { readPicture, readStill } from "./store.server";
 
@@ -290,6 +290,7 @@ const drawInput = z.object({
   scale: z.number(),
   region: z.object({ x: z.number(), y: z.number(), w: z.number(), h: z.number() }),
   runtime: drawRuntime.nullable(),
+  theme: pictureTheme,
 });
 
 const runtimeOrigin = "http://runtime.easel.invalid";
@@ -335,6 +336,10 @@ export const drawPage = operation({
       await Promise.race([
         stopped.promise,
         page.setViewport({ width: input.w, height: input.h, deviceScaleFactor: input.scale }),
+      ]);
+      await Promise.race([
+        stopped.promise,
+        page.emulateMediaFeatures([{ name: "prefers-color-scheme", value: input.theme }]),
       ]);
       await Promise.race([
         stopped.promise,
@@ -448,6 +453,7 @@ const routeInput = z.object({
   k: z.string().optional(),
   kit: z.string().optional(),
   r: z.string().optional(),
+  theme: z.string().optional(),
 });
 
 const scales = new Map([
@@ -467,9 +473,10 @@ export const pictureAddress = operation({
     k: z.string(),
     kit: z.number(),
     r: z.string().optional(),
+    theme: pictureTheme.optional(),
   }),
   run: (_, { input: at }) =>
-    `${picturePrefix}${at.canvas}/${at.id}/${at.version}?s=${at.s ?? ""}&k=${at.k}&kit=${at.kit}${at.r === undefined ? "" : `&r=${at.r}`}`,
+    `${picturePrefix}${at.canvas}/${at.id}/${at.version}?s=${at.s ?? ""}&k=${at.k}${at.theme === "dark" ? "&theme=dark" : ""}&kit=${at.kit}${at.r === undefined ? "" : `&r=${at.r}`}`,
 });
 
 const refusal = operation({
@@ -493,13 +500,18 @@ const regionQuery = z
 
 const readAsk = operation({
   label: "pictures.ask",
-  input: z.object({ s: z.string().optional(), r: z.string().optional() }),
+  input: z.object({
+    s: z.string().optional(),
+    r: z.string().optional(),
+    theme: z.string().optional(),
+  }),
   run: (_, { input }) => {
     const scale = scales.get(input.s ?? "");
     const region = regionQuery.nullable().safeParse(input.r ?? null);
-    if (scale === undefined || !region.success) return null;
+    const theme = pictureTheme.safeParse(input.theme ?? "light");
+    if (scale === undefined || !region.success || !theme.success) return null;
 
-    return { scale, region: region.data };
+    return { scale, region: region.data, theme: theme.data };
   },
 });
 
@@ -598,7 +610,11 @@ const readRow = z.object({
     .nullable(),
 });
 
-const askedPicture = routeInput.extend({ scale: z.number(), region: box.nullable() });
+const askedPicture = routeInput.extend({
+  scale: z.number(),
+  region: box.nullable(),
+  theme: pictureTheme,
+});
 
 const placePicture = operation({
   label: "pictures.place",
@@ -613,7 +629,8 @@ const placePicture = operation({
     });
     if (doc && view.look) {
       const { root: look, css: kitCss, texts, version: kit } = view.look;
-      const key = { canvas: at.canvas, id: at.id, version: asked, gen, kit, scale, region };
+      const { theme } = at;
+      const key = { canvas: at.canvas, id: at.id, version: asked, gen, kit, scale, region, theme };
       const stored = units.readStoredPicture.run({ input: { ...key, w: doc.w, h: doc.h } });
       if (stored !== null) return new Response(stored, { status: 200, headers: pictureHeaders });
 
@@ -727,6 +744,7 @@ const drawPicture = operation({
     shown: z.number(),
     scale: z.number(),
     region: box.nullable(),
+    theme: pictureTheme,
   }),
   depends: { readStill, render, pictureBox, refusal, pictureDoc, inlineFonts, storePicture },
   run: async (units, { input }) => {
@@ -741,7 +759,15 @@ const drawPicture = operation({
     };
     const { html, runtime } = await pictureDoc.run({ input: { ...input, look } });
     const drawn = await render.run({
-      input: { html, runtime, w: input.w, h: input.h, scale: input.scale, region },
+      input: {
+        html,
+        runtime,
+        w: input.w,
+        h: input.h,
+        scale: input.scale,
+        region,
+        theme: input.theme,
+      },
     });
     switch (drawn.kind) {
       case "busy":
@@ -756,8 +782,8 @@ const drawPicture = operation({
     });
     if (!still.live || still.gen !== input.gen) return refusal.run({ input: 404 });
 
-    const { canvas, id, version, gen, shown: kit, scale, w, h } = input;
-    const key = { canvas, id, version, gen, kit, scale, region: input.region, w, h };
+    const { canvas, id, version, gen, shown: kit, scale, w, h, theme } = input;
+    const key = { canvas, id, version, gen, kit, scale, region: input.region, w, h, theme };
     units.storePicture.run({ input: { ...key, bytes: drawn.webp } });
     return new Response(drawn.webp, { status: 200, headers: pictureHeaders });
   },
