@@ -25,12 +25,15 @@ import {
   pictureKey,
   pictureState,
 } from "./keys.server";
+import { readStoredPicture, storePicture } from "./picture-store.server";
 import { drawLimitMs, drawsAtOnce, proxyHeadBytes, proxyWaitMs, slotWaitMs } from "./settings";
 import { readPicture, readStill } from "./store.server";
 
 const noStore = { "Cache-Control": "no-store" } as const;
 
 export const pictureCache = "private, max-age=31536000, immutable";
+
+const pictureHeaders = { "Content-Type": "image/webp", "Cache-Control": pictureCache } as const;
 
 const closed = new BlockList();
 
@@ -595,23 +598,30 @@ const readRow = z.object({
     .nullable(),
 });
 
+const askedPicture = routeInput.extend({ scale: z.number(), region: box.nullable() });
+
 const placePicture = operation({
   label: "pictures.place",
-  input: routeInput.extend({ asked: z.number(), kit: z.number().nullable(), row: readRow }),
-  depends: { viewLook, pictureKey, pictureAddress, refusal, fillAt },
-  run: async ({ viewLook, pictureKey, pictureAddress, refusal, fillAt }, { input }) => {
-    const { asked, row, ...at } = input;
+  input: askedPicture.extend({ asked: z.number(), kit: z.number().nullable(), row: readRow }),
+  depends: { viewLook, pictureKey, pictureAddress, refusal, fillAt, readStoredPicture },
+  run: async (units, { input }) => {
+    const { viewLook, pictureKey, pictureAddress, refusal, fillAt } = units;
+    const { asked, row, scale, region, ...at } = input;
     const { current, doc, gen } = row;
     const view = await viewLook.run({
       input: { canvas: at.canvas, id: at.id, version: asked, current, kit: at.kit },
     });
     if (doc && view.look) {
       const { root: look, css: kitCss, texts, version: kit } = view.look;
+      const key = { canvas: at.canvas, id: at.id, version: asked, gen, kit, scale, region };
+      const stored = units.readStoredPicture.run({ input: { ...key, w: doc.w, h: doc.h } });
+      if (stored !== null) return new Response(stored, { status: 200, headers: pictureHeaders });
+
       const html =
         doc.js === null && doc.image === null
           ? (await fillAt.run({ input: { html: doc.html, kit } })).html
           : doc.html;
-      return { ...doc, html, look, kitCss, texts, gen, version: asked };
+      return { ...doc, html, look, kitCss, texts, gen, version: asked, shown: kit };
     }
     if (current === null || asked > current) return refusal.run({ input: 404 });
 
@@ -623,7 +633,7 @@ const placePicture = operation({
 
 const findPicture = operation({
   label: "pictures.find",
-  input: routeInput,
+  input: askedPicture,
   depends: {
     state: pictureState,
     addressed,
@@ -714,11 +724,13 @@ const drawPicture = operation({
     w: z.number(),
     h: z.number(),
     gen: z.number(),
+    shown: z.number(),
     scale: z.number(),
     region: box.nullable(),
   }),
-  depends: { readStill, render, pictureBox, refusal, pictureDoc, inlineFonts },
-  run: async ({ readStill, render, pictureBox, refusal, pictureDoc, inlineFonts }, { input }) => {
+  depends: { readStill, render, pictureBox, refusal, pictureDoc, inlineFonts, storePicture },
+  run: async (units, { input }) => {
+    const { readStill, render, pictureBox, refusal, pictureDoc, inlineFonts } = units;
     const region = pictureBox.run({ input });
     if (region === null) return refusal.run({ input: 400 });
 
@@ -743,10 +755,11 @@ const drawPicture = operation({
       input: { canvas: input.canvas, id: input.id, version: input.version },
     });
     if (!still.live || still.gen !== input.gen) return refusal.run({ input: 404 });
-    return new Response(drawn.webp, {
-      status: 200,
-      headers: { "Content-Type": "image/webp", "Cache-Control": pictureCache },
-    });
+
+    const { canvas, id, version, gen, shown: kit, scale, w, h } = input;
+    const key = { canvas, id, version, gen, kit, scale, region: input.region, w, h };
+    units.storePicture.run({ input: { ...key, bytes: drawn.webp } });
+    return new Response(drawn.webp, { status: 200, headers: pictureHeaders });
   },
 });
 
@@ -758,7 +771,7 @@ export const pictureRoute = operation({
     const ask = readAsk.run({ input });
     if (ask === null) return refusal.run({ input: 400 });
 
-    const found = await findPicture.run({ input });
+    const found = await findPicture.run({ input: { ...input, ...ask } });
     if (found instanceof Response) return found;
 
     const at = { canvas: input.canvas, id: input.id, ...ask };

@@ -1,6 +1,6 @@
 import { createHmac } from "node:crypto";
 import { createSocket } from "node:dgram";
-import { mkdtempSync, readFileSync, rmSync, statSync } from "node:fs";
+import { mkdirSync, mkdtempSync, readFileSync, rmSync, statSync } from "node:fs";
 import { connect, createServer, Socket } from "node:net";
 import { networkInterfaces, tmpdir } from "node:os";
 import { join } from "node:path";
@@ -18,7 +18,8 @@ import { routes } from "~/components/requests/index.server";
 import { frames } from "@/frames";
 import { frames as frameCells, kept, picturePath, removed } from "@/frames/contract";
 import { secretName, keyMatches, pictureDraw, pictureKey } from "@/frames/keys.server";
-import { createCanvas, deleteFrame, framesLoads, putFrame } from "@/frames/ops.server";
+import { createCanvas, deleteFrame, framesLoads, moveFrameTo, putFrame } from "@/frames/ops.server";
+import { pictureStoreSuffix } from "@/frames/picture-store.server";
 import {
   chromiumBrowser,
   chromiumCheck,
@@ -866,7 +867,8 @@ test("a request that waits 5 s for a slot answers 503 with Retry-After: 1", asyn
   for (const draw of srv.draws.seen) draw.go();
   expect((await Promise.all(busy)).map((a) => a.status)).toEqual([200, 200]);
   srv.draws.seen.length = 0;
-  const later = [srv.get(address), srv.get(address)];
+  const notStored = await srv.address("flow", srv.id, "s=1");
+  const later = [srv.get(notStored), srv.get(notStored)];
   await until(() => srv.draws.seen.length === 2);
   for (const draw of srv.draws.seen) draw.go();
   expect((await Promise.all(later)).map((a) => a.status)).toEqual([200, 200]);
@@ -958,6 +960,103 @@ test("a draw that fails answers 503 with Retry-After: 1 and frees its slot", asy
   }
   expect(srv.draws.seen).toHaveLength(3);
 });
+
+test("a second ask of the same picture draws nothing: the server answers the stored picture, the same bytes, private and immutable", async () => {
+  const srv = await withFrame();
+  const address = await srv.address("flow", srv.id);
+  const first = await srv.get(address);
+  expect(first.status).toBe(200);
+  const drawn = await text(first);
+
+  const again = await srv.get(address);
+  expect(again.status).toBe(200);
+  expect(again.headers.get("content-type")).toBe("image/webp");
+  expect(again.headers.get("cache-control")).toBe(pictureCache);
+  expect(await text(again)).toBe(drawn);
+  expect(srv.draws.seen).toHaveLength(1);
+});
+
+test("a restart keeps each stored picture: the first ask after it draws nothing, and the pictures have their own file next to the database", async () => {
+  const dir = mkdtempSync(join(tmpdir(), "easel-pictures-"));
+  closers.push(() => rmSync(dir, { recursive: true, force: true }));
+  const file = join(dir, "data", "easel.db");
+
+  const first = await withFrame({ file });
+  const address = await first.address("flow", first.id);
+  const drawn = await text(await first.get(address));
+  await first.server.close();
+  expect(statSync(`${file}${pictureStoreSuffix}`).isFile()).toBe(true);
+
+  const again = await boot({ file });
+  const answer = await again.get(address);
+  expect(answer.status).toBe(200);
+  expect(answer.headers.get("cache-control")).toBe(pictureCache);
+  expect(await text(answer)).toBe(drawn);
+  expect(again.draws.seen).toEqual([]);
+}, 30_000);
+
+test("a new size with the same version, a new scale, a new region or a new kit version is a new picture: each one draws once", async () => {
+  const srv = await withFrame();
+  const asks = async (query: string) => {
+    const address = await srv.address("flow", srv.id, query);
+    for (let i = 0; i < 2; i++) expect((await srv.get(address)).status).toBe(200);
+  };
+
+  await asks("s=0.5");
+  await asks("s=1");
+  await asks("s=1&r=0,0,10,10");
+  const moved = await srv.server.run(moveFrameTo, {
+    input: { canvas: "flow", id: srv.id, size: { w: 200, h: 100 } },
+  });
+  expect(moved.kind).toBe("moved");
+  expect((await srv.member("flow", srv.id)).version).toBe(1);
+  await asks("s=1");
+  await setPrimary(srv, 1, "#3b2fc9");
+  await asks("s=1");
+
+  expect(srv.draws.seen.map((d) => [d.input.scale, d.input.w, d.input.region])).toEqual([
+    [0.5, 400, { x: 0, y: 0, w: 400, h: 300 }],
+    [1, 400, { x: 0, y: 0, w: 400, h: 300 }],
+    [1, 400, { x: 0, y: 0, w: 10, h: 10 }],
+    [1, 200, { x: 0, y: 0, w: 200, h: 100 }],
+    [1, 200, { x: 0, y: 0, w: 200, h: 100 }],
+  ]);
+  expect(srv.draws.seen[4]?.input.html).toContain("--primary: #3b2fc9;");
+});
+
+test("a stored picture keeps the checks of today: a deleted frame answers 404, and after the link ends the old key answers 404 and the new key draws again", async () => {
+  const srv = await withFrame();
+  const other = await srv.put({ canvas: "flow", html: "<p>2</p>", size: { w: 400, h: 300 } });
+  const gone = await srv.address("flow", other.id);
+  const before = await srv.address("flow", srv.id);
+  expect((await srv.get(gone)).status).toBe(200);
+  expect((await srv.get(before)).status).toBe(200);
+
+  await srv.rm("flow", other.id);
+  await refused(await srv.get(gone), 404);
+
+  await srv.bump("flow");
+  await refused(await srv.get(before), 404);
+  const after = await srv.address("flow", srv.id);
+  expect((await srv.get(after)).status).toBe(200);
+  expect(srv.draws.seen).toHaveLength(3);
+});
+
+test("a picture store that does not open fails no picture: each ask draws, and the picture goes out", async () => {
+  const dir = mkdtempSync(join(tmpdir(), "easel-pictures-"));
+  closers.push(() => rmSync(dir, { recursive: true, force: true }));
+  const file = join(dir, "data", "easel.db");
+  mkdirSync(`${file}${pictureStoreSuffix}`, { recursive: true });
+
+  const srv = await withFrame({ file });
+  const address = await srv.address("flow", srv.id);
+  for (let i = 0; i < 2; i++) {
+    const answer = await srv.get(address);
+    expect(answer.status).toBe(200);
+    expect(await text(answer)).toBe(await srv.drawnAs("<p>1</p>"));
+  }
+  expect(srv.draws.seen).toHaveLength(2);
+}, 30_000);
 
 test("frame.shot answers the current version's address with the board's key, and draws nothing", async () => {
   const srv = await withFrame();

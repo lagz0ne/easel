@@ -883,7 +883,7 @@ pictures.boardKey exits{value} reads{} writes{} calls{pictures.key}
 pictures.box exits{value} reads{} writes{} calls{}
 pictures.chromiumCheck exits{value} reads{} writes{} calls{}
 pictures.doc exits{value} reads{} writes{} calls{kit.compose,kit.composeApp,kit.runtimeAddress,kit.runtimeOf,kit.storedFiles,pictures.imageDoc}
-pictures.draw exits{value} reads{} writes{} calls{frames.readStill,kit.inlineFonts,pictures.box,pictures.doc,pictures.refusal,pictures.render}
+pictures.draw exits{value} reads{} writes{} calls{frames.readStill,kit.inlineFonts,pictures.box,pictures.doc,pictures.refusal,pictures.render,pictures.storePicture}
 pictures.drawPage exits{value} reads{} writes{} calls{}
 pictures.find exits{value} reads{} writes{} calls{frames.readPicture,pictures.addressed,pictures.key,pictures.keyMatches,pictures.place,pictures.refusal}
 pictures.imageDoc exits{value} reads{} writes{} calls{images.dataUri,images.doc}
@@ -891,12 +891,14 @@ pictures.key exits{value} reads{} writes{} calls{}
 pictures.keyMatches exits{value} reads{} writes{} calls{}
 pictures.kitNow exits{value} reads{} writes{} calls{kit.readKit}
 pictures.load exits{value} reads{} writes{} calls{pictures.runnable}
-pictures.place exits{value} reads{} writes{} calls{kit.fillAt,pictures.address,pictures.key,pictures.refusal,pictures.viewLook}
+pictures.place exits{value} reads{} writes{} calls{kit.fillAt,pictures.address,pictures.key,pictures.readStored,pictures.refusal,pictures.viewLook}
 pictures.publicAddress exits{value} reads{} writes{} calls{}
+pictures.readStored exits{value} reads{} writes{} calls{}
 pictures.refusal exits{value} reads{} writes{} calls{}
 pictures.render exits{busy,drawn,late} reads{} writes{} calls{pictures.drawPage}
 pictures.route exits{value} reads{} writes{} calls{pictures.ask,pictures.draw,pictures.find,pictures.refusal}
 pictures.runnable exits{value} reads{} writes{} calls{}
+pictures.storePicture exits{value} reads{} writes{} calls{}
 pictures.tunnelTarget exits{value} reads{} writes{} calls{pictures.publicAddress}
 pictures.viewKit exits{value} reads{} writes{} calls{queue.seenView}
 pictures.viewLook exits{value} reads{} writes{} calls{kit.readKitAt,pictures.kitNow,pictures.viewKit}
