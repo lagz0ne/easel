@@ -169,7 +169,7 @@ export const tools = {
     address: "look.set",
     annotations: write,
     description:
-      "Change values of the look with a JSON Merge Patch on the revision `base`, and each open tab shows the change; the dark colors go in a DTCG 2025.10 resolver document at `modifiers.theme.contexts.dark[0].color`, as `get_look` gives it. `stale` says that the look changed (get it again), and `unreadable` lists each pair of colors that is hard to read, with its theme.",
+      "Change the look with a merge patch on the revision `base`, and each open tab shows it; `look` says where the dark colors go. `stale` says that the look changed (get it again), and `unreadable` lists each pair of colors that is hard to read, with its theme.",
   },
   undo_look: {
     address: "look.undo",

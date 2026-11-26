@@ -272,11 +272,18 @@ export const sameAsLight = operation({
   },
 });
 
+export const darkOrNull = operation({
+  label: "kit.darkOrNull",
+  input: dtcg,
+  run: (_, { input }) =>
+    lookGroups.color.names.some((name) => name in input) ? { color: input } : null,
+});
+
 export const mergeDark = operation({
   label: "kit.mergeDark",
   input: z.object({ dark: dtcg.nullable(), patch: dtcg, lights: z.record(z.string(), z.string()) }),
-  depends: { sameAsLight },
-  run: ({ sameAsLight }, { input: { dark, patch, lights } }) => {
+  depends: { sameAsLight, darkOrNull },
+  run: ({ sameAsLight, darkOrNull }, { input: { dark, patch, lights } }) => {
     const group: Dtcg = { $type: "color", ...asNode.parse(dark?.color) };
     const given = asNode.parse(patch.color);
     for (const name of lookGroups.color.names) {
@@ -292,7 +299,7 @@ export const mergeDark = operation({
           ? { $value: entry.$value }
           : { $value: entry.$value, $description: told };
     }
-    return { color: group };
+    return darkOrNull.run({ input: group });
   },
 });
 

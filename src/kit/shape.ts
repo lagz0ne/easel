@@ -114,20 +114,21 @@ const aliasRule = { message: "an alias names an earlier look value of the same t
 
 const valuePatches = new Map<string, z.ZodType<unknown>>();
 
+const darkValuePatches = new Map<string, z.ZodType<unknown>>();
+
 for (const [at, { path, type }] of lookPaths.entries()) {
   const plain: z.ZodType<unknown> = valueOf[type];
   const named = alias.refine((text) => {
     const to = orderOf.get(text.slice(1, -1)) ?? at;
     return to < at && lookPaths[to]?.type === type;
   }, aliasRule);
-  valuePatches.set(
-    path,
-    z.strictObject({
-      $value: z.union([named, plain]).optional(),
-      $type: z.literal(type).optional(),
-      $description: z.string().optional(),
-    }),
-  );
+
+  const about = { $type: z.literal(type).optional(), $description: z.string().optional() };
+  const darkValue = z.union([named, plain], {
+    error: (issue) => (issue.input === undefined ? "a dark color needs its $value" : undefined),
+  });
+  valuePatches.set(path, z.strictObject({ $value: z.union([named, plain]).optional(), ...about }));
+  darkValuePatches.set(path, z.strictObject({ $value: darkValue, ...about }));
 }
 
 const groupPatches: Record<string, z.ZodType<unknown>> = {};
@@ -165,17 +166,25 @@ const tokenPatch = z
   .extend(groupPatches)
   .extend({ spacing: (valuePatches.get("spacing") ?? z.never()).optional() });
 
-const darkPatch = z.strictObject({ color: groupPatches.color ?? z.never() });
+const darkColors: Record<string, z.ZodType<unknown>> = {};
+
+for (const name of lookGroups.color.names) {
+  darkColors[name] = (darkValuePatches.get(`color.${name}`) ?? z.never()).optional();
+}
+
+const darkPatch = z.strictObject({
+  color: z
+    .strictObject({ $type: z.literal(lookGroups.color.type).optional() })
+    .extend(darkColors)
+    .optional(),
+});
 
 const resolverPatch = z.strictObject({
   $schema: z.string().optional(),
-  name: z.string().optional(),
-  description: z.string().optional(),
   version: z.literal(resolverVersion),
   sets: z
     .strictObject({
       [lookSet]: z.strictObject({
-        description: z.string().optional(),
         sources: z.tuple([tokenPatch.omit({ version: true })]),
       }),
     })
@@ -183,10 +192,9 @@ const resolverPatch = z.strictObject({
   modifiers: z
     .strictObject({
       [themeModifier]: z.strictObject({
-        description: z.string().optional(),
         contexts: z.strictObject({
           light: z.tuple([]).optional(),
-          dark: z.union([z.tuple([]), z.tuple([darkPatch])]).optional(),
+          dark: z.array(darkPatch).max(1).optional(),
         }),
         default: z.literal("light").optional(),
       }),
@@ -200,7 +208,13 @@ const resolverPatch = z.strictObject({
     .optional(),
 });
 
-export const lookPatch: z.ZodType<Record<string, unknown>> = z.discriminatedUnion("version", [
-  tokenPatch,
-  resolverPatch,
-]);
+const lookPatchText = [
+  'Give a DTCG token file to change light values, or a DTCG 2025.10 resolver document with `version` "2025.10", as `get_look` gives it.',
+  "Put the dark colors at `modifiers.theme.contexts.dark[0].color`, each with a `$value`.",
+  "The dark colors merge into the dark context: a dark color that the patch does not name stays, and the patch removes no dark value.",
+  "A dark color that equals its light value adds nothing.",
+].join(" ");
+
+export const lookPatch: z.ZodType<Record<string, unknown>> = z
+  .discriminatedUnion("version", [tokenPatch, resolverPatch])
+  .describe(lookPatchText);

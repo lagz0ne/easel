@@ -505,6 +505,7 @@ kit.contextValues exits{value} reads{} writes{} calls{kit.lookTokens,kit.resolve
 kit.contrast exits{value} reads{} writes{} calls{kit.kitPairs,kit.ratioOf}
 kit.copyRevs exits{value} reads{} writes{} calls{}
 kit.currentKit exits{value} reads{} writes{} calls{kit.readKit}
+kit.darkOrNull exits{value} reads{} writes{} calls{}
 kit.designAt exits{value} reads{} writes{} calls{kit.partRevisions}
 kit.designNow exits{value} reads{} writes{} calls{kit.designAt}
 kit.easelRuntime exits{value} reads{} writes{} calls{kit.buildRuntime}
@@ -535,7 +536,7 @@ kit.mainsOf exits{value} reads{} writes{} calls{}
 kit.make exits{value} reads{} writes{} calls{}
 kit.makeApp exits{made,unparsed} reads{} writes{} calls{kit.appBundle,kit.checkApp,kit.make,kit.sources}
 kit.makeFrame exits{made,off} reads{} writes{} calls{kit.check,kit.make,kit.sources}
-kit.mergeDark exits{value} reads{} writes{} calls{kit.sameAsLight}
+kit.mergeDark exits{value} reads{} writes{} calls{kit.darkOrNull,kit.sameAsLight}
 kit.mergeFixtures exits{value} reads{} writes{} calls{}
 kit.mergeLook exits{value} reads{} writes{} calls{kit.contextValues,kit.lookParts,kit.mergeDark,kit.mergeTokens,kit.patchParts,kit.resolverDoc}
 kit.mergeTokens exits{value} reads{} writes{} calls{}

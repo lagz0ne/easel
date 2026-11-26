@@ -523,3 +523,80 @@ test("a dark patch is invalid, with its path, when it names a color that the loo
     code: "unrecognized_keys",
   });
 });
+
+test("SPEC-pieces decision 4: a dark patch with no real change keeps the token file; a dark value that equals its light value, or an empty color group, makes no resolver document", async () => {
+  const { srv, agent } = await easel();
+  const withLight = (hex: string, dark: unknown) => ({
+    version: "2025.10",
+    sets: { look: { sources: [{ color: { primary: { $value: srgb(hex) } } }] } },
+    modifiers: { theme: { contexts: { dark: [dark] } } },
+  });
+  const sameChart = { color: colorGroup({ "chart-1": "#d4d4d4" }) };
+
+  const first = withLight("#3b2fc9", sameChart);
+  expect(await agent.run(kit.api["look.set"], { input: { look: first, base: 1 } })).toEqual({
+    kind: "updated",
+    rev: 2,
+    kit: 2,
+  });
+  const once = await stored(srv.server);
+  expect(once.look).not.toHaveProperty("version");
+  expect(once.look).toMatchObject({ color: { primary: { $value: srgb("#3b2fc9") } } });
+  expect(once.root).not.toMatch(/light-dark|color-scheme/);
+
+  const second = withLight("#2f27a8", { color: {} });
+  expect(await agent.run(kit.api["look.set"], { input: { look: second, base: 2 } })).toEqual({
+    kind: "updated",
+    rev: 3,
+    kit: 3,
+  });
+  const twice = await stored(srv.server);
+  expect(twice.look).not.toHaveProperty("version");
+  expect(twice.look).toMatchObject({ color: { primary: { $value: srgb("#2f27a8") } } });
+  expect(twice.root).not.toMatch(/light-dark|color-scheme/);
+});
+
+test("a resolver patch is invalid, with the key named, when it gives a key that the merge does not keep: name, description, the description of the set look or of the modifier theme, a dark color with no $value, a description of the dark group", () => {
+  const issues = (patch: unknown) => lookPatch.safeParse(patch).error?.issues ?? [];
+  const darkAt = ["modifiers", "theme", "contexts", "dark", 0];
+  const dark = (color: unknown) => ({
+    version: "2025.10",
+    modifiers: { theme: { contexts: { dark: [{ color }] } } },
+  });
+
+  expect(issues({ ...darkPatch(darkB), $schema: resolverParts.$schema })).toEqual([]);
+  expect(issues({ ...darkPatch(darkB), name: "B" })[0]).toMatchObject({
+    path: [],
+    code: "unrecognized_keys",
+    keys: ["name"],
+  });
+  expect(issues({ ...darkPatch(darkB), description: "B" })[0]).toMatchObject({
+    path: [],
+    code: "unrecognized_keys",
+    keys: ["description"],
+  });
+  const set = { version: "2025.10", sets: { look: { description: "light", sources: [{}] } } };
+  expect(issues(set)[0]).toMatchObject({
+    path: ["sets", "look"],
+    code: "unrecognized_keys",
+    keys: ["description"],
+  });
+  const theme = {
+    version: "2025.10",
+    modifiers: { theme: { description: "theme", contexts: { dark: [] } } },
+  };
+  expect(issues(theme)[0]).toMatchObject({
+    path: ["modifiers", "theme"],
+    code: "unrecognized_keys",
+    keys: ["description"],
+  });
+  expect(issues(dark({ input: { $description: "a field edge" } }))[0]).toMatchObject({
+    path: [...darkAt, "color", "input", "$value"],
+    message: "a dark color needs its $value",
+  });
+  expect(issues(dark({ $description: "dark B" }))[0]).toMatchObject({
+    path: [...darkAt, "color"],
+    code: "unrecognized_keys",
+    keys: ["$description"],
+  });
+});
