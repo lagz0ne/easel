@@ -82,11 +82,15 @@ The look is agreed: the mocks `users list · Stack` (c303ce3ce92e) and `users li
   with fast open first, its T2 adds a call in `savePut`), `src/cli/cases.ts` (`--base` required)
 - `tests/cases.test.ts`, `tests/cli-cases.test.ts`, `tests/viewer-cases.test.ts`,
   `tests/browser/viewer-cases.test.tsx`
+- `src/viewer/settings.ts` (new tags only)
 - `tinker.graph` (the lines `viewer.case*` and `cases.*` only, ship with `-p`)
 
 ## Plan
 
-Each task lands green with `scripts/ship.sh`. One worker writes one task, on its paths.
+Each task lands green with `scripts/ship.sh`. One worker writes one task, on its paths. A new
+constant of the viewer is a tag with its default in `src/viewer/settings.ts`, in the depends of
+the unit that reads it (tinker-packages 7f, 82d93ce). A new constant of `src/frames` goes the same
+way in `src/frames/settings.ts`, after a message to fast open.
 
 - [ ] **T0 · The model.** A TLA+ model and its chart `viewer-cases`: the view of each group for
       each tab, the case on the screen, and the frame of a new request. Invariants: no box moves;
