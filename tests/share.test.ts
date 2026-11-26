@@ -10,6 +10,7 @@ import { createScope, operation } from "@tinkered/core";
 import type { Observe, Scope } from "@tinkered/core";
 import { makeTestClock, memory } from "@tinkered/core/testing";
 import { afterEach, expect, test, vi } from "vite-plus/test";
+import { z } from "zod";
 
 import { access } from "@/access";
 import { user } from "@/access/guards.server";
@@ -151,6 +152,36 @@ function watchFrames(tab: Awaited<ReturnType<typeof client>>, canvas: string) {
 
 const unknownLink = "0123456789abcdef0123456789abcdef";
 
+const laterPasses = operation({
+  label: "test.laterPasses",
+  input: z.object({ link: z.string(), count: z.number() }),
+  depends: { connection: bunSqlite.connection },
+  run: async ({ connection }, { input }) => {
+    const db = connection.db.$client;
+    const insert = db.query(
+      "INSERT INTO frames_passes (digest, link, name, made) VALUES (?, ?, ?, ?)",
+    );
+    db.transaction(() => {
+      for (let i = 1; i <= input.count; i++) {
+        insert.run(
+          createHash("sha256").update(`later ${i}`).digest("hex"),
+          input.link,
+          "Cy",
+          1_800_000_000_000 + i,
+        );
+      }
+    })();
+  },
+});
+
+const passCount = operation({
+  label: "test.passCount",
+  input: z.string(),
+  depends: { connection: bunSqlite.connection },
+  run: async ({ connection }, { input: link }) =>
+    connection.db.$client.query("SELECT count(*) AS n FROM frames_passes WHERE link = ?").get(link),
+});
+
 test("a user shares a canvas: a new link at /s/<link>; sharing it again keeps the link (SharingAgainKeepsTheLink)", async () => {
   const srv = await boot();
   const { a, path, link } = await sharedFlow(srv);
@@ -262,10 +293,7 @@ test(
   "a link keeps its 1000 newest passes: the next open ends the oldest, which is refused ended",
   { timeout: 30_000 },
   async () => {
-    const dir = mkdtempSync(join(tmpdir(), "easel-share-"));
-    closers.push(() => rmSync(dir, { recursive: true, force: true }));
-    const file = join(dir, "easel.db");
-    const srv = await boot(file);
+    const srv = await boot();
     const { a, link } = await sharedFlow(srv);
     await a.put("flow", "<p>1</p>", "Home");
     const oldest = await client(srv.server);
@@ -279,32 +307,17 @@ test(
     const sideOpen = await sider.open(sideLink);
     sider.held.pass = sideOpen.kind === "open" ? sideOpen.pass : "";
 
-    const db = new Database(file);
-    closers.push(() => db.close());
-    const insert = db.query(
-      "INSERT INTO frames_passes (digest, link, name, made) VALUES (?, ?, ?, ?)",
-    );
-    db.transaction(() => {
-      for (let i = 1; i < 1000; i++) {
-        insert.run(
-          createHash("sha256").update(`later ${i}`).digest("hex"),
-          link,
-          "Cy",
-          1_800_000_000_000 + i,
-        );
-      }
-    })();
-    const count = (of = link) =>
-      db.query("SELECT count(*) AS n FROM frames_passes WHERE link = ?").get(of);
-    expect(count()).toEqual({ n: 1000 });
+    await srv.server.run(laterPasses, { input: { link, count: 999 } });
+    const count = (of = link) => srv.server.run(passCount, { input: of });
+    expect(await count()).toEqual({ n: 1000 });
 
     srv.clock.advance(60_000);
     const newest = await client(srv.server);
     const next = await newest.open(link);
     newest.held.pass = next.kind === "open" ? next.pass : "";
-    expect(count()).toEqual({ n: 1000 });
+    expect(await count()).toEqual({ n: 1000 });
 
-    expect(count(sideLink)).toEqual({ n: 1 });
+    expect(await count(sideLink)).toEqual({ n: 1 });
 
     const reads = [
       watchFrames(oldest, "flow"),

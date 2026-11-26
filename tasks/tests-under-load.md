@@ -76,7 +76,12 @@ fault of the code. (Issues #10, #15, #17.)
       art: Chromium Pinpoint and Mozilla Perfherder compare the samples of two sides with a
       statistical test (Mann-Whitney U, t-test), and never with the maximum. Check: `tests/speed.test.ts`;
       two gate runs of one tree against itself give `inTime` for each step.
-- [ ] T3: each test of Evidence that fails in T1: find the cause and fix it, one worker for each cause.
+- [ ] T3: the cause on vibea is the disk: a server boot on a new SQLite file makes 30 to 71 commits,
+      each with an fsync (`synchronous = FULL`), 128 to 700 ms each at load 16 to 28: a boot takes 4 to
+      23 s. On vibea2 the cause is CPU (a test of 1 core-second takes 8 to 12 s at load 90). Fixed:
+      share "1000 newest" (`:memory:`, 24 s to 0.1-2.6 s), shutdown "Reconnecting" (its file in
+      `/dev/shm`, as 9f5c651 did, vibea 4-30 s to 0.7 s). Next: each test that boots a file database.
+      Each test of Evidence that fails in T1: find the cause and fix it, one worker for each cause.
 - [ ] T4: T4b (11 server files) to 30 s or less; the restart tests on a file database keep 30 s, because
       the disk of vibea is slow (#17). T4a, T4c open.
       Each test with a timeout above 30 s (body-limits, map-source, build-checks, map-card,

@@ -1,6 +1,6 @@
 import { Database } from "bun:sqlite";
 import { createHash, randomBytes } from "node:crypto";
-import { mkdtempSync, rmSync } from "node:fs";
+import { existsSync, mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 
@@ -43,8 +43,10 @@ async function until(ok: () => boolean) {
   expect(ok()).toBe(true);
 }
 
+const diskInMemory = existsSync("/dev/shm") ? "/dev/shm" : tmpdir();
+
 function folder() {
-  const dir = mkdtempSync(join(tmpdir(), "easel-shutdown-"));
+  const dir = mkdtempSync(join(diskInMemory, "easel-shutdown-"));
   closers.push(() => rmSync(dir, { recursive: true, force: true }));
 
   return dir;
