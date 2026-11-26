@@ -32,6 +32,7 @@
     "@oxc-parser/binding-linux-arm64-gnu": "0.159.0",
     "@oxc-parser/binding-linux-x64-gnu": "0.159.0",
     "@tanstack/react-router": "1.170.41",
+    "@tanstack/react-virtual": "3.14.28",
     "@tinkered/bun": "^0.34.7",
     "@tinkered/core": "0.34.7",
     "@tinkered/react": "0.34.7",
