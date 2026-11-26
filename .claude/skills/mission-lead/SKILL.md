@@ -84,6 +84,7 @@ Task: <one task of the plan, and the success checks that it serves>.
 Paths: <paths>. Do not edit, format, revert or stash a file outside them.
 Nono: <the Not in and Must not lines that this task can meet>.
 Write the failing test first. Use `offload -- <command>` for a heavy run, `work new` for temp files.
+Give `offload` a timeout of 600 s or more: it waits in line when the slots are full.
 Do not run scripts/ship.sh, git add, git commit or git push. If the task needs more, stop and say so.
 Verify: <the exact command, and the output that shows a pass>.
 Give back: each file and what changed, the output of the verify command, what you did not confirm.
