@@ -1,6 +1,6 @@
 import { capsule } from "@tinkered/core";
 
-import { logConsole } from "./console";
+import { consoleSpans, logConsole } from "./console";
 import { tabSink } from "./observer";
 import {
   firstSendMark,
@@ -19,6 +19,7 @@ export const telemetry = {
     config: {
       service: telemetryService.required,
       console: logConsole,
+      consoleSpans,
       firstSendMark,
       firstSendMaxMs,
       errors: tabErrorSource,

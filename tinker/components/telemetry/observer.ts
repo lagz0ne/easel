@@ -1,7 +1,7 @@
 import { LEVELS, operation, resource } from "@tinkered/core";
 import type { Capsule, Observe } from "@tinkered/core";
 
-import { logConsole } from "./console";
+import { consoleSpans, logConsole } from "./console";
 import { queue } from "./queue";
 import { encodeValue, interactionLine, quiet, spanBody } from "./records";
 import type { Telemetry } from "./records";
@@ -64,6 +64,7 @@ export const observer = resource({
     level: logLevel,
     history: spanHistory,
     show: logConsole,
+    showSpans: consoleSpans,
     encodeValue,
     spanBody,
     interactionLine,
@@ -78,6 +79,7 @@ export const observer = resource({
       level,
       history,
       show,
+      showSpans,
       encodeValue,
       spanBody,
       interactionLine,
@@ -105,8 +107,8 @@ export const observer = resource({
           attributes: undefined,
           msg: "core.span",
         };
-        if (side === "browser") show?.info(record);
-        else queue.writeConsole(record);
+        if (side !== "browser") queue.writeConsole(record);
+        else if (showSpans) show?.info(record);
 
         const line = interactionLine.run({
           input: { span, entry: span.parentId === undefined, service, side },
