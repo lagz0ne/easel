@@ -19,23 +19,23 @@ words what E8 does for the look.
 E10 lets a person see each state of a frame with no agent. E11 keeps the design and the live app
 in step. E13 joins E10, E11 and E12 under the [north star](northstar.md): the work is as designed, not
 only as it looks. Round 1 (below) holds E1, E2, E3,
-E4, E5.1, E5.2, E6, E8, part of E9, and E10. E7 is deferred.
+E4, E5.1, E5.2, E6, E8, part of E9, and E10. E7 is deferred. Round 2 holds E13.
 
-| ID  | Epic                         | Outcome                                                                                                                               | Actors                  | Journeys                                                                                                                              | Status                                                                                                                  | Review |
-| --- | ---------------------------- | ------------------------------------------------------------------------------------------------------------------------------------- | ----------------------- | ------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------- | ------ |
-| E1  | Get in                       | A person or an agent gets a token when an owner approves it.                                                                          | team lead, owner, agent | [access](../SPEC-access.md#journeys), [cli](../SPEC-cli.md#journeys)                                                                  | Built                                                                                                                   | ready  |
-| E2  | Make frames                  | An agent puts HTML frames on a canvas and changes them safely.                                                                        | agent                   | [frames](../SPEC-frames.md#make-a-canvas): make a canvas, make and change frames                                                      | Built, except `frame.move`                                                                                              | ready  |
-| E3  | Share and look               | A person opens a link and sees the frames change at once.                                                                             | agent, viewer           | [frames](../SPEC-frames.md#share-a-canvas): share, open; [viewer](../SPEC-viewer.md#journeys) 7; [design](../SPEC-design.md#journeys) | Built                                                                                                                   | ready  |
-| E4  | Comment and get a change     | A viewer asks for a change. An agent makes it and replies.                                                                            | viewer, agent           | [queue](../SPEC-queue.md#journeys) 3; [viewer](../SPEC-viewer.md#ask-for-a-change): ask for a change, follow the requests             | Built; a GitHub run can get the CLI and sign in ([cli](../SPEC-cli.md#sign-in-with-no-file)), but no real run is proven | active |
-| E5  | Work through MCP             | An agent with no shell does all of E2, E3 and E4.                                                                                     | agent                   | [mcp](../SPEC-mcp.md#journeys) 3                                                                                                      | Built: `easel mcp` and `/mcp`                                                                                           | active |
-| E6  | Watch production             | The company sees the health, the errors and the copies of each easel.                                                                 | company                 | [ops](../SPEC-ops.md#journeys) 5                                                                                                      | Built, except backups                                                                                                   | ready  |
-| E7  | Fix errors with no person    | An agent fixes a production error and proves the fix.                                                                                 | fixer, tick, probe      | [fixer](../SPEC-fixer.md#journeys) 5                                                                                                  | Not built                                                                                                               | to do  |
-| E8  | One look, fast               | Agents make frames fast, and all frames of a team look like one product.                                                              | agent, user             | [kit](../SPEC-kit.md#journeys) 3                                                                                                      | Built: the look, the kit, its pieces and capsules; not all fit criteria are proven                                      | to do  |
-| E9  | One voice                    | All frames of a team say one thing in one way, and one change of a text reaches each frame.                                           | agent, user, person     | [kit](../SPEC-kit.md)                                                                                                                 | Each frame keeps its own texts; nothing keeps the texts of a team                                                       | to do  |
-| E10 | See each state of a frame    | A person sees a frame in each state of its design, with no agent.                                                                     | viewer, user            | [kit](../SPEC-kit.md#the-capsules): controls, panes                                                                                   | Built; no test names X1 to X5                                                                                           | to do  |
-| E11 | The design and the app agree | The person sees the live app beside the design, and an accepted design reaches the live app.                                          | person, agent           | [live-screens](../SPEC-live-screens.md), [design-loop](../SPEC-design-loop.md)                                                        | E11.1 built. E11.2: V4 and V7 built (2d362f0); #1 to #3 live at build 320. V5 built (e656d71), proven live at build 331 | active |
-| E12 | Screens and flows            | A person walks through the screens of a journey as a user of the product would, and sees its whole map, which comes from the product. | person, agent           | not designed                                                                                                                          | Not built                                                                                                               | to do  |
-| E13 | Hand over as designed        | A person accepts a screen model. The design frames and the live app conform to it, and drift stays at 0.                              | person, agent           | [northstar](northstar.md)                                                                                                             | Not built; requirements not written                                                                                     | to do  |
+| ID  | Epic                         | Outcome                                                                                                                                             | Actors                  | Journeys                                                                                                                              | Status                                                                                                                  | Review |
+| --- | ---------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------- | ------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------- | ------ |
+| E1  | Get in                       | A person or an agent gets a token when an owner approves it.                                                                                        | team lead, owner, agent | [access](../SPEC-access.md#journeys), [cli](../SPEC-cli.md#journeys)                                                                  | Built                                                                                                                   | ready  |
+| E2  | Make frames                  | An agent puts HTML frames on a canvas and changes them safely.                                                                                      | agent                   | [frames](../SPEC-frames.md#make-a-canvas): make a canvas, make and change frames                                                      | Built, except `frame.move`                                                                                              | ready  |
+| E3  | Share and look               | A person opens a link and sees the frames change at once.                                                                                           | agent, viewer           | [frames](../SPEC-frames.md#share-a-canvas): share, open; [viewer](../SPEC-viewer.md#journeys) 7; [design](../SPEC-design.md#journeys) | Built                                                                                                                   | ready  |
+| E4  | Comment and get a change     | A viewer asks for a change. An agent makes it and replies.                                                                                          | viewer, agent           | [queue](../SPEC-queue.md#journeys) 3; [viewer](../SPEC-viewer.md#ask-for-a-change): ask for a change, follow the requests             | Built; a GitHub run can get the CLI and sign in ([cli](../SPEC-cli.md#sign-in-with-no-file)), but no real run is proven | active |
+| E5  | Work through MCP             | An agent with no shell does all of E2, E3 and E4.                                                                                                   | agent                   | [mcp](../SPEC-mcp.md#journeys) 3                                                                                                      | Built: `easel mcp` and `/mcp`                                                                                           | active |
+| E6  | Watch production             | The company sees the health, the errors and the copies of each easel.                                                                               | company                 | [ops](../SPEC-ops.md#journeys) 5                                                                                                      | Built, except backups                                                                                                   | ready  |
+| E7  | Fix errors with no person    | An agent fixes a production error and proves the fix.                                                                                               | fixer, tick, probe      | [fixer](../SPEC-fixer.md#journeys) 5                                                                                                  | Not built                                                                                                               | to do  |
+| E8  | One look, fast               | Agents make frames fast, and all frames of a team look like one product.                                                                            | agent, user             | [kit](../SPEC-kit.md#journeys) 3                                                                                                      | Built: the look, the kit, its pieces and capsules; not all fit criteria are proven                                      | to do  |
+| E9  | One voice                    | All frames of a team say one thing in one way, and one change of a text reaches each frame.                                                         | agent, user, person     | [kit](../SPEC-kit.md)                                                                                                                 | Each frame keeps its own texts; nothing keeps the texts of a team                                                       | to do  |
+| E10 | See each state of a frame    | A person sees a frame in each state of its design, with no agent.                                                                                   | viewer, user            | [kit](../SPEC-kit.md#the-capsules): controls, panes                                                                                   | Built; no test names X1 to X5                                                                                           | to do  |
+| E11 | The design and the app agree | The person sees the live app beside the design, and an accepted design reaches the live app.                                                        | person, agent           | [live-screens](../SPEC-live-screens.md), [design-loop](../SPEC-design-loop.md)                                                        | E11.1 built. E11.2: V4 and V7 built (2d362f0); #1 to #3 live at build 320. V5 built (e656d71), proven live at build 331 | active |
+| E12 | Screens and flows            | A person walks through the screens of a journey as a user of the product would, and sees its whole map, which comes from the product.               | person, agent           | not designed                                                                                                                          | Not built                                                                                                               | to do  |
+| E13 | Hand over as designed        | A person accepts what a screen does. Each state that can happen has a case, the gate needs a person only for taste and reach, and drift stays at 0. | person, agent           | [northstar](northstar.md), [governed-design](intent/governed-design.md) 5                                                             | Not built; requirements written 2026-11-28, not designed                                                                | to do  |
 
 ## Round 1: Show the design
 
@@ -185,6 +185,26 @@ the language of the frame with its controls, comment, see the agent take the req
 change the frame and reply. Then it was read as the company: start the easel, watch it, update it,
 answer, talk with the team. The walk added Q1 to Q3 and X1 to X5, and found the gap of R2: the
 start steps have no MCP.
+
+## Round 2: Hand over as designed
+
+- **Outcome:** the person accepts what a screen of easel does, sees each state that can happen in
+  its cases, and the live app does each accepted state and nothing else. Each requirement,
+  decision and deferred item of the round is matched against this outcome.
+- **Offer:** the same easel for the same person, on easel itself. A design goes from discovery,
+  through a gate, to the handover, and drift on the live app stays at 0.
+- **Customer:** the user, one person. No one pays in this round.
+- **Base:** Round 1.
+
+| Part  | Mark                                                            | Epics or reason                                                                                                                                                          |
+| ----- | --------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| Value | in the round                                                    | E13 (E13.1 to E13.5), on the base of E10, E11 and E12. The first screens are the request card, then the sign-in and the share link (the north star, "Order").            |
+| Get   | deferred (R1, R2)                                               | The same one person runs the easel. Add it when a team that builds Tinker apps with agents comes (the north star, "Order" 2).                                            |
+| Pay   | deferred: no team pays in this round (R3)                       | Add it when the first team pays.                                                                                                                                         |
+| Help  | deferred (R4)                                                   | The person and the company are the same. Add it when a second person or team comes.                                                                                      |
+| Run   | in the round: E6, and the drift after each deploy (Y19)         | The drift is the health of the design on the live app. Updates stay by hand (R6).                                                                                        |
+| Trust | in the round: only the person starts the work of an agent (D11) | The gate adds no new access. R7 and R8 come back with a second person or team.                                                                                           |
+| Learn | in the round: Y17                                               | easel records which items a reviewer opens, comments on or changes. That data sets the rules of the 20% (E13.4). The rest of R9 comes back with a second person or team. |
 
 ## E1: Get in
 
@@ -1311,8 +1331,173 @@ The north star is in [northstar.md](northstar.md). The person accepted it on 202
 accepts a screen model. Then easel proves that the design frames and the live app both conform to
 it. E10, E11 and E12 are the parts of this epic.
 
-- Status: the requirements are not written. Write them with the skill `writing-requirements`.
-- The first ship: the language of the screen model, the TLA+ that it makes, and the chart of the
-  request card. That chart must be equal to [request-life](statecharts/request-life.md).
-- It brings back the item that E12 deferred: a screen that the product does not have yet, designed
-  before its code. Under E13, the screen model comes first.
+On 2026-11-28 the person confirmed the intent [governed-design](intent/governed-design.md):
+governance comes first. Each state that can happen is found before a design, and a case shows each
+one. The work goes from discovery, through a gate, to the handover. Automation and AI do about 80%
+of the gate, and the person does the 20% where taste or a blast radius matters.
+
+| ID    | Journey                                  | Actor         | Design                                                       | Review |
+| ----- | ---------------------------------------- | ------------- | ------------------------------------------------------------ | ------ |
+| E13.1 | Accept what a screen does                | person        | [northstar](northstar.md) "How a handover goes" steps 1 to 3 | to do  |
+| E13.2 | See each state with its cases            | person        | not designed; [cases](../SPEC-cases.md) is a part            | to do  |
+| E13.3 | Look at how other products do it         | person        | not designed                                                 | to do  |
+| E13.4 | Pass the gate from discovery to handover | person, agent | not designed                                                 | to do  |
+| E13.5 | The live app stays as designed           | agent, person | [northstar](northstar.md) "The number: drift"                | to do  |
+
+Decided:
+
+- On 2026-11-28, the person put E13 in Round 2, "Hand over as designed", on the base of Round 1.
+  Round 1 has its outcome without E13, and the north star proves E13 on the screens of easel first.
+
+### E13.1 Accept what a screen does
+
+- **Actor:** the person.
+- **Need:** know each thing that a screen can do before anybody designs or builds it, so that no
+  designer and no implementer must guess a state.
+- **Trigger:** an agent proposes a new screen, or a change of what a screen does.
+- **Success end:** the person accepted each state, each move and each rule of the screen, and no
+  question about the screen is open.
+- **Failure end:** a state or a rule is not decided. The person sees each open question, and the
+  screen does not go to design.
+
+| ID  | Requirement                                                                | Fit criterion                                                                                                                                                                             |
+| --- | -------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Y1  | The person reads what a screen does in plain words.                        | For the request card, the person reads each state, each move and each rule as short sentences and as a chart. No formal language shows.                                                   |
+| Y2  | Each state that can happen is found, also the ones that nobody wrote.      | For the request card, the list of states is equal to its chart of today ([request-life](statecharts/request-life.md)). A state that can happen and has no name shows as a question.       |
+| Y3  | Each mix of parts of a screen that the spec does not decide is a question. | On a screen with two parts that change apart, each mix that can happen and that has no decision shows as a question. Each answer is "can happen", "cannot happen" or "looks the same as". |
+| Y4  | A rule over time that cannot hold is found before the accept.              | When a rule can break, the person sees the steps that break it, in plain words, and cannot accept the screen.                                                                             |
+| Y5  | The person accepts a screen only when nothing is open.                     | With one open question, the accept is refused, and the person sees the question. With none, one step accepts the screen.                                                                  |
+
+Decided:
+
+- On 2026-11-28, the person: "We should not guess, we should stress test with cases", and "Go tla
+  and tlc". So the search for the states is complete: each state that can happen, with no sample
+  and no pairwise set. The design is TLA+ from the screen model, and TLC searches it.
+- Deferred: a screen model for a stack that is not Tinker. Add it when a team that does not use
+  Tinker asks for it (the north star refuses it now).
+
+### E13.2 See each state with its cases
+
+- **Actor:** the person.
+- **Need:** see each accepted state of a screen with real data, also data at its limits, and walk
+  its moves, fast and with nothing to clean up after a demo.
+- **Trigger:** the person reviews a screen, or shows it to another person.
+- **Success end:** the person saw each state of the screen in at least one case, and each move
+  from it.
+- **Failure end:** a state has no case, or a case shows a state that the screen does not have. The
+  person sees which one, and the other cases still show.
+
+| ID  | Requirement                                                          | Fit criterion                                                                                                                                     |
+| --- | -------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Y6  | Each state of a screen has a case that shows it.                     | For the request card, the count of states with no case is 0. A state with no case shows with its name, before the gate.                           |
+| Y7  | A case pushes the data of a screen to its limits.                    | The person sees the screen with an empty list, with 1000 items and with a name of 200 characters, each as its own case, with no step by an agent. |
+| Y8  | A demo leaves nothing to clean up.                                   | After the person shows 5 cases to another person, each frame, each case and each record is the same as before.                                    |
+| Y9  | A case that shows a state that the screen does not have is refused.  | An agent adds a case for a state that is not accepted. easel refuses it and names the state. No frame changes.                                    |
+| Y10 | The person sees each move from a state, and the case after the move. | From a state, the person sees each move with its action and its answer. One press shows the case of the next state, within 1 second.              |
+
+Decided:
+
+- On 2026-11-28, the person: a review is "code and input", with fixtures "put that to limit". The
+  person also said that the code of a design is not all product code. So a case and its fixtures
+  are not product code, and the view that they show can be.
+- The cases of E10.3 (X12 to X17) are the base. E13.2 adds the coverage of each state (Y6, Y9) and
+  the moves (Y10). Y10 uses the map of E12.2.
+
+### E13.3 Look at how other products do it
+
+- **Actor:** the person.
+- **Need:** compare a state or a flow with the way that other products do it, so that a decision
+  of taste uses evidence.
+- **Trigger:** the person reviews a state or a flow, and is not sure of the design.
+- **Success end:** the person saw examples from other products for the same state or flow, and
+  kept the ones that helped as a reference.
+- **Failure end:** no example is found. The person sees that, and the review goes on.
+
+| ID  | Requirement                                                       | Fit criterion                                                                                                                                     |
+| --- | ----------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Y11 | The person sees examples of other products for one state or flow. | For "an empty list" or "a lost connection", the person sees at least 3 examples beside the state, within 1 minute, and does not leave the canvas. |
+| Y12 | Each example names its source.                                    | Each example shows the product and a link to its source. An example with no source does not show.                                                 |
+| Y13 | The person keeps an example as a reference of a state.            | After one step, the example stays with its state, and each reviewer of the state sees it.                                                         |
+
+Decided:
+
+- On 2026-11-28, the person asked for tools that "demonstrate different states, flow and research
+  for similar approach". The person confirmed that "research" is a review tool beside the design.
+- Deferred: examples from a library that the team keeps. Add it when a team asks for its own set.
+
+### E13.4 Pass the gate from discovery to handover
+
+- **Actor:** the person. Agents and the automation do the most of the gate.
+- **Need:** let a design go to the handover only when it is complete, and spend the review time
+  only where taste matters or where a change reaches far.
+- **Trigger:** an agent asks to move a screen, or a change of it, from discovery to the handover.
+- **Success end:** the automation and the AI checked each item that a tool can check. The person
+  decided each item that needs a person, and the design goes to the handover.
+- **Failure end:** a check fails, or the person refuses. The design stays in discovery, and the
+  agent sees each finding with its fix.
+
+| ID  | Requirement                                                           | Fit criterion                                                                                                                                                                    |
+| --- | --------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Y14 | The gate refuses an incomplete design with no person.                 | A design with a state with no case, a rule that breaks, or a raw color is refused before a person sees it. Each finding names the state and the fix.                             |
+| Y15 | The person sees the full effect of a change before the accept.        | A change of a shared part lists each screen and each state that it changes. After the deploy, the live app changes on those states only.                                         |
+| Y16 | The person reviews first the items that need taste or that reach far. | The review page shows these items first. Below them, it shows the count of the items that the automation and the AI checked, each with its result. Each item opens in one press. |
+| Y17 | easel learns which items a person really reviews.                     | After 10 reviews, the person sees for each kind of item how often a reviewer opened it, commented on it or changed it.                                                           |
+
+Decided:
+
+- On 2026-11-28, the person: the gate is a "combination of automated gate and human review", with
+  "20% human, 80% done by combination of automation and ai".
+- On 2026-11-28, the person: "we are not sure how user will do review". So the rules for what goes
+  to a person are not fixed now. Y17 gives the data for them.
+- Deferred: fixed rules for what goes to a person, and a limit of the blast radius. Add them when
+  Y17 has the data of 10 reviews.
+- The person said "discovery and delivery". In this project, "delivery" is a term of the queue.
+  So the second phase is the handover, the term of the north star.
+
+### E13.5 The live app stays as designed
+
+- **Actor:** agent. The person reads the result.
+- **Need:** an implementer builds each accepted state as it is, with nothing to interpret, and
+  the live app keeps the design for a long time.
+- **Trigger:** a design passes the gate, or a new build goes live.
+- **Success end:** the live app does each accepted state and move, and nothing else. Drift is 0.
+- **Failure end:** the live app does a thing that the design does not have, or misses one that it
+  has. The person and the agent see each fact, and the gate refuses the next handover of the
+  screen until it is fixed or accepted.
+
+| ID  | Requirement                                              | Fit criterion                                                                                                                                          |
+| --- | -------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| Y18 | A build that misses an accepted state does not go live.  | A build of the request card with no screen for "needs a person" is refused before the deploy, and the finding names the state.                         |
+| Y19 | The person sees drift on the live app after each deploy. | Within 10 minutes of a deploy, the person sees the drift of each screen, in each direction, with each fact. For the request card, the target is 0.     |
+| Y20 | Three checks agree on each fact.                         | The check of the code, the run with each answer forced, and the record of the live app give the same states and moves. A fact where they differ shows. |
+
+Decided:
+
+- On 2026-11-26, the north star: the drift is the number, and its target is 0.
+- On 2026-11-28, the person: the impact comes from static analysis, and runs that are "semi static
+  and runtime" cross-check it for drift (Y20).
+
+### E13 walk of the slice
+
+On 2026-11-28, E13 was read from left to right as the person: an agent proposes the request card;
+the person reads its states in plain words (Y1), answers each open mix (Y3), sees that no rule
+breaks (Y4), and accepts it (Y5). The person opens its cases with data at its limits (Y7), walks a
+move (Y10), compares "needs a person" with 3 other products (Y11), and shows it to a guest with
+nothing to clean up (Y8). At the gate, the automation refused a state with no case (Y14); the
+person reviewed the taste items first (Y16) and saw the full effect of a change of a shared part
+(Y15). Then as the company: the implementer built it, a missing state was refused (Y18), and drift
+was 0 after the deploy (Y19, Y20). The walk added Y8 (the demo with no cleanup) and Y17 (the data
+for the rules of the 20%).
+
+#### Design changes that E13 needs
+
+| Req.       | Gap in the design now                                                                                 | Spec                                 |
+| ---------- | ----------------------------------------------------------------------------------------------------- | ------------------------------------ |
+| Y1 to Y5   | No language of the screen model, no TLA+ from it, and no plain-words view of states, mixes and rules. | none; first ship of the north star   |
+| Y6, Y9     | A case does not know its state, so easel cannot count the states with no case.                        | [cases](../SPEC-cases.md)            |
+| Y7         | Cases exist (`empty`, `few`, `long-names`, `many`), but not the answers of calls (X15, ship 3).       | [cases](../SPEC-cases.md)            |
+| Y8         | Not proven: no check shows that a demo changes no frame, case or record.                              | none                                 |
+| Y10        | The map comes from the product (J6), but it does not link a move to a case.                           | [prototype](../SPEC-prototype.md)    |
+| Y11 to Y13 | No tool finds examples of other products.                                                             | none                                 |
+| Y14 to Y17 | No gate between discovery and the handover, and no review page.                                       | none                                 |
+| Y18 to Y20 | The map of the code exists (J6). No model to compare it with, and no record of the live app.          | [prototype](../SPEC-prototype.md) J8 |

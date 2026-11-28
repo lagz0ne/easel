@@ -139,6 +139,19 @@ The terms of [SPEC-prototype](../SPEC-prototype.md): the prototype is the produc
 | map                 | noun | The states of a screen and the moves between them, that easel finds by a run of the code of the product, each in a place of a fixed method. |
 | backend             | noun | What answers the actions of a walk: example answers that the person picks, or a live server of the product.                                 |
 
+### Governed design
+
+The terms of [governed-design](intent/governed-design.md) and E13. A "handover" is in
+[northstar.md](northstar.md).
+
+| Term          | Type | Definition                                                                                                               |
+| ------------- | ---- | ------------------------------------------------------------------------------------------------------------------------ |
+| case          | noun | One named input of a screen: a fixture and switch values. It shows one state of the screen. It is not product code.      |
+| visible state | noun | A state of a screen that looks different to a user. States that look the same are one visible state.                     |
+| discovery     | noun | The phase where the person and the agents find and accept what a screen does, and its cases. The gate ends it.           |
+| gate          | noun | The check between discovery and the handover: automation and AI for most items, and a person for taste and blast radius. |
+| blast radius  | noun | The screens and the states that one change reaches.                                                                      |
+
 ### Queue
 
 | Term            | Type | Definition                                                                                                             |
